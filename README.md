@@ -1,9 +1,18 @@
-# Sentinel C2 — Operator Interface
+# Sentinel
 
-Intent-based command-and-control dashboard for swarm interceptor tasking.
-MVP: local C2 backend (REST + WebSocket) + Gotham-style operator UI + Mapbox basemap.
+Policy-first command and control for autonomous drone swarms. One operator, many drones, human judgement kept in command.
 
-## Quick start
+Built for the Singapore Defence Tech Hackathon 2026, Track C (Agentic Command and Control for Rapid Wartime Decision Making).
+
+## Overview
+
+Sentinel lets a single operator direct a swarm of many drones through intent and standing rules of engagement, rather than flying or tasking each drone by hand. The operator sets the policy and supervises. The system handles the fast decisions inside the boundaries the operator has set, and escalates anything outside those boundaries back to a human.
+
+## Operator Interface (this tree)
+
+Intent-based C2 dashboard for swarm interceptor tasking: local C2 backend (REST + WebSocket), scenario modes (Defense / Recon / Attack), Mapbox 3D battlespace with Singapore military bases (air / land / sea) and PRD scenario overlays.
+
+### Quick start
 
 ```bash
 npm install
@@ -11,13 +20,11 @@ cp .env.example .env   # set VITE_MAPBOX_TOKEN
 npm run dev
 ```
 
-Opens:
-
 - UI: http://localhost:5173/
 - C2 API: http://localhost:3001/api/v1/health
 - WebSocket: `ws://localhost:3001/api/v1/ws` (proxied via Vite as `/api/v1/ws`)
 
-## MVP operator loop
+### MVP operator loop
 
 1. Backend streams fused tracks + fleet telemetry.
 2. System proposes intercept plans for Class I threats.
@@ -25,24 +32,7 @@ Opens:
 4. On confirm, interceptors prosecute the track on the map.
 5. Hold / Recall update mission state through the Mission API.
 
-## C2 Backend APIs
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/api/v1/health` | Liveness |
-| GET | `/api/v1/snapshot` | Full mission snapshot |
-| GET/PATCH | `/api/v1/mission` | Mission state (ACTIVE/HOLD/RECALL) |
-| GET | `/api/v1/fusion/tracks` | Fused tracks |
-| GET | `/api/v1/fusion/tracks/:id` | Track provenance |
-| GET | `/api/v1/telemetry` | Fleet + mesh |
-| GET | `/api/v1/policy` | ROE summary (read-only operator) |
-| GET | `/api/v1/decisions` | Audit log |
-| GET | `/api/v1/tasking` | Recommendations |
-| POST | `/api/v1/tasking/plan` | Request plan `{ trackId }` |
-| POST | `/api/v1/tasking/decision` | `{ recommendationId, decision, intent? }` |
-| WS | `/api/v1/ws` | `state.snapshot` stream (~400ms) |
-
-## Scripts
+### Scripts
 
 | Command | Purpose |
 |---------|---------|
@@ -52,9 +42,34 @@ Opens:
 | `npm run build` | Production UI build |
 | `npm start` | Run C2 backend |
 
-## Stack
+### Stack
 
 - React + TypeScript (Vite)
-- Redux Toolkit (UI projection of backend state)
-- Mapbox GL JS (`dark-v11`)
+- Redux Toolkit
+- Mapbox GL JS
 - Express + `ws` local C2 services
+
+## Architecture
+
+![Sentinel architecture](docs/architecture.png)
+
+Sentinel sits between sensing and effects as a command layer:
+
+- **Inputs.** Sensor tracks describing the battlespace.
+- **Sentinel decision core.** World model, policy/authority, task allocation, swarm coordination, audit log.
+- **Outputs.** Commands to the drone swarm.
+- **Simulation harness.** Local kinematic sim for safe end-to-end demos before hardware.
+
+## Team
+
+| Name | Role |
+| --- | --- |
+| Jason | Drone Task Allocation and Swarm Coordination (Team Lead & Backend) |
+| Fittra | Operator Console (Frontend) |
+| Yusuf | World Model and Sensing (Frontend) |
+| Chang Yao | Simulation and Scenario (Simulation & Testing) |
+| Damien | Authority and Policy (Backend) |
+
+## Status
+
+Hackathon build in progress — operator console + local C2 loop runnable via `npm run dev`.
