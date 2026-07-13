@@ -4,6 +4,7 @@ import type { MissionState } from '../types'
 import type { TaskingDecisionRequest } from '../api/types'
 import {
   pushToast,
+  pushUndoToast,
   setIntentPaletteOpen,
   setLastVetoedId,
 } from './taskingSlice'
@@ -20,9 +21,7 @@ export const engageTrackCommand = createAsyncThunk(
     dispatch(commandStarted({ id: requestId, kind: 'engage', targetId: trackId }))
     try {
       const result = await c2Client.engageTrack(trackId)
-      dispatch(
-        pushToast(`Engaged ${trackId} — interceptors ${result.droneIds.join(', ')}`),
-      )
+      dispatch(pushUndoToast({ trackId }))
       dispatch(commandSucceeded({ id: requestId }))
       return result
     } catch (error) {

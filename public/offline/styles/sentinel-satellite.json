@@ -1,0 +1,33 @@
+{
+  "version": 8,
+  "name": "Sentinel Offline Ops",
+  "metadata": {
+    "sentinel:ao": "Singapore 50x50km",
+    "sentinel:bounds": [103.6, 1.15, 104.1, 1.48]
+  },
+  "sources": {
+    "sentinel-satellite": {
+      "type": "raster",
+      "tiles": ["/offline/tiles/satellite/{z}/{x}/{y}.png"],
+      "tileSize": 256,
+      "maxzoom": 18,
+      "bounds": [103.6, 1.15, 104.1, 1.48]
+    }
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": { "background-color": "#1a2332" }
+    },
+    {
+      "id": "sentinel-satellite",
+      "type": "raster",
+      "source": "sentinel-satellite",
+      "paint": {
+        "raster-opacity": 1,
+        "raster-fade-duration": 0
+      }
+    }
+  ]
+}

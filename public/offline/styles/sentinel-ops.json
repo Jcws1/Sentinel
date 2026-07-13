@@ -1,0 +1,21 @@
+{
+  "version": 8,
+  "name": "Sentinel Offline Minimal",
+  "metadata": {
+    "sentinel:mode": "minimal",
+    "sentinel:bounds": [103.6, 1.15, 104.1, 1.48]
+  },
+  "sources": {},
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": { "background-color": "#0b0e14" }
+    },
+    {
+      "id": "land-tint",
+      "type": "background",
+      "paint": { "background-color": "#141820" }
+    }
+  ]
+}

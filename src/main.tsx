@@ -4,6 +4,9 @@ import { Provider } from 'react-redux'
 import { store } from './store'
 import App from './App'
 import './index.css'
+import { initOfflineInfrastructure } from './offline/initOffline'
+
+void initOfflineInfrastructure()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

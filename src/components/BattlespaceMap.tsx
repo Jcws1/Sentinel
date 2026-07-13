@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import mapboxgl, {
   type GeoJSONSource,
   type Map as MapboxMap,
@@ -7,20 +7,28 @@ import mapboxgl, {
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useAppDispatch, useAppSelector } from '../store'
 import { selectDrone } from '../store/fleetSlice'
-import { selectTrack } from '../store/threatsSlice'
+import { operatorSelectTrack } from '../store/threatsSlice'
 import { setActiveRecommendation } from '../store/taskingSlice'
-import { setMapOverlayTab } from '../store/uiSlice'
+import { setOfflinePrepOpen, setTelemetryExpanded } from '../store/uiSlice'
 import { ThreatCallout } from './ThreatCallout'
 import type { Drone, Position, TaskingRecommendation, ThreatTrack } from '../types'
 import {
-  INSTALLATIONS_ATTRIBUTION,
   installationsForTab,
 } from '../data/singaporeInstallations'
 import type { ModeId } from '../store/uiSlice'
 import { isOperatorUiTarget } from '../utils/ui'
+import { TerrainLayer } from '../terrain/TerrainLayer'
+import { DegradedTerrainOverlay } from '../terrain/DegradedTerrainOverlay'
+import {
+  resolveOfflineMapConfig,
+  resolveTerrainConfig,
+} from '../terrain/offlineMapConfig'
+import { prefetchOperationalTerrain } from '../terrain/prefetchTerrain'
+import { isDegraded } from '../modeProfiles'
+import { OfflinePrepPanel } from './streamlined/OfflinePrepPanel'
+import { applyMapOverlayVisibility } from '../map/applyMapOverlayVisibility'
+import type { OverlayVisibility } from '../streamlined/overlayDefaults'
 
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN
-const MAP_STYLE = 'mapbox://styles/mapbox/dark-v11'
 const TRAIL_LENGTH = 28
 const LERP = 0.2
 const HILLSHADE_LAYER = 'terrain-hillshade'
@@ -107,12 +115,6 @@ function firstSymbolLayerId(map: MapboxMap): string | undefined {
 
 function enableVolume3d(map: MapboxMap) {
   if (!map.isStyleLoaded()) return
-
-  // Flat ground — no DEM mesh / terrain bumps.
-  map.setTerrain(null)
-  if (map.getLayer(HILLSHADE_LAYER)) {
-    map.setLayoutProperty(HILLSHADE_LAYER, 'visibility', 'none')
-  }
 
   try {
     map.setLights([
@@ -294,7 +296,6 @@ function enableVolume3d(map: MapboxMap) {
 
 function disableVolume3d(map: MapboxMap) {
   if (!map.isStyleLoaded()) return
-  map.setTerrain(null)
   map.setFog(null)
   try {
     map.setLights([])
@@ -375,6 +376,7 @@ function addOverlayLayers(map: MapboxMap) {
     'threats',
     'uncertainty',
     'threat-halos',
+    'threat-alert-rings',
   ]
 
   for (const id of sourceIds) {
@@ -708,6 +710,19 @@ function addOverlayLayers(map: MapboxMap) {
       },
     },
     {
+      id: 'threat-alert-pulse',
+      type: 'circle',
+      source: 'threat-alert-rings',
+      paint: {
+        'circle-radius': ['get', 'pulseRadius'],
+        'circle-color': '#c4921a',
+        'circle-opacity': ['get', 'pulseOpacity'],
+        'circle-stroke-color': '#c4921a',
+        'circle-stroke-width': 2,
+        'circle-stroke-opacity': ['get', 'pulseOpacity'],
+      },
+    },
+    {
       id: 'threat-points',
       type: 'circle',
       source: 'threats',
@@ -806,6 +821,14 @@ function addOverlayLayers(map: MapboxMap) {
   }
 }
 
+function syncOverlayLayers(
+  map: MapboxMap,
+  overlays: OverlayVisibility,
+  volume3d: boolean,
+) {
+  applyMapOverlayVisibility(map, overlays, { volume3d })
+}
+
 function setSourceData(
   map: MapboxMap,
   sourceId: string,
@@ -871,15 +894,42 @@ export function BattlespaceMap() {
   const [mapError, setMapError] = useState<string | null>(null)
   const [hoveredThreatId, setHoveredThreatId] = useState<string | null>(null)
   const [pinnedThreatId, setPinnedThreatId] = useState<string | null>(null)
-  const [preferFlat, setPreferFlat] = useState(false)
+  const [styleEpoch, setStyleEpoch] = useState(0)
   const dispatch = useAppDispatch()
 
   const mode = useAppSelector((s) => s.ui.mode)
   const mapOverlayTab = useAppSelector((s) => s.ui.mapOverlayTab)
+  const mapBasemap = useAppSelector((s) => s.ui.mapBasemap)
+  /** Map is always 3D — pitched camera, terrain relief, building extrusions. */
+  const preferFlat = false
+  const overlayVisibility = useAppSelector((s) => s.ui.overlayVisibility)
+  const offlinePrepOpen = useAppSelector((s) => s.ui.offlinePrepOpen)
+  const terrainConfigUi = useAppSelector((s) => s.ui.terrainConfig)
+  const envLayers = useAppSelector((s) => s.ui.envLayers)
+  const mission = useAppSelector((s) => s.mission)
+  const gnssDegraded = isDegraded(mission.gnss, mission.c2Link)
+  const offlineMap = useMemo(() => resolveOfflineMapConfig(mapBasemap), [mapBasemap])
+  const terrainConfig = useMemo(() => {
+    const base = resolveTerrainConfig(offlineMap)
+    return {
+      ...base,
+      ...terrainConfigUi,
+      demUrl: base.demUrl,
+      demTiles: base.demTiles,
+      demEncoding: base.demEncoding,
+      contourUrl: base.contourUrl,
+      source: base.source,
+    }
+  }, [offlineMap, terrainConfigUi])
   const preferFlatRef = useRef(preferFlat)
   const modeRef = useRef(mode)
+  const mapBasemapRef = useRef(mapBasemap)
+  const prevBasemapRef = useRef(mapBasemap)
+  const overlayVisibilityRef = useRef(overlayVisibility)
   preferFlatRef.current = preferFlat
   modeRef.current = mode
+  mapBasemapRef.current = mapBasemap
+  overlayVisibilityRef.current = overlayVisibility
 
   const drones = useAppSelector((s) => s.fleet.drones)
   const selectedDroneId = useAppSelector((s) => s.fleet.selectedDroneId)
@@ -897,7 +947,7 @@ export function BattlespaceMap() {
       pinnedThreatRef.current = threatId
       setPinnedThreatId(threatId)
       setHoveredThreatId(null)
-      dispatch(selectTrack(threatId))
+      dispatch(operatorSelectTrack(threatId))
       const pendingRec = liveRef.current?.recommendations.find(
         (r) => r.trackId === threatId && r.status === 'pending',
       )
@@ -1025,18 +1075,23 @@ export function BattlespaceMap() {
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
 
-    if (!MAPBOX_TOKEN) {
-      setMapError('Missing VITE_MAPBOX_TOKEN. Add it to .env and restart Vite.')
+    const initialConfig = resolveOfflineMapConfig(mapBasemapRef.current)
+    if (!initialConfig.mapboxToken && !initialConfig.offlinePreferred) {
+      setMapError('Missing VITE_MAPBOX_TOKEN. Add it to .env or set VITE_OFFLINE_MODE=true.')
       return
     }
 
-    mapboxgl.accessToken = MAPBOX_TOKEN
+    if (initialConfig.mapboxToken) {
+      mapboxgl.accessToken = initialConfig.mapboxToken
+    } else {
+      mapboxgl.accessToken = ''
+    }
 
     const camera = MODE_CAMERA[modeRef.current]
 
     const map = new mapboxgl.Map({
       container: containerRef.current,
-      style: MAP_STYLE,
+      style: initialConfig.styleUrl,
       center: [103.8198, 1.3521],
       zoom: 13.4,
       pitch: preferFlatRef.current ? 0 : camera.pitch,
@@ -1060,9 +1115,13 @@ export function BattlespaceMap() {
     )
 
     const ensureLayers = () => {
-      // Terrain first so hillshade sits under operator overlays.
       applyModeCamera(map, modeRef.current, preferFlatRef.current, false)
       addOverlayLayers(map)
+      syncOverlayLayers(
+        map,
+        overlayVisibilityRef.current,
+        !preferFlatRef.current,
+      )
       const installations = map.getSource('installations') as GeoJSONSource | undefined
       installations?.setData(installationsForTab('bases'))
       setMapReady(true)
@@ -1071,8 +1130,14 @@ export function BattlespaceMap() {
 
     map.once('load', ensureLayers)
     map.on('style.load', () => {
+      setStyleEpoch((e) => e + 1)
       applyModeCamera(map, modeRef.current, preferFlatRef.current, false)
       addOverlayLayers(map)
+      syncOverlayLayers(
+        map,
+        overlayVisibilityRef.current,
+        !preferFlatRef.current,
+      )
       const installations = map.getSource('installations') as GeoJSONSource | undefined
       installations?.setData(installationsForTab('bases'))
     })
@@ -1102,8 +1167,51 @@ export function BattlespaceMap() {
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapReady) return
+    if (prevBasemapRef.current === mapBasemap) return
+    prevBasemapRef.current = mapBasemap
+
+    const config = resolveOfflineMapConfig(mapBasemap)
+    map.setStyle(config.styleUrl)
+  }, [mapBasemap, mapReady])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady || !map.isStyleLoaded()) return
+    applyModeCamera(map, mode, false, true)
+  }, [mapBasemap, styleEpoch, mapReady, mode])
+
+  useEffect(() => {
+    const onConnChange = () => {
+      const map = mapRef.current
+      if (!map || !mapReady) return
+      const config = resolveOfflineMapConfig(mapBasemapRef.current)
+      map.setStyle(config.styleUrl)
+    }
+    window.addEventListener('online', onConnChange)
+    window.addEventListener('offline', onConnChange)
+    return () => {
+      window.removeEventListener('online', onConnChange)
+      window.removeEventListener('offline', onConnChange)
+    }
+  }, [mapReady])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady || offlineMap.offlinePreferred) return
+    void prefetchOperationalTerrain(map)
+  }, [mapReady, offlineMap.offlinePreferred])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady) return
     applyModeCamera(map, mode, preferFlat, true)
   }, [mode, preferFlat, mapReady])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady || !map.isStyleLoaded()) return
+    syncOverlayLayers(map, overlayVisibility, true)
+  }, [overlayVisibility, mapReady, styleEpoch])
 
   // Sync server positions into display targets.
   useEffect(() => {
@@ -1234,6 +1342,7 @@ export function BattlespaceMap() {
       const droneId = droneProps?.id
       if (droneId && droneHits[0]?.source === 'drones') {
         dispatch(selectDrone(String(droneId)))
+        dispatch(setTelemetryExpanded(false))
         unpinThreat()
         return
       }
@@ -1303,8 +1412,10 @@ export function BattlespaceMap() {
       const trailFeatures: MapFeature[] = []
       const uncertaintyFeatures: MapFeature[] = []
       const threatHaloFeatures: MapFeature[] = []
+      const threatAlertRingFeatures: MapFeature[] = []
       const meshFeatures: MapFeature[] = []
       let assetFeature: MapFeature | null = null
+      const alertPulse = 0.5 + 0.5 * Math.sin(Date.now() / 550)
 
       for (const [key, point] of display) {
         point.lng += (point.targetLng - point.lng) * LERP
@@ -1350,6 +1461,15 @@ export function BattlespaceMap() {
         } else {
           threatFeatures.push(feature)
           if (point.confidence < 85) threatHaloFeatures.push(feature)
+          if (point.alert) {
+            threatAlertRingFeatures.push(
+              pointFeature(`${point.id}-alert-ring`, point, {
+                id: point.id,
+                pulseRadius: 16 + alertPulse * 10,
+                pulseOpacity: 0.18 + alertPulse * 0.28,
+              }),
+            )
+          }
         }
       }
 
@@ -1404,6 +1524,7 @@ export function BattlespaceMap() {
       setSourceData(current, 'trails', trailFeatures)
       setSourceData(current, 'uncertainty', uncertaintyFeatures)
       setSourceData(current, 'threat-halos', threatHaloFeatures)
+      setSourceData(current, 'threat-alert-rings', threatAlertRingFeatures)
       setSourceData(current, 'mesh', meshFeatures)
       setSourceData(current, 'routes', routeFeatures)
 
@@ -1514,60 +1635,29 @@ export function BattlespaceMap() {
   return (
     <div className="map-shell">
       <div ref={containerRef} className="map-canvas" />
-      {mapReady && (
-        <div className="map-overlay-tabs" role="tablist" aria-label="Map overlay">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mapOverlayTab === 'bases'}
-            className={['map-overlay-tabs__btn', mapOverlayTab === 'bases' ? 'is-active' : '']
-              .filter(Boolean)
-              .join(' ')}
-            onClick={() => dispatch(setMapOverlayTab('bases'))}
-          >
-            Bases
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mapOverlayTab === 'scenarios'}
-            className={['map-overlay-tabs__btn', mapOverlayTab === 'scenarios' ? 'is-active' : '']
-              .filter(Boolean)
-              .join(' ')}
-            onClick={() => dispatch(setMapOverlayTab('scenarios'))}
-          >
-            Scenarios
-          </button>
-        </div>
-      )}
-      {mapReady && (
-        <div className="map-view-toggle" role="group" aria-label="Map projection">
-          <button
-            type="button"
-            className={['btn btn--ghost btn--sm', preferFlat ? 'is-active' : '']
-              .filter(Boolean)
-              .join(' ')}
-            onClick={() => setPreferFlat(true)}
-            aria-pressed={preferFlat}
-          >
-            2D
-          </button>
-          <button
-            type="button"
-            className={['btn btn--ghost btn--sm', !preferFlat ? 'is-active' : '']
-              .filter(Boolean)
-              .join(' ')}
-            onClick={() => setPreferFlat(false)}
-            aria-pressed={!preferFlat}
-          >
-            3D
-          </button>
-          {!preferFlat && (
-            <span className="map-view-toggle__hint mono" title="Flat ground · extruded buildings">
-              BUILDINGS
-            </span>
-          )}
-        </div>
+      <TerrainLayer
+        map={mapRef.current}
+        mapReady={mapReady}
+        styleEpoch={styleEpoch}
+        basemap={mapBasemap}
+        volume3d
+        config={terrainConfig}
+        envLayers={envLayers}
+      />
+      <DegradedTerrainOverlay
+        map={mapRef.current}
+        mapReady={mapReady}
+        active={gnssDegraded}
+        drones={drones}
+        asset={asset}
+        selectedDroneId={selectedDroneId}
+        losResult={null}
+      />
+      {offlinePrepOpen && (
+        <OfflinePrepPanel
+          map={mapRef.current}
+          onClose={() => dispatch(setOfflinePrepOpen(false))}
+        />
       )}
       {mapReady && mapRef.current && activeCalloutTrack && activeCalloutId && (
         <div className="threat-callout-layer" aria-live="polite" data-operator-ui>
@@ -1600,37 +1690,6 @@ export function BattlespaceMap() {
           {mapError}
         </div>
       )}
-      <div className="map-legend">
-        {mapOverlayTab === 'bases' ? (
-          <>
-            <span>
-              <i className="swatch swatch--airbase" aria-hidden="true" /> Air
-            </span>
-            <span>
-              <i className="swatch swatch--naval" aria-hidden="true" /> Sea
-            </span>
-            <span>
-              <i className="swatch swatch--land" aria-hidden="true" /> Land
-            </span>
-          </>
-        ) : (
-          <span>
-            <i className="swatch swatch--prd" aria-hidden="true" /> PRD scenario
-          </span>
-        )}
-        <span>
-          <i className="swatch swatch--friendly" aria-hidden="true" /> Friendly
-        </span>
-        <span>
-          <i className="swatch swatch--threat" aria-hidden="true" /> Threat
-        </span>
-        <span>
-          <i className="swatch swatch--route" aria-hidden="true" /> Intercept
-        </span>
-        <span className="map-legend__attrib" title={INSTALLATIONS_ATTRIBUTION}>
-          Open data
-        </span>
-      </div>
     </div>
   )
 }

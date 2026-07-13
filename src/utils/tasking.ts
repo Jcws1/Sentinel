@@ -75,3 +75,35 @@ export function prioritizeThreats(tracks: ThreatTrack[]): ThreatTrack[] {
     return a.etaToAsset - b.etaToAsset
   })
 }
+
+/** Highest-priority track: alerts first, then class/ETA sort. */
+export function getTopPriorityTrack(
+  tracks: ThreatTrack[],
+  alertTrackIds: string[] = [],
+): ThreatTrack | null {
+  if (tracks.length === 0) return null
+  const alertSet = new Set(alertTrackIds)
+  const alerted = tracks.filter((t) => alertSet.has(t.id))
+  if (alerted.length > 0) return prioritizeThreats(alerted)[0] ?? null
+  return prioritizeThreats(tracks)[0] ?? null
+}
+
+/** Pending recommendation for the highest-priority threat. */
+export function getTopPriorityPendingRecommendation(
+  tracks: ThreatTrack[],
+  alertTrackIds: string[],
+  recommendations: TaskingRecommendation[],
+): TaskingRecommendation | null {
+  const pending = recommendations.filter((r) => r.status === 'pending')
+  if (pending.length === 0) return null
+  if (pending.length === 1) return pending[0]
+
+  const pendingTrackIds = new Set(pending.map((r) => r.trackId))
+  const pendingTracks = tracks.filter((t) => pendingTrackIds.has(t.id))
+  const topTrack =
+    getTopPriorityTrack(pendingTracks, alertTrackIds) ??
+    getTopPriorityTrack(tracks, alertTrackIds)
+
+  if (!topTrack) return pending[0]
+  return pending.find((r) => r.trackId === topTrack.id) ?? pending[0]
+}

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useAppDispatch, useAppSelector } from '../store'
-import { selectTrack } from '../store/threatsSlice'
+import { operatorSelectTrack } from '../store/threatsSlice'
 import { pushToast, setActiveRecommendation } from '../store/taskingSlice'
 import { holdTrackCommand } from '../store/commandThunks'
 import { toggleInvestigationCollapsed } from '../store/uiSlice'
@@ -146,7 +146,7 @@ export function ThreatQueue() {
   const monitorTracks = sorted.filter((t) => !pendingTrackIds.has(t.id))
 
   const selectThreat = (trackId: string, recommendationId?: string) => {
-    dispatch(selectTrack(trackId))
+    dispatch(operatorSelectTrack(trackId))
     if (recommendationId) {
       dispatch(setActiveRecommendation(recommendationId))
     }

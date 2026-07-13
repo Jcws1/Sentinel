@@ -20,6 +20,7 @@ import {
   setMissionState,
   submitDecision,
 } from './services'
+import { registerPmtilesRoutes } from './pmtilesRoutes'
 
 const PORT = Number(process.env.C2_PORT ?? 3001)
 const state = createInitialState()
@@ -42,6 +43,7 @@ function broadcastSnapshot() {
 const app = express()
 app.use(cors())
 app.use(express.json())
+registerPmtilesRoutes(app)
 
 app.get('/api/v1/health', (_req, res) => {
   res.json({
