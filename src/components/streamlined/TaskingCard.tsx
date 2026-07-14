@@ -1,10 +1,13 @@
-import { useEffect } from 'react'
 import { useAppDispatch, useAppSelector } from '../../store'
 import {
   engageTrackCommand,
   submitDecisionCommand,
 } from '../../store/commandThunks'
-import { setActiveRecommendation, setIntentPaletteOpen } from '../../store/taskingSlice'
+import {
+  selectPendingRecommendations,
+  selectTopPriorityPending,
+} from '../../store/selectors'
+import { setIntentPaletteOpen } from '../../store/taskingSlice'
 import { setTaskingSheetOpen } from '../../store/uiSlice'
 import type { IntentAction } from '../../types'
 
@@ -13,19 +16,11 @@ const INTENTS: IntentAction[] = ['DELAY', 'SWAP', 'IGNORE', 'ESCALATE']
 export function TaskingCard() {
   const dispatch = useAppDispatch()
   const open = useAppSelector((s) => s.ui.taskingSheetOpen)
-  const pending = useAppSelector((s) =>
-    s.tasking.recommendations.filter((r) => r.status === 'pending'),
-  )
+  const pending = useAppSelector(selectPendingRecommendations)
   const activeId = useAppSelector((s) => s.tasking.activeRecommendationId)
-  const active = pending.find((r) => r.id === activeId) ?? pending[0]
+  const topPriority = useAppSelector(selectTopPriorityPending)
+  const active = pending.find((r) => r.id === activeId) ?? topPriority
   const paletteOpen = useAppSelector((s) => s.tasking.intentPaletteOpen)
-
-  useEffect(() => {
-    if (active && !open) {
-      // Soft-open sheet when new tasking arrives (CONFIRM still primary).
-      dispatch(setActiveRecommendation(active.id))
-    }
-  }, [active?.id, dispatch, open])
 
   if (!active) return null
   if (!open && !paletteOpen) return null

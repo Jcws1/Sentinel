@@ -1,15 +1,16 @@
 import { useAppDispatch, useAppSelector } from '../../store'
 import {
+  selectPendingCount,
+  selectPendingRecommendations,
+  selectTopPriorityPending,
+} from '../../store/selectors'
+import {
   setRecallConfirmOpen,
   toggleFleetStrip,
   toggleOverlayPanel,
 } from '../../store/uiSlice'
 import { setMissionStateCommand } from '../../store/commandThunks'
-import {
-  executePrimaryConfirm,
-  resolvePrimaryConfirm,
-  toggleMissionHold,
-} from '../../utils/operatorActions'
+import { executePrimaryConfirm, toggleMissionHold } from '../../utils/operatorActions'
 import { useLongPress } from './useLongPress'
 
 export function BottomBar() {
@@ -19,14 +20,10 @@ export function BottomBar() {
   const holdArmed = useAppSelector((s) => s.ui.holdArmed)
   const recallOpen = useAppSelector((s) => s.ui.recallConfirmOpen)
   const missionState = useAppSelector((s) => s.mission.state)
-  const tracks = useAppSelector((s) => s.threats.tracks)
-  const alertTrackIds = useAppSelector((s) => s.threats.alertTrackIds)
-  const recommendations = useAppSelector((s) => s.tasking.recommendations)
-  const { pending, active, taskingReady } = resolvePrimaryConfirm(
-    tracks,
-    alertTrackIds,
-    recommendations,
-  )
+  const pending = useAppSelector(selectPendingRecommendations)
+  const pendingCount = useAppSelector(selectPendingCount)
+  const active = useAppSelector(selectTopPriorityPending)
+  const taskingReady = Boolean(active)
   const holdActive = holdArmed || missionState === 'HOLD'
 
   const recallPress = useLongPress({
@@ -40,8 +37,8 @@ export function BottomBar() {
 
   const confirmLabel = !taskingReady
     ? 'AWAITING TASKING'
-    : pending.length > 1
-      ? `CONFIRM ALL (${pending.length})`
+    : pendingCount > 1
+      ? `CONFIRM ALL (${pendingCount})`
       : `CONFIRM · ${active!.trackId}`
 
   return (

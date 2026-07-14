@@ -1,5 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useAppDispatch, useAppSelector } from '../../store'
+import { selectPendingCount } from '../../store/selectors'
 import {
   applyDegradedOverlays,
   setRecallConfirmOpen,
@@ -32,9 +33,9 @@ export function StreamlinedLayout() {
   const workspace = useAppSelector((s) => s.ui.workspace)
   const recallOpen = useAppSelector((s) => s.ui.recallConfirmOpen)
   const holdArmed = useAppSelector((s) => s.ui.holdArmed)
-  const pending = useAppSelector((s) =>
-    s.tasking.recommendations.filter((r) => r.status === 'pending'),
-  )
+  const pendingCount = useAppSelector(selectPendingCount)
+  const taskingSheetOpen = useAppSelector((s) => s.ui.taskingSheetOpen)
+  const prevPendingCountRef = useRef(0)
   const degraded = isDegraded(mission.gnss, mission.c2Link)
   const utilityOpen =
     workspace === 'operations' || workspace === 'policy' || workspace === 'fleet'
@@ -48,11 +49,12 @@ export function StreamlinedLayout() {
   }, [degraded, dispatch])
 
   useEffect(() => {
-    if (pending.length > 0) {
-      // Keep sheet closed by default; CONFIRM button is the primary path.
+    const prev = prevPendingCountRef.current
+    prevPendingCountRef.current = pendingCount
+    if (prev === 0 && pendingCount > 0 && taskingSheetOpen) {
       dispatch(setTaskingSheetOpen(false))
     }
-  }, [pending.length, dispatch])
+  }, [pendingCount, taskingSheetOpen, dispatch])
 
   return (
     <div className="v4-layout">

@@ -1,10 +1,11 @@
 import { useAppDispatch, useAppSelector } from '../../store'
+import {
+  selectPendingCount,
+  selectTopPriorityPending,
+  selectTopPriorityTrack,
+} from '../../store/selectors'
 import { operatorSelectTrack } from '../../store/threatsSlice'
 import { setActiveRecommendation } from '../../store/taskingSlice'
-import {
-  getTopPriorityPendingRecommendation,
-  getTopPriorityTrack,
-} from '../../utils/tasking'
 
 function threatPhase(
   track: { etaToAsset: number; recommendedAction: string },
@@ -18,25 +19,19 @@ function threatPhase(
 
 export function ThreatTicker() {
   const dispatch = useAppDispatch()
-  const tracks = useAppSelector((s) => s.threats.tracks)
   const alertTrackIds = useAppSelector((s) => s.threats.alertTrackIds)
-  const recommendations = useAppSelector((s) => s.tasking.recommendations)
-  const pending = recommendations.filter((r) => r.status === 'pending')
+  const trackCount = useAppSelector((s) => s.threats.tracks.length)
+  const alertCount = alertTrackIds.length
+  const pendingCount = useAppSelector(selectPendingCount)
+  const topRec = useAppSelector(selectTopPriorityPending)
+  const topTrack = useAppSelector(selectTopPriorityTrack)
 
-  const topRec = getTopPriorityPendingRecommendation(
-    tracks,
-    alertTrackIds,
-    recommendations,
-  )
-  const topTrack = getTopPriorityTrack(tracks, alertTrackIds)
-
-  if (tracks.length === 0) return null
-  // Collapse when idle — no pending tasking and no alerts.
-  if (pending.length === 0 && alertTrackIds.length === 0) return null
+  if (trackCount === 0) return null
+  if (pendingCount === 0 && alertCount === 0) return null
   if (!topTrack) return null
 
   const isAlert = alertTrackIds.includes(topTrack.id)
-  const hasPending = pending.some((r) => r.trackId === topTrack.id)
+  const hasPending = topRec?.trackId === topTrack.id
   const phase = threatPhase(topTrack, isAlert, hasPending)
   const eta = Math.max(0, Math.round(topTrack.etaToAsset))
 
@@ -53,12 +48,7 @@ export function ThreatTicker() {
       aria-label={`Focus threat ${topTrack.id}, ${phase}, ${eta} seconds to asset`}
       onClick={() => {
         dispatch(operatorSelectTrack(topTrack.id))
-        const rec =
-          topRec ??
-          recommendations.find(
-            (r) => r.trackId === topTrack.id && r.status === 'pending',
-          )
-        if (rec) dispatch(setActiveRecommendation(rec.id))
+        if (topRec) dispatch(setActiveRecommendation(topRec.id))
       }}
       data-operator-ui
     >

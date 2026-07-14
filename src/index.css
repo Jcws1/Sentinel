@@ -3660,25 +3660,25 @@ button {
   0%,
   100% {
     box-shadow:
-      0 0 0 0 rgba(0, 212, 170, 0.55),
+      0 0 0 0 rgba(0, 212, 170, 0.45),
       inset 0 0 12px rgba(0, 212, 170, 0.12);
-    transform: scale(1);
+    opacity: 1;
   }
   50% {
     box-shadow:
-      0 0 0 8px rgba(0, 212, 170, 0),
-      inset 0 0 18px rgba(0, 212, 170, 0.22);
-    transform: scale(1.02);
+      0 0 0 4px rgba(0, 212, 170, 0),
+      inset 0 0 16px rgba(0, 212, 170, 0.22);
+    opacity: 0.92;
   }
 }
 
 @keyframes v4-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(0, 212, 170, 0.45);
+    opacity: 1;
   }
   50% {
-    box-shadow: 0 0 0 6px rgba(0, 212, 170, 0);
+    opacity: 0.55;
   }
 }
 

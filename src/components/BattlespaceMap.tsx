@@ -884,6 +884,9 @@ export function BattlespaceMap() {
   const followKeyRef = useRef<string | null>(null)
   const didInitialFitRef = useRef(false)
   const rafRef = useRef<number | null>(null)
+  const lastGeoPushRef = useRef(0)
+  const lastPanAtRef = useRef(0)
+  const hoverLeaveTimerRef = useRef<number | null>(null)
   const pinnedThreatRef = useRef<string | null>(null)
   const hoveredThreatRef = useRef<string | null>(null)
   const calloutTrackRef = useRef<string | null>(null)
@@ -1097,7 +1100,7 @@ export function BattlespaceMap() {
       pitch: preferFlatRef.current ? 0 : camera.pitch,
       bearing: preferFlatRef.current ? 0 : camera.bearing,
       maxPitch: 85,
-      antialias: true,
+      antialias: false,
       dragRotate: true,
       pitchWithRotate: true,
       touchPitch: true,
@@ -1217,6 +1220,7 @@ export function BattlespaceMap() {
   useEffect(() => {
     const display = displayRef.current
     const liveKeys = new Set<string>()
+    const alertSet = new Set(alertTrackIds)
 
     const track = (key: string) => {
       liveKeys.add(key)
@@ -1250,7 +1254,7 @@ export function BattlespaceMap() {
         'threat',
         threat.position,
         threat.id === selectedTrackId,
-        alertTrackIds.includes(threat.id),
+        alertSet.has(threat.id),
         threat.fusionConfidence,
       )
     }
@@ -1357,19 +1361,20 @@ export function BattlespaceMap() {
       const threatId = resolveThreatId(map, e.point, e.features)
       if (!threatId || pinnedThreatRef.current) return
       calloutTrackRef.current = threatId
-      setHoveredThreatId(threatId)
-    }
-
-    const onThreatMove = (e: MapMouseEvent) => {
-      const threatId = resolveThreatId(map, e.point, e.features)
-      if (!threatId || pinnedThreatRef.current) return
-      calloutTrackRef.current = threatId
-      setHoveredThreatId(threatId)
+      if (hoveredThreatRef.current !== threatId) {
+        hoveredThreatRef.current = threatId
+        setHoveredThreatId(threatId)
+      }
     }
 
     const onThreatLeave = () => {
-      window.setTimeout(() => {
+      if (hoverLeaveTimerRef.current != null) {
+        window.clearTimeout(hoverLeaveTimerRef.current)
+      }
+      hoverLeaveTimerRef.current = window.setTimeout(() => {
+        hoverLeaveTimerRef.current = null
         if (pinnedThreatRef.current || calloutOverRef.current) return
+        hoveredThreatRef.current = null
         setHoveredThreatId(null)
         calloutTrackRef.current = null
         map.getCanvas().style.cursor = ''
@@ -1389,13 +1394,14 @@ export function BattlespaceMap() {
     for (const layer of threatLayers) {
       map.on('click', layer, onThreatClick)
       map.on('mouseenter', layer, onThreatEnter)
-      map.on('mousemove', layer, onThreatMove)
       map.on('mouseleave', layer, onThreatLeave)
     }
     for (const layer of droneLayers) {
       map.on('mouseenter', layer, onDroneEnter)
       map.on('mouseleave', layer, onDroneLeave)
     }
+
+    const GEO_PUSH_MS = 50
 
     const paint = () => {
       const current = mapRef.current
@@ -1405,128 +1411,158 @@ export function BattlespaceMap() {
         return
       }
 
+      const now = performance.now()
+      const pushGeo = now - lastGeoPushRef.current >= GEO_PUSH_MS
       const display = displayRef.current
       const trails = trailsRef.current
-      const droneFeatures: MapFeature[] = []
-      const threatFeatures: MapFeature[] = []
-      const trailFeatures: MapFeature[] = []
-      const uncertaintyFeatures: MapFeature[] = []
-      const threatHaloFeatures: MapFeature[] = []
-      const threatAlertRingFeatures: MapFeature[] = []
-      const meshFeatures: MapFeature[] = []
-      let assetFeature: MapFeature | null = null
-      const alertPulse = 0.5 + 0.5 * Math.sin(Date.now() / 550)
 
-      for (const [key, point] of display) {
+      for (const [, point] of display) {
         point.lng += (point.targetLng - point.lng) * LERP
         point.lat += (point.targetLat - point.lat) * LERP
         point.alt += (point.targetAlt - point.alt) * LERP
+      }
 
-        const coord: [number, number] = [point.lng, point.lat]
-        const history = trails.get(key) ?? []
-        const last = history[history.length - 1]
-        if (
-          !last ||
-          Math.hypot(last[0] - coord[0], last[1] - coord[1]) > 0.000008
-        ) {
-          history.push(coord)
-          while (history.length > TRAIL_LENGTH) history.shift()
-          trails.set(key, history)
+      let hasAlerts = false
+      for (const point of display.values()) {
+        if (point.kind === 'threat' && point.alert) {
+          hasAlerts = true
+          break
+        }
+      }
+
+      if (pushGeo) {
+        const droneFeatures: MapFeature[] = []
+        const threatFeatures: MapFeature[] = []
+        const trailFeatures: MapFeature[] = []
+        const uncertaintyFeatures: MapFeature[] = []
+        const threatHaloFeatures: MapFeature[] = []
+        const threatAlertRingFeatures: MapFeature[] = []
+        const meshFeatures: MapFeature[] = []
+        let assetFeature: MapFeature | null = null
+        const alertPulse = 0.5 + 0.5 * Math.sin(now / 550)
+
+        for (const [key, point] of display) {
+          const coord: [number, number] = [point.lng, point.lat]
+          const history = trails.get(key) ?? []
+          const last = history[history.length - 1]
+          if (
+            !last ||
+            Math.hypot(last[0] - coord[0], last[1] - coord[1]) > 0.000008
+          ) {
+            history.push(coord)
+            while (history.length > TRAIL_LENGTH) history.shift()
+            trails.set(key, history)
+          }
+
+          if (history.length > 1 && point.kind !== 'asset') {
+            trailFeatures.push(
+              lineFeature(key, [...history], { kind: point.kind, id: point.id }),
+            )
+          }
+
+          if (point.kind === 'asset') {
+            assetFeature = pointFeature('asset', point, { kind: 'asset' })
+            continue
+          }
+
+          const feature = pointFeature(point.id, point, {
+            id: point.id,
+            selected: point.selected,
+            alert: point.alert,
+            confidence: point.confidence,
+            hovered:
+              point.id === hoveredThreatRef.current ||
+              point.id === pinnedThreatRef.current,
+          })
+
+          if (point.kind === 'friendly') {
+            droneFeatures.push(feature)
+            if (point.confidence < 85) uncertaintyFeatures.push(feature)
+          } else {
+            threatFeatures.push(feature)
+            if (point.confidence < 85) threatHaloFeatures.push(feature)
+            if (point.alert) {
+              threatAlertRingFeatures.push(
+                pointFeature(`${point.id}-alert-ring`, point, {
+                  id: point.id,
+                  pulseRadius: 16 + alertPulse * 10,
+                  pulseOpacity: 0.18 + alertPulse * 0.28,
+                }),
+              )
+            }
+          }
         }
 
-        if (history.length > 1 && point.kind !== 'asset') {
-          trailFeatures.push(
-            lineFeature(key, [...history], { kind: point.kind, id: point.id }),
-          )
-        }
-
-        if (point.kind === 'asset') {
-          assetFeature = pointFeature('asset', point, { kind: 'asset' })
-          continue
-        }
-
-        const feature = pointFeature(point.id, point, {
-          id: point.id,
-          selected: point.selected,
-          alert: point.alert,
-          confidence: point.confidence,
-          hovered:
-            point.id === hoveredThreatRef.current ||
-            point.id === pinnedThreatRef.current,
-        })
-
-        if (point.kind === 'friendly') {
-          droneFeatures.push(feature)
-          if (point.confidence < 85) uncertaintyFeatures.push(feature)
-        } else {
-          threatFeatures.push(feature)
-          if (point.confidence < 85) threatHaloFeatures.push(feature)
-          if (point.alert) {
-            threatAlertRingFeatures.push(
-              pointFeature(`${point.id}-alert-ring`, point, {
-                id: point.id,
-                pulseRadius: 16 + alertPulse * 10,
-                pulseOpacity: 0.18 + alertPulse * 0.28,
-              }),
+        const droneById = new globalThis.Map(
+          [...display.values()]
+            .filter((p) => p.kind === 'friendly')
+            .map((p) => [p.id, p]),
+        )
+        const seenLinks = new Set<string>()
+        for (const drone of live.drones) {
+          const from = droneById.get(drone.id)
+          if (!from) continue
+          for (const linkId of drone.meshLinks) {
+            const linkKey = [drone.id, linkId].sort().join('|')
+            if (seenLinks.has(linkKey)) continue
+            seenLinks.add(linkKey)
+            const to = droneById.get(linkId)
+            if (!to) continue
+            meshFeatures.push(
+              lineFeature(linkKey, [
+                [from.lng, from.lat],
+                [to.lng, to.lat],
+              ]),
             )
           }
         }
-      }
 
-      const droneById = new globalThis.Map(
-        [...display.values()]
-          .filter((p) => p.kind === 'friendly')
-          .map((p) => [p.id, p]),
-      )
-      const seenLinks = new Set<string>()
-      for (const drone of live.drones) {
-        const from = droneById.get(drone.id)
-        if (!from) continue
-        for (const linkId of drone.meshLinks) {
-          const linkKey = [drone.id, linkId].sort().join('|')
-          if (seenLinks.has(linkKey)) continue
-          seenLinks.add(linkKey)
-          const to = droneById.get(linkId)
-          if (!to) continue
-          meshFeatures.push(
-            lineFeature(linkKey, [
-              [from.lng, from.lat],
-              [to.lng, to.lat],
-            ]),
+        const routeFeatures: MapFeature[] = live.recommendations
+          .filter((r) => r.status === 'pending' || r.status === 'confirmed')
+          .map((r) => {
+            const track = display.get(`threat:${r.trackId}`)
+            const primary = display.get(`friendly:${r.droneIds[0]}`)
+            const coords: [number, number][] = []
+            if (primary) coords.push([primary.lng, primary.lat])
+            else if (r.route.waypoints[0]) {
+              coords.push([r.route.waypoints[0].lng, r.route.waypoints[0].lat])
+            }
+            for (const waypoint of r.route.waypoints.slice(1, -1)) {
+              coords.push([waypoint.lng, waypoint.lat])
+            }
+            if (track) coords.push([track.lng, track.lat])
+            else {
+              const last = r.route.waypoints[r.route.waypoints.length - 1]
+              if (last) coords.push([last.lng, last.lat])
+            }
+            return lineFeature(r.id, coords, { id: r.id, status: r.status })
+          })
+
+        setSourceData(current, 'asset', assetFeature ? [assetFeature] : [])
+        setSourceData(current, 'drones', droneFeatures)
+        setSourceData(current, 'threats', threatFeatures)
+        setSourceData(current, 'trails', trailFeatures)
+        setSourceData(current, 'uncertainty', uncertaintyFeatures)
+        setSourceData(current, 'threat-halos', threatHaloFeatures)
+        setSourceData(current, 'threat-alert-rings', threatAlertRingFeatures)
+        setSourceData(current, 'mesh', meshFeatures)
+        setSourceData(current, 'routes', routeFeatures)
+        lastGeoPushRef.current = now
+      } else if (hasAlerts) {
+        const alertPulse = 0.5 + 0.5 * Math.sin(now / 550)
+        const threatAlertRingFeatures: MapFeature[] = []
+        for (const [, point] of display) {
+          if (point.kind !== 'threat' || !point.alert) continue
+          threatAlertRingFeatures.push(
+            pointFeature(`${point.id}-alert-ring`, point, {
+              id: point.id,
+              pulseRadius: 16 + alertPulse * 10,
+              pulseOpacity: 0.18 + alertPulse * 0.28,
+            }),
           )
         }
+        setSourceData(current, 'threat-alert-rings', threatAlertRingFeatures)
       }
-
-      const routeFeatures: MapFeature[] = live.recommendations
-        .filter((r) => r.status === 'pending' || r.status === 'confirmed')
-        .map((r) => {
-          const track = display.get(`threat:${r.trackId}`)
-          const primary = display.get(`friendly:${r.droneIds[0]}`)
-          const coords: [number, number][] = []
-          if (primary) coords.push([primary.lng, primary.lat])
-          else if (r.route.waypoints[0]) {
-            coords.push([r.route.waypoints[0].lng, r.route.waypoints[0].lat])
-          }
-          for (const waypoint of r.route.waypoints.slice(1, -1)) {
-            coords.push([waypoint.lng, waypoint.lat])
-          }
-          if (track) coords.push([track.lng, track.lat])
-          else {
-            const last = r.route.waypoints[r.route.waypoints.length - 1]
-            if (last) coords.push([last.lng, last.lat])
-          }
-          return lineFeature(r.id, coords, { id: r.id, status: r.status })
-        })
-
-      setSourceData(current, 'asset', assetFeature ? [assetFeature] : [])
-      setSourceData(current, 'drones', droneFeatures)
-      setSourceData(current, 'threats', threatFeatures)
-      setSourceData(current, 'trails', trailFeatures)
-      setSourceData(current, 'uncertainty', uncertaintyFeatures)
-      setSourceData(current, 'threat-halos', threatHaloFeatures)
-      setSourceData(current, 'threat-alert-rings', threatAlertRingFeatures)
-      setSourceData(current, 'mesh', meshFeatures)
-      setSourceData(current, 'routes', routeFeatures)
 
       // Continuous chase only for non-pinned selection changes handled above.
       // Keep soft follow when a track is selected and drifts out of frame.
@@ -1560,11 +1596,14 @@ export function BattlespaceMap() {
 
           // Soft re-center if adversary drifts out of frame (no full re-fly).
           if (outside && followKeyRef.current === followKey) {
-            current.easeTo({
-              center: [target.lng, target.lat],
-              duration: 350,
-              essential: true,
-            })
+            if (!current.isMoving() && now - lastPanAtRef.current > 800) {
+              lastPanAtRef.current = now
+              current.easeTo({
+                center: [target.lng, target.lat],
+                duration: 350,
+                essential: true,
+              })
+            }
           }
         }
       } else if (followKey) {
@@ -1583,12 +1622,15 @@ export function BattlespaceMap() {
             target.lat > ne.lat - latSpan * pad
 
           if (outside || followKeyRef.current !== followKey) {
-            followKeyRef.current = followKey
-            current.easeTo({
-              center: [target.lng, target.lat],
-              duration: 400,
-              essential: true,
-            })
+            if (!current.isMoving() && now - lastPanAtRef.current > 600) {
+              followKeyRef.current = followKey
+              lastPanAtRef.current = now
+              current.easeTo({
+                center: [target.lng, target.lat],
+                duration: 400,
+                essential: true,
+              })
+            }
           }
         }
       } else if (
@@ -1618,11 +1660,13 @@ export function BattlespaceMap() {
 
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      if (hoverLeaveTimerRef.current != null) {
+        window.clearTimeout(hoverLeaveTimerRef.current)
+      }
       map.off('click', onMapClick)
       for (const layer of threatLayers) {
         map.off('click', layer, onThreatClick)
         map.off('mouseenter', layer, onThreatEnter)
-        map.off('mousemove', layer, onThreatMove)
         map.off('mouseleave', layer, onThreatLeave)
       }
       for (const layer of droneLayers) {

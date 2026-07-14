@@ -1,12 +1,12 @@
 import { useAppDispatch, useAppSelector } from '../../store'
+import { selectSelectedDrone } from '../../store/selectors'
 import { setTelemetryExpanded } from '../../store/uiSlice'
 import { droneHealth, healthLabel } from '../../utils/health'
 
 export function TelemetryCard() {
   const dispatch = useAppDispatch()
   const expanded = useAppSelector((s) => s.ui.telemetryExpanded)
-  const droneId = useAppSelector((s) => s.fleet.selectedDroneId)
-  const drone = useAppSelector((s) => s.fleet.drones.find((d) => d.id === droneId))
+  const drone = useAppSelector(selectSelectedDrone)
   const rec = useAppSelector((s) =>
     drone?.assignedTrackId
       ? s.tasking.recommendations.find((r) => r.trackId === drone.assignedTrackId)

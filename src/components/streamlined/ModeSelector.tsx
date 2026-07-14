@@ -1,16 +1,13 @@
 import { useAppDispatch, useAppSelector } from '../../store'
 import { MODE_PROFILES } from '../../modeProfiles'
+import { selectEngagedCount, selectPendingCount } from '../../store/selectors'
 import { requestModeSwitch, setMode, type ModeId } from '../../store/uiSlice'
 import { useState } from 'react'
 
 export function ModeSelector({ compact = false }: { compact?: boolean }) {
   const mode = useAppSelector((s) => s.ui.mode)
-  const pendingCount = useAppSelector(
-    (s) => s.tasking.recommendations.filter((r) => r.status === 'pending').length,
-  )
-  const engagedCount = useAppSelector(
-    (s) => s.tasking.recommendations.filter((r) => r.status === 'confirmed').length,
-  )
+  const pendingCount = useAppSelector(selectPendingCount)
+  const engagedCount = useAppSelector(selectEngagedCount)
   const dispatch = useAppDispatch()
   const [open, setOpen] = useState(false)
   const current = MODE_PROFILES.find((m) => m.id === mode) ?? MODE_PROFILES[0]

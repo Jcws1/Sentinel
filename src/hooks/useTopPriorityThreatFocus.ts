@@ -1,11 +1,12 @@
 import { useEffect } from 'react'
 import { useAppDispatch, useAppSelector } from '../store'
+import {
+  selectThreatPriorityKey,
+  selectTopPriorityPending,
+  selectTopPriorityTrack,
+} from '../store/selectors'
 import { selectTrack } from '../store/threatsSlice'
 import { setActiveRecommendation } from '../store/taskingSlice'
-import {
-  getTopPriorityPendingRecommendation,
-  getTopPriorityTrack,
-} from '../utils/tasking'
 
 const MANUAL_SELECT_GRACE_MS = 8000
 
@@ -15,24 +16,21 @@ const MANUAL_SELECT_GRACE_MS = 8000
  */
 export function useTopPriorityThreatFocus() {
   const dispatch = useAppDispatch()
-  const tracks = useAppSelector((s) => s.threats.tracks)
-  const alertTrackIds = useAppSelector((s) => s.threats.alertTrackIds)
-  const recommendations = useAppSelector((s) => s.tasking.recommendations)
+  const priorityKey = useAppSelector(selectThreatPriorityKey)
+  const topRec = useAppSelector(selectTopPriorityPending)
+  const topTrack = useAppSelector(selectTopPriorityTrack)
   const selectedTrackId = useAppSelector((s) => s.threats.selectedTrackId)
+  const activeRecommendationId = useAppSelector(
+    (s) => s.tasking.activeRecommendationId,
+  )
   const lastManualSelectAt = useAppSelector((s) => s.threats.lastManualSelectAt)
+  const trackCount = useAppSelector((s) => s.threats.tracks.length)
 
   useEffect(() => {
-    if (tracks.length === 0) return
+    if (trackCount === 0) return
     if (Date.now() - lastManualSelectAt < MANUAL_SELECT_GRACE_MS) return
 
-    const topRec = getTopPriorityPendingRecommendation(
-      tracks,
-      alertTrackIds,
-      recommendations,
-    )
-    const topTrack = getTopPriorityTrack(tracks, alertTrackIds)
-
-    if (topRec) {
+    if (topRec && topRec.id !== activeRecommendationId) {
       dispatch(setActiveRecommendation(topRec.id))
     }
 
@@ -41,11 +39,13 @@ export function useTopPriorityThreatFocus() {
       dispatch(selectTrack(focusId))
     }
   }, [
-    tracks,
-    alertTrackIds,
-    recommendations,
+    priorityKey,
+    topRec,
+    topTrack,
     selectedTrackId,
+    activeRecommendationId,
     lastManualSelectAt,
+    trackCount,
     dispatch,
   ])
 }
