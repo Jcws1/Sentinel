@@ -886,6 +886,7 @@ export function BattlespaceMap() {
   const rafRef = useRef<number | null>(null)
   const lastGeoPushRef = useRef(0)
   const lastPanAtRef = useRef(0)
+  const lastFlownTrackRef = useRef<string | null>(null)
   const hoverLeaveTimerRef = useRef<number | null>(null)
   const pinnedThreatRef = useRef<string | null>(null)
   const hoveredThreatRef = useRef<string | null>(null)
@@ -938,6 +939,7 @@ export function BattlespaceMap() {
   const selectedDroneId = useAppSelector((s) => s.fleet.selectedDroneId)
   const tracks = useAppSelector((s) => s.threats.tracks)
   const selectedTrackId = useAppSelector((s) => s.threats.selectedTrackId)
+  const selectionKind = useAppSelector((s) => s.threats.selectionKind)
   const alertTrackIds = useAppSelector((s) => s.threats.alertTrackIds)
   const recommendations = useAppSelector((s) => s.tasking.recommendations)
   const asset = useAppSelector((s) => s.mission.protectedAsset)
@@ -962,6 +964,7 @@ export function BattlespaceMap() {
       }
 
       suppressPanRef.current = false
+      lastFlownTrackRef.current = threatId
       followKeyRef.current = `threat:${threatId}`
       const map = mapRef.current
       if (!map) return
@@ -991,6 +994,7 @@ export function BattlespaceMap() {
     pinnedThreatRef.current = null
     setPinnedThreatId(null)
     setHoveredThreatId(null)
+    lastFlownTrackRef.current = null
   }, [])
 
   useEffect(() => {
@@ -1001,24 +1005,23 @@ export function BattlespaceMap() {
     hoveredThreatRef.current = hoveredThreatId
   }, [hoveredThreatId])
 
-  // Show pinned callout when a track is selected from the queue / map.
+  // Pin callout only for operator map/queue selection — not auto-focus.
   useEffect(() => {
-    if (!selectedTrackId) return
-    if (!tracks.some((t) => t.id === selectedTrackId)) return
+    if (selectionKind !== 'operator' || !selectedTrackId) return
     calloutTrackRef.current = selectedTrackId
     pinnedThreatRef.current = selectedTrackId
     setPinnedThreatId(selectedTrackId)
-  }, [selectedTrackId, tracks])
+  }, [selectedTrackId, selectionKind])
 
-  // Fly when selection comes from queue / tasking (not map pinThreat, which already flew).
+  // Fly once per track selection; operator picks get full fly, auto-focus is gentler.
   useEffect(() => {
     const map = mapRef.current
-    if (!mapReady || !map || !selectedTrackId) return
+    if (!mapReady || !map || !selectedTrackId || !selectionKind) return
     if (suppressPanRef.current) {
       suppressPanRef.current = false
       return
     }
-    if (followKeyRef.current === `threat:${selectedTrackId}`) return
+    if (lastFlownTrackRef.current === selectedTrackId) return
 
     const run = () => {
       const display = displayRef.current.get(`threat:${selectedTrackId}`)
@@ -1027,6 +1030,7 @@ export function BattlespaceMap() {
       const lat = display?.lat ?? track?.position.lat
       if (lng == null || lat == null) return false
 
+      lastFlownTrackRef.current = selectedTrackId
       followKeyRef.current = `threat:${selectedTrackId}`
       const pitch = preferFlatRef.current ? 0 : MODE_CAMERA[modeRef.current].pitch
       const zoomTarget = preferFlatRef.current
@@ -1034,9 +1038,12 @@ export function BattlespaceMap() {
         : (MODE_CAMERA[modeRef.current].zoom ?? 14.4)
       map.easeTo({
         center: [lng, lat],
-        zoom: Math.max(map.getZoom(), zoomTarget),
+        zoom:
+          selectionKind === 'operator'
+            ? Math.max(map.getZoom(), zoomTarget)
+            : Math.max(map.getZoom(), zoomTarget - 0.8),
         pitch,
-        duration: 700,
+        duration: selectionKind === 'operator' ? 700 : 900,
         essential: true,
         offset: [0, 48],
       })
@@ -1048,7 +1055,7 @@ export function BattlespaceMap() {
       run()
     })
     return () => cancelAnimationFrame(raf)
-  }, [selectedTrackId, mapReady])
+  }, [selectedTrackId, selectionKind, mapReady])
 
   const activeCalloutId = pinnedThreatId ?? hoveredThreatId
   const activeCalloutTrack = activeCalloutId
@@ -1062,6 +1069,11 @@ export function BattlespaceMap() {
     if (!point) return null
     return { lng: point.lng, lat: point.lat, alt: point.alt }
   }
+
+  const getThreatPosition = useCallback(
+    () => getThreatPositionRef.current(),
+    [],
+  )
 
   // Keep latest store values available to the rAF loop without restarting it.
   liveRef.current = {
@@ -1312,11 +1324,6 @@ export function BattlespaceMap() {
     })
   }, [mapReady, mapOverlayTab])
 
-  // Re-frame when selection changes.
-  useEffect(() => {
-    followKeyRef.current = null
-  }, [selectedTrackId, selectedDroneId])
-
   // Persistent render loop.
   useEffect(() => {
     if (!mapReady) return
@@ -1401,7 +1408,7 @@ export function BattlespaceMap() {
       map.on('mouseleave', layer, onDroneLeave)
     }
 
-    const GEO_PUSH_MS = 50
+    const GEO_PUSH_MS = 33
 
     const paint = () => {
       const current = mapRef.current
@@ -1582,7 +1589,8 @@ export function BattlespaceMap() {
       if (followKey && followKey.startsWith('threat:')) {
         const target = display.get(followKey)
         const bounds = current.getBounds()
-        if (target && bounds) {
+        const isPinned = pinnedThreatRef.current === live.selectedTrackId
+        if (target && bounds && isPinned) {
           const ne = bounds.getNorthEast()
           const sw = bounds.getSouthWest()
           const lngSpan = Math.max(ne.lng - sw.lng, 0.0001)
@@ -1707,7 +1715,7 @@ export function BattlespaceMap() {
         <div className="threat-callout-layer" aria-live="polite" data-operator-ui>
           <ThreatCallout
             map={mapRef.current}
-            getPosition={() => getThreatPositionRef.current()}
+            getPosition={getThreatPosition}
             track={activeCalloutTrack}
             mode={calloutMode}
             onPin={() => pinThreat(activeCalloutTrack.id, { suppressPan: true })}

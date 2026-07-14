@@ -53,17 +53,17 @@ export const selectAlertTrackIdSet = createSelector(
   (ids) => new Set(ids),
 )
 
-/** Stable key — changes when roster/priority inputs change, not every position tick. */
-export const selectThreatPriorityKey = createSelector(
+/** Stable focus target — only changes when #1 threat/rec actually changes. */
+export const selectAutoFocusKey = createSelector(
   [
-    (s: RootState) => s.threats.tracks,
-    (s: RootState) => s.threats.alertTrackIds,
+    (s: RootState) => s.threats.tracks.map((t) => t.id).join(','),
+    (s: RootState) => s.threats.alertTrackIds.join(','),
     selectPendingRecommendations,
+    selectTopPriorityPending,
+    selectTopPriorityTrack,
   ],
-  (tracks, alertTrackIds, pending) =>
-    [
-      tracks.map((t) => `${t.id}:${t.threatClass}:${Math.round(t.etaToAsset / 5)}`).join(','),
-      alertTrackIds.join(','),
-      pending.map((r) => r.id).join(','),
-    ].join('|'),
+  (trackIds, alerts, pending, topRec, topTrack) => {
+    const focusId = topRec?.trackId ?? topTrack?.id ?? ''
+    return `${trackIds}|${alerts}|${pending.map((r) => r.id).join(',')}|${topRec?.id ?? ''}|${focusId}`
+  },
 )

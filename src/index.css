@@ -3682,6 +3682,15 @@ button {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .v4-btn--confirm.is-ready,
+  .v4-btn--hold.is-active,
+  .v4-threat-ticker__dot,
+  .v4-threat-ticker.is-alert {
+    animation: none !important;
+  }
+}
+
 .v4-fleet-strip,
 .v4-overlay-panel,
 .v4-tasking-card {
