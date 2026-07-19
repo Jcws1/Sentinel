@@ -1,0 +1,5 @@
+boto3>=1.43,<2
+mercantile>=1.2,<2
+numpy>=2,<3
+pillow>=12,<13
+rasterio>=1.5,<2

@@ -1,4 +1,6 @@
 import http from 'node:http'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
 import express from 'express'
 import cors from 'cors'
 import { WebSocketServer, type WebSocket } from 'ws'
@@ -10,6 +12,8 @@ import type {
 } from '../src/api/types'
 import { createInitialState, toDecisionLogDto } from './state'
 import { advanceSimulation } from './simulation'
+import { createCdsePoller } from './cdsePoller'
+import { createHealthDatabase } from './healthDatabase'
 import {
   abortEngagement,
   buildSnapshot,
@@ -24,6 +28,11 @@ import {
 const PORT = Number(process.env.C2_PORT ?? 3001)
 const state = createInitialState()
 const clients = new Set<WebSocket>()
+const edgeMapRoot = path.resolve(process.env.EDGE_MAP_ROOT ?? path.join(process.cwd(), 'edge-map'))
+const healthDatabase = createHealthDatabase()
+const cdsePoller = createCdsePoller({
+  onPollCompleted: (record) => healthDatabase.recordCdsePoll(record),
+})
 
 function broadcast(event: RealtimeEvent) {
   const payload = JSON.stringify(event)
@@ -42,6 +51,81 @@ function broadcastSnapshot() {
 const app = express()
 app.use(cors())
 app.use(express.json())
+
+app.get('/api/v1/edge-map/health', async (_req, res) => {
+  try {
+    const raw = await readFile(path.join(edgeMapRoot, 'manifest.json'), 'utf8')
+    const manifest = JSON.parse(raw) as {
+      id?: string
+      generatedAt?: string
+      refreshAfter?: string
+      coverage?: { name?: string }
+      resources?: Record<string, boolean | string>
+    }
+    const refreshAfter = manifest.refreshAfter ? Date.parse(manifest.refreshAfter) : Number.NaN
+    res.json({
+      ok: true,
+      packId: manifest.id ?? 'unknown',
+      coverage: manifest.coverage?.name ?? 'unknown',
+      generatedAt: manifest.generatedAt ?? null,
+      refreshAfter: manifest.refreshAfter ?? null,
+      stale: Number.isFinite(refreshAfter) ? Date.now() > refreshAfter : false,
+      resources: manifest.resources ?? {},
+    })
+  } catch (error) {
+    res.status(503).json({
+      ok: false,
+      error: error instanceof Error ? error.message : 'Edge map pack unavailable',
+    })
+  }
+})
+
+app.get('/api/v1/sensors/cdse', (_req, res) => {
+  res.json(cdsePoller.snapshot())
+})
+
+const CDSE_HISTORY_WINDOWS = {
+  '24h': 24 * 60 * 60 * 1000,
+  '7d': 7 * 24 * 60 * 60 * 1000,
+  '30d': 30 * 24 * 60 * 60 * 1000,
+  '90d': 90 * 24 * 60 * 60 * 1000,
+} as const
+
+app.get('/api/v1/sensors/cdse/history', (req, res) => {
+  const requestedWindow = typeof req.query.window === 'string' ? req.query.window : '30d'
+  const window = requestedWindow in CDSE_HISTORY_WINDOWS
+    ? requestedWindow as keyof typeof CDSE_HISTORY_WINDOWS
+    : '30d'
+  const since = new Date(Date.now() - CDSE_HISTORY_WINDOWS[window]).toISOString()
+  const points = healthDatabase.getCdseHistory(since)
+  const successful = points.filter((point) => point.status === 'healthy')
+  const totalDuration = points.reduce((sum, point) => sum + point.durationMs, 0)
+  res.json({
+    window,
+    points,
+    summary: {
+      total: points.length,
+      successful: successful.length,
+      failed: points.length - successful.length,
+      successRate: points.length ? successful.length / points.length : null,
+      averageDurationMs: points.length ? Math.round(totalDuration / points.length) : null,
+    },
+  })
+})
+
+app.use(
+  '/edge-map',
+  express.static(edgeMapRoot, {
+    fallthrough: false,
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('manifest.json') || filePath.endsWith('style.json')) {
+        res.setHeader('Cache-Control', 'no-cache')
+      } else {
+        res.setHeader('Cache-Control', 'public, max-age=2592000, immutable')
+      }
+    },
+  }),
+)
 
 app.get('/api/v1/health', (_req, res) => {
   res.json({
@@ -211,8 +295,12 @@ server.listen(PORT, () => {
   console.log(`WebSocket: ws://localhost:${PORT}/api/v1/ws`)
 })
 
+cdsePoller.start()
+
 function shutdown() {
   clearInterval(simTimer)
+  cdsePoller.stop()
+  healthDatabase.close()
   for (const client of clients) client.close()
   wss.close()
   server.close(() => process.exit(0))

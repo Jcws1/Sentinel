@@ -7,6 +7,8 @@ import {
   cycleAutoEngage,
   requestModeSwitch,
   setMode,
+  setWorkspace,
+  toggleDeploymentMode,
   toggleOverflowMenu,
   type ModeId,
 } from '../store/uiSlice'
@@ -30,6 +32,8 @@ export function TopBar() {
   const scout = useAppSelector((s) => s.fleet.drones.find((d) => d.type === 'Scout'))
   const session = useAppSelector((s) => s.session)
   const mode = useAppSelector((s) => s.ui.mode)
+  const workspace = useAppSelector((s) => s.ui.workspace)
+  const deploymentMode = useAppSelector((s) => s.ui.deploymentMode)
   const autoEngage = useAppSelector((s) => s.ui.autoEngage)
   const dispatch = useAppDispatch()
   const [confirmAction, setConfirmAction] = useState<'HOLD' | 'RECALL' | null>(null)
@@ -74,6 +78,17 @@ export function TopBar() {
               </button>
             ))}
           </nav>
+          <button
+            type="button"
+            className={['sensor-tab', workspace === 'sensors' ? 'is-active' : '']
+              .filter(Boolean)
+              .join(' ')}
+            aria-pressed={workspace === 'sensors'}
+            onClick={() => dispatch(setWorkspace(workspace === 'sensors' ? 'tracks' : 'sensors'))}
+          >
+            <span className="sensor-tab__pulse" aria-hidden="true" />
+            Sensors
+          </button>
           <button
             type="button"
             className="btn btn--ghost btn--sm top-bar__more"
@@ -160,6 +175,19 @@ export function TopBar() {
         </div>
 
         <div className="top-bar__actions">
+          <button
+            type="button"
+            className="deployment-toggle"
+            aria-label={`Switch to ${deploymentMode === 'cloud' ? 'edge' : 'cloud'} deployment mode`}
+            aria-pressed={deploymentMode === 'edge'}
+            onClick={() => dispatch(toggleDeploymentMode())}
+            title="Deployment environment"
+          >
+            <span className="deployment-toggle__track" aria-hidden="true">
+              <span className="deployment-toggle__thumb" />
+            </span>
+            <span>{deploymentMode === 'edge' ? 'EDGE' : 'CLOUD'}</span>
+          </button>
           {mode === 'defense' && (
             <>
               <button

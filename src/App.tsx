@@ -7,6 +7,7 @@ import { TaskingPanel } from './components/TaskingPanel'
 import { ThreatQueue } from './components/ThreatQueue'
 import { TopBar } from './components/TopBar'
 import { WorkspaceRail } from './components/WorkspaceRail'
+import { SensorHealth } from './components/SensorHealth'
 import { connectC2Backend } from './api/sync'
 import { getModeProfile } from './modeProfiles'
 import { useAppDispatch, useAppSelector } from './store'
@@ -41,11 +42,13 @@ export default function App() {
     dispatch(setWorkspace(modeProfile.defaultWorkspace))
   }, [dispatch, modeProfile.defaultWorkspace])
 
-  const showLeft = modeProfile.showLeftPanel || workspace === 'operations'
+  const sensorWorkspace = workspace === 'sensors'
+  const showLeft = !sensorWorkspace && (modeProfile.showLeftPanel || workspace === 'operations')
   const showRight =
-    modeProfile.showRightPanel ||
-    workspace === 'fleet' ||
-    (workspace === 'policy' && !modeProfile.showRightPanel)
+    !sensorWorkspace &&
+    (modeProfile.showRightPanel ||
+      workspace === 'fleet' ||
+      (workspace === 'policy' && !modeProfile.showRightPanel))
 
   const leftPanel =
     workspace === 'operations' ? <OperationsPanel /> : <ThreatQueue />
@@ -74,6 +77,10 @@ export default function App() {
         </div>
       )}
       <div className="workspace">
+        {sensorWorkspace ? (
+          <SensorHealth />
+        ) : (
+          <>
         <main
           className={['map-area', hardDenied ? 'map-area--denied' : '', `map-area--${mode}`]
             .filter(Boolean)
@@ -96,6 +103,8 @@ export default function App() {
         {modeProfile.showRail && <WorkspaceRail />}
         {showLeft && leftPanel}
         {showRight && rightPanel}
+          </>
+        )}
       </div>
     </div>
   )

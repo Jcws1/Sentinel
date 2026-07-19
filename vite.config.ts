@@ -11,6 +11,10 @@ export default defineConfig({
         changeOrigin: true,
         ws: true,
       },
+      '/edge-map': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
     },
   },
 })

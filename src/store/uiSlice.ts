@@ -1,6 +1,7 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 
-export type WorkspaceView = 'tracks' | 'operations' | 'fleet' | 'policy'
+export type WorkspaceView = 'tracks' | 'operations' | 'fleet' | 'policy' | 'sensors'
+export type DeploymentMode = 'cloud' | 'edge'
 /** PRD v3.0 primary UI modes */
 export type ModeId = 'defense' | 'recon' | 'attack'
 export type AutoEngageState = 'on' | 'off' | 'locked'
@@ -15,6 +16,7 @@ interface UiState {
   overflowMenuOpen: boolean
   alertsOpen: boolean
   workspace: WorkspaceView
+  deploymentMode: DeploymentMode
   trackDetailOpen: boolean
   investigationCollapsed: boolean
   ontologyCollapsed: boolean
@@ -28,6 +30,11 @@ const initialState: UiState = {
   overflowMenuOpen: false,
   alertsOpen: false,
   workspace: 'tracks',
+  deploymentMode:
+    typeof globalThis.location !== 'undefined' &&
+    new URLSearchParams(globalThis.location.search).get('deployment') === 'edge'
+      ? 'edge'
+      : 'cloud',
   trackDetailOpen: true,
   investigationCollapsed: false,
   ontologyCollapsed: false,
@@ -75,6 +82,9 @@ const uiSlice = createSlice({
     setWorkspace(state, action: PayloadAction<WorkspaceView>) {
       state.workspace = action.payload
     },
+    toggleDeploymentMode(state) {
+      state.deploymentMode = state.deploymentMode === 'cloud' ? 'edge' : 'cloud'
+    },
     setTrackDetailOpen(state, action: PayloadAction<boolean>) {
       state.trackDetailOpen = action.payload
     },
@@ -104,6 +114,7 @@ export const {
   setAlertsOpen,
   setMapOverlayTab,
   setWorkspace,
+  toggleDeploymentMode,
   setTrackDetailOpen,
   setInvestigationCollapsed,
   setOntologyCollapsed,

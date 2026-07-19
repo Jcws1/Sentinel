@@ -5,6 +5,9 @@ import mapboxgl, {
   type MapMouseEvent,
 } from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
+import maplibregl from 'maplibre-gl'
+import 'maplibre-gl/dist/maplibre-gl.css'
+import { Protocol } from 'pmtiles'
 import { useAppDispatch, useAppSelector } from '../store'
 import { selectDrone } from '../store/fleetSlice'
 import { selectTrack } from '../store/threatsSlice'
@@ -21,10 +24,15 @@ import { isOperatorUiTarget } from '../utils/ui'
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN
 const MAP_STYLE = 'mapbox://styles/mapbox/dark-v11'
+const EDGE_MAP_STYLE = '/edge-map/style.json'
 const TRAIL_LENGTH = 28
 const LERP = 0.2
 const HILLSHADE_LAYER = 'terrain-hillshade'
 const BUILDINGS_LAYER = '3d-buildings'
+type MapRenderer = 'mapbox' | 'maplibre'
+
+const edgePmtilesProtocol = new Protocol()
+maplibregl.addProtocol('pmtiles', edgePmtilesProtocol.tile)
 
 /** Pitched camera over a flat ground plane; volume comes from building extrusions only. */
 const MODE_CAMERA: Record<ModeId, { pitch: number; bearing: number; zoom?: number }> = {
@@ -105,17 +113,17 @@ function firstSymbolLayerId(map: MapboxMap): string | undefined {
   return undefined
 }
 
-function enableVolume3d(map: MapboxMap) {
+function enableVolume3d(map: MapboxMap, renderer: MapRenderer) {
   if (!map.isStyleLoaded()) return
 
-  // Flat ground — no DEM mesh / terrain bumps.
-  map.setTerrain(null)
+  const edgeTerrainAvailable = renderer === 'maplibre' && Boolean(map.getSource('sentinel-terrain'))
+  map.setTerrain(edgeTerrainAvailable ? { source: 'sentinel-terrain', exaggeration: 1 } : null)
   if (map.getLayer(HILLSHADE_LAYER)) {
-    map.setLayoutProperty(HILLSHADE_LAYER, 'visibility', 'none')
+    map.setLayoutProperty(HILLSHADE_LAYER, 'visibility', edgeTerrainAvailable ? 'visible' : 'none')
   }
 
   try {
-    map.setLights([
+    if (renderer === 'mapbox') map.setLights([
       {
         id: 'sentinel-ambient',
         type: 'ambient',
@@ -136,6 +144,14 @@ function enableVolume3d(map: MapboxMap) {
         },
       },
     ])
+    else {
+      ;(map as unknown as { setLight: (light: Record<string, unknown>) => void }).setLight({
+        anchor: 'map',
+        color: '#d9e2f1',
+        intensity: 0.72,
+        position: [1.4, 210, 40],
+      })
+    }
   } catch {
     /* lights optional */
   }
@@ -177,17 +193,27 @@ function enableVolume3d(map: MapboxMap) {
     ] as mapboxgl.ExpressionSpecification,
     'fill-extrusion-opacity': 1,
     'fill-extrusion-vertical-gradient': true,
-    'fill-extrusion-ambient-occlusion-intensity': 0.65,
-    'fill-extrusion-ambient-occlusion-radius': 6,
+    ...(renderer === 'mapbox'
+      ? {
+          'fill-extrusion-ambient-occlusion-intensity': 0.65,
+          'fill-extrusion-ambient-occlusion-radius': 6,
+        }
+      : {}),
   }
 
-  if (map.getSource('composite') && !map.getLayer(BUILDINGS_LAYER)) {
+  const buildingSource = renderer === 'mapbox' ? 'composite' : 'sentinel-buildings'
+  const buildingSourceDefinition = map.getStyle()?.sources?.[buildingSource]
+  const buildingSourceLayer = buildingSourceDefinition?.type === 'vector'
+    ? renderer === 'maplibre' ? 'buildings' : 'building'
+    : undefined
+
+  if (map.getSource(buildingSource) && !map.getLayer(BUILDINGS_LAYER)) {
     const before = firstSymbolLayerId(map)
     map.addLayer(
       {
         id: BUILDINGS_LAYER,
-        source: 'composite',
-        'source-layer': 'building',
+        source: buildingSource,
+        ...(buildingSourceLayer ? { 'source-layer': buildingSourceLayer } : {}),
         filter: [
           'any',
           ['==', ['get', 'extrude'], 'true'],
@@ -207,16 +233,18 @@ function enableVolume3d(map: MapboxMap) {
     map.setPaintProperty(BUILDINGS_LAYER, 'fill-extrusion-color', buildingColor)
     map.setPaintProperty(BUILDINGS_LAYER, 'fill-extrusion-height', buildingHeight)
     map.setPaintProperty(BUILDINGS_LAYER, 'fill-extrusion-opacity', 1)
-    map.setPaintProperty(BUILDINGS_LAYER, 'fill-extrusion-ambient-occlusion-intensity', 0.65)
+    if (renderer === 'mapbox') {
+      map.setPaintProperty(BUILDINGS_LAYER, 'fill-extrusion-ambient-occlusion-intensity', 0.65)
+    }
   }
 
-  if (map.getSource('composite') && !map.getLayer('3d-building-edges')) {
+  if (map.getSource(buildingSource) && !map.getLayer('3d-building-edges')) {
     map.addLayer(
       {
         id: '3d-building-edges',
         type: 'line',
-        source: 'composite',
-        'source-layer': 'building',
+        source: buildingSource,
+        ...(buildingSourceLayer ? { 'source-layer': buildingSourceLayer } : {}),
         minzoom: 13,
         layout: { visibility: 'visible' },
         paint: {
@@ -268,7 +296,7 @@ function enableVolume3d(map: MapboxMap) {
     }
   }
 
-  if (!map.getLayer('sky')) {
+  if (renderer === 'mapbox' && !map.getLayer('sky')) {
     map.addLayer({
       id: 'sky',
       type: 'sky',
@@ -282,22 +310,62 @@ function enableVolume3d(map: MapboxMap) {
     })
   }
 
-  map.setFog({
-    color: 'rgb(6, 8, 12)',
-    'high-color': 'rgb(30, 40, 60)',
-    'horizon-blend': 0.05,
-    'space-color': 'rgb(2, 3, 6)',
-    'star-intensity': 0.12,
-    range: [1.0, 14],
-  })
+  if (renderer === 'mapbox') {
+    map.setFog({
+      color: 'rgb(6, 8, 12)',
+      'high-color': 'rgb(30, 40, 60)',
+      'horizon-blend': 0.05,
+      'space-color': 'rgb(2, 3, 6)',
+      'star-intensity': 0.12,
+      range: [1.0, 14],
+    })
+  } else {
+    ;(map as unknown as { setSky: (sky: Record<string, unknown>) => void }).setSky({
+      'sky-color': '#121826',
+      'horizon-color': '#06080c',
+      'fog-color': '#06080c',
+      'sky-horizon-blend': 0.45,
+      'horizon-fog-blend': 0.82,
+    })
+  }
 }
 
-function disableVolume3d(map: MapboxMap) {
+function coordinateBounds(coordinates: [number, number][]): [[number, number], [number, number]] {
+  let west = coordinates[0][0]
+  let east = coordinates[0][0]
+  let south = coordinates[0][1]
+  let north = coordinates[0][1]
+  for (const [lng, lat] of coordinates.slice(1)) {
+    west = Math.min(west, lng)
+    east = Math.max(east, lng)
+    south = Math.min(south, lat)
+    north = Math.max(north, lat)
+  }
+  return [[west, south], [east, north]]
+}
+
+type EdgePackHealth = {
+  ok: boolean
+  packId?: string
+  coverage?: string
+  stale?: boolean
+  error?: string
+}
+
+function disableVolume3d(map: MapboxMap, renderer: MapRenderer) {
   if (!map.isStyleLoaded()) return
   map.setTerrain(null)
-  map.setFog(null)
+  if (renderer === 'mapbox') map.setFog(null)
+  else {
+    ;(map as unknown as { setSky: (sky: Record<string, unknown>) => void }).setSky({
+      'sky-color': '#06070a',
+      'horizon-color': '#06070a',
+      'fog-color': '#06070a',
+      'sky-horizon-blend': 0,
+    })
+  }
   try {
-    map.setLights([])
+    if (renderer === 'mapbox') map.setLights([])
   } catch {
     /* ignore */
   }
@@ -317,14 +385,15 @@ function applyModeCamera(
   mode: ModeId,
   preferFlat: boolean,
   animate: boolean,
+  renderer: MapRenderer,
 ) {
   const preset = MODE_CAMERA[mode]
   const pitch = preferFlat ? 0 : preset.pitch
   const bearing = preferFlat ? 0 : preset.bearing
   const zoom = preferFlat ? map.getZoom() : (preset.zoom ?? map.getZoom())
 
-  if (preferFlat) disableVolume3d(map)
-  else enableVolume3d(map)
+  if (preferFlat) disableVolume3d(map, renderer)
+  else enableVolume3d(map, renderer)
 
   const camera = { pitch, bearing, zoom, duration: animate ? 900 : 0 }
   if (animate) map.easeTo(camera)
@@ -872,9 +941,12 @@ export function BattlespaceMap() {
   const [hoveredThreatId, setHoveredThreatId] = useState<string | null>(null)
   const [pinnedThreatId, setPinnedThreatId] = useState<string | null>(null)
   const [preferFlat, setPreferFlat] = useState(false)
+  const [edgePackHealth, setEdgePackHealth] = useState<EdgePackHealth | null>(null)
   const dispatch = useAppDispatch()
 
   const mode = useAppSelector((s) => s.ui.mode)
+  const deploymentMode = useAppSelector((s) => s.ui.deploymentMode)
+  const renderer: MapRenderer = deploymentMode === 'edge' ? 'maplibre' : 'mapbox'
   const mapOverlayTab = useAppSelector((s) => s.ui.mapOverlayTab)
   const preferFlatRef = useRef(preferFlat)
   const modeRef = useRef(mode)
@@ -1023,20 +1095,45 @@ export function BattlespaceMap() {
   }
 
   useEffect(() => {
+    if (renderer !== 'maplibre') {
+      setEdgePackHealth(null)
+      return
+    }
+    const controller = new AbortController()
+    void fetch('/api/v1/edge-map/health', { signal: controller.signal })
+      .then(async (response) => {
+        const body = (await response.json()) as EdgePackHealth
+        if (!response.ok || !body.ok) throw new Error(body.error ?? 'Edge map pack unavailable')
+        setEdgePackHealth(body)
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return
+        setEdgePackHealth({
+          ok: false,
+          error: error instanceof Error ? error.message : 'Edge map pack unavailable',
+        })
+      })
+    return () => controller.abort()
+  }, [renderer])
+
+  useEffect(() => {
     if (!containerRef.current || mapRef.current) return
 
-    if (!MAPBOX_TOKEN) {
+    if (renderer === 'mapbox' && !MAPBOX_TOKEN) {
       setMapError('Missing VITE_MAPBOX_TOKEN. Add it to .env and restart Vite.')
       return
     }
 
-    mapboxgl.accessToken = MAPBOX_TOKEN
+    if (renderer === 'mapbox') mapboxgl.accessToken = MAPBOX_TOKEN
 
     const camera = MODE_CAMERA[modeRef.current]
+    const mapEngine = renderer === 'mapbox'
+      ? mapboxgl
+      : (maplibregl as unknown as typeof mapboxgl)
 
-    const map = new mapboxgl.Map({
+    const map = new mapEngine.Map({
       container: containerRef.current,
-      style: MAP_STYLE,
+      style: renderer === 'mapbox' ? MAP_STYLE : EDGE_MAP_STYLE,
       center: [103.8198, 1.3521],
       zoom: 13.4,
       pitch: preferFlatRef.current ? 0 : camera.pitch,
@@ -1051,7 +1148,7 @@ export function BattlespaceMap() {
     })
 
     map.addControl(
-      new mapboxgl.NavigationControl({
+      new mapEngine.NavigationControl({
         showCompass: true,
         visualizePitch: true,
         showZoom: true,
@@ -1061,7 +1158,7 @@ export function BattlespaceMap() {
 
     const ensureLayers = () => {
       // Terrain first so hillshade sits under operator overlays.
-      applyModeCamera(map, modeRef.current, preferFlatRef.current, false)
+      applyModeCamera(map, modeRef.current, preferFlatRef.current, false, renderer)
       addOverlayLayers(map)
       const installations = map.getSource('installations') as GeoJSONSource | undefined
       installations?.setData(installationsForTab('bases'))
@@ -1071,14 +1168,14 @@ export function BattlespaceMap() {
 
     map.once('load', ensureLayers)
     map.on('style.load', () => {
-      applyModeCamera(map, modeRef.current, preferFlatRef.current, false)
+      applyModeCamera(map, modeRef.current, preferFlatRef.current, false, renderer)
       addOverlayLayers(map)
       const installations = map.getSource('installations') as GeoJSONSource | undefined
       installations?.setData(installationsForTab('bases'))
     })
 
     map.on('error', (event) => {
-      const message = event.error?.message ?? 'Mapbox failed to load'
+      const message = event.error?.message ?? `${renderer === 'mapbox' ? 'Mapbox' : 'Edge map'} failed to load`
       const lower = message.toLowerCase()
       if (lower.includes('terrain') || lower.includes('dem')) {
         setMapError(`3D terrain failed: ${message}`)
@@ -1097,13 +1194,13 @@ export function BattlespaceMap() {
     }
     // Map instance is created once; mode/pitch updates handled in a separate effect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [renderer])
 
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapReady) return
-    applyModeCamera(map, mode, preferFlat, true)
-  }, [mode, preferFlat, mapReady])
+    applyModeCamera(map, mode, preferFlat, true, renderer)
+  }, [mode, preferFlat, mapReady, renderer])
 
   // Sync server positions into display targets.
   useEffect(() => {
@@ -1188,10 +1285,7 @@ export function BattlespaceMap() {
     const points = collection.features.filter((f) => f.properties.feature === 'label')
     if (points.length === 0) return
     const coords = points.map((f) => f.geometry.coordinates as [number, number])
-    const bounds = coords.reduce(
-      (b, c) => b.extend(c),
-      new mapboxgl.LngLatBounds(coords[0], coords[0]),
-    )
+    const bounds = coordinateBounds(coords)
     map.fitBounds(bounds, {
       padding: { top: 72, bottom: 140, left: 80, right: 80 },
       maxZoom: mapOverlayTab === 'bases' ? 11.6 : 12.2,
@@ -1478,10 +1572,7 @@ export function BattlespaceMap() {
         const coords = [...display.values()].map(
           (p) => [p.lng, p.lat] as [number, number],
         )
-        const bounds = coords.reduce(
-          (b, c) => b.extend(c),
-          new mapboxgl.LngLatBounds(coords[0], coords[0]),
-        )
+        const bounds = coordinateBounds(coords)
         current.fitBounds(bounds, {
           padding: { top: 80, bottom: 160, left: 360, right: 360 },
           maxZoom: 14,
@@ -1512,8 +1603,23 @@ export function BattlespaceMap() {
   }, [mapReady, dispatch, pinThreat, unpinThreat])
 
   return (
-    <div className="map-shell">
+    <div className="map-shell" data-map-renderer={renderer}>
       <div ref={containerRef} className="map-canvas" />
+      {renderer === 'maplibre' && edgePackHealth && (
+        <div
+          className={[
+            'edge-pack-status',
+            !edgePackHealth.ok ? 'tone-crit' : edgePackHealth.stale ? 'tone-warn' : 'tone-ok',
+          ].join(' ')}
+          title={edgePackHealth.error ?? edgePackHealth.coverage}
+        >
+          <span className="edge-pack-status__dot" aria-hidden="true" />
+          <span>EDGE MAP</span>
+          <strong className="mono">
+            {!edgePackHealth.ok ? 'UNAVAILABLE' : edgePackHealth.stale ? 'STALE' : edgePackHealth.packId}
+          </strong>
+        </div>
+      )}
       {mapReady && (
         <div className="map-overlay-tabs" role="tablist" aria-label="Map overlay">
           <button
