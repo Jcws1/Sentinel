@@ -1,6 +1,6 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import { setActiveRecommendation } from './taskingSlice'
-import { selectTrack } from './threatsSlice'
+import { selectTrack, operatorSelectTrack } from './threatsSlice'
 
 export type WorkflowStage = 'detect' | 'decide' | 'execute'
 export type CommandStatus = 'pending' | 'succeeded' | 'failed'
@@ -109,6 +109,9 @@ const workflowSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder.addCase(selectTrack, (state, action) => {
+      state.focusedTrackId = action.payload
+    })
+    builder.addCase(operatorSelectTrack, (state, action) => {
       state.focusedTrackId = action.payload
     })
     builder.addCase(setActiveRecommendation, (state, action) => {

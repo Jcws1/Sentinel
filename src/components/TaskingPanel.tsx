@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useAppDispatch, useAppSelector } from '../store'
 import { pushToast, setActiveRecommendation, setIntentPaletteOpen, setLastVetoedId } from '../store/taskingSlice'
 import { confirmAllPendingCommand, engageTrackCommand, setMissionStateCommand, submitDecisionCommand } from '../store/commandThunks'
-import { selectTrack } from '../store/threatsSlice'
+import { operatorSelectTrack } from '../store/threatsSlice'
 import { resolveOperatorFlow } from '../api/flow'
 import { getModeProfile } from '../modeProfiles'
 import { setMode } from '../store/uiSlice'
@@ -66,7 +66,7 @@ export function TaskingPanel() {
 
   const selectPending = (recId: string, trackId: string) => {
     dispatch(setActiveRecommendation(recId))
-    dispatch(selectTrack(trackId))
+    dispatch(operatorSelectTrack(trackId))
   }
 
   const stepPending = (delta: number) => {

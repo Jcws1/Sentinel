@@ -11,7 +11,12 @@ interface TaskingState {
     action: string
     detail: string
   }>
-  toasts: Array<{ id: string; message: string; expiresAt: number }>
+  toasts: Array<{
+    id: string
+    message: string
+    expiresAt: number
+    undoTrackId?: string
+  }>
 }
 
 const initialState: TaskingState = {
@@ -158,6 +163,18 @@ const taskingSlice = createSlice({
         state.toasts = state.toasts.slice(-4)
       }
     },
+    pushUndoToast(state, action: PayloadAction<{ trackId: string }>) {
+      const { trackId } = action.payload
+      state.toasts.push({
+        id: `undo-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        message: `Intercept ${trackId}`,
+        expiresAt: Date.now() + 3000,
+        undoTrackId: trackId,
+      })
+      if (state.toasts.length > 4) {
+        state.toasts = state.toasts.slice(-4)
+      }
+    },
 
     dismissToast(state, action: PayloadAction<string>) {
       state.toasts = state.toasts.filter((t) => t.id !== action.payload)
@@ -180,6 +197,7 @@ export const {
   setLastVetoedId,
   hydrateTasking,
   pushToast,
+  pushUndoToast,
   dismissToast,
   pruneToasts,
 } = taskingSlice.actions

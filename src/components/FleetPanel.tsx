@@ -1,6 +1,6 @@
 import { useAppDispatch, useAppSelector } from '../store'
 import { selectDrone } from '../store/fleetSlice'
-import { toggleOntologyCollapsed } from '../store/uiSlice'
+import { toggleOntologyCollapsed, toggleAlertChirp } from '../store/uiSlice'
 import { droneHealth, healthGlyph, healthLabel } from '../utils/health'
 import { CollapsiblePanel } from './CollapsiblePanel'
 
@@ -10,18 +10,43 @@ export function FleetPanel() {
   const policySummary = useAppSelector((s) => s.session.policySummary)
   const fleetFocus = useAppSelector((s) => s.ui.workspace) === 'fleet'
   const ontologyCollapsed = useAppSelector((s) => s.ui.ontologyCollapsed)
+  const alertChirpEnabled = useAppSelector((s) => s.ui.alertChirpEnabled)
   const dispatch = useAppDispatch()
 
   return (
     <CollapsiblePanel
       side="right"
-      eyebrow="Network"
-      title="Assets"
+      eyebrow="Operator"
+      title="Settings"
       count={drones.length}
       collapsed={ontologyCollapsed}
       onToggleCollapse={() => dispatch(toggleOntologyCollapsed())}
       className={fleetFocus ? 'panel--focused' : ''}
     >
+      <div className="v4-settings-block">
+        <label className="v4-settings-row">
+          <span>Alert chirp on new threat</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={alertChirpEnabled}
+            className={['v4-settings-toggle', alertChirpEnabled ? 'is-on' : '']
+              .filter(Boolean)
+              .join(' ')}
+            onClick={() => dispatch(toggleAlertChirp())}
+          >
+            {alertChirpEnabled ? 'ON' : 'OFF'}
+          </button>
+        </label>
+        <p className="v4-settings-hint">
+          One short tone when a track enters alert state. Off by default.
+        </p>
+        <p className="v4-settings-hint v4-settings-hint--kbd">
+          Keyboard: <kbd>1</kbd> or <kbd>Enter</kbd> confirm · <kbd>H</kbd> hold/resume
+        </p>
+      </div>
+
+      <p className="panel__eyebrow v4-settings-fleet-label">Fleet</p>
       <div className="panel__list-head panel__list-head--fleet">
         <span>Object</span>
         <span>Type</span>

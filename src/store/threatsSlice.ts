@@ -5,12 +5,18 @@ interface ThreatsState {
   tracks: ThreatTrack[]
   selectedTrackId: string | null
   alertTrackIds: string[]
+  /** Timestamp — auto-focus pauses briefly after operator map selection. */
+  lastManualSelectAt: number
+  /** Distinguishes programmatic auto-focus from operator map/queue picks. */
+  selectionKind: 'auto' | 'operator' | null
 }
 
 const initialState: ThreatsState = {
   tracks: [],
   selectedTrackId: null,
   alertTrackIds: [],
+  lastManualSelectAt: 0,
+  selectionKind: null,
 }
 
 const threatsSlice = createSlice({
@@ -50,6 +56,14 @@ const threatsSlice = createSlice({
     },
     selectTrack(state, action: PayloadAction<string | null>) {
       state.selectedTrackId = action.payload
+      state.selectionKind = action.payload ? 'auto' : null
+    },
+    operatorSelectTrack(state, action: PayloadAction<string | null>) {
+      state.selectedTrackId = action.payload
+      state.selectionKind = action.payload ? 'operator' : null
+      if (action.payload) {
+        state.lastManualSelectAt = Date.now()
+      }
     },
     clearAlert(state, action: PayloadAction<string>) {
       state.alertTrackIds = state.alertTrackIds.filter(
@@ -73,6 +87,7 @@ export const {
   updateThreatPositions,
   updateThreatEtas,
   selectTrack,
+  operatorSelectTrack,
   clearAlert,
   removeTrack,
 } = threatsSlice.actions
