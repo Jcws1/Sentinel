@@ -9,12 +9,15 @@ import {
   setWorkspace,
   setHelpOpen,
   toggleOverflowMenu,
+  toggleAutoFocusFrozen,
   type WorkspaceView,
 } from '../../store/uiSlice'
 import { ModeSelector } from './ModeSelector'
 import { BasemapToggle } from './BasemapToggle'
 import { ModeSwitchDialog } from '../ModeSwitchDialog'
 import { resolveOfflineMapConfig } from '../../terrain/offlineMapConfig'
+import { useDataAgeSec } from '../../hooks/useDataAgeSec'
+import { CommandQueueHud } from './CommandQueueHud'
 
 type MenuId =
   | WorkspaceView
@@ -74,6 +77,9 @@ export function StreamlinedTopBar() {
   const mapOverlayTab = useAppSelector((s) => s.ui.mapOverlayTab)
   const connected = useAppSelector((s) => s.session.connected)
   const mission = useAppSelector((s) => s.mission)
+  const lastSyncAt = useAppSelector((s) => s.session.lastSyncAt)
+  const autoFocusFrozen = useAppSelector((s) => s.ui.autoFocusFrozen)
+  const dataAgeSec = useDataAgeSec(lastSyncAt)
   const [netOnline, setNetOnline] = useState(
     () => typeof navigator !== 'undefined' && navigator.onLine,
   )
@@ -116,17 +122,49 @@ export function StreamlinedTopBar() {
         {!nominal && <span className="v4-top-bar__brand">SENTINEL</span>}
         <ModeSelector compact={nominal} />
         <BasemapToggle />
-        {status && (
+        <span
+          className={`v4-top-bar__gnss tone-${
+            gnss === 'active' ? 'ok' : gnss === 'degraded' ? 'warn' : 'crit'
+          }`}
+        >
+          {gnss === 'active' ? 'GPS OK' : gnss === 'degraded' ? 'GPS weak' : 'GPS dead'}
+        </span>
+        <span
+          className={`v4-top-bar__link tone-${
+            !connected ? 'crit' : mission.c2Link === 'strong' ? 'ok' : mission.c2Link === 'weak' ? 'warn' : 'crit'
+          }`}
+        >
+          {!connected ? 'C2 off' : mission.c2Link === 'strong' ? 'C2 live' : mission.c2Link === 'weak' ? 'C2 weak' : 'C2 lost'}
+        </span>
+        {dataAgeSec != null && (
           <span
-            className={`v4-top-bar__status ${
-              !connected ? 'tone-crit' : mapOffline ? 'tone-warn' : 'tone-warn'
+            className={`v4-top-bar__data-age mono tone-${
+              dataAgeSec > 12 ? 'crit' : dataAgeSec > 5 ? 'warn' : 'ok'
             }`}
           >
-            {status}
+            {dataAgeSec}s
           </span>
+        )}
+        {mapOffline && (
+          <span className="v4-top-bar__map-offline tone-warn">Map cache</span>
+        )}
+        {!nominal && status && (
+          <span className="v4-top-bar__status tone-warn">{status}</span>
         )}
       </div>
       <div className="v4-top-bar__right">
+        <CommandQueueHud />
+        <button
+          type="button"
+          className={['v4-top-bar__freeze', autoFocusFrozen ? 'is-active' : '']
+            .filter(Boolean)
+            .join(' ')}
+          aria-pressed={autoFocusFrozen}
+          title="Freeze auto-focus"
+          onClick={() => dispatch(toggleAutoFocusFrozen())}
+        >
+          {autoFocusFrozen ? 'PIN' : 'AUTO'}
+        </button>
         {alertCount > 0 && (
           <button
             type="button"

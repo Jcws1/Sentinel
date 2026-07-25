@@ -8,6 +8,7 @@ import taskingReducer from './taskingSlice'
 import threatsReducer from './threatsSlice'
 import uiReducer from './uiSlice'
 import workflowReducer from './workflowSlice'
+import commandQueueReducer from './commandQueueSlice'
 
 export const store = configureStore({
   reducer: {
@@ -19,6 +20,7 @@ export const store = configureStore({
     policy: policyReducer,
     ui: uiReducer,
     workflow: workflowReducer,
+    commandQueue: commandQueueReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

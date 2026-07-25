@@ -23,6 +23,7 @@ export function useTopPriorityThreatFocus() {
     (s) => s.tasking.activeRecommendationId,
   )
   const lastManualSelectAt = useAppSelector((s) => s.threats.lastManualSelectAt)
+  const autoFocusFrozen = useAppSelector((s) => s.ui.autoFocusFrozen)
   const trackCount = useAppSelector((s) => s.threats.tracks.length)
   const lastAppliedKeyRef = useRef('')
   const prevManualAtRef = useRef(lastManualSelectAt)
@@ -33,6 +34,7 @@ export function useTopPriorityThreatFocus() {
       prevManualAtRef.current = lastManualSelectAt
     }
     if (trackCount === 0) return
+    if (autoFocusFrozen) return
     if (Date.now() - lastManualSelectAt < MANUAL_SELECT_GRACE_MS) return
     if (autoFocusKey === lastAppliedKeyRef.current) return
     lastAppliedKeyRef.current = autoFocusKey
@@ -52,6 +54,7 @@ export function useTopPriorityThreatFocus() {
     selectedTrackId,
     activeRecommendationId,
     lastManualSelectAt,
+    autoFocusFrozen,
     trackCount,
     dispatch,
   ])

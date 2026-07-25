@@ -2,6 +2,7 @@ import { createAsyncThunk } from '@reduxjs/toolkit'
 import { c2Client } from '../api/sync'
 import type { MissionState } from '../types'
 import type { TaskingDecisionRequest } from '../api/types'
+import type { RootState } from './index'
 import {
   pushToast,
   pushUndoToast,
@@ -13,15 +14,31 @@ import {
   commandStarted,
   commandSucceeded,
 } from './workflowSlice'
+import {
+  enqueueCommand,
+  markCommandFailed,
+  markCommandSending,
+  removeQueuedCommand,
+  setQueueFlushing,
+} from './commandQueueSlice'
+import { disarmConfirm } from './uiSlice'
 
 export const engageTrackCommand = createAsyncThunk(
   'commands/engageTrack',
   async (trackId: string, thunkApi) => {
-    const { dispatch, requestId, rejectWithValue } = thunkApi
+    const { dispatch, requestId, rejectWithValue, getState } = thunkApi
+    const state = getState() as RootState
     dispatch(commandStarted({ id: requestId, kind: 'engage', targetId: trackId }))
     try {
+      if (!state.session.connected) {
+        dispatch(enqueueCommand({ id: requestId, kind: 'engage', payload: trackId }))
+        dispatch(pushToast('Queued — C2 offline'))
+        dispatch(commandSucceeded({ id: requestId }))
+        return { accepted: true, queued: true as const, trackId, droneIds: [] as string[] }
+      }
       const result = await c2Client.engageTrack(trackId)
       dispatch(pushUndoToast({ trackId }))
+      dispatch(disarmConfirm())
       dispatch(commandSucceeded({ id: requestId }))
       return result
     } catch (error) {
@@ -36,9 +53,16 @@ export const engageTrackCommand = createAsyncThunk(
 export const holdTrackCommand = createAsyncThunk(
   'commands/holdTrack',
   async (trackId: string, thunkApi) => {
-    const { dispatch, requestId, rejectWithValue } = thunkApi
+    const { dispatch, requestId, rejectWithValue, getState } = thunkApi
+    const state = getState() as RootState
     dispatch(commandStarted({ id: requestId, kind: 'hold', targetId: trackId }))
     try {
+      if (!state.session.connected) {
+        dispatch(enqueueCommand({ id: requestId, kind: 'hold_track', payload: trackId }))
+        dispatch(pushToast('Queued — C2 offline'))
+        dispatch(commandSucceeded({ id: requestId }))
+        return { accepted: true, queued: true }
+      }
       await c2Client.holdTrack(trackId)
       dispatch(pushToast(`${trackId} on hold`))
       dispatch(commandSucceeded({ id: requestId }))
@@ -55,9 +79,16 @@ export const holdTrackCommand = createAsyncThunk(
 export const abortEngagementCommand = createAsyncThunk(
   'commands/abortEngagement',
   async (trackId: string, thunkApi) => {
-    const { dispatch, requestId, rejectWithValue } = thunkApi
+    const { dispatch, requestId, rejectWithValue, getState } = thunkApi
+    const state = getState() as RootState
     dispatch(commandStarted({ id: requestId, kind: 'abort', targetId: trackId }))
     try {
+      if (!state.session.connected) {
+        dispatch(enqueueCommand({ id: requestId, kind: 'abort', payload: trackId }))
+        dispatch(pushToast('Queued — C2 offline'))
+        dispatch(commandSucceeded({ id: requestId }))
+        return { accepted: true, queued: true }
+      }
       await c2Client.abortEngagement(trackId)
       dispatch(pushToast(`Aborted ${trackId}`))
       dispatch(commandSucceeded({ id: requestId }))
@@ -74,7 +105,8 @@ export const abortEngagementCommand = createAsyncThunk(
 export const submitDecisionCommand = createAsyncThunk(
   'commands/submitDecision',
   async (body: TaskingDecisionRequest, thunkApi) => {
-    const { dispatch, requestId, rejectWithValue } = thunkApi
+    const { dispatch, requestId, rejectWithValue, getState } = thunkApi
+    const state = getState() as RootState
     dispatch(
       commandStarted({
         id: requestId,
@@ -83,6 +115,12 @@ export const submitDecisionCommand = createAsyncThunk(
       }),
     )
     try {
+      if (!state.session.connected) {
+        dispatch(enqueueCommand({ id: requestId, kind: 'decision', payload: body }))
+        dispatch(pushToast('Queued — C2 offline'))
+        dispatch(commandSucceeded({ id: requestId }))
+        return { accepted: true, queued: true }
+      }
       await c2Client.submitDecision({
         recommendationId: body.recommendationId,
         decision: body.decision,
@@ -109,7 +147,8 @@ export const submitDecisionCommand = createAsyncThunk(
 export const confirmAllPendingCommand = createAsyncThunk(
   'commands/confirmAllPending',
   async (recommendationIds: string[], thunkApi) => {
-    const { dispatch, requestId, rejectWithValue } = thunkApi
+    const { dispatch, requestId, rejectWithValue, getState } = thunkApi
+    const state = getState() as RootState
     dispatch(
       commandStarted({
         id: requestId,
@@ -118,13 +157,40 @@ export const confirmAllPendingCommand = createAsyncThunk(
       }),
     )
     try {
+      if (!state.session.connected) {
+        dispatch(
+          enqueueCommand({
+            id: requestId,
+            kind: 'confirm_all',
+            payload: recommendationIds,
+          }),
+        )
+        dispatch(pushToast(`Queued ${recommendationIds.length} confirms — C2 offline`))
+        dispatch(disarmConfirm())
+        dispatch(commandSucceeded({ id: requestId }))
+        return { accepted: true, queued: true }
+      }
+      const confirmed: string[] = []
       for (const recommendationId of recommendationIds) {
-        await c2Client.submitDecision({
-          recommendationId,
-          decision: 'confirm',
-        })
+        try {
+          await c2Client.submitDecision({
+            recommendationId,
+            decision: 'confirm',
+          })
+          confirmed.push(recommendationId)
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Confirm failed'
+          dispatch(
+            pushToast(
+              `Partial confirm: ${confirmed.length}/${recommendationIds.length} — ${message}`,
+            ),
+          )
+          dispatch(commandFailed({ id: requestId, error: message }))
+          return rejectWithValue(message)
+        }
       }
       dispatch(pushToast(`Confirmed all (${recommendationIds.length})`))
+      dispatch(disarmConfirm())
       dispatch(commandSucceeded({ id: requestId }))
       return { accepted: true }
     } catch (error) {
@@ -138,17 +204,26 @@ export const confirmAllPendingCommand = createAsyncThunk(
 
 export const setMissionStateCommand = createAsyncThunk(
   'commands/setMissionState',
-  async (state: MissionState, thunkApi) => {
-    const { dispatch, requestId, rejectWithValue } = thunkApi
+  async (missionState: MissionState, thunkApi) => {
+    const { dispatch, requestId, rejectWithValue, getState } = thunkApi
+    const root = getState() as RootState
     dispatch(
       commandStarted({
         id: requestId,
         kind: 'mission_state',
-        targetId: state,
+        targetId: missionState,
       }),
     )
     try {
-      const result = await c2Client.setMissionState(state)
+      if (!root.session.connected) {
+        dispatch(
+          enqueueCommand({ id: requestId, kind: 'mission_state', payload: missionState }),
+        )
+        dispatch(pushToast('Queued — C2 offline'))
+        dispatch(commandSucceeded({ id: requestId }))
+        return { accepted: true, queued: true }
+      }
+      const result = await c2Client.setMissionState(missionState)
       dispatch(commandSucceeded({ id: requestId }))
       return result
     } catch (error) {
@@ -158,5 +233,54 @@ export const setMissionStateCommand = createAsyncThunk(
       dispatch(pushToast(message))
       return rejectWithValue(message)
     }
+  },
+)
+
+export const flushCommandQueue = createAsyncThunk(
+  'commands/flushQueue',
+  async (_, { dispatch, getState }) => {
+    const root = getState() as RootState
+    const queue = root.commandQueue.queue.filter((c) => c.status === 'queued')
+    if (queue.length === 0) return { flushed: 0 }
+    dispatch(setQueueFlushing(true))
+    let flushed = 0
+    for (const cmd of queue) {
+      dispatch(markCommandSending(cmd.id))
+      try {
+        switch (cmd.kind) {
+          case 'engage':
+            await c2Client.engageTrack(cmd.payload as string)
+            dispatch(pushUndoToast({ trackId: cmd.payload as string }))
+            break
+          case 'hold_track':
+            await c2Client.holdTrack(cmd.payload as string)
+            break
+          case 'abort':
+            await c2Client.abortEngagement(cmd.payload as string)
+            break
+          case 'decision':
+            await c2Client.submitDecision(cmd.payload as TaskingDecisionRequest)
+            break
+          case 'confirm_all':
+            for (const id of cmd.payload as string[]) {
+              await c2Client.submitDecision({ recommendationId: id, decision: 'confirm' })
+            }
+            break
+          case 'mission_state':
+            await c2Client.setMissionState(cmd.payload as MissionState)
+            break
+        }
+        dispatch(removeQueuedCommand(cmd.id))
+        flushed++
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Send failed'
+        dispatch(markCommandFailed({ id: cmd.id, error: message }))
+      }
+    }
+    dispatch(setQueueFlushing(false))
+    if (flushed > 0) {
+      dispatch(pushToast(`Sent ${flushed} queued command${flushed === 1 ? '' : 's'}`))
+    }
+    return { flushed }
   },
 )

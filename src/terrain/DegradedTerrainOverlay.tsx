@@ -18,6 +18,7 @@ export interface DegradedTerrainOverlayProps {
   asset: Position
   selectedDroneId: string | null
   losResult: LosResult | null
+  secondsSinceFix: number
 }
 
 /**
@@ -31,6 +32,7 @@ export function DegradedTerrainOverlay({
   asset,
   selectedDroneId,
   losResult,
+  secondsSinceFix,
 }: DegradedTerrainOverlayProps) {
   const focus = useMemo(() => {
     const drone =
@@ -43,7 +45,7 @@ export function DegradedTerrainOverlay({
   const drift = useTerrainDrift({
     lng: focus.lng,
     lat: focus.lat,
-    secondsSinceFix: active ? 45 : 0,
+    secondsSinceFix: active ? secondsSinceFix : 0,
     confidence: drones.find((d) => d.id === selectedDroneId)?.positioningConfidence ?? 55,
     gnssDenied: active,
   })

@@ -25,6 +25,11 @@ import {
   submitDecision,
 } from './services'
 import { registerPmtilesRoutes } from './pmtilesRoutes'
+import { loadEnvFile } from './loadEnv'
+import { getCdseConfig } from './cdseConfig'
+import { registerCdseRoutes } from './cdseRoutes'
+
+loadEnvFile()
 
 const PORT = Number(process.env.C2_PORT ?? 3001)
 const state = createInitialState()
@@ -53,6 +58,7 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 registerPmtilesRoutes(app)
+registerCdseRoutes(app)
 
 app.get('/api/v1/edge-map/health', async (_req, res) => {
   try {
@@ -130,11 +136,17 @@ app.use(
 )
 
 app.get('/api/v1/health', (_req, res) => {
+  const cdse = getCdseConfig()
   res.json({
     ok: true,
     missionId: state.missionId,
     tick: state.tick,
     clients: clients.size,
+    cdse: {
+      configured: cdse.configured,
+      endpoint: cdse.endpoint,
+      bucket: cdse.bucket,
+    },
   })
 })
 
@@ -293,8 +305,14 @@ const simTimer = setInterval(() => {
 }, 400)
 
 server.listen(PORT, () => {
+  const cdse = getCdseConfig()
   console.log(`Sentinel C2 backend listening on http://localhost:${PORT}`)
   console.log(`WebSocket: ws://localhost:${PORT}/api/v1/ws`)
+  console.log(
+    cdse.configured
+      ? `CDSE S3: configured → ${cdse.endpoint} (${cdse.bucket})`
+      : 'CDSE S3: not configured (set CDSE_S3_* in .env)',
+  )
 })
 
 cdsePoller.start()

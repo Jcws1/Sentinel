@@ -16,13 +16,17 @@ Intent-based C2 dashboard for swarm interceptor tasking: local C2 backend (REST 
 
 ```bash
 npm install
-cp .env.example .env   # set VITE_MAPBOX_TOKEN
+cp .env.example .env   # set VITE_MAPBOX_TOKEN + CDSE_S3_* (optional)
 npm run dev
 ```
 
 - UI: http://localhost:5173/
 - C2 API: http://localhost:3001/api/v1/health
 - WebSocket: `ws://localhost:3001/api/v1/ws` (proxied via Vite as `/api/v1/ws`)
+- CDSE status: http://localhost:3001/api/v1/cdse/status
+- CDSE list: http://localhost:3001/api/v1/cdse/list?prefix=Sentinel-2/
+
+`VITE_MAPBOX_TOKEN` is client-side (Mapbox). `CDSE_S3_*` credentials stay on the C2 server only — never prefix them with `VITE_`.
 
 ### MVP operator loop
 

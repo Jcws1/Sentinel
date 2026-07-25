@@ -11,6 +11,7 @@ import {
   setDisconnected,
   touchSync,
 } from '../store/sessionSlice'
+import { flushCommandQueue } from '../store/commandThunks'
 import type { MissionSnapshotDto, RealtimeEvent } from './types'
 import { createHttpC2Client } from './httpClient'
 import type { SentinelC2Client } from './client'
@@ -86,6 +87,7 @@ function applyEvent(dispatch: AppDispatch, event: RealtimeEvent) {
     }),
   )
   dispatch(touchSync())
+  dispatch(flushCommandQueue())
 }
 
 /** Connect UI store to the local C2 backend (REST + WebSocket). */

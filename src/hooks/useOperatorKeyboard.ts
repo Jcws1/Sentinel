@@ -1,18 +1,21 @@
 import { useEffect } from 'react'
-import { useAppDispatch, useAppSelector } from '../store'
+import { useAppDispatch, useAppSelector, store } from '../store'
+import { cycleThreat } from '../store/threatsSlice'
 import {
   executePrimaryConfirm,
   isTypingTarget,
+  requestMissionHold,
   resolvePrimaryConfirm,
-  toggleMissionHold,
 } from '../utils/operatorActions'
+import { selectConfirmReadiness } from '../store/selectors'
 
-/** Desktop hotkeys: 1 / Enter = confirm, H = hold/resume. No on-map chrome. */
+/** Desktop hotkeys: 1/Enter confirm, H hold, [/] cycle threats. */
 export function useOperatorKeyboard() {
   const dispatch = useAppDispatch()
   const missionState = useAppSelector((s) => s.mission.state)
   const holdArmed = useAppSelector((s) => s.ui.holdArmed)
   const recallOpen = useAppSelector((s) => s.ui.recallConfirmOpen)
+  const holdConfirmOpen = useAppSelector((s) => s.ui.holdConfirmOpen)
   const overflowMenuOpen = useAppSelector((s) => s.ui.overflowMenuOpen)
   const helpOpen = useAppSelector((s) => s.ui.helpOpen)
   const offlinePrepOpen = useAppSelector((s) => s.ui.offlinePrepOpen)
@@ -21,22 +24,31 @@ export function useOperatorKeyboard() {
   const tracks = useAppSelector((s) => s.threats.tracks)
   const alertTrackIds = useAppSelector((s) => s.threats.alertTrackIds)
   const recommendations = useAppSelector((s) => s.tasking.recommendations)
+  const readiness = useAppSelector(selectConfirmReadiness)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (isTypingTarget(e.target)) return
       if (e.metaKey || e.ctrlKey || e.altKey) return
 
-      if (
+      const modalOpen =
         recallOpen ||
+        holdConfirmOpen ||
         overflowMenuOpen ||
         offlinePrepOpen ||
         helpOpen ||
-        pendingModeSwitch ||
-        workspace !== 'tracks'
-      ) {
+        pendingModeSwitch
+
+      if (modalOpen) return
+
+      if (e.key === '[' || e.key === ']') {
+        if (workspace !== 'tracks' || tracks.length === 0) return
+        e.preventDefault()
+        dispatch(cycleThreat(e.key === ']' ? 'next' : 'prev'))
         return
       }
+
+      if (workspace !== 'tracks') return
 
       const holdActive = holdArmed || missionState === 'HOLD'
       const { pending, active, taskingReady } = resolvePrimaryConfirm(
@@ -47,14 +59,14 @@ export function useOperatorKeyboard() {
 
       if (e.key === 'h' || e.key === 'H') {
         e.preventDefault()
-        toggleMissionHold(dispatch, holdActive)
+        requestMissionHold(dispatch, holdActive, e.shiftKey)
         return
       }
 
       if (e.key === '1' || e.key === 'Enter') {
-        if (!taskingReady || !active) return
+        if (!taskingReady || !active || !readiness.ready) return
         e.preventDefault()
-        executePrimaryConfirm(dispatch, pending, active)
+        executePrimaryConfirm(dispatch, store.getState, pending, active)
       }
     }
 
@@ -65,6 +77,7 @@ export function useOperatorKeyboard() {
     missionState,
     holdArmed,
     recallOpen,
+    holdConfirmOpen,
     overflowMenuOpen,
     offlinePrepOpen,
     helpOpen,
@@ -73,5 +86,6 @@ export function useOperatorKeyboard() {
     tracks,
     alertTrackIds,
     recommendations,
+    readiness,
   ])
 }

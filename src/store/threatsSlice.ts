@@ -70,6 +70,26 @@ const threatsSlice = createSlice({
         (id) => id !== action.payload,
       )
     },
+    cycleThreat(state, action: PayloadAction<'next' | 'prev'>) {
+      const { tracks, alertTrackIds } = state
+      if (tracks.length === 0) return
+      const sorted = [...tracks].sort((a, b) => {
+        const aAlert = alertTrackIds.includes(a.id) ? 0 : 1
+        const bAlert = alertTrackIds.includes(b.id) ? 0 : 1
+        if (aAlert !== bAlert) return aAlert - bAlert
+        if (a.threatClass !== b.threatClass) return a.threatClass.localeCompare(b.threatClass)
+        return a.etaToAsset - b.etaToAsset
+      })
+      const idx = sorted.findIndex((t) => t.id === state.selectedTrackId)
+      const nextIdx =
+        action.payload === 'next'
+          ? (idx + 1) % sorted.length
+          : (idx <= 0 ? sorted.length : idx) - 1
+      const next = sorted[nextIdx]!
+      state.selectedTrackId = next.id
+      state.selectionKind = 'operator'
+      state.lastManualSelectAt = Date.now()
+    },
     removeTrack(state, action: PayloadAction<string>) {
       state.tracks = state.tracks.filter((t) => t.id !== action.payload)
       state.alertTrackIds = state.alertTrackIds.filter(
@@ -89,6 +109,7 @@ export const {
   selectTrack,
   operatorSelectTrack,
   clearAlert,
+  cycleThreat,
   removeTrack,
 } = threatsSlice.actions
 export default threatsSlice.reducer

@@ -6,8 +6,10 @@ import {
   setRecallConfirmOpen,
   setTaskingSheetOpen,
   setWorkspace,
+  setHoldConfirmOpen,
 } from '../../store/uiSlice'
 import { setMissionStateCommand } from '../../store/commandThunks'
+import { confirmMissionHold } from '../../utils/operatorActions'
 import { isDegraded } from '../../modeProfiles'
 import { BattlespaceMap } from '../BattlespaceMap'
 import { BottomBar } from './BottomBar'
@@ -16,6 +18,7 @@ import { OverlayPanel } from './OverlayPanel'
 import { TelemetryCard } from './TelemetryCard'
 import { TaskingCard } from './TaskingCard'
 import { DegradedBanner } from './DegradedBanner'
+import { OfflineCacheBanner } from './OfflineCacheBanner'
 import { StreamlinedTopBar } from './StreamlinedTopBar'
 import { ThreatTicker } from './ThreatTicker'
 import { HelpGuide } from './HelpGuide'
@@ -32,6 +35,8 @@ export function StreamlinedLayout() {
   const mission = useAppSelector((s) => s.mission)
   const workspace = useAppSelector((s) => s.ui.workspace)
   const recallOpen = useAppSelector((s) => s.ui.recallConfirmOpen)
+  const holdConfirmOpen = useAppSelector((s) => s.ui.holdConfirmOpen)
+  const connected = useAppSelector((s) => s.session.connected)
   const holdArmed = useAppSelector((s) => s.ui.holdArmed)
   const pendingCount = useAppSelector(selectPendingCount)
   const taskingSheetOpen = useAppSelector((s) => s.ui.taskingSheetOpen)
@@ -57,9 +62,10 @@ export function StreamlinedLayout() {
   }, [pendingCount, taskingSheetOpen, dispatch])
 
   return (
-    <div className="v4-layout">
+    <div className={['v4-layout', !connected ? 'is-readonly' : ''].filter(Boolean).join(' ')}>
       <StreamlinedTopBar />
       <DegradedBanner />
+      <OfflineCacheBanner />
       {holdArmed && mission.state === 'HOLD' && (
         <div className="v4-hold-banner" role="status">
           HOLD
@@ -104,6 +110,31 @@ export function StreamlinedLayout() {
                 type="button"
                 className="v4-btn"
                 onClick={() => dispatch(setRecallConfirmOpen(false))}
+              >
+                CANCEL
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {holdConfirmOpen && (
+        <div className="v4-confirm-modal" role="alertdialog" aria-modal="true">
+          <div className="v4-confirm-modal__card">
+            <h2>Hold all intercepts?</h2>
+            <p>Drones pause engagement. Long-press HOLD (3s) to skip this dialog.</p>
+            <div className="v4-confirm-modal__actions">
+              <button
+                type="button"
+                className="v4-btn v4-btn--hold is-active"
+                onClick={() => confirmMissionHold(dispatch)}
+              >
+                HOLD
+              </button>
+              <button
+                type="button"
+                className="v4-btn"
+                onClick={() => dispatch(setHoldConfirmOpen(false))}
               >
                 CANCEL
               </button>

@@ -5,42 +5,43 @@ const SECTIONS = [
   {
     title: 'Quick start',
     items: [
-      'Highest-priority threat auto-selects on the map.',
-      'When tasking is ready, CONFIRM pulses teal — one tap to execute.',
-      'Threat ticker above the bottom bar: tap to fly to that track.',
+      'Highest-priority threat auto-selects unless AUTO is toggled to PIN (freeze).',
+      'Check GPS / C2 / data age chips before confirming.',
+      'When tasking is ready, CONFIRM pulses teal — blocked if data is stale or ROE fails.',
     ],
   },
   {
     title: 'Bottom bar',
     items: [
-      'FLEET — view drones; tap for stats, long-press for full telemetry.',
-      'OVERLAYS — toggle map layers (threats, mesh, terrain, etc.).',
-      'HOLD — pause intercepts; tap again to resume.',
-      'RECALL — return all drones (confirmation required).',
-      'CONFIRM — execute the top-priority intercept plan.',
+      'FLEET — tap stats, long-press full telemetry.',
+      'OVERLAYS — map layers.',
+      'HOLD — tap for confirmation; long-press 3s for immediate hold.',
+      'RECALL — tap for confirmation; long-press 3s for immediate recall.',
+      'CONFIRM — single threat: one tap. Multiple: tap ARM then CONFIRM within 5s.',
     ],
   },
   {
     title: 'Map',
     items: [
-      'Tap a threat or drone to select it.',
-      'Alert tracks pulse amber on the map.',
-      'Use Satellite / Minimal in the top bar to switch basemap.',
+      'Tap threat to pin callout; touch-hold preview on tablet.',
+      'Drift halos grow in GNSS-denied mode (meters on ground).',
+      'LOS CLEAR/BLOCKED shown in degraded terrain panel.',
     ],
   },
   {
     title: 'Keyboard',
     items: [
-      '1 or Enter — confirm intercept.',
-      'H — hold / resume mission.',
+      '1 or Enter — confirm (when ready).',
+      'H — hold dialog; Shift+H — immediate hold.',
+      '[ / ] — cycle threats by priority.',
     ],
   },
   {
-    title: 'Menu (⋮)',
+    title: 'Degraded ops',
     items: [
-      'Settings — alert chirp, fleet list, ROE summary.',
-      'Offline maps — cache tiles before disconnected ops.',
-      'Logs / ROE — mission log and rules of engagement.',
+      'C2 offline — commands queue and flush when link returns.',
+      'Prep offline maps before sortie if cache banner shows.',
+      'Decision evidence strip shows ROE, staleness, and buffer.',
     ],
   },
 ]
