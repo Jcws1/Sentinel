@@ -30,3 +30,4 @@ data/*.sqlite-journal
 *.njsproj
 *.sln
 *.sw?
+.vercel
