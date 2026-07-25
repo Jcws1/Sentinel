@@ -20,6 +20,7 @@ interface UiState {
   trackDetailOpen: boolean
   investigationCollapsed: boolean
   ontologyCollapsed: boolean
+  alertChirpEnabled: boolean
 }
 
 const initialState: UiState = {
@@ -38,6 +39,7 @@ const initialState: UiState = {
   trackDetailOpen: true,
   investigationCollapsed: false,
   ontologyCollapsed: false,
+  alertChirpEnabled: false,
 }
 
 const uiSlice = createSlice({
@@ -100,6 +102,9 @@ const uiSlice = createSlice({
     toggleOntologyCollapsed(state) {
       state.ontologyCollapsed = !state.ontologyCollapsed
     },
+    toggleAlertChirp(state) {
+      state.alertChirpEnabled = !state.alertChirpEnabled
+    },
   },
 })
 
@@ -120,5 +125,6 @@ export const {
   setOntologyCollapsed,
   toggleInvestigationCollapsed,
   toggleOntologyCollapsed,
+  toggleAlertChirp,
 } = uiSlice.actions
 export default uiSlice.reducer
