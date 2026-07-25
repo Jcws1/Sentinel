@@ -10,6 +10,7 @@ import {
   setHelpOpen,
   toggleOverflowMenu,
   toggleAutoFocusFrozen,
+  toggleDeploymentMode,
   type WorkspaceView,
 } from '../../store/uiSlice'
 import { ModeSelector } from './ModeSelector'
@@ -24,14 +25,17 @@ type MenuId =
   | 'installations'
   | 'basemap'
   | 'offline'
+  | 'edge'
   | 'logout'
 
 const MENU: Array<{ id: MenuId; label: string; section?: 'map' | 'system' }> = [
   { id: 'operations', label: 'Logs', section: 'system' },
   { id: 'policy', label: 'ROE', section: 'system' },
   { id: 'fleet', label: 'Settings', section: 'system' },
+  { id: 'sensors', label: 'Sensors', section: 'system' },
   { id: 'installations', label: 'Installations', section: 'map' },
   { id: 'basemap', label: 'Basemap', section: 'map' },
+  { id: 'edge', label: 'Edge map', section: 'map' },
   { id: 'offline', label: 'Offline maps', section: 'map' },
   { id: 'logout', label: 'Log out' },
 ]
@@ -79,6 +83,7 @@ export function StreamlinedTopBar() {
   const mission = useAppSelector((s) => s.mission)
   const lastSyncAt = useAppSelector((s) => s.session.lastSyncAt)
   const autoFocusFrozen = useAppSelector((s) => s.ui.autoFocusFrozen)
+  const deploymentMode = useAppSelector((s) => s.ui.deploymentMode)
   const dataAgeSec = useDataAgeSec(lastSyncAt)
   const [netOnline, setNetOnline] = useState(
     () => typeof navigator !== 'undefined' && navigator.onLine,
@@ -110,6 +115,7 @@ export function StreamlinedTopBar() {
       return mapOverlayTab === 'bases' ? ' (Bases)' : ' (Scenarios)'
     }
     if (id === 'basemap') return basemap === 'satellite' ? ' (Sat)' : ' (Min)'
+    if (id === 'edge') return deploymentMode === 'edge' ? ' (On)' : ' (Off)'
     return ''
   }
 
@@ -233,6 +239,11 @@ export function StreamlinedTopBar() {
                       }
                       if (item.id === 'offline') {
                         dispatch(setOfflinePrepOpen(true))
+                        dispatch(setOverflowMenuOpen(false))
+                        return
+                      }
+                      if (item.id === 'edge') {
+                        dispatch(toggleDeploymentMode())
                         dispatch(setOverflowMenuOpen(false))
                         return
                       }

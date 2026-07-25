@@ -24,11 +24,9 @@ function FleetCard({
 }) {
   const dispatch = useAppDispatch()
   const drone = useAppSelector((s) => s.fleet.drones.find((d) => d.id === droneId))
-  if (!drone) return null
-
-  const health = droneHealth(drone)
 
   const onTap = useCallback(() => {
+    if (!drone) return
     if (selected) {
       dispatch(selectDrone(null))
       dispatch(setTelemetryExpanded(false))
@@ -36,14 +34,19 @@ function FleetCard({
     }
     dispatch(selectDrone(drone.id))
     dispatch(setTelemetryExpanded(false))
-  }, [dispatch, drone.id, selected])
+  }, [dispatch, drone, selected])
 
   const onLongPress = useCallback(() => {
+    if (!drone) return
     dispatch(selectDrone(drone.id))
     dispatch(setTelemetryExpanded(true))
-  }, [dispatch, drone.id])
+  }, [dispatch, drone])
 
   const press = useLongPress({ onTap, onLongPress, ms: 500 })
+
+  if (!drone) return null
+
+  const health = droneHealth(drone)
 
   return (
     <button

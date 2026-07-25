@@ -29,6 +29,7 @@ import { useOperatorKeyboard } from '../../hooks/useOperatorKeyboard'
 import { OperationsPanel } from '../OperationsPanel'
 import { PolicyPanel } from '../PolicyPanel'
 import { FleetPanel } from '../FleetPanel'
+import { SensorHealth } from '../SensorHealth'
 
 export function StreamlinedLayout() {
   const dispatch = useAppDispatch()
@@ -43,7 +44,10 @@ export function StreamlinedLayout() {
   const prevPendingCountRef = useRef(0)
   const degraded = isDegraded(mission.gnss, mission.c2Link)
   const utilityOpen =
-    workspace === 'operations' || workspace === 'policy' || workspace === 'fleet'
+    workspace === 'operations' ||
+    workspace === 'policy' ||
+    workspace === 'fleet' ||
+    workspace === 'sensors'
 
   useTopPriorityThreatFocus()
   useAlertChirp()
@@ -157,6 +161,7 @@ export function StreamlinedLayout() {
           {workspace === 'operations' && <OperationsPanel />}
           {workspace === 'policy' && <PolicyPanel />}
           {workspace === 'fleet' && <FleetPanel />}
+          {workspace === 'sensors' && <SensorHealth />}
         </div>
       )}
     </div>
