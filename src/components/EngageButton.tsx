@@ -8,6 +8,7 @@ interface EngageButtonProps {
   trackId: string
   variant?: EngageButtonVariant
   className?: string
+  label?: string
   onEngaged?: (droneIds: string[]) => void
   onError?: (message: string) => void
 }
@@ -16,6 +17,7 @@ export function EngageButton({
   trackId,
   variant = 'confirm',
   className = '',
+  label: idleLabel = 'Engage',
   onEngaged,
   onError,
 }: EngageButtonProps) {
@@ -49,8 +51,8 @@ export function EngageButton({
     : engaged
       ? 'Engaged'
       : pending
-        ? 'Engage'
-        : 'Engage'
+        ? idleLabel
+        : idleLabel
 
   const variantClass =
     variant === 'sm'
@@ -86,7 +88,7 @@ export function EngageButton({
         .join(' ')}
       data-operator-ui
       disabled={disabled}
-      aria-label={engaged ? `${trackId} engaged` : `Engage ${trackId}`}
+      aria-label={engaged ? `${trackId} engaged` : `${idleLabel} ${trackId}`}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => {
         e.stopPropagation()

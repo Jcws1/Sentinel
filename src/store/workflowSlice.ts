@@ -9,6 +9,7 @@ export interface WorkflowCommand {
   id: string
   kind:
     | 'engage'
+    | 'plan'
     | 'hold'
     | 'abort'
     | 'decision'

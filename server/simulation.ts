@@ -16,12 +16,15 @@ function orbitOffset(t: number, radius: number, phase: number): Position {
   }
 }
 
-export function advanceSimulation(state: C2State): void {
+export function advanceSimulation(
+  state: C2State,
+  options: { simulateDrones?: boolean } = {},
+): void {
   state.tick += 1
   const asset = state.mission.protectedAsset
   const hold = state.mission.state === 'HOLD' || state.mission.state === 'RECALL'
 
-  for (const drone of state.drones) {
+  for (const drone of options.simulateDrones === false ? [] : state.drones) {
     if (hold) continue
 
     if (drone.assignedTrackId) {

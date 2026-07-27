@@ -1,5 +1,9 @@
 # Sentinel
 
+For the separate Gazebo/PX4 simulator integration, phone/LAN launch, portable
+SQLite scenarios, fleet operations, data contract and GNSS-denied demo, see
+[docs/SIMULATOR_INTEGRATION.md](docs/SIMULATOR_INTEGRATION.md).
+
 Policy-first command and control for autonomous drone swarms. One operator, many drones, human judgement kept in command.
 
 Built for the Singapore Defence Tech Hackathon 2026, Track C (Agentic Command and Control for Rapid Wartime Decision Making).

@@ -23,6 +23,8 @@ export type AutoEngageState = 'on' | 'off' | 'locked'
 export type MapOverlayTab = 'bases' | 'scenarios'
 export type MapBasemap = 'minimal' | 'satellite'
 export type MapViewMode = '2d' | '3d'
+export type HeatmapMode = 'enemy' | 'friendly' | 'sensor' | 'terrain'
+export type MapInteractionTool = 'range'
 
 function syncEnvFromOverlays(envLayers: EnvLayerState[], overlays: OverlayVisibility) {
   for (const layer of envLayers) {
@@ -42,6 +44,8 @@ interface UiState {
   mapOverlayTab: MapOverlayTab
   mapBasemap: MapBasemap
   mapView: MapViewMode
+  heatmapMode: HeatmapMode | null
+  activeMapTool: MapInteractionTool | null
   overflowMenuOpen: boolean
   alertsOpen: boolean
   workspace: WorkspaceView
@@ -71,6 +75,12 @@ interface UiState {
   confirmArmed: boolean
   confirmArmExpiresAt: number | null
   holdConfirmOpen: boolean
+  /** One-shot camera request from field navigation/search. */
+  mapFocusRequest: {
+    key: string
+    position: { lng: number; lat: number; alt: number }
+    sequence: number
+  } | null
 }
 
 const initialOverlays = OVERLAY_DEFAULTS_BY_MODE.defense
@@ -82,14 +92,16 @@ const initialState: UiState = {
   mapOverlayTab: 'bases',
   mapBasemap: 'satellite',
   mapView: '3d',
+  heatmapMode: null,
+  activeMapTool: null,
   overflowMenuOpen: false,
   alertsOpen: false,
   workspace: 'tracks',
   deploymentMode:
     typeof globalThis.location !== 'undefined' &&
-    new URLSearchParams(globalThis.location.search).get('deployment') === 'edge'
-      ? 'edge'
-      : 'cloud',
+    new URLSearchParams(globalThis.location.search).get('deployment') === 'cloud'
+      ? 'cloud'
+      : 'edge',
   trackDetailOpen: true,
   investigationCollapsed: false,
   ontologyCollapsed: false,
@@ -123,6 +135,7 @@ const initialState: UiState = {
   confirmArmed: false,
   confirmArmExpiresAt: null,
   holdConfirmOpen: false,
+  mapFocusRequest: null,
 }
 
 const uiSlice = createSlice({
@@ -185,6 +198,12 @@ const uiSlice = createSlice({
     },
     toggleMapView(state) {
       state.mapView = '3d'
+    },
+    setHeatmapMode(state, action: PayloadAction<HeatmapMode | null>) {
+      state.heatmapMode = action.payload
+    },
+    setActiveMapTool(state, action: PayloadAction<MapInteractionTool | null>) {
+      state.activeMapTool = action.payload
     },
     setWorkspace(state, action: PayloadAction<WorkspaceView>) {
       state.workspace = action.payload
@@ -319,6 +338,18 @@ const uiSlice = createSlice({
     setHoldConfirmOpen(state, action: PayloadAction<boolean>) {
       state.holdConfirmOpen = action.payload
     },
+    requestMapFocus(
+      state,
+      action: PayloadAction<{
+        key: string
+        position: { lng: number; lat: number; alt: number }
+      }>,
+    ) {
+      state.mapFocusRequest = {
+        ...action.payload,
+        sequence: (state.mapFocusRequest?.sequence ?? 0) + 1,
+      }
+    },
     dismissBottomSheets(state) {
       state.fleetStripOpen = false
       state.overlayPanelOpen = false
@@ -341,6 +372,8 @@ export const {
   toggleMapBasemap,
   setMapView,
   toggleMapView,
+  setHeatmapMode,
+  setActiveMapTool,
   setWorkspace,
   toggleDeploymentMode,
   setTrackDetailOpen,
@@ -372,6 +405,7 @@ export const {
   armConfirm,
   disarmConfirm,
   setHoldConfirmOpen,
+  requestMapFocus,
   dismissBottomSheets,
 } = uiSlice.actions
 export default uiSlice.reducer

@@ -13,11 +13,16 @@ import type {
   TelemetryDto,
 } from './types'
 import type { MissionState, TaskingRecommendation } from '../types'
+import { operatorHeaders } from './operatorAuth'
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function apiRequest<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
   const response = await fetch(path, {
     headers: {
       'Content-Type': 'application/json',
+      ...operatorHeaders(),
       ...(init?.headers ?? {}),
     },
     ...init,
@@ -50,7 +55,7 @@ export function createHttpC2Client(): SentinelC2Client {
 
         socket.addEventListener('open', () => {
           onStatus?.('open')
-          void request<MissionSnapshotDto>('/api/v1/snapshot')
+          void apiRequest<MissionSnapshotDto>('/api/v1/snapshot')
             .then((snapshot) => {
               onEvent({ type: 'state.snapshot', payload: snapshot })
             })
@@ -90,38 +95,38 @@ export function createHttpC2Client(): SentinelC2Client {
 
 
     getMissionStatus() {
-      return request<MissionStatusDto>(API_ROUTES.mission)
+      return apiRequest<MissionStatusDto>(API_ROUTES.mission)
     },
 
     getTracks() {
-      return request<FusionTracksDto>(API_ROUTES.tracks)
+      return apiRequest<FusionTracksDto>(API_ROUTES.tracks)
     },
 
     getTrackDetail(trackId) {
-      return request<FusionTrackDetailDto>(API_ROUTES.trackDetail(trackId))
+      return apiRequest<FusionTrackDetailDto>(API_ROUTES.trackDetail(trackId))
     },
 
     getTelemetry() {
-      return request<TelemetryDto>(API_ROUTES.telemetry)
+      return apiRequest<TelemetryDto>(API_ROUTES.telemetry)
     },
 
     getPolicy() {
-      return request<PolicyDto>(API_ROUTES.policy)
+      return apiRequest<PolicyDto>(API_ROUTES.policy)
     },
 
     getDecisionLog() {
-      return request<DecisionLogDto>(API_ROUTES.decisions)
+      return apiRequest<DecisionLogDto>(API_ROUTES.decisions)
     },
 
     requestPlan(body: TaskingPlanRequest) {
-      return request<TaskingRecommendation>(API_ROUTES.taskingPlan, {
+      return apiRequest<TaskingRecommendation>(API_ROUTES.taskingPlan, {
         method: 'POST',
         body: JSON.stringify(body),
       })
     },
 
     engageTrack(trackId: string) {
-      return request<{ accepted: boolean; trackId: string; droneIds: string[] }>(
+      return apiRequest<{ accepted: boolean; trackId: string; droneIds: string[] }>(
         API_ROUTES.taskingEngage,
         {
           method: 'POST',
@@ -131,27 +136,27 @@ export function createHttpC2Client(): SentinelC2Client {
     },
 
     submitDecision(body: TaskingDecisionRequest) {
-      return request<{ accepted: boolean }>(API_ROUTES.taskingDecision, {
+      return apiRequest<{ accepted: boolean }>(API_ROUTES.taskingDecision, {
         method: 'POST',
         body: JSON.stringify(body),
       })
     },
 
     abortEngagement(trackId: string) {
-      return request<{ accepted: boolean }>(API_ROUTES.taskingAbort, {
+      return apiRequest<{ accepted: boolean }>(API_ROUTES.taskingAbort, {
         method: 'POST',
         body: JSON.stringify({ trackId }),
       })
     },
 
     holdTrack(trackId: string) {
-      return request<{ accepted: boolean }>(API_ROUTES.trackHold(trackId), {
+      return apiRequest<{ accepted: boolean }>(API_ROUTES.trackHold(trackId), {
         method: 'POST',
       })
     },
 
     setMissionState(state: MissionState) {
-      return request<MissionStatusDto>(API_ROUTES.mission, {
+      return apiRequest<MissionStatusDto>(API_ROUTES.mission, {
         method: 'PATCH',
         body: JSON.stringify({ state }),
       })

@@ -27,8 +27,8 @@ import { useTopPriorityThreatFocus } from '../../hooks/useTopPriorityThreatFocus
 import { useAlertChirp } from '../../hooks/useAlertChirp'
 import { useOperatorKeyboard } from '../../hooks/useOperatorKeyboard'
 import { OperationsPanel } from '../OperationsPanel'
-import { PolicyPanel } from '../PolicyPanel'
-import { FleetPanel } from '../FleetPanel'
+import { RoePolicyWorkspace } from '../RoePolicyWorkspace'
+import { FleetManager } from '../FleetManager'
 import { SensorHealth } from '../SensorHealth'
 
 export function StreamlinedLayout() {
@@ -159,8 +159,8 @@ export function StreamlinedLayout() {
             ← MAP
           </button>
           {workspace === 'operations' && <OperationsPanel />}
-          {workspace === 'policy' && <PolicyPanel />}
-          {workspace === 'fleet' && <FleetPanel />}
+          {workspace === 'policy' && <RoePolicyWorkspace />}
+          {workspace === 'fleet' && <FleetManager />}
           {workspace === 'sensors' && <SensorHealth />}
         </div>
       )}

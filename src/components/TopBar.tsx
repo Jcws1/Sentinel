@@ -91,6 +91,17 @@ export function TopBar() {
           </button>
           <button
             type="button"
+            className={['sensor-tab', workspace === 'policy' ? 'is-active' : '']
+              .filter(Boolean)
+              .join(' ')}
+            aria-pressed={workspace === 'policy'}
+            onClick={() => dispatch(setWorkspace(workspace === 'policy' ? 'tracks' : 'policy'))}
+          >
+            <span className="sensor-tab__pulse" aria-hidden="true" />
+            ROE
+          </button>
+          <button
+            type="button"
             className="btn btn--ghost btn--sm top-bar__more"
             aria-label="Utilities"
             onClick={() => dispatch(toggleOverflowMenu())}

@@ -27,6 +27,13 @@ export interface Position {
 export interface Drone {
   id: string
   type: DroneType
+  platformId?: string
+  displayName?: string
+  groupId?: string | null
+  lifecycle?: 'REQUESTED' | 'SPAWNING' | 'INITIALIZING' | 'READY' | 'ACTIVE' | 'FAULT'
+  controlBackend?: 'gazebo_velocity' | 'px4_sitl'
+  navigationSource?: 'GNSS' | 'SIMULATED_VIO' | 'MESH' | 'DEAD_RECKONING'
+  positionUncertaintyM?: number
   battery: number
   position: Position
   positioningMethod: PositioningMethod

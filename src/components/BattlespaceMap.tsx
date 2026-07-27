@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import mapboxgl, {
   type GeoJSONSource,
+  type ImageSource,
   type Map as MapboxMap,
   type MapMouseEvent,
 } from 'mapbox-gl'
@@ -13,6 +14,8 @@ import { selectDrone } from '../store/fleetSlice'
 import { operatorSelectTrack } from '../store/threatsSlice'
 import { setActiveRecommendation } from '../store/taskingSlice'
 import {
+  setActiveMapTool,
+  setHeatmapMode,
   setMapOverlayTab,
   setOfflinePrepOpen,
   setTelemetryExpanded,
@@ -23,7 +26,7 @@ import {
   INSTALLATIONS_ATTRIBUTION,
   installationsForTab,
 } from '../data/singaporeInstallations'
-import type { ModeId } from '../store/uiSlice'
+import type { HeatmapMode, ModeId } from '../store/uiSlice'
 import { isOperatorUiTarget } from '../utils/ui'
 import { TerrainLayer } from '../terrain/TerrainLayer'
 import { DegradedTerrainOverlay } from '../terrain/DegradedTerrainOverlay'
@@ -42,6 +45,13 @@ import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import { useSecondsSinceFix } from '../hooks/useSecondsSinceFix'
 import { mapMotionDuration } from '../utils/mapMotion'
 import { getMapPerfConfig } from '../utils/mapPerf'
+import type {
+  ClassifiedMapObject,
+} from '../types/mapObjects'
+import {
+  categoryForMapKinds,
+  normalizeMapKind,
+} from '../utils/mapObjectClassification'
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN
 const MAP_STYLE = 'mapbox://styles/mapbox/dark-v11'
@@ -66,7 +76,92 @@ const METER_HALO_RADIUS: mapboxgl.ExpressionSpecification = [
 const LERP = 0.2
 const HILLSHADE_LAYER = 'terrain-hillshade'
 const BUILDINGS_LAYER = '3d-buildings'
+const HEATMAP_SOURCE = 'sentinel-heatmap'
+const HEATMAP_LAYER = 'sentinel-heatmap-layer'
+const TERRAIN_HEATMAP_SOURCE = 'sentinel-terrain-heatmap'
+const TERRAIN_HEATMAP_LAYER = 'sentinel-terrain-heatmap-layer'
+const RANGE_SOURCE = 'sentinel-range-measurements'
+const RANGE_CIRCLE_LAYER = 'sentinel-range-circles'
+const RANGE_LINE_LAYER = 'sentinel-range-lines'
+const RANGE_LABEL_LAYER = 'sentinel-range-labels'
+const TRANSPARENT_PIXEL =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL6WQAAAABJRU5ErkJggg=='
 type MapRenderer = 'mapbox' | 'maplibre'
+
+const HEATMAP_LABELS: Record<HeatmapMode, string> = {
+  enemy: 'Enemy activity',
+  friendly: 'Friendly activity',
+  sensor: 'Sensor confidence',
+  terrain: 'Terrain slope',
+}
+
+const HEATMAP_PALETTES: Record<
+  HeatmapMode,
+  mapboxgl.ExpressionSpecification
+> = {
+  enemy: [
+    'interpolate',
+    ['linear'],
+    ['heatmap-density'],
+    0,
+    'rgba(25, 8, 12, 0)',
+    0.2,
+    'rgba(114, 25, 36, 0.34)',
+    0.45,
+    'rgba(214, 62, 57, 0.62)',
+    0.72,
+    'rgba(255, 151, 55, 0.78)',
+    1,
+    'rgba(255, 239, 176, 0.92)',
+  ],
+  friendly: [
+    'interpolate',
+    ['linear'],
+    ['heatmap-density'],
+    0,
+    'rgba(3, 21, 42, 0)',
+    0.2,
+    'rgba(26, 86, 164, 0.34)',
+    0.5,
+    'rgba(38, 146, 224, 0.64)',
+    0.78,
+    'rgba(62, 218, 219, 0.8)',
+    1,
+    'rgba(218, 255, 251, 0.94)',
+  ],
+  sensor: [
+    'interpolate',
+    ['linear'],
+    ['heatmap-density'],
+    0,
+    'rgba(5, 25, 28, 0)',
+    0.2,
+    'rgba(18, 97, 89, 0.32)',
+    0.48,
+    'rgba(31, 179, 132, 0.62)',
+    0.76,
+    'rgba(159, 222, 87, 0.8)',
+    1,
+    'rgba(247, 255, 203, 0.94)',
+  ],
+  terrain: [
+    'interpolate',
+    ['linear'],
+    ['heatmap-density'],
+    0,
+    'rgba(5, 28, 24, 0)',
+    0.06,
+    'rgba(18, 84, 55, 0.38)',
+    0.22,
+    'rgba(42, 157, 92, 0.65)',
+    0.48,
+    'rgba(222, 200, 55, 0.8)',
+    0.74,
+    'rgba(235, 112, 39, 0.9)',
+    1,
+    'rgba(205, 42, 48, 0.98)',
+  ],
+}
 
 const edgePmtilesProtocol = new Protocol()
 maplibregl.addProtocol('pmtiles', edgePmtilesProtocol.tile)
@@ -84,6 +179,14 @@ type MapFeature = {
   geometry:
     | { type: 'Point'; coordinates: [number, number] }
     | { type: 'LineString'; coordinates: [number, number][] }
+    | { type: 'Polygon'; coordinates: [number, number][][] }
+}
+
+type RangeMeasurement = {
+  id: string
+  start: [number, number]
+  end: [number, number]
+  distanceM: number
 }
 
 type DisplayPoint = {
@@ -114,6 +217,106 @@ type LiveState = {
   reducedMotion: boolean
 }
 
+function featureCenter(geometry: unknown): Position | null {
+  if (
+    !geometry ||
+    typeof geometry !== 'object' ||
+    !('coordinates' in geometry)
+  ) {
+    return null
+  }
+  const points: Array<[number, number]> = []
+  const collect = (value: unknown) => {
+    if (
+      Array.isArray(value) &&
+      value.length >= 2 &&
+      typeof value[0] === 'number' &&
+      typeof value[1] === 'number'
+    ) {
+      points.push([value[0], value[1]])
+      return
+    }
+    if (Array.isArray(value)) value.forEach(collect)
+  }
+  collect((geometry as { coordinates?: unknown }).coordinates)
+  if (points.length === 0) return null
+  const bounds = points.reduce(
+    (result, [lng, lat]) => ({
+      minLng: Math.min(result.minLng, lng),
+      maxLng: Math.max(result.maxLng, lng),
+      minLat: Math.min(result.minLat, lat),
+      maxLat: Math.max(result.maxLat, lat),
+    }),
+    {
+      minLng: Number.POSITIVE_INFINITY,
+      maxLng: Number.NEGATIVE_INFINITY,
+      minLat: Number.POSITIVE_INFINITY,
+      maxLat: Number.NEGATIVE_INFINITY,
+    },
+  )
+  return {
+    lng: (bounds.minLng + bounds.maxLng) / 2,
+    lat: (bounds.minLat + bounds.maxLat) / 2,
+    alt: 0,
+  }
+}
+
+function classifyLoadedMapObjects(
+  map: MapboxMap,
+  renderer: MapRenderer,
+): ClassifiedMapObject[] {
+  const source = renderer === 'maplibre' ? 'sentinel-buildings' : 'composite'
+  const sourceLayers =
+    renderer === 'maplibre' ? ['landuse', 'pois'] : ['landuse', 'poi_label']
+  const objects = new Map<string, ClassifiedMapObject>()
+
+  for (const sourceLayer of sourceLayers) {
+    let features: ReturnType<MapboxMap['querySourceFeatures']> = []
+    try {
+      features = map.querySourceFeatures(source, { sourceLayer })
+    } catch {
+      continue
+    }
+    for (const feature of features) {
+      const properties = feature.properties ?? {}
+      const kinds = [
+        properties.kind,
+        properties.class,
+        properties.type,
+        properties.kind_detail,
+      ]
+        .map(normalizeMapKind)
+        .filter(Boolean)
+      const kind = kinds[0] ?? 'unclassified'
+      const category = categoryForMapKinds(kinds)
+      const position = featureCenter(feature.geometry)
+      if (!position) continue
+      const name = String(
+        properties.name ??
+          properties.name_en ??
+          `${kind.replaceAll('_', ' ')} area`,
+      )
+      const rawId =
+        properties.id ??
+        properties.osm_id ??
+        feature.id ??
+        `${name}:${position.lng.toFixed(5)}:${position.lat.toFixed(5)}`
+      const key = `${category}:${rawId}`
+      if (objects.has(key)) continue
+      objects.set(key, {
+        id: `map:${key}`,
+        name,
+        category,
+        kind,
+        source: 'vector-map',
+        position,
+      })
+    }
+  }
+
+  return [...objects.values()]
+}
+
 function pointFeature(
   id: string,
   position: Pick<Position, 'lng' | 'lat'>,
@@ -142,6 +345,80 @@ function lineFeature(
       coordinates,
     },
   }
+}
+
+const EARTH_RADIUS_M = 6_371_008.8
+
+function distanceMeters(start: [number, number], end: [number, number]) {
+  const toRadians = (value: number) => (value * Math.PI) / 180
+  const lat1 = toRadians(start[1])
+  const lat2 = toRadians(end[1])
+  const deltaLat = lat2 - lat1
+  const deltaLng = toRadians(end[0] - start[0])
+  const haversine =
+    Math.sin(deltaLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLng / 2) ** 2
+  return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(haversine)))
+}
+
+function rangeCircle(
+  center: [number, number],
+  radiusM: number,
+): [number, number][] {
+  const angularDistance = radiusM / EARTH_RADIUS_M
+  const centerLat = (center[1] * Math.PI) / 180
+  const centerLng = (center[0] * Math.PI) / 180
+  const coordinates: [number, number][] = []
+  for (let step = 0; step <= 96; step++) {
+    const bearing = (step / 96) * Math.PI * 2
+    const lat = Math.asin(
+      Math.sin(centerLat) * Math.cos(angularDistance) +
+        Math.cos(centerLat) * Math.sin(angularDistance) * Math.cos(bearing),
+    )
+    const lng =
+      centerLng +
+      Math.atan2(
+        Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(centerLat),
+        Math.cos(angularDistance) - Math.sin(centerLat) * Math.sin(lat),
+      )
+    coordinates.push([(lng * 180) / Math.PI, (lat * 180) / Math.PI])
+  }
+  return coordinates
+}
+
+function rangeLabel(distanceM: number) {
+  return `${Math.round(distanceM)}m/${(distanceM / 1000).toFixed(1)}km`
+}
+
+function rangeFeatures(measurements: readonly RangeMeasurement[]): MapFeature[] {
+  return measurements.flatMap((measurement) => {
+    const midpoint: [number, number] = [
+      (measurement.start[0] + measurement.end[0]) / 2,
+      (measurement.start[1] + measurement.end[1]) / 2,
+    ]
+    return [
+      {
+        type: 'Feature' as const,
+        properties: { id: measurement.id, kind: 'circle' },
+        geometry: {
+          type: 'Polygon' as const,
+          coordinates: [rangeCircle(measurement.start, measurement.distanceM)],
+        },
+      },
+      lineFeature(
+        `${measurement.id}:radius`,
+        [measurement.start, measurement.end],
+        { kind: 'radius' },
+      ),
+      pointFeature(`${measurement.id}:label`, {
+        lng: midpoint[0],
+        lat: midpoint[1],
+      }, {
+        kind: 'label',
+        label: rangeLabel(measurement.distanceM),
+      }),
+    ]
+  })
 }
 
 function firstSymbolLayerId(map: MapboxMap): string | undefined {
@@ -474,8 +751,226 @@ function resolveThreatId(
   return null
 }
 
+function heatmapPoint(
+  id: string,
+  coordinates: [number, number],
+  weight: number,
+  kind: HeatmapMode,
+): MapFeature {
+  return {
+    type: 'Feature',
+    properties: {
+      id,
+      kind,
+      weight: Math.max(0.02, Math.min(1, weight)),
+    },
+    geometry: { type: 'Point', coordinates },
+  }
+}
+
+function configureHeatmapLayer(map: MapboxMap, mode: HeatmapMode | null) {
+  if (map.getLayer(HEATMAP_LAYER)) {
+    map.setLayoutProperty(
+      HEATMAP_LAYER,
+      'visibility',
+      mode && mode !== 'terrain' ? 'visible' : 'none',
+    )
+  }
+  if (map.getLayer(TERRAIN_HEATMAP_LAYER)) {
+    map.setLayoutProperty(
+      TERRAIN_HEATMAP_LAYER,
+      'visibility',
+      mode === 'terrain' ? 'visible' : 'none',
+    )
+  }
+  if (!mode || mode === 'terrain' || !map.getLayer(HEATMAP_LAYER)) return
+  map.setPaintProperty(HEATMAP_LAYER, 'heatmap-color', HEATMAP_PALETTES[mode])
+  map.setPaintProperty(
+    HEATMAP_LAYER,
+    'heatmap-radius',
+    ['interpolate', ['linear'], ['zoom'], 9, 12, 13, 24, 17, 38],
+  )
+  map.setPaintProperty(
+    HEATMAP_LAYER,
+    'heatmap-intensity',
+    ['interpolate', ['linear'], ['zoom'], 9, 0.85, 15, 1.35],
+  )
+  map.setPaintProperty(
+    HEATMAP_LAYER,
+    'heatmap-opacity',
+    ['interpolate', ['linear'], ['zoom'], 8, 0.72, 17, 0.9],
+  )
+}
+
+function operationalHeatmapFeatures(
+  mode: Exclude<HeatmapMode, 'terrain'>,
+  drones: Drone[],
+  tracks: ThreatTrack[],
+  trails: Map<string, [number, number][]>,
+): MapFeature[] {
+  const features: MapFeature[] = []
+
+  if (mode === 'enemy') {
+    for (const track of tracks) {
+      const classWeight =
+        track.threatClass === 'I' ? 0.2 : track.threatClass === 'II' ? 0.12 : 0.06
+      features.push(
+        heatmapPoint(
+          `enemy:${track.id}`,
+          [track.position.lng, track.position.lat],
+          0.48 + track.fusionConfidence / 250 + classWeight,
+          mode,
+        ),
+      )
+      const history = trails.get(`threat:${track.id}`) ?? []
+      history.forEach((coordinates, index) => {
+        const recency = (index + 1) / Math.max(1, history.length)
+        features.push(
+          heatmapPoint(
+            `enemy-trail:${track.id}:${index}`,
+            coordinates,
+            0.08 + recency * 0.28,
+            mode,
+          ),
+        )
+      })
+    }
+    return features
+  }
+
+  if (mode === 'friendly') {
+    for (const drone of drones) {
+      features.push(
+        heatmapPoint(
+          `friendly:${drone.id}`,
+          [drone.position.lng, drone.position.lat],
+          0.52 + (drone.assignedTrackId ? 0.28 : 0.08),
+          mode,
+        ),
+      )
+      const history = trails.get(`friendly:${drone.id}`) ?? []
+      history.forEach((coordinates, index) => {
+        const recency = (index + 1) / Math.max(1, history.length)
+        features.push(
+          heatmapPoint(
+            `friendly-trail:${drone.id}:${index}`,
+            coordinates,
+            0.06 + recency * 0.22,
+            mode,
+          ),
+        )
+      })
+    }
+    return features
+  }
+
+  for (const track of tracks) {
+    const overlap = Math.min(1, track.sensors.length / 4)
+    features.push(
+      heatmapPoint(
+        `sensor:${track.id}`,
+        [track.position.lng, track.position.lat],
+        track.fusionConfidence / 140 + overlap * 0.28,
+        mode,
+      ),
+    )
+  }
+  return features
+}
+
+const TERRAIN_COLOR_STOPS = [
+  { at: 0, color: [8, 55, 38, 0] },
+  { at: 0.05, color: [12, 90, 50, 42] },
+  { at: 0.18, color: [35, 145, 80, 112] },
+  { at: 0.42, color: [80, 180, 80, 154] },
+  { at: 0.65, color: [222, 200, 55, 182] },
+  { at: 0.82, color: [235, 112, 39, 205] },
+  { at: 1, color: [205, 42, 48, 228] },
+] as const
+
+function terrainColor(value: number): [number, number, number, number] {
+  const clamped = Math.max(0, Math.min(1, value))
+  for (let index = 1; index < TERRAIN_COLOR_STOPS.length; index++) {
+    const upper = TERRAIN_COLOR_STOPS[index]
+    const lower = TERRAIN_COLOR_STOPS[index - 1]
+    if (clamped > upper.at) continue
+    const range = Math.max(0.0001, upper.at - lower.at)
+    const progress = (clamped - lower.at) / range
+    return lower.color.map((channel, channelIndex) =>
+      Math.round(
+        channel +
+          (upper.color[channelIndex] - channel) * progress,
+      ),
+    ) as [number, number, number, number]
+  }
+  return [...TERRAIN_COLOR_STOPS[TERRAIN_COLOR_STOPS.length - 1].color]
+}
+
+function absoluteSlopeWeight(slopeDegrees: number): number {
+  if (slopeDegrees <= 1) return 0
+  if (slopeDegrees <= 3) {
+    return 0.04 + ((slopeDegrees - 1) / 2) * 0.14
+  }
+  if (slopeDegrees <= 6) {
+    return 0.18 + ((slopeDegrees - 3) / 3) * 0.24
+  }
+  if (slopeDegrees <= 12) {
+    return 0.42 + ((slopeDegrees - 6) / 6) * 0.3
+  }
+  if (slopeDegrees <= 20) {
+    return 0.72 + ((slopeDegrees - 12) / 8) * 0.28
+  }
+  return 1
+}
+
+function renderTerrainSurface(
+  weights: number[],
+  gridSize: number,
+  outputSize: number,
+): string {
+  const canvas = document.createElement('canvas')
+  canvas.width = outputSize
+  canvas.height = outputSize
+  const context = canvas.getContext('2d')
+  if (!context) return TRANSPARENT_PIXEL
+  const image = context.createImageData(outputSize, outputSize)
+  const weightAt = (row: number, column: number) =>
+    weights[row * gridSize + column] ?? 0
+
+  for (let y = 0; y < outputSize; y++) {
+    const gridY =
+      (1 - y / Math.max(1, outputSize - 1)) * (gridSize - 1)
+    const row0 = Math.floor(gridY)
+    const row1 = Math.min(gridSize - 1, row0 + 1)
+    const yMix = gridY - row0
+    for (let x = 0; x < outputSize; x++) {
+      const gridX = (x / Math.max(1, outputSize - 1)) * (gridSize - 1)
+      const column0 = Math.floor(gridX)
+      const column1 = Math.min(gridSize - 1, column0 + 1)
+      const xMix = gridX - column0
+      const top =
+        weightAt(row0, column0) * (1 - xMix) +
+        weightAt(row0, column1) * xMix
+      const bottom =
+        weightAt(row1, column0) * (1 - xMix) +
+        weightAt(row1, column1) * xMix
+      const weight = top * (1 - yMix) + bottom * yMix
+      const color = terrainColor(weight)
+      const offset = (y * outputSize + x) * 4
+      image.data[offset] = color[0]
+      image.data[offset + 1] = color[1]
+      image.data[offset + 2] = color[2]
+      image.data[offset + 3] = color[3]
+    }
+  }
+
+  context.putImageData(image, 0, 0)
+  return canvas.toDataURL('image/png')
+}
+
 function addOverlayLayers(map: MapboxMap) {
   const sourceIds = [
+    HEATMAP_SOURCE,
     'policy-zones',
     'installations',
     'asset',
@@ -487,6 +982,7 @@ function addOverlayLayers(map: MapboxMap) {
     'uncertainty',
     'threat-halos',
     'threat-alert-rings',
+    RANGE_SOURCE,
   ]
 
   for (const id of sourceIds) {
@@ -497,7 +993,101 @@ function addOverlayLayers(map: MapboxMap) {
     })
   }
 
+  if (!map.getSource(TERRAIN_HEATMAP_SOURCE)) {
+    map.addSource(TERRAIN_HEATMAP_SOURCE, {
+      type: 'image',
+      url: TRANSPARENT_PIXEL,
+      coordinates: [
+        [103.55, 1.58],
+        [104.1, 1.58],
+        [104.1, 1.15],
+        [103.55, 1.15],
+      ],
+    })
+  }
+
   const layers: mapboxgl.AnyLayer[] = [
+    {
+      id: TERRAIN_HEATMAP_LAYER,
+      type: 'raster',
+      source: TERRAIN_HEATMAP_SOURCE,
+      layout: { visibility: 'none' },
+      paint: {
+        'raster-opacity': 0.82,
+        'raster-resampling': 'linear',
+        'raster-fade-duration': 100,
+      },
+    },
+    {
+      id: HEATMAP_LAYER,
+      type: 'heatmap',
+      source: HEATMAP_SOURCE,
+      layout: { visibility: 'none' },
+      maxzoom: 20,
+      paint: {
+        'heatmap-weight': [
+          'interpolate',
+          ['linear'],
+          ['coalesce', ['get', 'weight'], 0],
+          0,
+          0,
+          1,
+          1,
+        ],
+        'heatmap-intensity': 1,
+        'heatmap-radius': 24,
+        'heatmap-opacity': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          8,
+          0.72,
+          17,
+          0.9,
+        ],
+        'heatmap-color': HEATMAP_PALETTES.enemy,
+      },
+    },
+    {
+      id: RANGE_CIRCLE_LAYER,
+      type: 'line',
+      source: RANGE_SOURCE,
+      filter: ['==', ['get', 'kind'], 'circle'],
+      paint: {
+        'line-color': '#64d8ff',
+        'line-opacity': 0.8,
+        'line-width': 1.5,
+      },
+    },
+    {
+      id: RANGE_LINE_LAYER,
+      type: 'line',
+      source: RANGE_SOURCE,
+      filter: ['==', ['get', 'kind'], 'radius'],
+      paint: {
+        'line-color': '#b9efff',
+        'line-opacity': 0.95,
+        'line-width': 2,
+        'line-dasharray': [0, 4, 3],
+      },
+    },
+    {
+      id: RANGE_LABEL_LAYER,
+      type: 'symbol',
+      source: RANGE_SOURCE,
+      filter: ['==', ['get', 'kind'], 'label'],
+      layout: {
+        'text-field': ['get', 'label'],
+        'text-size': 12,
+        'text-allow-overlap': true,
+        'text-ignore-placement': true,
+      },
+      paint: {
+        'text-color': '#e6f9ff',
+        'text-halo-color': '#071018',
+        'text-halo-width': 2,
+      },
+    },
     {
       id: 'installations-fill',
       type: 'fill',
@@ -913,6 +1503,13 @@ function addOverlayLayers(map: MapboxMap) {
   for (const layer of layers) {
     if (!map.getLayer(layer.id)) map.addLayer(layer)
   }
+  for (const layerId of [
+    RANGE_CIRCLE_LAYER,
+    RANGE_LINE_LAYER,
+    RANGE_LABEL_LAYER,
+  ]) {
+    if (map.getLayer(layerId)) map.moveLayer(layerId)
+  }
 }
 
 function syncOverlayLayers(
@@ -986,6 +1583,10 @@ export function BattlespaceMap() {
   const hoveredThreatRef = useRef<string | null>(null)
   const calloutTrackRef = useRef<string | null>(null)
   const calloutOverRef = useRef(false)
+  const rangeMeasurementsRef = useRef<RangeMeasurement[]>([])
+  const rangeDraftRef = useRef<RangeMeasurement | null>(null)
+  const rangeSequenceRef = useRef(0)
+  const activeMapToolRef = useRef<'range' | null>(null)
   const suppressPanRef = useRef(false)
   const getThreatPositionRef = useRef<() => Position | null>(() => null)
   const [mapReady, setMapReady] = useState(false)
@@ -993,6 +1594,9 @@ export function BattlespaceMap() {
   const [hoveredThreatId, setHoveredThreatId] = useState<string | null>(null)
   const [pinnedThreatId, setPinnedThreatId] = useState<string | null>(null)
   const [preferFlat, setPreferFlat] = useState(false)
+  const [inspectorOpen, setInspectorOpen] = useState(false)
+  const [inspectorView, setInspectorView] = useState<'logs' | 'asset'>('logs')
+  const [heatmapStatus, setHeatmapStatus] = useState('Waiting for data')
   const [edgePackHealth, setEdgePackHealth] = useState<EdgePackHealth | null>(null)
   const [styleEpoch, setStyleEpoch] = useState(0)
   const dispatch = useAppDispatch()
@@ -1004,8 +1608,11 @@ export function BattlespaceMap() {
   const mapBasemap = useAppSelector((s) => s.ui.mapBasemap)
   const overlayVisibility = useAppSelector((s) => s.ui.overlayVisibility)
   const offlinePrepOpen = useAppSelector((s) => s.ui.offlinePrepOpen)
+  const mapFocusRequest = useAppSelector((s) => s.ui.mapFocusRequest)
   const terrainConfigUi = useAppSelector((s) => s.ui.terrainConfig)
   const envLayers = useAppSelector((s) => s.ui.envLayers)
+  const heatmapMode = useAppSelector((s) => s.ui.heatmapMode)
+  const activeMapTool = useAppSelector((s) => s.ui.activeMapTool)
   const mission = useAppSelector((s) => s.mission)
   const gnssDegraded = isDegraded(mission.gnss, mission.c2Link)
   const offlineMap = useMemo(() => resolveOfflineMapConfig(mapBasemap), [mapBasemap])
@@ -1026,10 +1633,13 @@ export function BattlespaceMap() {
   const mapBasemapRef = useRef(mapBasemap)
   const prevBasemapRef = useRef(mapBasemap)
   const overlayVisibilityRef = useRef(overlayVisibility)
+  const heatmapModeRef = useRef(heatmapMode)
   preferFlatRef.current = preferFlat
   modeRef.current = mode
   mapBasemapRef.current = mapBasemap
   overlayVisibilityRef.current = overlayVisibility
+  heatmapModeRef.current = heatmapMode
+  activeMapToolRef.current = activeMapTool
 
   const drones = useAppSelector((s) => s.fleet.drones)
   const selectedDroneId = useAppSelector((s) => s.fleet.selectedDroneId)
@@ -1038,6 +1648,7 @@ export function BattlespaceMap() {
   const selectionKind = useAppSelector((s) => s.threats.selectionKind)
   const alertTrackIds = useAppSelector((s) => s.threats.alertTrackIds)
   const recommendations = useAppSelector((s) => s.tasking.recommendations)
+  const decisionLog = useAppSelector((s) => s.tasking.decisionLog)
   const asset = useAppSelector((s) => s.mission.protectedAsset)
   const policyZones = useAppSelector((s) => s.policy.zones)
   const connected = useAppSelector((s) => s.session.connected)
@@ -1047,6 +1658,21 @@ export function BattlespaceMap() {
   reducedMotionRef.current = reducedMotion
   const secondsSinceFix = useSecondsSinceFix(lastSyncAt, gnssDegraded)
   const perfRef = useRef(getMapPerfConfig(0, connected))
+  const selectedDrone = drones.find((drone) => drone.id === selectedDroneId)
+
+  useEffect(() => {
+    if (selectedDroneId) {
+      setInspectorView('asset')
+      setInspectorOpen(true)
+    } else {
+      setInspectorView('logs')
+    }
+  }, [selectedDroneId])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => mapRef.current?.resize(), 220)
+    return () => window.clearTimeout(timer)
+  }, [inspectorOpen])
 
   const losResult = useMemo(() => {
     if (!gnssDegraded || !mapReady || !mapRef.current) return null
@@ -1304,6 +1930,7 @@ export function BattlespaceMap() {
         reducedMotionRef.current,
       )
       addOverlayLayers(map)
+      configureHeatmapLayer(map, heatmapModeRef.current)
       syncOverlayLayers(
         map,
         overlayVisibilityRef.current,
@@ -1315,7 +1942,17 @@ export function BattlespaceMap() {
       setMapError(null)
     }
 
+    const publishMapObjects = () => {
+      const objects = classifyLoadedMapObjects(map, renderer)
+      window.dispatchEvent(
+        new CustomEvent('sentinel:map-objects', {
+          detail: { objects },
+        }),
+      )
+    }
+
     map.once('load', ensureLayers)
+    map.on('idle', publishMapObjects)
     map.on('style.load', () => {
       setStyleEpoch((e) => e + 1)
       applyModeCamera(
@@ -1327,6 +1964,7 @@ export function BattlespaceMap() {
         reducedMotionRef.current,
       )
       addOverlayLayers(map)
+      configureHeatmapLayer(map, heatmapModeRef.current)
       syncOverlayLayers(
         map,
         overlayVisibilityRef.current,
@@ -1350,6 +1988,7 @@ export function BattlespaceMap() {
 
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      map.off('idle', publishMapObjects)
       setMapReady(false)
       map.remove()
       mapRef.current = null
@@ -1421,6 +2060,205 @@ export function BattlespaceMap() {
     if (!map || !mapReady || !map.isStyleLoaded()) return
     syncOverlayLayers(map, overlayVisibility, !preferFlat)
   }, [overlayVisibility, mapReady, styleEpoch, preferFlat])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady) return
+    if (!map.getSource(HEATMAP_SOURCE)) {
+      setHeatmapStatus('Heatmap source unavailable')
+      return
+    }
+    configureHeatmapLayer(map, heatmapMode)
+    if (!heatmapMode) {
+      setSourceData(map, HEATMAP_SOURCE, [])
+      setHeatmapStatus('Waiting for data')
+      return
+    }
+    if (heatmapMode === 'terrain') return
+
+    const features = operationalHeatmapFeatures(
+      heatmapMode,
+      drones,
+      tracks,
+      trailsRef.current,
+    )
+    setSourceData(map, HEATMAP_SOURCE, features)
+    if (heatmapMode === 'enemy') {
+      setHeatmapStatus(
+        `${tracks.length} fused track${tracks.length === 1 ? '' : 's'} · live`,
+      )
+    } else if (heatmapMode === 'friendly') {
+      setHeatmapStatus(
+        `${drones.length} reporting asset${drones.length === 1 ? '' : 's'} · live`,
+      )
+    } else {
+      const contributors = tracks.reduce(
+        (total, track) => total + track.sensors.length,
+        0,
+      )
+      setHeatmapStatus(
+        `${contributors} sensor contribution${contributors === 1 ? '' : 's'} · live`,
+      )
+    }
+  }, [heatmapMode, drones, tracks, mapReady, styleEpoch])
+
+  useEffect(() => {
+    if (heatmapMode !== 'terrain') return
+    const map = mapRef.current
+    if (!map || !mapReady) return
+    if (!map.getSource(TERRAIN_HEATMAP_SOURCE)) {
+      setHeatmapStatus('Terrain surface unavailable')
+      return
+    }
+
+    let cancelled = false
+    let timer: number | null = null
+    let terrainRetryCount = 0
+
+    const calculate = () => {
+      timer = null
+      if (cancelled || !map.getSource(TERRAIN_HEATMAP_SOURCE)) return
+
+      const bounds = map.getBounds()
+      if (!bounds) {
+        setHeatmapStatus('Map bounds unavailable')
+        return
+      }
+      const hardwareThreads = navigator.hardwareConcurrency ?? 4
+      const compactDevice = window.innerWidth < 900 || hardwareThreads <= 4
+      const tier = perfRef.current.tier
+      const gridSize = compactDevice
+        ? 15
+        : tier === 'full'
+          ? 23
+          : tier === 'reduced'
+            ? 19
+            : 15
+      const west = bounds.getWest()
+      const east = bounds.getEast()
+      const south = bounds.getSouth()
+      const north = bounds.getNorth()
+      const lngStep = (east - west) / Math.max(1, gridSize - 1)
+      const latStep = (north - south) / Math.max(1, gridSize - 1)
+      const elevations: Array<number | null> = []
+
+      for (let row = 0; row < gridSize; row++) {
+        const lat = south + latStep * row
+        for (let column = 0; column < gridSize; column++) {
+          const lng = west + lngStep * column
+          try {
+            elevations.push(
+              map.queryTerrainElevation(
+                { lng, lat },
+                { exaggerated: false },
+              ) ?? null,
+            )
+          } catch {
+            elevations.push(null)
+          }
+        }
+      }
+
+      const validSamples = elevations.filter(
+        (elevation): elevation is number => elevation != null,
+      ).length
+      if (validSamples < gridSize) {
+        setHeatmapStatus('DEM unavailable in this viewport')
+        return
+      }
+      const numericElevations = elevations as number[]
+      const elevationRange =
+        Math.max(...numericElevations) - Math.min(...numericElevations)
+      if (elevationRange < 0.5 && terrainRetryCount < 6) {
+        terrainRetryCount += 1
+        setHeatmapStatus(`Loading DEM tiles · retry ${terrainRetryCount}/6`)
+        timer = window.setTimeout(calculate, 650)
+        return
+      }
+
+      const slopeSamples: Array<{
+        id: string
+        coordinates: [number, number]
+        slopeDegrees: number
+      }> = []
+      const elevationAt = (row: number, column: number) =>
+        elevations[row * gridSize + column] ?? 0
+
+      for (let row = 0; row < gridSize; row++) {
+        const lat = south + latStep * row
+        const metersPerLng =
+          111_320 * Math.max(0.1, Math.cos((lat * Math.PI) / 180))
+        const xDistance = Math.max(1, Math.abs(lngStep) * metersPerLng)
+        const yDistance = Math.max(1, Math.abs(latStep) * 110_540)
+        for (let column = 0; column < gridSize; column++) {
+          const lng = west + lngStep * column
+          const left = elevationAt(row, Math.max(0, column - 1))
+          const right = elevationAt(row, Math.min(gridSize - 1, column + 1))
+          const below = elevationAt(Math.max(0, row - 1), column)
+          const above = elevationAt(Math.min(gridSize - 1, row + 1), column)
+          const xDivisor =
+            (column === 0 || column === gridSize - 1 ? 1 : 2) * xDistance
+          const yDivisor =
+            (row === 0 || row === gridSize - 1 ? 1 : 2) * yDistance
+          const gradientX = (right - left) / xDivisor
+          const gradientY = (above - below) / yDivisor
+          const slopeDegrees =
+            (Math.atan(Math.hypot(gradientX, gradientY)) * 180) / Math.PI
+          slopeSamples.push({
+            id: `terrain:${row}:${column}`,
+            coordinates: [lng, lat],
+            slopeDegrees,
+          })
+        }
+      }
+
+      if (cancelled) return
+      const orderedSlopes = slopeSamples
+        .map((sample) => sample.slopeDegrees)
+        .sort((a, b) => a - b)
+      const percentileIndex = Math.min(
+        orderedSlopes.length - 1,
+        Math.floor(orderedSlopes.length * 0.95),
+      )
+      const referenceSlope = orderedSlopes[percentileIndex] ?? 0
+      const weights = slopeSamples.map((sample) =>
+        absoluteSlopeWeight(sample.slopeDegrees),
+      )
+      const outputSize = compactDevice ? 160 : 256
+      const imageUrl = renderTerrainSurface(weights, gridSize, outputSize)
+      const source = map.getSource(TERRAIN_HEATMAP_SOURCE) as
+        | ImageSource
+        | undefined
+      source?.updateImage({
+        url: imageUrl,
+        coordinates: [
+          [west, north],
+          [east, north],
+          [east, south],
+          [west, south],
+        ],
+      })
+      map.triggerRepaint()
+      setHeatmapStatus(
+        `${validSamples} DEM samples · absolute slope · P95 ${referenceSlope.toFixed(1)}°`,
+      )
+    }
+
+    const schedule = () => {
+      if (timer != null) window.clearTimeout(timer)
+      terrainRetryCount = 0
+      timer = window.setTimeout(calculate, 120)
+    }
+
+    configureHeatmapLayer(map, 'terrain')
+    schedule()
+    map.on('moveend', schedule)
+    return () => {
+      cancelled = true
+      if (timer != null) window.clearTimeout(timer)
+      map.off('moveend', schedule)
+    }
+  }, [heatmapMode, mapReady, styleEpoch])
 
   // Sync server positions into display targets.
   useEffect(() => {
@@ -1519,6 +2357,126 @@ export function BattlespaceMap() {
     followKeyRef.current = null
   }, [selectedTrackId, selectedDroneId])
 
+  // Field navigator requests always re-frame, including a repeated selection.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!mapReady || !map || !mapFocusRequest) return
+    followKeyRef.current = mapFocusRequest.key
+    map.easeTo({
+      center: [mapFocusRequest.position.lng, mapFocusRequest.position.lat],
+      zoom: Math.max(map.getZoom(), preferFlatRef.current ? 14 : 14.4),
+      pitch: preferFlatRef.current ? 0 : MODE_CAMERA[modeRef.current].pitch,
+      duration: mapMotionDuration(reducedMotionRef.current, 700),
+      essential: true,
+      offset: [120, 40],
+    })
+  }, [mapFocusRequest, mapReady])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!mapReady || !map) return
+
+    const syncMeasurements = () => {
+      const measurements = rangeDraftRef.current
+        ? [...rangeMeasurementsRef.current, rangeDraftRef.current]
+        : rangeMeasurementsRef.current
+      setSourceData(map, RANGE_SOURCE, rangeFeatures(measurements))
+    }
+
+    if (activeMapTool !== 'range') {
+      rangeMeasurementsRef.current = []
+      rangeDraftRef.current = null
+      syncMeasurements()
+      return
+    }
+
+    let drawing = false
+    let restoreDragPan = false
+    const updateDraft = (end: [number, number]) => {
+      const draft = rangeDraftRef.current
+      if (!draft) return
+      draft.end = end
+      draft.distanceM = distanceMeters(draft.start, end)
+      syncMeasurements()
+    }
+    const finishDrawing = () => {
+      if (!drawing) return
+      drawing = false
+      const draft = rangeDraftRef.current
+      if (draft && draft.distanceM >= 1) {
+        rangeMeasurementsRef.current = [
+          ...rangeMeasurementsRef.current,
+          draft,
+        ]
+      }
+      rangeDraftRef.current = null
+      syncMeasurements()
+      if (restoreDragPan) map.dragPan.enable()
+      restoreDragPan = false
+    }
+    const onMouseDown = (event: MapMouseEvent) => {
+      if (event.originalEvent.button !== 0) return
+      event.preventDefault()
+      const start: [number, number] = [event.lngLat.lng, event.lngLat.lat]
+      drawing = true
+      restoreDragPan = map.dragPan.isEnabled()
+      map.dragPan.disable()
+      rangeSequenceRef.current += 1
+      rangeDraftRef.current = {
+        id: `range:${rangeSequenceRef.current}`,
+        start,
+        end: start,
+        distanceM: 0,
+      }
+      syncMeasurements()
+    }
+    const onMouseMove = (event: MapMouseEvent) => {
+      if (!drawing) return
+      updateDraft([event.lngLat.lng, event.lngLat.lat])
+    }
+    const onMouseUp = (event: MapMouseEvent) => {
+      if (!drawing) return
+      updateDraft([event.lngLat.lng, event.lngLat.lat])
+      finishDrawing()
+    }
+    const onWindowMouseUp = () => finishDrawing()
+
+    syncMeasurements()
+    map.on('mousedown', onMouseDown)
+    map.on('mousemove', onMouseMove)
+    map.on('mouseup', onMouseUp)
+    window.addEventListener('mouseup', onWindowMouseUp)
+
+    const dashFrames = [
+      [0, 4, 3],
+      [0.5, 4, 2.5],
+      [1, 4, 2],
+      [1.5, 4, 1.5],
+      [2, 4, 1],
+      [2.5, 4, 0.5],
+      [3, 4, 0],
+    ]
+    let dashFrame = 0
+    const dashTimer = window.setInterval(() => {
+      if (!map.getLayer(RANGE_LINE_LAYER)) return
+      dashFrame = (dashFrame + 1) % dashFrames.length
+      map.setPaintProperty(
+        RANGE_LINE_LAYER,
+        'line-dasharray',
+        dashFrames[dashFrame],
+      )
+    }, 90)
+
+    return () => {
+      window.clearInterval(dashTimer)
+      map.off('mousedown', onMouseDown)
+      map.off('mousemove', onMouseMove)
+      map.off('mouseup', onMouseUp)
+      window.removeEventListener('mouseup', onWindowMouseUp)
+      if (restoreDragPan) map.dragPan.enable()
+    }
+  }, [activeMapTool, mapReady, styleEpoch])
+
   // Persistent render loop.
   useEffect(() => {
     if (!mapReady) return
@@ -1538,6 +2496,7 @@ export function BattlespaceMap() {
 
     const onMapClick = (e: MapMouseEvent) => {
       if (isOperatorUiTarget(e.originalEvent.target)) return
+      if (activeMapToolRef.current === 'range') return
 
       const threatId = resolveThreatId(map, e.point)
       if (threatId) return
@@ -1552,6 +2511,12 @@ export function BattlespaceMap() {
         unpinThreat()
         return
       }
+
+      window.dispatchEvent(
+        new CustomEvent('sentinel:map-point', {
+          detail: { lat: e.lngLat.lat, lng: e.lngLat.lng },
+        }),
+      )
 
       if (!calloutOverRef.current) {
         unpinThreat()
@@ -1933,7 +2898,16 @@ export function BattlespaceMap() {
   }, [mapReady, dispatch, pinThreat, unpinThreat])
 
   return (
-    <div className="map-shell" data-map-renderer={renderer}>
+    <div
+      className={[
+        'map-shell',
+        inspectorOpen ? 'is-inspector-open' : '',
+        activeMapTool === 'range' ? 'is-range-active' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      data-map-renderer={renderer}
+    >
       <div ref={containerRef} className="map-canvas" />
       <TerrainLayer
         map={mapRef.current}
@@ -1978,6 +2952,48 @@ export function BattlespaceMap() {
           <strong className="mono">
             {!edgePackHealth.ok ? 'UNAVAILABLE' : edgePackHealth.stale ? 'STALE' : edgePackHealth.packId}
           </strong>
+        </div>
+      )}
+      {heatmapMode && (
+        <div
+          className={`map-heatmap-key map-heatmap-key--${heatmapMode}`}
+          role="status"
+          data-operator-ui
+        >
+          <div className="map-heatmap-key__heading">
+            <div>
+              <span className="panel__eyebrow">Live heatmap</span>
+              <strong>{HEATMAP_LABELS[heatmapMode]}</strong>
+            </div>
+            <button
+              type="button"
+              aria-label={`Close ${HEATMAP_LABELS[heatmapMode]} heatmap`}
+              onClick={() => dispatch(setHeatmapMode(null))}
+            >
+              ×
+            </button>
+          </div>
+          <div className="map-heatmap-key__scale" aria-hidden="true" />
+          <div className="map-heatmap-key__labels">
+            <span>{heatmapMode === 'terrain' ? '0–1°' : 'Lower'}</span>
+            <span>{heatmapMode === 'terrain' ? '20°+' : 'Higher'}</span>
+          </div>
+          <small className="mono">{heatmapStatus}</small>
+        </div>
+      )}
+      {activeMapTool === 'range' && (
+        <div className="map-range-hint" role="status" data-operator-ui>
+          <div>
+            <span className="panel__eyebrow">Range tool active</span>
+            <strong>Click and drag to draw a radius</strong>
+          </div>
+          <button
+            type="button"
+            onClick={() => dispatch(setActiveMapTool(null))}
+            aria-label="Close range tool and clear measurements"
+          >
+            Clear & close
+          </button>
         </div>
       )}
       {mapReady && (
@@ -2033,8 +3049,152 @@ export function BattlespaceMap() {
               BUILDINGS
             </span>
           )}
+          <button
+            type="button"
+            className={[
+              'map-inspector-toggle',
+              inspectorOpen ? 'is-active' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            aria-label={inspectorOpen ? 'Close map inspector' : 'Open map inspector'}
+            aria-expanded={inspectorOpen}
+            title={inspectorOpen ? 'Close inspector' : 'Open logs'}
+            onClick={() => {
+              if (inspectorOpen) {
+                setInspectorOpen(false)
+              } else {
+                setInspectorView('logs')
+                setInspectorOpen(true)
+              }
+            }}
+          >
+            <span aria-hidden="true"><i /><i /><i /></span>
+          </button>
         </div>
       )}
+      <aside
+        className={[
+          'map-inspector',
+          inspectorOpen ? 'is-open' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+        aria-hidden={!inspectorOpen}
+        data-operator-ui
+      >
+        <header className="map-inspector__header">
+          <div>
+            <p className="panel__eyebrow">
+              {inspectorView === 'asset' ? 'Selection' : 'System'}
+            </p>
+            <h2>{inspectorView === 'asset' ? 'Asset details' : 'Logs'}</h2>
+          </div>
+          <div className="map-inspector__header-actions">
+            {inspectorView === 'asset' && (
+              <button type="button" onClick={() => setInspectorView('logs')}>
+                Logs
+              </button>
+            )}
+            <button
+              type="button"
+              aria-label="Close inspector"
+              onClick={() => setInspectorOpen(false)}
+            >
+              ×
+            </button>
+          </div>
+        </header>
+
+        {inspectorView === 'asset' && selectedDrone ? (
+          <div className="map-inspector__asset">
+            <section className="map-inspector__asset-identity">
+              <span className="map-inspector__asset-glyph" aria-hidden="true">△</span>
+              <div>
+                <h3>{selectedDrone.displayName || selectedDrone.id}</h3>
+                <p className="mono">
+                  {selectedDrone.type} · {selectedDrone.lifecycle ?? 'ACTIVE'}
+                </p>
+              </div>
+              <span
+                className={[
+                  'map-inspector__status',
+                  selectedDrone.comms === 'lost' ? 'is-critical' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+              >
+                {selectedDrone.comms}
+              </span>
+            </section>
+
+            <section className="map-inspector__section">
+              <h3>Telemetry</h3>
+              <dl className="map-inspector__properties">
+                <div><dt>Battery</dt><dd>{selectedDrone.battery}%</dd></div>
+                <div><dt>Positioning</dt><dd>{selectedDrone.positioningMethod}</dd></div>
+                <div><dt>Confidence</dt><dd>{selectedDrone.positioningConfidence}%</dd></div>
+                <div><dt>Navigation</dt><dd>{selectedDrone.navigationSource ?? 'Nominal'}</dd></div>
+              </dl>
+            </section>
+
+            <section className="map-inspector__section">
+              <h3>Position</h3>
+              <dl className="map-inspector__properties">
+                <div><dt>Latitude</dt><dd className="mono">{selectedDrone.position.lat.toFixed(5)}</dd></div>
+                <div><dt>Longitude</dt><dd className="mono">{selectedDrone.position.lng.toFixed(5)}</dd></div>
+                <div><dt>Altitude</dt><dd className="mono">{Math.round(selectedDrone.position.alt)} m</dd></div>
+                <div><dt>Uncertainty</dt><dd className="mono">{selectedDrone.positionUncertaintyM ?? 0} m</dd></div>
+              </dl>
+            </section>
+
+            <section className="map-inspector__section">
+              <h3>Assignment</h3>
+              <dl className="map-inspector__properties">
+                <div><dt>Mission target</dt><dd>{selectedDrone.assignedTrackId ?? 'Unassigned'}</dd></div>
+                <div><dt>Group</dt><dd>{selectedDrone.groupId ?? 'Independent'}</dd></div>
+                <div><dt>Payload</dt><dd>{selectedDrone.payloadStatus}</dd></div>
+                <div><dt>Mesh links</dt><dd>{selectedDrone.meshLinks.length}</dd></div>
+              </dl>
+            </section>
+          </div>
+        ) : (
+          <div className="map-inspector__logs" role="log" aria-live="polite">
+            <div className="map-inspector__log-entry">
+              <time className="mono">
+                {lastSyncAt ? new Date(lastSyncAt).toLocaleTimeString() : '--:--:--'}
+              </time>
+              <span className={connected ? 'tone-ok' : 'tone-crit'}>
+                {connected ? 'C2 link synchronized' : 'C2 link unavailable'}
+              </span>
+            </div>
+            <div className="map-inspector__log-entry">
+              <time className="mono">MAP</time>
+              <span>
+                {renderer === 'mapbox' ? 'Cloud' : 'Edge'} renderer active · {tracks.length} tracks
+              </span>
+            </div>
+            <div className="map-inspector__log-entry">
+              <time className="mono">FLEET</time>
+              <span>{drones.length} blue-team assets reporting</span>
+            </div>
+            {[...decisionLog]
+              .sort((a, b) => b.timestamp - a.timestamp)
+              .slice(0, 20)
+              .map((entry, index) => (
+                <div
+                  key={`${entry.timestamp}:${entry.action}:${index}`}
+                  className="map-inspector__log-entry"
+                >
+                  <time className="mono">
+                    {new Date(entry.timestamp).toLocaleTimeString()}
+                  </time>
+                  <span><strong>{entry.action}</strong> · {entry.detail}</span>
+                </div>
+              ))}
+          </div>
+        )}
+      </aside>
       {mapReady && mapRef.current && activeCalloutTrack && activeCalloutId && (
         <div className="threat-callout-layer" aria-live="polite" data-operator-ui>
           <ThreatCallout

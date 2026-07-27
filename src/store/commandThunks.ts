@@ -6,8 +6,10 @@ import type { RootState } from './index'
 import {
   pushToast,
   pushUndoToast,
+  setActiveRecommendation,
   setIntentPaletteOpen,
   setLastVetoedId,
+  upsertRecommendation,
 } from './taskingSlice'
 import {
   commandFailed,
@@ -22,6 +24,35 @@ import {
   setQueueFlushing,
 } from './commandQueueSlice'
 import { disarmConfirm } from './uiSlice'
+
+export const requestPlanCommand = createAsyncThunk(
+  'commands/requestPlan',
+  async (trackId: string, thunkApi) => {
+    const { dispatch, requestId, rejectWithValue, getState } = thunkApi
+    const state = getState() as RootState
+    dispatch(commandStarted({ id: requestId, kind: 'plan', targetId: trackId }))
+    try {
+      if (!state.session.connected) {
+        const message = 'C2 offline — unable to add to mission'
+        dispatch(commandFailed({ id: requestId, error: message }))
+        dispatch(pushToast(message))
+        return rejectWithValue(message)
+      }
+      const recommendation = await c2Client.requestPlan({ trackId })
+      dispatch(upsertRecommendation(recommendation))
+      dispatch(setActiveRecommendation(recommendation.id))
+      dispatch(pushToast(`${trackId} added to mission planning`))
+      dispatch(commandSucceeded({ id: requestId }))
+      return recommendation
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Add to mission failed'
+      dispatch(commandFailed({ id: requestId, error: message }))
+      dispatch(pushToast(message))
+      return rejectWithValue(message)
+    }
+  },
+)
 
 export const engageTrackCommand = createAsyncThunk(
   'commands/engageTrack',

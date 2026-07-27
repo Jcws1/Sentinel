@@ -9,6 +9,7 @@ const ITEMS: Array<{
   { id: 'tracks', label: 'Tracks', icon: 'tracks' },
   { id: 'operations', label: 'Ops', icon: 'ops' },
   { id: 'fleet', label: 'Assets', icon: 'fleet' },
+  { id: 'sensors', label: 'Sensors', icon: 'sensors' },
   { id: 'policy', label: 'ROE', icon: 'policy' },
 ]
 

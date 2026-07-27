@@ -1,11 +1,12 @@
 /**
  * Sentinel offline tile service worker.
- * Cache-first for /offline/tiles/; network-with-cache for Mapbox CDN tiles.
+ * Cache-first for local edge-map assets and prepared offline tiles.
  */
 const DB_NAME = 'sentinel-offline-tiles'
 const STORE = 'tiles'
 
 const TILE_URL_PATTERNS = [
+  /\/edge-map\//,
   /\/offline\/tiles\//,
   /\/offline\/styles\//,
   /\/api\/offline\/pmtiles\//,
@@ -13,6 +14,8 @@ const TILE_URL_PATTERNS = [
   /api\.mapbox\.com\/raster\/v1\//,
   /api\.mapbox\.com\/styles\/v1\//,
 ]
+
+const EDGE_CACHE = 'sentinel-edge-map-v2'
 
 function isTileRequest(url) {
   return TILE_URL_PATTERNS.some((p) => p.test(url))
@@ -93,10 +96,36 @@ async function handleTileFetch(request) {
   }
 }
 
+async function handleEdgeMapFetch(request) {
+  const range = request.headers.get('range')
+  // PMTiles uses HTTP range requests, which return 206 responses. Cache.put()
+  // rejects partial responses, so let the browser fetch them from the local C2
+  // server without passing them through Cache Storage.
+  if (range) return fetch(request)
+
+  const cache = await caches.open(EDGE_CACHE)
+  const cacheKey = request
+  const cached = await cache.match(cacheKey)
+  if (cached) return cached
+  try {
+    const response = await fetch(request)
+    if (response.ok || response.status === 206) {
+      await cache.put(cacheKey, response.clone())
+    }
+    return response
+  } catch {
+    return new Response('Edge map asset not cached', {
+      status: 503,
+      statusText: 'Offline map asset missing',
+    })
+  }
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open('sentinel-offline-static-v1').then((cache) =>
+    caches.open(EDGE_CACHE).then((cache) =>
       cache.addAll([
+        '/edge-map/style.json',
         '/offline/styles/sentinel-ops.json',
         '/offline/styles/sentinel-satellite.json',
       ]),
@@ -112,5 +141,9 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = event.request.url
   if (!isTileRequest(url)) return
-  event.respondWith(handleTileFetch(event.request))
+  event.respondWith(
+    url.includes('/edge-map/')
+      ? handleEdgeMapFetch(event.request)
+      : handleTileFetch(event.request),
+  )
 })

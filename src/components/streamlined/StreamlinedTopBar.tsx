@@ -29,9 +29,9 @@ type MenuId =
   | 'logout'
 
 const MENU: Array<{ id: MenuId; label: string; section?: 'map' | 'system' }> = [
-  { id: 'operations', label: 'Logs', section: 'system' },
+  { id: 'operations', label: 'Mission log', section: 'system' },
   { id: 'policy', label: 'ROE', section: 'system' },
-  { id: 'fleet', label: 'Settings', section: 'system' },
+  { id: 'fleet', label: 'Fleet ops', section: 'system' },
   { id: 'sensors', label: 'Sensors', section: 'system' },
   { id: 'installations', label: 'Installations', section: 'map' },
   { id: 'basemap', label: 'Basemap', section: 'map' },
