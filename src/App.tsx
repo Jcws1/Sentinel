@@ -17,6 +17,9 @@ import { pruneToasts } from './store/taskingSlice'
 import { pruneCommands } from './store/workflowSlice'
 import { PairingDialog } from './components/PairingDialog'
 import { setWorkspace } from './store/uiSlice'
+import { AssistantWorkspace } from './components/AssistantWorkspace'
+import { MissionHistoryPanel } from './components/MissionHistoryPanel'
+import { MissionReplayLogPanel } from './components/MissionReplayLogPanel'
 
 export default function App() {
   const dispatch = useAppDispatch()
@@ -48,20 +51,36 @@ export default function App() {
   const sensorWorkspace = workspace === 'sensors'
   const policyWorkspace = workspace === 'policy'
   const fleetWorkspace = workspace === 'fleet'
+  const assistantWorkspace = workspace === 'assistant'
+  const replayWorkspace = workspace === 'replay'
   const showLeft =
-    !sensorWorkspace &&
-    !policyWorkspace &&
-    !fleetWorkspace &&
-    (workspace === 'tracks' || workspace === 'operations')
+    replayWorkspace || (
+      !sensorWorkspace &&
+      !policyWorkspace &&
+      !fleetWorkspace &&
+      !assistantWorkspace &&
+      (workspace === 'tracks' || workspace === 'operations')
+    )
   const showRight =
-    !sensorWorkspace &&
-    !policyWorkspace &&
-    !fleetWorkspace &&
-    modeProfile.showRightPanel
+    replayWorkspace || (
+      !sensorWorkspace &&
+      !policyWorkspace &&
+      !fleetWorkspace &&
+      !assistantWorkspace &&
+      modeProfile.showRightPanel
+    )
   const leftPanel =
-    workspace === 'operations' ? <OperationsPanel /> : <FieldNavigator />
+    replayWorkspace
+      ? <MissionHistoryPanel />
+      : workspace === 'operations'
+        ? <OperationsPanel />
+        : <FieldNavigator />
   const rightPanel =
-    workspace === 'policy' ? <PolicyPanel /> : <FleetPanel />
+    replayWorkspace
+      ? <MissionReplayLogPanel />
+      : workspace === 'policy'
+        ? <PolicyPanel />
+        : <FleetPanel />
 
   return (
     <div
@@ -102,7 +121,7 @@ export default function App() {
                 .join(' ')}
             >
               <BattlespaceMap />
-              {modeProfile.showTasking && <TaskingPanel />}
+              {modeProfile.showTasking && !replayWorkspace && <TaskingPanel />}
               {!connected && !connecting && (
                 <div className="connection-overlay connection-overlay--compact" role="status">
                   <p className="panel__eyebrow">C2 link unavailable</p>
@@ -113,6 +132,7 @@ export default function App() {
             {modeProfile.showRail && <WorkspaceRail />}
             {showLeft && leftPanel}
             {showRight && rightPanel}
+            {assistantWorkspace && <AssistantWorkspace />}
             {fleetWorkspace && (
               <aside className="fleet-manager-panel" data-operator-ui>
                 <button

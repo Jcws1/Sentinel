@@ -1,4 +1,5 @@
 import type { Drone, Position, TaskingRecommendation, ThreatTrack } from '../types'
+import { rankAssetMatches } from './assetMatching'
 
 function distanceMeters(a: Position, b: Position): number {
   const dLat = (a.lat - b.lat) * 111_320
@@ -17,15 +18,24 @@ function midpoint(a: Position, b: Position): Position {
 export function buildRecommendation(
   track: ThreatTrack,
   drones: Drone[],
+  preferredDroneIds: string[] = [],
 ): TaskingRecommendation | null {
-  const available = drones
-    .filter((d) => d.type === 'Interceptor' && d.comms !== 'lost' && d.battery > 15)
-    .filter((d) => !d.assignedTrackId || d.assignedTrackId === track.id)
-    .sort(
-      (a, b) =>
-        distanceMeters(a.position, track.position) -
-        distanceMeters(b.position, track.position),
-    )
+  const preferredRank = new Map(
+    preferredDroneIds.map((droneId, index) => [droneId, index]),
+  )
+  const available = rankAssetMatches(track, drones, true)
+    .filter((match) => match.eligible)
+    .sort((left, right) => {
+      const leftPreferred = preferredRank.get(left.drone.id)
+      const rightPreferred = preferredRank.get(right.drone.id)
+      if (leftPreferred != null && rightPreferred != null) {
+        return leftPreferred - rightPreferred
+      }
+      if (leftPreferred != null) return -1
+      if (rightPreferred != null) return 1
+      return left.rank - right.rank
+    })
+    .map((match) => match.drone)
 
   if (available.length === 0) return null
 

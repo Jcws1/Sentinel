@@ -1,6 +1,7 @@
 # Sentinel edge gateway and standalone sensor simulator
 
-Status: target MVP architecture
+Status: implementation in progress; edge, multimodal sensor-sim, map placement,
+Gazebo visual lifecycle, analytic fusion, and NDJSON record/replay implemented
 Date: 27 July 2026
 Scope: simulate the inputs that real sensors and drones will later send through
 an edge gateway, without coupling Sentinel UI to Gazebo or simulation code.
@@ -259,6 +260,25 @@ Build the smallest vertical slice in this order:
 
 The MVP is successful when the same Sentinel build can switch between
 simulation, replay, and one live/bench adapter using configuration only.
+
+### Implemented vertical slices
+
+- Standalone `sentinel-edge` and `sentinel-sensor-sim` processes.
+- Authenticated source registration, health, observation validation, bounded
+  buffering, duplicate/sequence checks, and truth-identifier rejection.
+- Deterministic radar, RF, EO/IR, and acoustic models consuming the private
+  Gazebo state feed.
+- Runtime sensor create/update/delete through C2 and the edge gateway.
+- Map-click WGS84-to-ENU placement, coverage rendering, orientation updates,
+  and static Gazebo visual models.
+- C2-side nearest-neighbor association and multimodal evidence fusion. Radar
+  establishes position; bearing-only sensors can confirm and classify but
+  cannot fabricate range.
+- Separate analytic fused-track map layer with tentative, confirmed, and
+  coasting lifecycle states; it is not fed into engagement/tasking state.
+- Bounded NDJSON observation export plus a deterministic replay producer that
+  preserves relative timing and registers with `REPLAY` provenance.
+- Shared TypeScript/Protobuf contracts and cross-service tests.
 
 ## Acceptance criteria
 

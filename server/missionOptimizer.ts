@@ -28,6 +28,8 @@ function capabilities(drone: Drone): Set<string> {
     values.add('recon')
     values.add('escort')
   }
+  if (/cargo|supply/i.test(drone.payloadStatus)) values.add('cargo')
+  if (/medical|medevac/i.test(drone.payloadStatus)) values.add('medical')
   if (drone.type === 'Relay') {
     values.add('relay')
     values.add('comms')
@@ -42,6 +44,8 @@ function missionCapability(type: OperationalObjective['type']): string {
     relay_position: 'relay',
     intercept_track: 'intercept',
     escort_group: 'escort',
+    resupply: 'cargo',
+    medical_logistics: 'medical',
     hold: 'hold',
     return: 'return',
   }[type]
@@ -156,6 +160,10 @@ function hungarian(cost: number[][]): number[] {
 export function optimizeAssignments(
   objectives: OperationalObjective[],
   drones: Drone[],
+  options?: {
+    executionMode?: 'LIVE' | 'SIMULATION'
+    allowSimulationAutoExecute?: boolean
+  },
 ): AssignmentPlan {
   const slots = objectives.flatMap((objective) =>
     Array.from({ length: Math.max(0, objective.minVehicles) }, (_, index) => ({
@@ -203,12 +211,17 @@ export function optimizeAssignments(
     })
   })
 
-  const authority = objectives.some(
+  const requiresOperator = objectives.some(
     (objective) =>
       objective.type === 'intercept_track' || objective.priority >= 90,
   )
-    ? 'OPERATOR_CONFIRM'
-    : 'AUTO_EXECUTE'
+  const simulationAutoExecute =
+    options?.executionMode === 'SIMULATION' &&
+    options.allowSimulationAutoExecute === true &&
+    !requiresOperator
+  const authority = simulationAutoExecute
+    ? 'AUTO_EXECUTE'
+    : 'OPERATOR_CONFIRM'
   return {
     id: randomUUID(),
     createdAt: Date.now(),

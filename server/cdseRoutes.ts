@@ -57,7 +57,7 @@ export function registerCdseRoutes(app: Express): void {
         CDSE_DEFAULT_PREFIXES.map(async (prefix) => {
           try {
             const listing = await listCdsePrefix(prefix, 12)
-            return { prefix, ok: true as const, ...listing }
+            return { ok: true as const, ...listing }
           } catch (err) {
             return {
               prefix,

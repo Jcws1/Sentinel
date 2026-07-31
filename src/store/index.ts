@@ -9,6 +9,7 @@ import threatsReducer from './threatsSlice'
 import uiReducer from './uiSlice'
 import workflowReducer from './workflowSlice'
 import commandQueueReducer from './commandQueueSlice'
+import replayReducer from './replaySlice'
 
 export const store = configureStore({
   reducer: {
@@ -21,6 +22,7 @@ export const store = configureStore({
     ui: uiReducer,
     workflow: workflowReducer,
     commandQueue: commandQueueReducer,
+    replay: replayReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

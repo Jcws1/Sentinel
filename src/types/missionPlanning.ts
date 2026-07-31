@@ -6,6 +6,8 @@ export type OperationalMissionType =
   | 'relay_position'
   | 'intercept_track'
   | 'escort_group'
+  | 'resupply'
+  | 'medical_logistics'
   | 'hold'
   | 'return'
 

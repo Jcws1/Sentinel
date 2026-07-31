@@ -9,6 +9,7 @@ interface EngageButtonProps {
   variant?: EngageButtonVariant
   className?: string
   label?: string
+  disabled?: boolean
   onEngaged?: (droneIds: string[]) => void
   onError?: (message: string) => void
 }
@@ -18,6 +19,7 @@ export function EngageButton({
   variant = 'confirm',
   className = '',
   label: idleLabel = 'Engage',
+  disabled: externallyDisabled = false,
   onEngaged,
   onError,
 }: EngageButtonProps) {
@@ -40,7 +42,7 @@ export function EngageButton({
     mission.state === 'HOLD' || mission.state === 'RECALL'
   const onHold = track?.recommendedAction === 'Hold'
   const disabled =
-    busy || !!engaged || onHold || missionBlocked || !track
+    externallyDisabled || busy || !!engaged || onHold || missionBlocked || !track
 
   useEffect(() => {
     if (engaged) setBusy(false)

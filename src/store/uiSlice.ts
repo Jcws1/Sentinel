@@ -14,7 +14,7 @@ import {
   type OverlayVisibility,
 } from '../streamlined/overlayDefaults'
 
-export type WorkspaceView = 'tracks' | 'operations' | 'fleet' | 'policy' | 'sensors'
+export type WorkspaceView = 'tracks' | 'operations' | 'fleet' | 'policy' | 'sensors' | 'assistant' | 'replay'
 export type DeploymentMode = 'cloud' | 'edge'
 /** PRD v3.0 primary UI modes */
 export type ModeId = 'defense' | 'recon' | 'attack'
@@ -24,7 +24,7 @@ export type MapOverlayTab = 'bases' | 'scenarios'
 export type MapBasemap = 'minimal' | 'satellite'
 export type MapViewMode = '2d' | '3d'
 export type HeatmapMode = 'enemy' | 'friendly' | 'sensor' | 'terrain'
-export type MapInteractionTool = 'range'
+export type MapInteractionTool = 'range' | 'sensor-placement'
 
 function syncEnvFromOverlays(envLayers: EnvLayerState[], overlays: OverlayVisibility) {
   for (const layer of envLayers) {
@@ -46,6 +46,7 @@ interface UiState {
   mapView: MapViewMode
   heatmapMode: HeatmapMode | null
   activeMapTool: MapInteractionTool | null
+  sensorPlacementTypeId: string | null
   overflowMenuOpen: boolean
   alertsOpen: boolean
   workspace: WorkspaceView
@@ -94,6 +95,7 @@ const initialState: UiState = {
   mapView: '3d',
   heatmapMode: null,
   activeMapTool: null,
+  sensorPlacementTypeId: null,
   overflowMenuOpen: false,
   alertsOpen: false,
   workspace: 'tracks',
@@ -204,6 +206,13 @@ const uiSlice = createSlice({
     },
     setActiveMapTool(state, action: PayloadAction<MapInteractionTool | null>) {
       state.activeMapTool = action.payload
+      if (action.payload !== 'sensor-placement') {
+        state.sensorPlacementTypeId = null
+      }
+    },
+    beginSensorPlacement(state, action: PayloadAction<string>) {
+      state.activeMapTool = 'sensor-placement'
+      state.sensorPlacementTypeId = action.payload
     },
     setWorkspace(state, action: PayloadAction<WorkspaceView>) {
       state.workspace = action.payload
@@ -374,6 +383,7 @@ export const {
   toggleMapView,
   setHeatmapMode,
   setActiveMapTool,
+  beginSensorPlacement,
   setWorkspace,
   toggleDeploymentMode,
   setTrackDetailOpen,

@@ -147,7 +147,7 @@ export class SimGatewayClient {
   private readonly statusValue: SimGatewayStatus
 
   constructor(
-    baseUrl = process.env.SIM_GATEWAY_URL?.trim() || 'http://127.0.0.1:8080',
+    baseUrl = process.env.EDGE_GATEWAY_URL?.trim() || 'http://127.0.0.1:8090',
   ) {
     this.baseUrl = baseUrl.replace(/\/$/, '')
     this.statusValue = {
@@ -215,7 +215,7 @@ export class SimGatewayClient {
     this.statusValue.error = compatible
       ? null
       : `Unsupported simulator protocol ${handshake.version}`
-    if (!compatible) throw new Error(this.statusValue.error)
+    if (!compatible) throw new Error(this.statusValue.error ?? 'Incompatible gateway')
     return snapshot
   }
 

@@ -6,6 +6,7 @@ import {
 } from '../../store/selectors'
 import { operatorSelectTrack } from '../../store/threatsSlice'
 import { setActiveRecommendation } from '../../store/taskingSlice'
+import { setTaskingSheetOpen } from '../../store/uiSlice'
 
 function threatPhase(
   track: { etaToAsset: number; recommendedAction: string },
@@ -49,6 +50,7 @@ export function ThreatTicker() {
       onClick={() => {
         dispatch(operatorSelectTrack(topTrack.id))
         if (topRec) dispatch(setActiveRecommendation(topRec.id))
+        if (topRec) dispatch(setTaskingSheetOpen(true))
       }}
       data-operator-ui
     >

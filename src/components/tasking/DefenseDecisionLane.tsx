@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react'
-import { EngageButton } from '../EngageButton'
 import { useAppSelector } from '../../store'
-import { assessDecisionContext, assessDecisionEvidence, urgencyLabel } from '../../utils/decision'
 import type { TaskingRecommendation, ThreatTrack } from '../../types'
+import {
+  assessDecisionContext,
+  assessDecisionEvidence,
+  urgencyLabel,
+} from '../../utils/decision'
+import { EngageButton } from '../EngageButton'
 
 export function DefenseDecisionLane({
   pending,
@@ -12,9 +16,7 @@ export function DefenseDecisionLane({
   isAlert,
   busy,
   confirmAllArmedUntil,
-  hotkeysArmed,
   onSelectPending,
-  onStepPending,
   onVeto,
   onConfirmAll,
 }: {
@@ -49,10 +51,13 @@ export function DefenseDecisionLane({
     lastSyncAt,
     now,
   )
+  const selectedDroneId = active.droneIds[0] ?? null
+
   return (
     <div
       className={[
         'action-panel',
+        'action-panel--ranked',
         'map-ui-surface',
         `action-panel--${decisionContext.urgency}`,
         isAlert ? 'action-panel--alert' : '',
@@ -64,7 +69,7 @@ export function DefenseDecisionLane({
     >
       {pending.length > 1 && (
         <div className="decision-queue" role="tablist" aria-label="Pending decisions">
-          {pending.map((rec, i) => {
+          {pending.map((rec, index) => {
             const track = rec.trackId === activeTrack.id ? activeTrack : null
             return (
               <button
@@ -77,7 +82,7 @@ export function DefenseDecisionLane({
                   .join(' ')}
                 onClick={() => onSelectPending(rec.id, rec.trackId)}
               >
-                <span className="decision-queue__index mono">{i + 1}</span>
+                <span className="decision-queue__index mono">{index + 1}</span>
                 <span className="decision-queue__id mono">{rec.trackId}</span>
                 {track && <span className="decision-queue__eta mono">{track.etaToAsset}s</span>}
               </button>
@@ -105,6 +110,25 @@ export function DefenseDecisionLane({
         <p className="action-panel__roe mono">{decisionContext.roeHint}</p>
       </div>
 
+      <div className="action-panel__match-summary">
+        <div>
+          <p className="panel__eyebrow">Decide - Ranked recommendation</p>
+          <h2 className="action-panel__title">
+            {selectedDroneId ?? 'No interceptor selected'}
+          </h2>
+          <p>
+            Ranked interceptor cards are available in the right inspector.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn btn--ghost action-panel__view-matches"
+          onClick={() => window.dispatchEvent(new Event('sentinel:open-asset-matches'))}
+        >
+          View ranked assets
+        </button>
+      </div>
+
       <div className="decision-evidence" role="group" aria-label="Decision evidence">
         <span className={`decision-evidence__item ${evidence.roePass ? 'tone-ok' : 'tone-warn'}`}>
           <span className="decision-evidence__k">ROE</span>
@@ -121,7 +145,7 @@ export function DefenseDecisionLane({
         >
           <span className="decision-evidence__k">Update</span>
           <span className="decision-evidence__v mono">
-            {evidence.lastUpdateSec != null ? `${evidence.lastUpdateSec}s` : '—'}
+            {evidence.lastUpdateSec != null ? `${evidence.lastUpdateSec}s` : '-'}
           </span>
         </span>
         <span
@@ -142,76 +166,35 @@ export function DefenseDecisionLane({
         </span>
       </div>
 
-      <div className="action-panel__chrome">
-        <div className="action-panel__identity">
-          <p className="panel__eyebrow">Decide · Active recommendation</p>
-          <h2 className="action-panel__title">Engage intercept?</h2>
-        </div>
-        <dl className="action-panel__kv mono">
-          <div>
-            <dt>Track</dt>
-            <dd>{active.trackId}</dd>
-          </div>
-          <div>
-            <dt>Assets</dt>
-            <dd>{active.droneIds.join(', ')}</dd>
-          </div>
-          <div>
-            <dt>ETA</dt>
-            <dd className={activeTrack.etaToAsset < 45 ? 'tone-warn' : ''}>{active.etaSeconds}s</dd>
-          </div>
-          <div>
-            <dt>Conf</dt>
-            <dd className={active.confidence >= 90 ? 'tone-ok' : active.confidence < 80 ? 'tone-warn' : ''}>
-              {active.confidence}%
-            </dd>
-          </div>
-        </dl>
-      </div>
-
-      <ul className="decision-factors">
-        {decisionContext.factors.map((factor) => (
-          <li key={factor} className="decision-factors__item">
-            {factor}
-          </li>
-        ))}
-      </ul>
-
-      <p className="action-panel__summary">{active.summary}</p>
-
       <div className="action-panel__actions">
-        <EngageButton trackId={active.trackId} variant="confirm" className="action-panel__engage" />
+        <EngageButton
+          trackId={active.trackId}
+          variant="confirm"
+          className="action-panel__engage"
+          label={`Confirm ${selectedDroneId ?? 'asset'}`}
+          disabled={busy}
+        />
         <button type="button" className="btn btn--veto" disabled={busy} onClick={onVeto}>
           Veto
         </button>
-      </div>
-
-      {pending.length > 1 && (
-        <div className="action-panel__secondary">
-          <div className="action-panel__nav">
-            <button type="button" className="btn btn--ghost btn--sm" disabled={busy} onClick={() => onStepPending(-1)}>
-              ← Prev
-            </button>
-            <button type="button" className="btn btn--ghost btn--sm" disabled={busy} onClick={() => onStepPending(1)}>
-              Next →
-            </button>
-          </div>
+        {pending.length > 1 && (
           <button
             type="button"
-            className={['btn btn--ok btn--block action-panel__batch', Date.now() <= confirmAllArmedUntil ? 'btn--armed' : '']
+            className={[
+              'btn btn--ok',
+              Date.now() <= confirmAllArmedUntil ? 'btn--armed' : '',
+            ]
               .filter(Boolean)
               .join(' ')}
             disabled={busy}
             onClick={onConfirmAll}
           >
-            {Date.now() <= confirmAllArmedUntil ? `Confirm now (${pending.length})` : `Confirm all (${pending.length})`}
+            {Date.now() <= confirmAllArmedUntil
+              ? `Confirm now (${pending.length})`
+              : `Confirm all (${pending.length})`}
           </button>
-        </div>
-      )}
-
-      <p className="action-panel__hint mono">
-        {hotkeysArmed ? '↵ Engage · Esc Veto · [ ] Cycle queue' : 'Hover/focus panel to arm hotkeys'}
-      </p>
+        )}
+      </div>
     </div>
   )
 }

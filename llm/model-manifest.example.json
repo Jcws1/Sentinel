@@ -1,0 +1,27 @@
+{
+  "runtime": {
+    "name": "llama.cpp llama-server",
+    "version": "PIN_EXACT_RELEASE",
+    "sourceUrl": "RECORD_APPROVED_RELEASE_URL",
+    "file": "llm/runtime/llama-server.exe",
+    "sha256": "RECORD_64_HEX_SHA256"
+  },
+  "model": {
+    "id": "qwen3-1.7b-q4_k_m",
+    "family": "Qwen3 1.7B",
+    "quantization": "Q4_K_M",
+    "license": "Apache-2.0",
+    "sourceUrl": "RECORD_APPROVED_GGUF_URL",
+    "file": "llm/models/qwen3-1.7b-q4_k_m.gguf",
+    "bytes": 0,
+    "sha256": "RECORD_64_HEX_SHA256"
+  },
+  "profile": {
+    "host": "127.0.0.1",
+    "port": 8082,
+    "contextTokens": 4096,
+    "threads": 4,
+    "parallelRequests": 1,
+    "gpuLayers": 0
+  }
+}

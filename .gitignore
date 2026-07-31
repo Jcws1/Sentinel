@@ -21,6 +21,12 @@ data/*.sqlite-wal
 data/*.sqlite-shm
 data/*.sqlite-journal
 
+# Local inference artifacts are provisioned per host, never committed
+llm/runtime/
+llm/models/
+llm/benchmarks/*.json
+!llm/benchmarks/.gitkeep
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

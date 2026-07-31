@@ -1,7 +1,7 @@
 import { createAsyncThunk } from '@reduxjs/toolkit'
 import { c2Client } from '../api/sync'
 import type { MissionState } from '../types'
-import type { TaskingDecisionRequest } from '../api/types'
+import type { TaskingDecisionRequest, TaskingPlanRequest } from '../api/types'
 import type { RootState } from './index'
 import {
   pushToast,
@@ -27,9 +27,11 @@ import { disarmConfirm } from './uiSlice'
 
 export const requestPlanCommand = createAsyncThunk(
   'commands/requestPlan',
-  async (trackId: string, thunkApi) => {
+  async (request: string | TaskingPlanRequest, thunkApi) => {
     const { dispatch, requestId, rejectWithValue, getState } = thunkApi
     const state = getState() as RootState
+    const body = typeof request === 'string' ? { trackId: request } : request
+    const { trackId } = body
     dispatch(commandStarted({ id: requestId, kind: 'plan', targetId: trackId }))
     try {
       if (!state.session.connected) {
@@ -38,10 +40,16 @@ export const requestPlanCommand = createAsyncThunk(
         dispatch(pushToast(message))
         return rejectWithValue(message)
       }
-      const recommendation = await c2Client.requestPlan({ trackId })
+      const recommendation = await c2Client.requestPlan(body)
       dispatch(upsertRecommendation(recommendation))
       dispatch(setActiveRecommendation(recommendation.id))
-      dispatch(pushToast(`${trackId} added to mission planning`))
+      dispatch(
+        pushToast(
+          body.preferredDroneIds?.length
+            ? `${body.preferredDroneIds[0]} selected for ${trackId}`
+            : `${trackId} added to mission planning`,
+        ),
+      )
       dispatch(commandSucceeded({ id: requestId }))
       return recommendation
     } catch (error) {

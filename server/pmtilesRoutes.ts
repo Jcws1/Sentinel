@@ -7,7 +7,11 @@ const TILES_DIR = path.join(process.cwd(), 'public', 'offline', 'tiles')
 const archives = new Map<string, PMTiles>()
 
 class NodeFileSource implements Source {
-  constructor(private filePath: string) {}
+  private readonly filePath: string
+
+  constructor(filePath: string) {
+    this.filePath = filePath
+  }
 
   getKey(): string {
     return this.filePath
@@ -45,10 +49,10 @@ async function servePmtilesTile(
   res: Response,
   ext: 'pbf' | 'png',
 ) {
-  const archiveName = req.params.archive
-  const z = Number.parseInt(req.params.z, 10)
-  const x = Number.parseInt(req.params.x, 10)
-  const y = Number.parseInt(req.params.y, 10)
+  const archiveName = String(req.params.archive)
+  const z = Number.parseInt(String(req.params.z), 10)
+  const x = Number.parseInt(String(req.params.x), 10)
+  const y = Number.parseInt(String(req.params.y), 10)
 
   if (!archiveName || Number.isNaN(z) || Number.isNaN(x) || Number.isNaN(y)) {
     res.status(400).json({ error: 'Invalid tile coordinates' })

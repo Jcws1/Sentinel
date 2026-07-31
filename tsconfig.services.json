@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "es2023",
+    "lib": ["ES2023", "DOM"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "skipLibCheck": true,
+    "noEmit": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": [
+    "assistant/**/*.ts",
+    "contracts/**/*.ts",
+    "edge/**/*.ts",
+    "replay/**/*.ts",
+    "sensor-sim/**/*.ts",
+    "server/**/*.ts",
+    "src/api/**/*.ts",
+    "src/policy/**/*.ts",
+    "src/types/**/*.ts",
+    "src/types.ts"
+  ]
+}

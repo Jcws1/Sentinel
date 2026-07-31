@@ -7,12 +7,12 @@ import cors from 'cors'
 import { WebSocketServer, type WebSocket } from 'ws'
 import type { MissionState } from '../src/types'
 import type {
-  SimBatchSpawnRequest,
   RealtimeEvent,
   TaskingDecisionRequest,
   TaskingPlanRequest,
 } from '../src/api/types'
 import type {
+  SimBatchSpawnRequest,
   SimCommand,
   SimFleetBehaviorRequest,
   SimFault,
@@ -47,6 +47,10 @@ import { createScenarioDatabase } from './scenarioDatabase'
 import { registerScenarioRoutes } from './scenarioRoutes'
 import { PairingAuth, registerPairingRoutes } from './pairingAuth'
 import { optimizeAssignments } from './missionOptimizer'
+import { EdgeFusionPoller } from './edgeFusionPoller'
+import { registerAssistantProxyRoutes } from './assistantProxy'
+import { objectiveFromAssistantDraft } from './assistantPlanning'
+import type { MissionDraft } from '../assistant/types'
 
 loadEnvFile()
 
@@ -59,6 +63,10 @@ const uiRoot = path.resolve(process.env.UI_DIST_ROOT ?? path.join(process.cwd(),
 const healthDatabase = createHealthDatabase()
 const scenarioDatabase = createScenarioDatabase()
 const simGateway = new SimGatewayClient()
+const edgeGatewayUrl = (
+  process.env.EDGE_GATEWAY_URL?.trim() || 'http://127.0.0.1:8090'
+).replace(/\/$/, '')
+const edgeFusion = new EdgeFusionPoller(edgeGatewayUrl)
 const pairingAuth = new PairingAuth()
 const assignmentPlans = new Map<string, AssignmentPlan>()
 const assignmentObjectives = new Map<string, OperationalObjective[]>()
@@ -88,6 +96,7 @@ app.use('/api/v1', pairingAuth.requireOperator)
 registerPmtilesRoutes(app)
 registerCdseRoutes(app)
 registerScenarioRoutes(app, scenarioDatabase, activateSimulatorScenario)
+registerAssistantProxyRoutes(app)
 
 app.get('/api/v1/edge-map/health', async (_req, res) => {
   try {
@@ -192,6 +201,80 @@ if (existsSync(path.join(uiRoot, 'index.html'))) {
 
 app.get('/api/v1/sim/status', (_req, res) => {
   res.json(simGateway.status)
+})
+
+async function proxyEdgeRequest(
+  req: express.Request,
+  res: express.Response,
+  edgePath: string,
+) {
+  try {
+    const hasBody = !['GET', 'HEAD'].includes(req.method)
+    const response = await fetch(`${edgeGatewayUrl}${edgePath}`, {
+      method: req.method,
+      headers: hasBody ? { 'content-type': 'application/json' } : undefined,
+      body: hasBody ? JSON.stringify(req.body) : undefined,
+      signal: AbortSignal.timeout(5_000),
+    })
+    const text = await response.text()
+    res.status(response.status)
+    res.type(response.headers.get('content-type') ?? 'application/json')
+    res.send(text)
+  } catch (error) {
+    res.status(503).json({
+      error: error instanceof Error ? error.message : 'Edge gateway unavailable',
+    })
+  }
+}
+
+app.get('/api/v1/edge/status', (req, res) => {
+  void proxyEdgeRequest(req, res, '/v1/edge/health')
+})
+
+app.get('/api/v1/edge/sources', (req, res) => {
+  void proxyEdgeRequest(req, res, '/v1/sources')
+})
+
+app.get('/api/v1/edge/observations', (req, res) => {
+  const after = typeof req.query.afterIngressSequence === 'string'
+    ? `?afterIngressSequence=${encodeURIComponent(req.query.afterIngressSequence)}`
+    : ''
+  void proxyEdgeRequest(req, res, `/v1/observations${after}`)
+})
+
+app.get('/api/v1/edge/recording', (req, res) => {
+  const after = typeof req.query.afterIngressSequence === 'string'
+    ? `?afterIngressSequence=${encodeURIComponent(req.query.afterIngressSequence)}`
+    : ''
+  void proxyEdgeRequest(req, res, `/v1/recordings/current.ndjson${after}`)
+})
+
+app.get('/api/v1/edge/sensor-types', (req, res) => {
+  void proxyEdgeRequest(req, res, '/v1/sensor-types')
+})
+
+app.get('/api/v1/edge/sensors', (req, res) => {
+  void proxyEdgeRequest(req, res, '/v1/sensors')
+})
+
+app.post('/api/v1/edge/sensors', (req, res) => {
+  void proxyEdgeRequest(req, res, '/v1/sensors')
+})
+
+app.patch('/api/v1/edge/sensors/:sensorId', (req, res) => {
+  void proxyEdgeRequest(
+    req,
+    res,
+    `/v1/sensors/${encodeURIComponent(req.params.sensorId)}`,
+  )
+})
+
+app.delete('/api/v1/edge/sensors/:sensorId', (req, res) => {
+  void proxyEdgeRequest(
+    req,
+    res,
+    `/v1/sensors/${encodeURIComponent(req.params.sensorId)}`,
+  )
 })
 
 app.get('/api/v1/sim/platforms', (_req, res) => {
@@ -427,6 +510,38 @@ app.post('/api/v1/missions/optimize', async (req, res) => {
   }
 })
 
+app.post('/api/v1/assistant/recommendations', (req, res) => {
+  try {
+    const draft = req.body?.draft as MissionDraft | undefined
+    if (!draft || draft.approvalRequired !== true) {
+      res.status(400).json({ error: 'A non-executable assistant mission draft is required' })
+      return
+    }
+    const objective = objectiveFromAssistantDraft(draft)
+    const plan = optimizeAssignments([objective], state.drones)
+    assignmentPlans.set(plan.id, plan)
+    assignmentObjectives.set(plan.id, [objective])
+    state.decisionLog.unshift({
+      id: `log-${Date.now()}-${plan.id}`,
+      timestamp: Date.now(),
+      actor: 'operator',
+      action: 'ASSISTANT_RECOMMENDATION_REQUESTED',
+      detail: `${draft.id} revision ${draft.revision}; ${plan.summary}`,
+    })
+    res.status(201).json({
+      plan,
+      deterministic: true,
+      executable: false,
+      sourceDraftId: draft.id,
+      sourceDraftRevision: draft.revision,
+    })
+  } catch (error) {
+    res.status(422).json({
+      error: error instanceof Error ? error.message : 'Mission draft is not ready',
+    })
+  }
+})
+
 app.post('/api/v1/missions/plans/:id/confirm', async (req, res) => {
   const plan = assignmentPlans.get(req.params.id)
   if (!plan) {
@@ -464,6 +579,10 @@ app.patch('/api/v1/mission', (req, res) => {
 
 app.get('/api/v1/fusion/tracks', (_req, res) => {
   res.json({ tracks: state.tracks })
+})
+
+app.get('/api/v1/fusion/sensor-tracks', (_req, res) => {
+  res.json(edgeFusion.snapshot())
 })
 
 app.get('/api/v1/fusion/tracks/:id', (req, res) => {
@@ -612,6 +731,7 @@ server.listen(PORT, HOST, () => {
 })
 
 cdsePoller.start()
+edgeFusion.start()
 void simGateway.start((event) => {
   if (event.type === 'state.snapshot' && simGateway.handshake) {
     syncGatewayFleet(state, event.data as SimSnapshot, simGateway.handshake)
@@ -633,6 +753,7 @@ void simGateway.start((event) => {
 function shutdown() {
   clearInterval(simTimer)
   simGateway.stop()
+  edgeFusion.stop()
   cdsePoller.stop()
   healthDatabase.close()
   scenarioDatabase.checkpoint()

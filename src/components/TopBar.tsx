@@ -14,6 +14,7 @@ import {
 } from '../store/uiSlice'
 import { ModeSwitchDialog } from './ModeSwitchDialog'
 import { OverflowMenu } from './OverflowMenu'
+import { exitReplay } from '../store/replaySlice'
 
 export function TopBar() {
   const mission = useAppSelector((s) => s.mission)
@@ -99,6 +100,35 @@ export function TopBar() {
           >
             <span className="sensor-tab__pulse" aria-hidden="true" />
             ROE
+          </button>
+          <button
+            type="button"
+            className={['sensor-tab', workspace === 'assistant' ? 'is-active' : '']
+              .filter(Boolean)
+              .join(' ')}
+            aria-pressed={workspace === 'assistant'}
+            onClick={() => dispatch(setWorkspace(workspace === 'assistant' ? 'tracks' : 'assistant'))}
+          >
+            <span className="assistant-tab__glyph" aria-hidden="true">✦</span>
+            AI
+          </button>
+          <button
+            type="button"
+            className={['sensor-tab', 'logs-tab', workspace === 'replay' ? 'is-active' : '']
+              .filter(Boolean)
+              .join(' ')}
+            aria-pressed={workspace === 'replay'}
+            onClick={() => {
+              if (workspace === 'replay') {
+                dispatch(exitReplay())
+                dispatch(setWorkspace('tracks'))
+              } else {
+                dispatch(setWorkspace('replay'))
+              }
+            }}
+          >
+            <span className="logs-tab__glyph" aria-hidden="true"><i /><i /><i /></span>
+            Logs
           </button>
           <button
             type="button"

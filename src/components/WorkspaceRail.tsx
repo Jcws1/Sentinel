@@ -11,6 +11,7 @@ const ITEMS: Array<{
   { id: 'fleet', label: 'Assets', icon: 'fleet' },
   { id: 'sensors', label: 'Sensors', icon: 'sensors' },
   { id: 'policy', label: 'ROE', icon: 'policy' },
+  { id: 'assistant', label: 'AI', icon: 'assistant' },
 ]
 
 export function WorkspaceRail() {

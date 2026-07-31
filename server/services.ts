@@ -34,12 +34,16 @@ export function requestPlan(
   const track = state.tracks.find((t) => t.id === body.trackId)
   if (!track) throw new Error(`Track ${body.trackId} not found`)
 
-  const rec = buildRecommendation(track, state.drones)
+  const rec = buildRecommendation(track, state.drones, body.preferredDroneIds)
   if (!rec) throw new Error('No available interceptors')
 
   if (body.preferredDroneIds?.length) {
-    rec.droneIds = body.preferredDroneIds
-    rec.summary = `Intercept ${track.id} with ${body.preferredDroneIds.join(', ')} via direct intercept. ETA: ${rec.etaSeconds}s. Confidence: ${rec.confidence}%.`
+    const unavailable = body.preferredDroneIds.filter(
+      (droneId) => !rec.droneIds.includes(droneId),
+    )
+    if (unavailable.length) {
+      throw new Error(`Preferred interceptor unavailable: ${unavailable.join(', ')}`)
+    }
   }
 
   upsertRecommendation(state, rec)

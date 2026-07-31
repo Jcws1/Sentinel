@@ -1,437 +1,824 @@
-import { useMemo, useState, type CSSProperties } from 'react'
-import { useAppDispatch, useAppSelector } from '../store'
+import { useMemo, useState, type ReactNode } from 'react'
+import { useAppDispatch } from '../store'
 import { pushToast } from '../store/taskingSlice'
-import {
-  evaluateRoe,
-  type RoeAreaType,
-  type RoeCivilianContext,
-  type RoeControlMode,
-  type RoeEvaluationInput,
-  type RoeOutcome,
-  type RoeTaskType,
-} from '../policy/roeEngine'
 
-type RoeView = 'check' | 'package' | 'activity'
-type PriorityPreset = 'balanced' | 'rapid' | 'persistent' | 'reserve'
+type RoeSection =
+  | 'overview'
+  | 'actions'
+  | 'boundaries'
+  | 'oversight'
+  | 'autonomy'
+  | 'failsafe'
+  | 'priorities'
+  | 'audit'
 
-interface PriorityMetric {
+type SettingStatus = 'Active' | 'Needs setup'
+
+interface NavigationItem {
+  id: RoeSection
+  label: string
+}
+
+interface OverviewCard {
+  id: Exclude<RoeSection, 'overview' | 'audit'>
+  title: string
+  description: string
+  status: SettingStatus
+  summary: string
+}
+
+interface PermissionSetting {
+  id: string
+  action: string
+  description: string
+  authority: 'Allowed' | 'Review required' | 'Blocked'
+}
+
+interface BoundarySetting {
   id: string
   label: string
+  description: string
+  value: string
+  enabled: boolean
+  locked?: boolean
+}
+
+interface PrioritySetting {
+  id: string
+  label: string
+  description: string
   weight: number
 }
 
-interface Guardrail {
+type AutonomyMode = 'Recommend only' | 'Queue permitted actions' | 'Execute permitted actions'
+type PresetProfile = 'Balanced' | 'Rapid response' | 'Persistent coverage' | 'Resource reserve'
+type PriorityProfile = PresetProfile | 'Custom'
+
+interface FailsafeSetting {
+  trigger: string
+  response: string
+  recovery: string
+}
+
+interface AuditEvent {
   id: string
+  type: 'published' | 'draft'
+  environment: string
+  title: string
+  summary: string
+  actor: string
+  time: string
+  version: string
+  changes: string[]
+}
+
+interface EditSnapshot {
+  permissions: PermissionSetting[]
+  boundaries: BoundarySetting[]
+  priorities: PrioritySetting[]
+  oversight: {
+    protectedLocations: boolean
+    autonomousActions: boolean
+    intercepts: boolean
+    reviewer: string
+    fallbackReviewer: string
+    expiresAfter: string
+    noResponse: string
+  }
+  autonomy: {
+    mode: AutonomyMode
+    supervised: boolean
+    confirmMaterialChanges: boolean
+    reduceOnDegrade: boolean
+  }
+  failsafe: {
+    staleContext: FailsafeSetting
+    linkLoss: FailsafeSetting
+    degradedPositioning: FailsafeSetting
+  }
+  priorityProfile: PriorityProfile
+}
+
+const CONFIGURE_NAV: NavigationItem[] = [
+  { id: 'actions', label: 'Action permissions' },
+  { id: 'boundaries', label: 'Operational boundaries' },
+  { id: 'oversight', label: 'Human oversight' },
+  { id: 'autonomy', label: 'Autonomous behaviour' },
+  { id: 'failsafe', label: 'Fail-safe behaviour' },
+  { id: 'priorities', label: 'Recommendation priorities' },
+]
+
+const OVERVIEW_CARDS: OverviewCard[] = [
+  {
+    id: 'actions',
+    title: 'Action permissions',
+    description: 'Define which actions the system may recommend or perform.',
+    status: 'Active',
+    summary: '5 actions configured',
+  },
+  {
+    id: 'boundaries',
+    title: 'Operational boundaries',
+    description: 'Set location, timing, proximity and context constraints.',
+    status: 'Active',
+    summary: '4 boundaries enabled',
+  },
+  {
+    id: 'oversight',
+    title: 'Human oversight',
+    description: 'Control when an operator or commander must approve.',
+    status: 'Active',
+    summary: '3 review conditions',
+  },
+  {
+    id: 'autonomy',
+    title: 'Autonomous behaviour',
+    description: 'Define what entities may do without confirmation.',
+    status: 'Needs setup',
+    summary: 'Supervised by default',
+  },
+  {
+    id: 'failsafe',
+    title: 'Fail-safe behaviour',
+    description: 'Set responses to stale data, link loss and degraded positioning.',
+    status: 'Active',
+    summary: '3 responses configured',
+  },
+  {
+    id: 'priorities',
+    title: 'Recommendation priorities',
+    description: 'Choose how valid recommendations are ranked.',
+    status: 'Active',
+    summary: 'Balanced profile',
+  },
+]
+
+const INITIAL_PERMISSIONS: PermissionSetting[] = [
+  { id: 'observe', action: 'Observe', description: 'Collect imagery or sensor data.', authority: 'Allowed' },
+  { id: 'track', action: 'Track', description: 'Maintain surveillance of a declared entity.', authority: 'Allowed' },
+  { id: 'escort', action: 'Escort', description: 'Accompany a friendly or protected entity.', authority: 'Allowed' },
+  { id: 'relay', action: 'Communications relay', description: 'Provide temporary communications coverage.', authority: 'Allowed' },
+  { id: 'intercept', action: 'Intercept', description: 'Approach and contain a declared threat.', authority: 'Review required' },
+]
+
+const INITIAL_BOUNDARIES: BoundarySetting[] = [
+  { id: 'restricted', label: 'Restricted zones', description: 'Prevent entry into declared restricted areas.', value: 'No entry', enabled: true, locked: true },
+  { id: 'protected', label: 'Protected-location buffer', description: 'Require review near protected locations.', value: '500 m', enabled: true },
+  { id: 'separation', label: 'Minimum separation', description: 'Maintain distance from friendly and protected entities.', value: '250 m', enabled: true, locked: true },
+  { id: 'duration', label: 'Maximum task duration', description: 'Require a new authorization after this period.', value: '60 min', enabled: true },
+]
+
+const INITIAL_PRIORITIES: PrioritySetting[] = [
+  { id: 'effect', label: 'Mission effect', description: 'Match the requested outcome.', weight: 72 },
+  { id: 'response', label: 'Response time', description: 'Prefer options that can act sooner.', weight: 68 },
+  { id: 'distance', label: 'Transit distance', description: 'Reduce unnecessary repositioning.', weight: 46 },
+  { id: 'endurance', label: 'Time on station', description: 'Preserve useful coverage after arrival.', weight: 58 },
+  { id: 'reserve', label: 'Fuel and battery reserve', description: 'Protect platform endurance.', weight: 52 },
+]
+
+const PRIORITY_PROFILES: Record<PresetProfile, number[]> = {
+  Balanced: [72, 68, 46, 58, 52],
+  'Rapid response': [78, 92, 74, 38, 34],
+  'Persistent coverage': [68, 48, 36, 92, 76],
+  'Resource reserve': [58, 42, 34, 66, 94],
+}
+
+const BOUNDARY_VALUES: Record<string, string[]> = {
+  restricted: ['No entry'],
+  protected: ['250 m', '500 m', '750 m', '1 km'],
+  separation: ['250 m'],
+  duration: ['30 min', '60 min', '90 min', 'Until changed'],
+}
+
+const INITIAL_AUDIT_EVENTS: AuditEvent[] = [
+  {
+    id: 'audit-1430',
+    type: 'published',
+    environment: 'Operational',
+    title: 'Operational configuration published',
+    summary: 'Human oversight and action permissions updated.',
+    actor: 'Mission Commander',
+    time: 'Today, 14:30Z',
+    version: 'v12',
+    changes: ['Intercept authority: Allowed → Review required', 'Protected-location review: Off → On'],
+  },
+  {
+    id: 'audit-1354',
+    type: 'draft',
+    environment: 'Operational',
+    title: 'Recommendation priorities edited',
+    summary: 'Balanced profile restored.',
+    actor: 'Operations Supervisor',
+    time: 'Today, 13:54Z',
+    version: 'Draft 7',
+    changes: ['Priority profile: Rapid response → Balanced'],
+  },
+  {
+    id: 'audit-training',
+    type: 'published',
+    environment: 'Training',
+    title: 'Training configuration published',
+    summary: 'Autonomous behaviour changed to supervised.',
+    actor: 'Duty Officer',
+    time: 'Yesterday, 18:10Z',
+    version: 'v8',
+    changes: ['Automation mode: Queue permitted actions → Recommend only'],
+  },
+]
+
+const SECTION_COPY: Record<RoeSection, { title: string; description: string }> = {
+  overview: {
+    title: 'Rules of engagement',
+    description: 'Configure the permissions, boundaries and safeguards applied across the system.',
+  },
+  actions: {
+    title: 'Action permissions',
+    description: 'Define the default authority required for each type of action.',
+  },
+  boundaries: {
+    title: 'Operational boundaries',
+    description: 'Set the spatial, temporal and proximity limits enforced by the system.',
+  },
+  oversight: {
+    title: 'Human oversight',
+    description: 'Choose when recommendations must be reviewed before execution.',
+  },
+  autonomy: {
+    title: 'Autonomous behaviour',
+    description: 'Control how entities act and adapt without direct operator input.',
+  },
+  failsafe: {
+    title: 'Fail-safe behaviour',
+    description: 'Define safe responses when operational inputs become unreliable.',
+  },
+  priorities: {
+    title: 'Recommendation priorities',
+    description: 'Rank valid options without weakening permissions or safeguards.',
+  },
+  audit: {
+    title: 'Audit trail',
+    description: 'Review configuration changes and publication activity.',
+  },
+}
+
+function StatusPill({ status }: { status: SettingStatus }) {
+  return <span className={`roe4-status roe4-status--${status === 'Active' ? 'active' : 'setup'}`}>{status}</span>
+}
+
+function Toggle({
+  checked,
+  disabled,
+  label,
+  onChange,
+}: {
+  checked: boolean
+  disabled?: boolean
   label: string
-  value: string
-  locked: boolean
-  enabled: boolean
+  onChange: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className={`roe4-toggle ${checked ? 'is-on' : ''}`}
+      disabled={disabled}
+      aria-label={label}
+      aria-pressed={checked}
+      onClick={onChange}
+    >
+      <i />
+    </button>
+  )
 }
 
-const TASK_OPTIONS: Array<{ value: RoeTaskType; label: string }> = [
-  { value: 'observe', label: 'Observe' },
-  { value: 'track', label: 'Track' },
-  { value: 'escort', label: 'Escort' },
-  { value: 'relay', label: 'Communications relay' },
-  { value: 'intercept', label: 'Intercept' },
-]
-
-const AREA_OPTIONS: Array<{ value: RoeAreaType; label: string }> = [
-  { value: 'controlled', label: 'Controlled area' },
-  { value: 'dense-urban', label: 'Dense urban' },
-  { value: 'protected-buffer', label: 'Protected buffer' },
-  { value: 'no-go', label: 'No-go area' },
-]
-
-const CONTROL_OPTIONS: Array<{ value: RoeControlMode; label: string }> = [
-  { value: 'supervised', label: 'Human supervised' },
-  { value: 'manual', label: 'Direct manual' },
-  { value: 'autonomous', label: 'Autonomous' },
-]
-
-const CIVILIAN_OPTIONS: Array<{ value: RoeCivilianContext; label: string }> = [
-  { value: 'clear', label: 'No indicators' },
-  { value: 'unclear', label: 'Unresolved' },
-  { value: 'present', label: 'Indicators present' },
-]
-
-const PRESETS: Record<
-  PriorityPreset,
-  { label: string; short: string; detail: string; weights: number[] }
-> = {
-  balanced: {
-    label: 'Keep it balanced',
-    short: 'Balanced',
-    detail: 'Good default for mixed missions',
-    weights: [72, 68, 46, 58, 52, 48],
-  },
-  rapid: {
-    label: 'Respond faster',
-    short: 'Fast response',
-    detail: 'Favor speed and mission effect',
-    weights: [78, 92, 74, 38, 34, 36],
-  },
-  persistent: {
-    label: 'Stay on station',
-    short: 'Long coverage',
-    detail: 'Favor endurance and coverage',
-    weights: [68, 48, 36, 92, 76, 52],
-  },
-  reserve: {
-    label: 'Save resources',
-    short: 'Resource reserve',
-    detail: 'Protect fuel and specialist assets',
-    weights: [58, 42, 34, 66, 94, 88],
-  },
+function SettingPage({
+  children,
+  note,
+  summary,
+  detail,
+}: {
+  children: ReactNode
+  note?: string
+  summary: string
+  detail: string
+}) {
+  return (
+    <div className="roe4-settings-page">
+      <div className="roe4-page-summary">
+        <span><i /> Active</span>
+        <strong>{summary}</strong>
+        <small>{detail}</small>
+      </div>
+      {note && <p className="roe4-note">{note}</p>}
+      <div className="roe4-settings-list">{children}</div>
+    </div>
+  )
 }
 
-const INITIAL_PRIORITIES: PriorityMetric[] = [
-  { id: 'effect', label: 'Mission effect', weight: 72 },
-  { id: 'response', label: 'Response time', weight: 68 },
-  { id: 'distance', label: 'Transit distance', weight: 46 },
-  { id: 'station', label: 'Time on station', weight: 58 },
-  { id: 'fuel', label: 'Fuel / battery', weight: 52 },
-  { id: 'resource', label: 'Resource use', weight: 48 },
-]
-
-const INITIAL_GUARDRAILS: Guardrail[] = [
-  { id: 'zone', label: 'Restricted zones', value: 'No entry', locked: true, enabled: true },
-  { id: 'freshness', label: 'Fresh context', value: '30 sec max', locked: false, enabled: true },
-  { id: 'reserve', label: 'Return reserve', value: '30% minimum', locked: false, enabled: true },
-  { id: 'separation', label: 'Safe separation', value: '250 m minimum', locked: true, enabled: true },
-  { id: 'link', label: 'Link loss', value: 'Hold and return', locked: false, enabled: true },
-]
-
-const OUTCOMES: Record<
-  RoeOutcome,
-  { label: string; short: string; tone: 'ok' | 'warn' | 'crit'; action: string }
-> = {
-  eligible: { label: 'Proceed', short: 'This task is allowed.', tone: 'ok', action: 'Authorize task' },
-  restricted: {
-    label: 'Proceed with limits',
-    short: 'This task is allowed with the limits below.',
-    tone: 'warn',
-    action: 'Authorize with limits',
-  },
-  approval: {
-    label: 'Send for review',
-    short: 'A mission commander must approve this task.',
-    tone: 'warn',
-    action: 'Send to commander',
-  },
-  indeterminate: {
-    label: 'Hold',
-    short: 'Refresh the operational context first.',
-    tone: 'crit',
-    action: 'Refresh context',
-  },
-  ineligible: {
-    label: 'Do not proceed',
-    short: 'This task is outside the active package.',
-    tone: 'crit',
-    action: 'Return to monitoring',
-  },
+function ReadState({ enabled }: { enabled: boolean }) {
+  return <span className={`roe4-state ${enabled ? 'is-active' : ''}`}>{enabled ? 'On' : 'Off'}</span>
 }
 
-function Dot({ tone }: { tone: 'ok' | 'warn' | 'crit' | 'mute' }) {
-  return <i className={`roe3-dot roe3-dot--${tone}`} aria-hidden="true" />
+function GroupLabel({ children }: { children: ReactNode }) {
+  return <h2 className="roe4-group-label">{children}</h2>
 }
 
 export function RoePolicyWorkspace() {
   const dispatch = useAppDispatch()
-  const mission = useAppSelector((state) => state.mission)
-  const session = useAppSelector((state) => state.session)
-  const zones = useAppSelector((state) => state.policy.zones)
-
-  const [view, setView] = useState<RoeView>('check')
-  const [editingTask, setEditingTask] = useState(false)
-  const [showWhy, setShowWhy] = useState(false)
-  const [showLimits, setShowLimits] = useState(false)
-  const [step, setStep] = useState(0)
-  const [preset, setPreset] = useState<PriorityPreset>('balanced')
-  const [priorities, setPriorities] = useState(INITIAL_PRIORITIES)
-  const [guardrails, setGuardrails] = useState(INITIAL_GUARDRAILS)
-  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [section, setSection] = useState<RoeSection>('overview')
+  const [environment, setEnvironment] = useState('Operational')
+  const [editing, setEditing] = useState(false)
+  const [dirty, setDirty] = useState(false)
+  const [editSnapshot, setEditSnapshot] = useState<EditSnapshot | null>(null)
   const [message, setMessage] = useState<string | null>(null)
-  const [input, setInput] = useState<RoeEvaluationInput>({
-    taskType: 'observe',
-    purpose: 'Protect critical infrastructure',
-    areaType: 'dense-urban',
-    durationMinutes: 20,
-    assetClass: 'sUAS',
-    controlMode: 'supervised',
-    civilianContext: 'unclear',
-    protectedLocation: true,
-    requesterAuthority: 'operator',
-    comms: mission.c2Link,
-    dataAgeSeconds: session.lastSyncAt
-      ? Math.max(0, Math.round((Date.now() - session.lastSyncAt) / 1000))
-      : 0,
+  const [permissions, setPermissions] = useState(INITIAL_PERMISSIONS)
+  const [boundaries, setBoundaries] = useState(INITIAL_BOUNDARIES)
+  const [priorities, setPriorities] = useState(INITIAL_PRIORITIES)
+  const [oversight, setOversight] = useState({
+    protectedLocations: true,
+    autonomousActions: true,
+    intercepts: true,
+    reviewer: 'Mission commander',
+    fallbackReviewer: 'Operations supervisor',
+    expiresAfter: '2 minutes',
+    noResponse: 'Hold action',
   })
+  const [autonomy, setAutonomy] = useState({
+    mode: 'Recommend only' as AutonomyMode,
+    supervised: true,
+    confirmMaterialChanges: true,
+    reduceOnDegrade: true,
+  })
+  const [failsafe, setFailsafe] = useState({
+    staleContext: { trigger: '30 seconds', response: 'Hold action', recovery: 'Fresh context received' },
+    linkLoss: { trigger: '10 seconds', response: 'Hold and return', recovery: 'Stable link restored' },
+    degradedPositioning: { trigger: 'Below 60%', response: 'Require manual control', recovery: 'Confidence above 75%' },
+  })
+  const [priorityProfile, setPriorityProfile] = useState<PriorityProfile>('Balanced')
+  const [auditFilter, setAuditFilter] = useState<'all' | 'published' | 'draft'>('all')
+  const [auditEvents, setAuditEvents] = useState(INITIAL_AUDIT_EVENTS)
+  const [openAuditEvent, setOpenAuditEvent] = useState<string | null>(null)
 
-  const evaluation = useMemo(() => evaluateRoe(input), [input])
-  const outcome = OUTCOMES[evaluation.outcome]
-  const primaryReason = evaluation.matchedRules[0]
-  const activeGuardrails = guardrails.filter((item) => item.enabled).length
+  const copy = SECTION_COPY[section]
+  const activeSummary = useMemo(
+    () => `${OVERVIEW_CARDS.filter((card) => card.status === 'Active').length} of ${OVERVIEW_CARDS.length} areas active`,
+    [],
+  )
 
-  const updateInput = <K extends keyof RoeEvaluationInput>(
-    key: K,
-    value: RoeEvaluationInput[K],
-  ) => setInput((current) => ({ ...current, [key]: value }))
+  const markDirty = () => setDirty(true)
 
-  const choosePreset = (next: PriorityPreset) => {
-    setPreset(next)
+  const startEditing = () => {
+    setEditSnapshot({
+      permissions: permissions.map((item) => ({ ...item })),
+      boundaries: boundaries.map((item) => ({ ...item })),
+      priorities: priorities.map((item) => ({ ...item })),
+      oversight: { ...oversight },
+      autonomy: { ...autonomy },
+      failsafe: {
+        staleContext: { ...failsafe.staleContext },
+        linkLoss: { ...failsafe.linkLoss },
+        degradedPositioning: { ...failsafe.degradedPositioning },
+      },
+      priorityProfile,
+    })
+    setEditing(true)
+    setDirty(false)
+  }
+
+  const cancelEditing = () => {
+    if (editSnapshot) {
+      setPermissions(editSnapshot.permissions)
+      setBoundaries(editSnapshot.boundaries)
+      setPriorities(editSnapshot.priorities)
+      setOversight(editSnapshot.oversight)
+      setAutonomy(editSnapshot.autonomy)
+      setFailsafe(editSnapshot.failsafe)
+      setPriorityProfile(editSnapshot.priorityProfile)
+    }
+    setEditing(false)
+    setDirty(false)
+    setEditSnapshot(null)
+  }
+
+  const publish = () => {
+    const nextMessage = `${environment} configuration published`
+    setAuditEvents((current) => [
+      {
+        id: `audit-${Date.now()}`,
+        type: 'published',
+        environment,
+        title: `${environment} configuration published`,
+        summary: 'Draft changes reviewed and published.',
+        actor: 'Mission Commander',
+        time: 'Just now',
+        version: environment === 'Operational' ? 'v13' : 'New version',
+        changes: [`${section === 'overview' ? 'Configuration' : SECTION_COPY[section].title} updated`],
+      },
+      ...current,
+    ])
+    setMessage(nextMessage)
+    dispatch(pushToast(nextMessage))
+    setEditing(false)
+    setDirty(false)
+    setEditSnapshot(null)
+  }
+
+  const selectSection = (next: RoeSection) => {
+    setSection(next)
+    setMessage(null)
+  }
+
+  const selectPriorityProfile = (profile: PresetProfile) => {
+    setPriorityProfile(profile)
     setPriorities((current) =>
       current.map((item, index) => ({
         ...item,
-        weight: PRESETS[next].weights[index] ?? item.weight,
+        weight: PRIORITY_PROFILES[profile][index] ?? item.weight,
       })),
     )
+    markDirty()
   }
 
-  const toggleGuardrail = (id: string) => {
-    setGuardrails((current) =>
-      current.map((item) =>
-        item.id === id && !item.locked ? { ...item, enabled: !item.enabled } : item,
-      ),
-    )
-  }
-
-  const notify = (nextMessage: string) => {
-    setMessage(nextMessage)
-    dispatch(pushToast(nextMessage))
-  }
+  const visibleAuditEvents = auditEvents.filter(
+    (event) =>
+      event.environment === environment &&
+      (auditFilter === 'all' || event.type === auditFilter),
+  )
 
   return (
-    <main className="roe3">
-      <header className="roe3-top">
-        <button className="roe3-package" type="button" onClick={() => { setView('package'); setStep(0) }}>
-          <Dot tone="ok" />
-          <span><small>ACTIVE PACKAGE</small><strong>Urban Protection <em>v12</em></strong></span>
-          <span className="roe3-package__sync"><small>DISTRIBUTION</small><strong>18 / 20</strong></span>
-        </button>
-        <nav aria-label="Rules of engagement">
-          <button type="button" className={view === 'check' ? 'is-active' : ''} onClick={() => setView('check')}>
-            Check action
+    <main className="roe4">
+      <aside className="roe4-nav">
+        <div className="roe4-nav__brand">
+          <span>ROE</span>
+          <strong>Rules of engagement</strong>
+        </div>
+
+        <nav aria-label="Rules of engagement settings">
+          <button type="button" className={section === 'overview' ? 'is-active' : ''} onClick={() => selectSection('overview')}>
+            Overview
           </button>
-          <button type="button" className={view === 'package' ? 'is-active' : ''} onClick={() => setView('package')}>
-            Change package
-          </button>
-          <button type="button" className={view === 'activity' ? 'is-active' : ''} onClick={() => setView('activity')}>
-            Activity
+
+          <p>Configure</p>
+          {CONFIGURE_NAV.map((item) => (
+            <button key={item.id} type="button" className={section === item.id ? 'is-active' : ''} onClick={() => selectSection(item.id)}>
+              {item.label}
+            </button>
+          ))}
+
+          <p>Monitor</p>
+          <button type="button" className={section === 'audit' ? 'is-active' : ''} onClick={() => selectSection('audit')}>
+            Audit trail
           </button>
         </nav>
-      </header>
 
-      {message && (
-        <div className="roe3-message" role="status">
-          <Dot tone="ok" />
-          <span>{message}</span>
-          <button type="button" aria-label="Dismiss status" onClick={() => setMessage(null)}>Dismiss</button>
+        <div className="roe4-nav__footer">
+          <span>Current configuration</span>
+          <strong><i /> Operational</strong>
+          <small>Updated 14:30Z</small>
         </div>
-      )}
+      </aside>
 
-      {view === 'check' && (
-        <section className="roe3-check">
-          <header className="roe3-question">
-            <div>
-              <span>ROE CHECK</span>
-              <h1>Can I do this?</h1>
-            </div>
-            <button type="button" onClick={() => setEditingTask((value) => !value)}>
-              {editingTask ? 'Done' : 'Change task'}
-            </button>
-          </header>
-
-          {editingTask ? (
-            <div className="roe3-task-form">
-              <label><span>Action</span><select value={input.taskType} onChange={(event) => updateInput('taskType', event.target.value as RoeTaskType)}>{TASK_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-              <label><span>Area</span><select value={input.areaType} onChange={(event) => updateInput('areaType', event.target.value as RoeAreaType)}>{AREA_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-              <label><span>Control</span><select value={input.controlMode} onChange={(event) => updateInput('controlMode', event.target.value as RoeControlMode)}>{CONTROL_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-              <label><span>Civilian context</span><select value={input.civilianContext} onChange={(event) => updateInput('civilianContext', event.target.value as RoeCivilianContext)}>{CIVILIAN_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-            </div>
-          ) : (
-            <div className="roe3-task-line">
-              <strong>{TASK_OPTIONS.find((item) => item.value === input.taskType)?.label}</strong>
-              <span>Small UAS</span>
-              <span>{AREA_OPTIONS.find((item) => item.value === input.areaType)?.label}</span>
-              <span>{input.durationMinutes} min</span>
-            </div>
-          )}
-
-          <article className={`roe3-answer roe3-answer--${outcome.tone}`}>
-            <div className="roe3-answer__icon" aria-hidden="true">
-              {outcome.tone === 'ok' ? '✓' : outcome.tone === 'warn' ? '!' : '×'}
-            </div>
-            <div className="roe3-answer__copy">
-              <small>ANSWER</small>
-              <h2>{outcome.label}</h2>
-              <p>{outcome.short}</p>
-            </div>
-            <div className="roe3-answer__reason">
-              <small>BECAUSE</small>
-              <strong>{primaryReason?.name ?? 'Standing task authority'}</strong>
-              <p>{primaryReason?.reason ?? evaluation.summary}</p>
-            </div>
-            <div className="roe3-answer__actions">
-              <button type="button" className="roe3-primary" onClick={() => notify(
-                evaluation.outcome === 'approval'
-                  ? 'Review request sent to mission commander'
-                  : `${outcome.action} recorded`,
-              )}>
-                {outcome.action}
-              </button>
-              <button type="button" className="roe3-secondary" onClick={() => setShowWhy((value) => !value)}>
-                {showWhy ? 'Hide why' : 'Why?'}
-              </button>
-            </div>
-          </article>
-
-          <div className="roe3-quick-status">
-            <div><Dot tone={input.dataAgeSeconds > 30 ? 'crit' : 'ok'} /><span>Context</span><strong>{input.dataAgeSeconds}s old</strong></div>
-            <div><span>Link</span><strong>{input.comms === 'strong' ? 'Online' : input.comms}</strong></div>
-            <div><span>GNSS</span><strong>{mission.gnss}</strong></div>
-            <div><span>Zones</span><strong>{Math.max(zones.length, 2)} loaded</strong></div>
-          </div>
-
-          {evaluation.constraints.length > 0 && (
-            <section className="roe3-disclosure">
-              <button type="button" onClick={() => setShowLimits((value) => !value)}>
-                <span><strong>{evaluation.constraints.length} limits apply</strong><small>Only read these before authorizing.</small></span>
-                <em>{showLimits ? '−' : '+'}</em>
-              </button>
-              {showLimits && <ul>{evaluation.constraints.map((item) => <li key={item}>{item}</li>)}</ul>}
-            </section>
-          )}
-
-          {showWhy && (
-            <section className="roe3-why">
-              <header><strong>Why this answer?</strong><span>{evaluation.matchedRules.length} rules checked</span></header>
-              {evaluation.matchedRules.map((rule) => (
-                <div key={rule.id}>
-                  <Dot tone={OUTCOMES[rule.effect].tone} />
-                  <span><strong>{rule.name}</strong><small>{rule.reason}</small></span>
-                </div>
-              ))}
-            </section>
-          )}
-        </section>
-      )}
-
-      {view === 'package' && (
-        <section className="roe3-builder">
-          <header>
-            <div>
-              <span>CHANGE PACKAGE</span>
-              <h1>{['What matters most?', 'Where does it apply?', 'Check the safeguards', 'Ready to activate?'][step]}</h1>
-            </div>
-            <strong>Step {step + 1} of 4</strong>
-          </header>
-
-          <div className="roe3-progress" aria-label={`Step ${step + 1} of 4`}>
-            {[0, 1, 2, 3].map((item) => <i key={item} className={item <= step ? 'is-on' : ''} />)}
-          </div>
-
-          <div className="roe3-builder__body">
-            {step === 0 && (
-              <>
-                <p className="roe3-prompt">Choose one. You can fine-tune it if needed.</p>
-                <div className="roe3-choice-grid">
-                  {(Object.entries(PRESETS) as Array<[PriorityPreset, (typeof PRESETS)[PriorityPreset]]>).map(([id, item]) => (
-                    <button key={id} type="button" className={preset === id ? 'is-selected' : ''} onClick={() => choosePreset(id)}>
-                      <i>{preset === id ? '✓' : ''}</i>
-                      <strong>{item.label}</strong>
-                      <span>{item.detail}</span>
-                    </button>
-                  ))}
-                </div>
-                <button type="button" className="roe3-advanced-link" onClick={() => setShowAdvanced((value) => !value)}>
-                  {showAdvanced ? 'Hide fine tuning' : 'Fine-tune priorities'}
-                </button>
-                {showAdvanced && (
-                  <div className="roe3-tuning">
-                    {priorities.map((metric) => (
-                      <label key={metric.id}>
-                        <span>{metric.label}<strong>{metric.weight}</strong></span>
-                        <input
-                          type="range"
-                          min="0"
-                          max="100"
-                          value={metric.weight}
-                          style={{ '--roe3-fill': `${metric.weight}%` } as CSSProperties}
-                          onChange={(event) => setPriorities((current) => current.map((item) => item.id === metric.id ? { ...item, weight: Number(event.target.value) } : item))}
-                        />
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-
-            {step === 1 && (
-              <>
-                <p className="roe3-prompt">Keep the scope narrow. Fewer choices mean fewer mistakes.</p>
-                <div className="roe3-scope">
-                  <label><span>Area</span><select defaultValue="alpha"><option value="alpha">Sector Alpha</option><option value="bravo">Sector Bravo</option><option value="all">All sectors</option></select></label>
-                  <label><span>Duration</span><select defaultValue="4h"><option value="2h">Next 2 hours</option><option value="4h">Next 4 hours</option><option value="phase">Until phase ends</option></select></label>
-                  <label><span>Assets</span><select defaultValue="all"><option value="all">All 20 assets</option><option value="atlas">Team Atlas · 8</option><option value="beacon">Team Beacon · 6</option></select></label>
-                </div>
-                <div className="roe3-scope-summary"><Dot tone="ok" /><span><strong>20 assets in Sector Alpha</strong><small>Valid for the next 4 hours</small></span></div>
-              </>
-            )}
-
-            {step === 2 && (
-              <>
-                <p className="roe3-prompt">These limits always beat optimization priorities.</p>
-                <div className="roe3-guards">
-                  {guardrails.map((item) => (
-                    <article key={item.id} className={!item.enabled ? 'is-off' : ''}>
-                      <button type="button" disabled={item.locked} className={item.enabled ? 'is-on' : ''} onClick={() => toggleGuardrail(item.id)} aria-label={`Toggle ${item.label}`}><i /></button>
-                      <span><strong>{item.label}</strong><small>{item.value}</small></span>
-                      <em>{item.locked ? 'LOCKED' : item.enabled ? 'ON' : 'OFF'}</em>
-                    </article>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {step === 3 && (
-              <>
-                <div className="roe3-review">
-                  <div className="roe3-review__hero"><Dot tone="warn" /><span><small>DRAFT PACKAGE</small><strong>{PRESETS[preset].short}</strong></span></div>
-                  <ul>
-                    <li><span>Priority</span><strong>{PRESETS[preset].label}</strong></li>
-                    <li><span>Scope</span><strong>Sector Alpha · 4 hours</strong></li>
-                    <li><span>Safeguards</span><strong>{activeGuardrails} active · 2 locked</strong></li>
-                    <li><span>Distribution</span><strong>20 assets · about 45 sec</strong></li>
-                  </ul>
-                  <p><Dot tone="warn" />2 offline assets will update when they reconnect.</p>
-                </div>
-              </>
-            )}
-          </div>
-
-          <footer>
-            <button type="button" className="roe3-secondary" disabled={step === 0} onClick={() => setStep((current) => Math.max(0, current - 1))}>Back</button>
-            {step < 3 ? (
-              <button type="button" className="roe3-primary" onClick={() => setStep((current) => Math.min(3, current + 1))}>Continue</button>
-            ) : (
-              <button type="button" className="roe3-primary" onClick={() => notify('Package activation started for 20 assets')}>Activate package</button>
-            )}
-          </footer>
-        </section>
-      )}
-
-      {view === 'activity' && (
-        <section className="roe3-activity">
-          <header><span>ACTIVITY</span><h1>What changed?</h1></header>
+      <section className="roe4-main">
+        <header className="roe4-header">
           <div>
-            <article><Dot tone="warn" /><span><strong>Command review requested</strong><small>Protected-location review · OBS-0644</small></span><time>14:32Z</time></article>
-            <article><Dot tone="ok" /><span><strong>Urban Protection v12 activated</strong><small>18 assets active · 2 waiting to sync</small></span><time>14:30Z</time></article>
-            <article><Dot tone="ok" /><span><strong>Task authorized with limits</strong><small>Observation task · 2 limits applied</small></span><time>14:18Z</time></article>
+            <h1>{copy.title}</h1>
+            <p>{copy.description}</p>
           </div>
-        </section>
-      )}
+          <div className="roe4-header__actions">
+            <label>
+              <span className="roe4-environment-dot" />
+              <select aria-label="Configuration environment" value={environment} onChange={(event) => { cancelEditing(); setEnvironment(event.target.value) }}>
+                <option>Operational</option>
+                <option>Training</option>
+                <option>Development</option>
+              </select>
+            </label>
+            {section !== 'audit' && (
+              editing ? (
+                <>
+                  <button type="button" className="roe4-btn roe4-btn--secondary" onClick={cancelEditing}>Cancel</button>
+                  <button type="button" className="roe4-btn roe4-btn--primary" disabled={!dirty} onClick={publish}>Publish changes</button>
+                </>
+              ) : (
+                <button type="button" className="roe4-btn roe4-btn--primary" onClick={startEditing}>Edit</button>
+              )
+            )}
+          </div>
+        </header>
+
+        {message && (
+          <div className="roe4-message" role="status">
+            <span>✓</span>
+            <strong>{message}</strong>
+            <button type="button" onClick={() => setMessage(null)}>Dismiss</button>
+          </div>
+        )}
+
+        {editing && (
+          <div className="roe4-edit-banner">
+            <span><i /> Editing draft</span>
+            <p>Changes will not affect the active configuration until published.</p>
+          </div>
+        )}
+
+        <div className="roe4-content">
+          {section === 'overview' && (
+            <>
+              <div className="roe4-overview-status">
+                <div>
+                  <span className="roe4-overview-status__icon">✓</span>
+                  <span><strong>Configuration is active</strong><small>{activeSummary}</small></span>
+                </div>
+                <dl>
+                  <div><dt>Environment</dt><dd>{environment}</dd></div>
+                  <div><dt>Last published</dt><dd>Today, 14:30Z</dd></div>
+                  <div><dt>Published by</dt><dd>Mission Commander</dd></div>
+                </dl>
+              </div>
+
+              <div className="roe4-card-grid">
+                {OVERVIEW_CARDS.map((card) => (
+                  <button key={card.id} type="button" onClick={() => selectSection(card.id)}>
+                    <div>
+                      <h2>{card.title}</h2>
+                      <StatusPill status={card.status} />
+                    </div>
+                    <p>{card.description}</p>
+                    <footer><span>{card.summary}</span><strong>Open →</strong></footer>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {section === 'actions' && (
+            <SettingPage
+              summary={`${permissions.filter((item) => item.authority === 'Allowed').length} allowed · ${permissions.filter((item) => item.authority === 'Review required').length} require review`}
+              detail="Last changed today at 14:30Z"
+              note="These are system-wide defaults. More specific package and mission conditions can be added later."
+            >
+              {permissions.map((item) => (
+                <article key={item.id} className="roe4-setting-row">
+                  <div><h2>{item.action}</h2><p>{item.description}</p></div>
+                  {editing ? (
+                    <select
+                      value={item.authority}
+                      onChange={(event) => {
+                        setPermissions((current) => current.map((permission) => permission.id === item.id ? { ...permission, authority: event.target.value as PermissionSetting['authority'] } : permission))
+                        markDirty()
+                      }}
+                    >
+                      <option>Allowed</option>
+                      <option>Review required</option>
+                      <option>Blocked</option>
+                    </select>
+                  ) : (
+                    <span className={`roe4-value roe4-value--${item.authority === 'Allowed' ? 'active' : item.authority === 'Blocked' ? 'blocked' : 'review'}`}>{item.authority}</span>
+                  )}
+                  <span className="roe4-row-context">System-wide default</span>
+                </article>
+              ))}
+            </SettingPage>
+          )}
+
+          {section === 'boundaries' && (
+            <SettingPage
+              summary={`${boundaries.filter((item) => item.enabled).length} boundaries active`}
+              detail="2 safeguards are locked"
+              note="Locked safeguards are controlled by the system and cannot be weakened here."
+            >
+              {boundaries.map((item) => (
+                <article key={item.id} className={`roe4-setting-row ${!item.enabled ? 'is-disabled' : ''}`}>
+                  <div><h2>{item.label}</h2><p>{item.description}</p></div>
+                  <div className="roe4-setting-row__control">
+                    {editing && !item.locked ? (
+                      <select
+                        aria-label={`${item.label} value`}
+                        value={item.value}
+                        onChange={(event) => {
+                          setBoundaries((current) => current.map((boundary) => boundary.id === item.id ? { ...boundary, value: event.target.value } : boundary))
+                          markDirty()
+                        }}
+                      >
+                        {BOUNDARY_VALUES[item.id]?.map((value) => <option key={value}>{value}</option>)}
+                      </select>
+                    ) : <strong>{item.value}</strong>}
+                    {editing ? (
+                      <Toggle
+                        checked={item.enabled}
+                        disabled={item.locked}
+                        label={`Toggle ${item.label}`}
+                        onChange={() => {
+                          setBoundaries((current) => current.map((boundary) => boundary.id === item.id ? { ...boundary, enabled: !boundary.enabled } : boundary))
+                          markDirty()
+                        }}
+                      />
+                    ) : <ReadState enabled={item.enabled} />}
+                  </div>
+                  {item.locked && <span className="roe4-lock">LOCKED</span>}
+                </article>
+              ))}
+            </SettingPage>
+          )}
+
+          {section === 'oversight' && (
+            <SettingPage
+              summary={`${[oversight.protectedLocations, oversight.autonomousActions, oversight.intercepts].filter(Boolean).length} review conditions active`}
+              detail={`Primary reviewer: ${oversight.reviewer}`}
+            >
+              <GroupLabel>Review conditions</GroupLabel>
+              {([
+                ['protectedLocations', 'Protected locations', 'Require review for actions near protected locations.'],
+                ['autonomousActions', 'Autonomous actions', 'Require review before an entity changes a material task parameter.'],
+                ['intercepts', 'Intercept actions', 'Require command approval before an intercept is issued.'],
+              ] as const).map(([key, label, description]) => (
+                <article key={key} className="roe4-setting-row">
+                  <div><h2>{label}</h2><p>{description}</p></div>
+                  {editing
+                    ? <Toggle checked={oversight[key]} label={`Toggle ${label}`} onChange={() => { setOversight((current) => ({ ...current, [key]: !current[key] })); markDirty() }} />
+                    : <ReadState enabled={oversight[key]} />}
+                </article>
+              ))}
+              <GroupLabel>Approval routing</GroupLabel>
+              <article className="roe4-setting-row">
+                <div><h2>Primary reviewer</h2><p>Route new review requests to this authority.</p></div>
+                {editing ? (
+                  <select value={oversight.reviewer} onChange={(event) => { setOversight((current) => ({ ...current, reviewer: event.target.value })); markDirty() }}>
+                    <option>Mission commander</option>
+                    <option>Operations supervisor</option>
+                    <option>Duty officer</option>
+                  </select>
+                ) : <span className="roe4-setting-row__value">{oversight.reviewer}</span>}
+              </article>
+              <article className="roe4-setting-row">
+                <div><h2>Fallback reviewer</h2><p>Use this authority when the primary reviewer is unavailable.</p></div>
+                {editing ? (
+                  <select value={oversight.fallbackReviewer} onChange={(event) => { setOversight((current) => ({ ...current, fallbackReviewer: event.target.value })); markDirty() }}>
+                    <option>Operations supervisor</option><option>Duty officer</option><option>No fallback</option>
+                  </select>
+                ) : <span className="roe4-setting-row__value">{oversight.fallbackReviewer}</span>}
+              </article>
+              <article className="roe4-setting-row">
+                <div><h2>Review timeout</h2><p>Declare what happens when no authority responds.</p></div>
+                <div className="roe4-inline-values">
+                  {editing ? (
+                    <>
+                      <select value={oversight.expiresAfter} onChange={(event) => { setOversight((current) => ({ ...current, expiresAfter: event.target.value })); markDirty() }}><option>1 minute</option><option>2 minutes</option><option>5 minutes</option></select>
+                      <select value={oversight.noResponse} onChange={(event) => { setOversight((current) => ({ ...current, noResponse: event.target.value })); markDirty() }}><option>Hold action</option><option>Escalate again</option><option>Cancel request</option></select>
+                    </>
+                  ) : <><strong>{oversight.expiresAfter}</strong><span>then {oversight.noResponse.toLowerCase()}</span></>}
+                </div>
+              </article>
+            </SettingPage>
+          )}
+
+          {section === 'autonomy' && (
+            <SettingPage
+              summary={autonomy.mode}
+              detail="All permissions and safeguards remain enforced"
+              note="Automation controls who proposes or initiates an action. It never grants additional authority."
+            >
+              <GroupLabel>Automation level</GroupLabel>
+              <div className="roe4-mode-grid">
+                {(['Recommend only', 'Queue permitted actions', 'Execute permitted actions'] as AutonomyMode[]).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    className={autonomy.mode === mode ? 'is-selected' : ''}
+                    disabled={!editing}
+                    onClick={() => { setAutonomy((current) => ({ ...current, mode })); markDirty() }}
+                  >
+                    <i>{autonomy.mode === mode ? '✓' : ''}</i>
+                    <strong>{mode}</strong>
+                    <span>{mode === 'Recommend only' ? 'A person issues every action.' : mode === 'Queue permitted actions' ? 'A person confirms queued actions.' : 'Only explicitly permitted actions may execute.'}</span>
+                  </button>
+                ))}
+              </div>
+              <GroupLabel>Safeguards</GroupLabel>
+              <article className="roe4-setting-row">
+                <div><h2>Human supervision</h2><p>Keep an operator in the decision loop for consequential actions.</p></div>
+                {editing ? <Toggle checked={autonomy.supervised} label="Toggle human supervision" onChange={() => { setAutonomy((current) => ({ ...current, supervised: !current.supervised })); markDirty() }} /> : <ReadState enabled={autonomy.supervised} />}
+              </article>
+              <article className="roe4-setting-row">
+                <div><h2>Confirm material changes</h2><p>Ask before changing the assigned entity, action, area or intended effect.</p></div>
+                {editing ? <Toggle checked={autonomy.confirmMaterialChanges} label="Toggle material change confirmation" onChange={() => { setAutonomy((current) => ({ ...current, confirmMaterialChanges: !current.confirmMaterialChanges })); markDirty() }} /> : <ReadState enabled={autonomy.confirmMaterialChanges} />}
+              </article>
+              <article className="roe4-setting-row">
+                <div><h2>Reduce autonomy when degraded</h2><p>Return to recommend-only mode when link or positioning quality degrades.</p></div>
+                {editing ? <Toggle checked={autonomy.reduceOnDegrade} label="Toggle degraded autonomy reduction" onChange={() => { setAutonomy((current) => ({ ...current, reduceOnDegrade: !current.reduceOnDegrade })); markDirty() }} /> : <ReadState enabled={autonomy.reduceOnDegrade} />}
+              </article>
+            </SettingPage>
+          )}
+
+          {section === 'failsafe' && (
+            <SettingPage summary="3 degraded conditions configured" detail="Every condition has a declared response">
+              {([
+                ['staleContext', 'Stale operational context', 'Applied when decision inputs exceed their freshness limit.', ['15 seconds', '30 seconds', '60 seconds'], ['Hold action', 'Request review', 'Continue with warning']],
+                ['linkLoss', 'Command link loss', 'Applied when an entity loses its command connection.', ['5 seconds', '10 seconds', '30 seconds'], ['Hold and return', 'Hold position', 'Continue current task']],
+                ['degradedPositioning', 'Degraded positioning', 'Applied when positioning confidence falls below the threshold.', ['Below 40%', 'Below 60%', 'Below 75%'], ['Require manual control', 'Hold position', 'Return to base']],
+              ] as const).map(([key, label, description, triggers, responses]) => (
+                <article key={key} className="roe4-setting-row roe4-setting-row--failsafe">
+                  <div><h2>{label}</h2><p>{description}</p></div>
+                  {editing ? (
+                    <div className="roe4-trigger-response">
+                      <label><span>Trigger</span><select value={failsafe[key].trigger} onChange={(event) => { setFailsafe((current) => ({ ...current, [key]: { ...current[key], trigger: event.target.value } })); markDirty() }}>{triggers.map((option) => <option key={option}>{option}</option>)}</select></label>
+                      <em>→</em>
+                      <label><span>Response</span><select value={failsafe[key].response} onChange={(event) => { setFailsafe((current) => ({ ...current, [key]: { ...current[key], response: event.target.value } })); markDirty() }}>{responses.map((option) => <option key={option}>{option}</option>)}</select></label>
+                    </div>
+                  ) : (
+                    <div className="roe4-trigger-response">
+                      <span><small>Trigger</small><strong>{failsafe[key].trigger}</strong></span><em>→</em><span><small>Response</small><strong>{failsafe[key].response}</strong></span>
+                    </div>
+                  )}
+                  <small className="roe4-recovery">Recover when: {failsafe[key].recovery}</small>
+                </article>
+              ))}
+            </SettingPage>
+          )}
+
+          {section === 'priorities' && (
+            <SettingPage
+              summary={`${priorityProfile} profile`}
+              detail="Priorities rank eligible options only"
+              note="Priorities only rank options that have already passed every permission and safeguard."
+            >
+              <GroupLabel>Profile</GroupLabel>
+              <div className="roe4-profile-row">
+                {(Object.keys(PRIORITY_PROFILES) as PresetProfile[]).map((profile) => (
+                  <button key={profile} type="button" className={priorityProfile === profile ? 'is-selected' : ''} disabled={!editing} onClick={() => selectPriorityProfile(profile)}>
+                    <i>{priorityProfile === profile ? '✓' : ''}</i><span>{profile}</span>
+                  </button>
+                ))}
+              </div>
+              <GroupLabel>Importance</GroupLabel>
+              {priorities.map((item) => (
+                <article key={item.id} className="roe4-setting-row roe4-setting-row--priority">
+                  <div><h2>{item.label}</h2><p>{item.description}</p></div>
+                  {editing ? (
+                    <div className="roe4-range">
+                      <input
+                        aria-label={`${item.label} priority`}
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={item.weight}
+                        onChange={(event) => {
+                          setPriorities((current) => current.map((priority) => priority.id === item.id ? { ...priority, weight: Number(event.target.value) } : priority))
+                          setPriorityProfile('Custom')
+                          markDirty()
+                        }}
+                      />
+                      <strong>{item.weight}</strong>
+                      <small>{item.weight >= 70 ? 'High' : item.weight >= 45 ? 'Medium' : 'Low'}</small>
+                    </div>
+                  ) : (
+                    <div className="roe4-priority-value"><i><span style={{ width: `${item.weight}%` }} /></i><strong>{item.weight}</strong><small>{item.weight >= 70 ? 'High' : item.weight >= 45 ? 'Medium' : 'Low'}</small></div>
+                  )}
+                </article>
+              ))}
+              <div className="roe4-priority-preview">
+                <span>Expected effect</span>
+                <strong>{priorityProfile === 'Rapid response' ? 'Faster-arriving assets rank higher' : priorityProfile === 'Persistent coverage' ? 'Long-endurance assets rank higher' : priorityProfile === 'Resource reserve' ? 'Lower-consumption options rank higher' : priorityProfile === 'Custom' ? 'Custom weighting applied' : 'Balances effect, response and endurance'}</strong>
+                <small>A live recommendation comparison will appear here when the recommender is connected.</small>
+              </div>
+            </SettingPage>
+          )}
+
+          {section === 'audit' && (
+            <div className="roe4-audit">
+              <div className="roe4-audit__filters">
+                <button type="button" className={auditFilter === 'all' ? 'is-active' : ''} onClick={() => setAuditFilter('all')}>All activity</button>
+                <button type="button" className={auditFilter === 'published' ? 'is-active' : ''} onClick={() => setAuditFilter('published')}>Published</button>
+                <button type="button" className={auditFilter === 'draft' ? 'is-active' : ''} onClick={() => setAuditFilter('draft')}>Drafts</button>
+                <span>{visibleAuditEvents.length} events in {environment}</span>
+              </div>
+              <div className="roe4-audit__list">
+                {visibleAuditEvents.length === 0 && <p className="roe4-audit__empty">No matching activity in this environment.</p>}
+                {visibleAuditEvents.map((event) => (
+                  <article key={event.id} className={openAuditEvent === event.id ? 'is-open' : ''}>
+                    <button type="button" onClick={() => setOpenAuditEvent((current) => current === event.id ? null : event.id)}>
+                      <span className={`roe4-audit__mark ${event.type === 'published' ? 'roe4-audit__mark--published' : ''}`}>{event.type === 'published' ? '✓' : '✎'}</span>
+                      <span><h2>{event.title}</h2><p>{event.summary}</p><small>{event.actor} · {event.version}</small></span>
+                      <time>{event.time}</time>
+                      <em>{openAuditEvent === event.id ? '−' : '+'}</em>
+                    </button>
+                    {openAuditEvent === event.id && (
+                      <div className="roe4-audit__detail">
+                        <span>Changes</span>
+                        <ul>{event.changes.map((change) => <li key={change}>{change}</li>)}</ul>
+                        <dl>
+                          <div><dt>Environment</dt><dd>{event.environment}</dd></div>
+                          <div><dt>Version</dt><dd>{event.version}</dd></div>
+                          <div><dt>Actor</dt><dd>{event.actor}</dd></div>
+                        </dl>
+                      </div>
+                    )}
+                  </article>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
     </main>
   )
 }

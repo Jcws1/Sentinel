@@ -20,13 +20,31 @@ import {
   setOfflinePrepOpen,
   setTelemetryExpanded,
 } from '../store/uiSlice'
+import { apiRequest } from '../api/httpClient'
 import { ThreatCallout } from './ThreatCallout'
 import type { Drone, Position, TaskingRecommendation, ThreatTrack } from '../types'
 import {
   INSTALLATIONS_ATTRIBUTION,
   installationsForTab,
 } from '../data/singaporeInstallations'
-import type { HeatmapMode, ModeId } from '../store/uiSlice'
+import type {
+  HeatmapMode,
+  MapInteractionTool,
+  ModeId,
+} from '../store/uiSlice'
+import type {
+  EdgeSensor,
+  SensorType,
+} from '../../contracts/edgeTypes'
+import {
+  enuToLngLat,
+  lngLatToEnu,
+  type SimOrigin,
+} from '../utils/sensorCoordinates'
+import type {
+  FusedSensorTrack,
+  SensorFusionSnapshot,
+} from '../api/edgeFusionTypes'
 import { isOperatorUiTarget } from '../utils/ui'
 import { TerrainLayer } from '../terrain/TerrainLayer'
 import { DegradedTerrainOverlay } from '../terrain/DegradedTerrainOverlay'
@@ -52,6 +70,10 @@ import {
   categoryForMapKinds,
   normalizeMapKind,
 } from '../utils/mapObjectClassification'
+import { AssetRecommendationsSection } from './AssetRecommendationsSection'
+import { MissionPlaybackTimeline } from './MissionPlaybackTimeline'
+import { recordingById } from '../data/missionRecordings'
+import { frameAt } from '../utils/missionReplay'
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN
 const MAP_STYLE = 'mapbox://styles/mapbox/dark-v11'
@@ -84,6 +106,14 @@ const RANGE_SOURCE = 'sentinel-range-measurements'
 const RANGE_CIRCLE_LAYER = 'sentinel-range-circles'
 const RANGE_LINE_LAYER = 'sentinel-range-lines'
 const RANGE_LABEL_LAYER = 'sentinel-range-labels'
+const RUNTIME_SENSOR_SOURCE = 'sentinel-runtime-sensors'
+const RUNTIME_SENSOR_COVERAGE_FILL = 'sentinel-runtime-sensor-coverage'
+const RUNTIME_SENSOR_COVERAGE_LINE = 'sentinel-runtime-sensor-coverage-line'
+const RUNTIME_SENSOR_POINT = 'sentinel-runtime-sensor-points'
+const RUNTIME_SENSOR_LABEL = 'sentinel-runtime-sensor-labels'
+const FUSED_SENSOR_TRACK_SOURCE = 'sentinel-fused-sensor-tracks'
+const FUSED_SENSOR_TRACK_POINT = 'sentinel-fused-sensor-track-points'
+const FUSED_SENSOR_TRACK_LABEL = 'sentinel-fused-sensor-track-labels'
 const TRANSPARENT_PIXEL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL6WQAAAABJRU5ErkJggg=='
 type MapRenderer = 'mapbox' | 'maplibre'
@@ -180,6 +210,238 @@ type MapFeature = {
     | { type: 'Point'; coordinates: [number, number] }
     | { type: 'LineString'; coordinates: [number, number][] }
     | { type: 'Polygon'; coordinates: [number, number][][] }
+}
+
+function sensorCoverageRing(
+  sensor: EdgeSensor,
+  origin: SimOrigin,
+): [number, number][] {
+  const center = enuToLngLat(
+    sensor.pose.eastM,
+    sensor.pose.northM,
+    origin,
+  )
+  const fovRad = Math.min(
+    Math.PI * 2,
+    (sensor.configuration.horizontalFovDeg * Math.PI) / 180,
+  )
+  const steps = fovRad >= Math.PI * 1.99 ? 64 : 28
+  const start = sensor.pose.yawRad - fovRad / 2
+  const ring: [number, number][] = [center]
+  for (let index = 0; index <= steps; index += 1) {
+    const angle = start + (fovRad * index) / steps
+    ring.push(
+      enuToLngLat(
+        sensor.pose.eastM +
+          Math.sin(angle) * sensor.configuration.maxRangeM,
+        sensor.pose.northM +
+          Math.cos(angle) * sensor.configuration.maxRangeM,
+        origin,
+      ),
+    )
+  }
+  ring.push(center)
+  return ring
+}
+
+function runtimeSensorFeatures(
+  sensors: EdgeSensor[],
+  origin: SimOrigin,
+): MapFeature[] {
+  return sensors.flatMap((sensor): MapFeature[] => {
+    const position = enuToLngLat(
+      sensor.pose.eastM,
+      sensor.pose.northM,
+      origin,
+    )
+    const properties = {
+      sensorId: sensor.sensorId,
+      label: sensor.displayName,
+      modality: sensor.modality,
+      lifecycle: sensor.lifecycle,
+      visualState: sensor.visualState,
+    }
+    return [
+      {
+        type: 'Feature',
+        properties: {
+          ...properties,
+          kind: 'coverage',
+        },
+        geometry: {
+          type: 'Polygon',
+          coordinates: [sensorCoverageRing(sensor, origin)],
+        },
+      },
+      pointFeature(
+        sensor.sensorId,
+        { lng: position[0], lat: position[1] },
+        { ...properties, kind: 'sensor' },
+      ),
+    ]
+  })
+}
+
+function ensureRuntimeSensorLayers(map: MapboxMap): void {
+  if (!map.getSource(RUNTIME_SENSOR_SOURCE)) {
+    map.addSource(RUNTIME_SENSOR_SOURCE, {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+    })
+  }
+  const color: mapboxgl.ExpressionSpecification = [
+    'match',
+    ['get', 'modality'],
+    'radar',
+    '#35b7ff',
+    'rf',
+    '#a66cff',
+    'eo',
+    '#3de69b',
+    'ir',
+    '#ff7b3d',
+    'acoustic',
+    '#f1c94c',
+    '#9aa7b8',
+  ]
+  const layers: mapboxgl.AnyLayer[] = [
+    {
+      id: RUNTIME_SENSOR_COVERAGE_FILL,
+      type: 'fill',
+      source: RUNTIME_SENSOR_SOURCE,
+      filter: ['==', ['get', 'kind'], 'coverage'],
+      paint: {
+        'fill-color': color,
+        'fill-opacity': 0.08,
+      },
+    },
+    {
+      id: RUNTIME_SENSOR_COVERAGE_LINE,
+      type: 'line',
+      source: RUNTIME_SENSOR_SOURCE,
+      filter: ['==', ['get', 'kind'], 'coverage'],
+      paint: {
+        'line-color': color,
+        'line-width': 1.2,
+        'line-opacity': 0.72,
+        'line-dasharray': [3, 2],
+      },
+    },
+    {
+      id: RUNTIME_SENSOR_POINT,
+      type: 'circle',
+      source: RUNTIME_SENSOR_SOURCE,
+      filter: ['==', ['get', 'kind'], 'sensor'],
+      paint: {
+        'circle-radius': 7,
+        'circle-color': '#0b1117',
+        'circle-stroke-color': color,
+        'circle-stroke-width': 2,
+      },
+    },
+    {
+      id: RUNTIME_SENSOR_LABEL,
+      type: 'symbol',
+      source: RUNTIME_SENSOR_SOURCE,
+      filter: ['==', ['get', 'kind'], 'sensor'],
+      layout: {
+        'text-field': ['get', 'label'],
+        'text-size': 10,
+        'text-offset': [0, 1.4],
+        'text-anchor': 'top',
+      },
+      paint: {
+        'text-color': '#d8e8f7',
+        'text-halo-color': '#07090c',
+        'text-halo-width': 1.2,
+      },
+    },
+  ]
+  for (const layer of layers) {
+    if (!map.getLayer(layer.id)) map.addLayer(layer)
+  }
+}
+
+function ensureFusedSensorTrackLayers(map: MapboxMap): void {
+  if (!map.getSource(FUSED_SENSOR_TRACK_SOURCE)) {
+    map.addSource(FUSED_SENSOR_TRACK_SOURCE, {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+    })
+  }
+  const layers: mapboxgl.AnyLayer[] = [
+    {
+      id: FUSED_SENSOR_TRACK_POINT,
+      type: 'circle',
+      source: FUSED_SENSOR_TRACK_SOURCE,
+      paint: {
+        'circle-radius': [
+          'case',
+          ['==', ['get', 'lifecycle'], 'CONFIRMED'],
+          8,
+          6,
+        ],
+        'circle-color': '#0c1116',
+        'circle-stroke-color': [
+          'case',
+          ['==', ['get', 'lifecycle'], 'COASTING'],
+          '#c4921a',
+          '#e7edf5',
+        ],
+        'circle-stroke-width': 2,
+        'circle-opacity': 0.88,
+      },
+    },
+    {
+      id: FUSED_SENSOR_TRACK_LABEL,
+      type: 'symbol',
+      source: FUSED_SENSOR_TRACK_SOURCE,
+      layout: {
+        'text-field': [
+          'concat',
+          ['get', 'trackId'],
+          ' · ',
+          ['get', 'classification'],
+        ],
+        'text-size': 9,
+        'text-offset': [0, -1.5],
+        'text-anchor': 'bottom',
+      },
+      paint: {
+        'text-color': '#f0f3f7',
+        'text-halo-color': '#07090c',
+        'text-halo-width': 1.2,
+      },
+    },
+  ]
+  for (const layer of layers) {
+    if (!map.getLayer(layer.id)) map.addLayer(layer)
+  }
+}
+
+function fusedSensorTrackFeatures(
+  tracks: FusedSensorTrack[],
+  origin: SimOrigin,
+): MapFeature[] {
+  return tracks.map((track) => {
+    const [lng, lat] = enuToLngLat(
+      track.positionEnuM.east,
+      track.positionEnuM.north,
+      origin,
+    )
+    return pointFeature(
+      track.trackId,
+      { lng, lat },
+      {
+        trackId: track.trackId,
+        lifecycle: track.lifecycle,
+        confidence: track.confidence,
+        classification:
+          track.classifications[0]?.label ?? 'unclassified',
+        modalities: track.modalities.join('+'),
+      },
+    )
+  })
 }
 
 type RangeMeasurement = {
@@ -1586,7 +1848,9 @@ export function BattlespaceMap() {
   const rangeMeasurementsRef = useRef<RangeMeasurement[]>([])
   const rangeDraftRef = useRef<RangeMeasurement | null>(null)
   const rangeSequenceRef = useRef(0)
-  const activeMapToolRef = useRef<'range' | null>(null)
+  const activeMapToolRef = useRef<MapInteractionTool | null>(null)
+  const sensorPlacementTypeRef = useRef<string | null>(null)
+  const simOriginRef = useRef<SimOrigin | null>(null)
   const suppressPanRef = useRef(false)
   const getThreatPositionRef = useRef<() => Position | null>(() => null)
   const [mapReady, setMapReady] = useState(false)
@@ -1598,6 +1862,15 @@ export function BattlespaceMap() {
   const [inspectorView, setInspectorView] = useState<'logs' | 'asset'>('logs')
   const [heatmapStatus, setHeatmapStatus] = useState('Waiting for data')
   const [edgePackHealth, setEdgePackHealth] = useState<EdgePackHealth | null>(null)
+  const [runtimeSensors, setRuntimeSensors] = useState<EdgeSensor[]>([])
+  const [sensorTypes, setSensorTypes] = useState<SensorType[]>([])
+  const [fusedSensorTracks, setFusedSensorTracks] = useState<
+    FusedSensorTrack[]
+  >([])
+  const [simOrigin, setSimOrigin] = useState<SimOrigin | null>(null)
+  const [sensorPlacementStatus, setSensorPlacementStatus] = useState<string | null>(
+    null,
+  )
   const [styleEpoch, setStyleEpoch] = useState(0)
   const dispatch = useAppDispatch()
 
@@ -1613,7 +1886,21 @@ export function BattlespaceMap() {
   const envLayers = useAppSelector((s) => s.ui.envLayers)
   const heatmapMode = useAppSelector((s) => s.ui.heatmapMode)
   const activeMapTool = useAppSelector((s) => s.ui.activeMapTool)
-  const mission = useAppSelector((s) => s.mission)
+  const sensorPlacementTypeId = useAppSelector(
+    (s) => s.ui.sensorPlacementTypeId,
+  )
+  const liveMission = useAppSelector((s) => s.mission)
+  const replayWorkspace = useAppSelector((s) => s.ui.workspace === 'replay')
+  const replayMissionId = useAppSelector((s) => s.replay.selectedMissionId)
+  const replayPositionMs = useAppSelector((s) => s.replay.positionMs)
+  const replayRecording = recordingById(replayMissionId)
+  const replayFrame = useMemo(
+    () => replayWorkspace && replayRecording
+      ? frameAt(replayRecording, replayPositionMs)
+      : null,
+    [replayPositionMs, replayRecording, replayWorkspace],
+  )
+  const mission = replayFrame?.mission ?? liveMission
   const gnssDegraded = isDegraded(mission.gnss, mission.c2Link)
   const offlineMap = useMemo(() => resolveOfflineMapConfig(mapBasemap), [mapBasemap])
   const terrainConfig = useMemo(() => {
@@ -1640,16 +1927,21 @@ export function BattlespaceMap() {
   overlayVisibilityRef.current = overlayVisibility
   heatmapModeRef.current = heatmapMode
   activeMapToolRef.current = activeMapTool
+  sensorPlacementTypeRef.current = sensorPlacementTypeId
+  simOriginRef.current = simOrigin
 
-  const drones = useAppSelector((s) => s.fleet.drones)
+  const liveDrones = useAppSelector((s) => s.fleet.drones)
   const selectedDroneId = useAppSelector((s) => s.fleet.selectedDroneId)
-  const tracks = useAppSelector((s) => s.threats.tracks)
+  const liveTracks = useAppSelector((s) => s.threats.tracks)
   const selectedTrackId = useAppSelector((s) => s.threats.selectedTrackId)
   const selectionKind = useAppSelector((s) => s.threats.selectionKind)
   const alertTrackIds = useAppSelector((s) => s.threats.alertTrackIds)
-  const recommendations = useAppSelector((s) => s.tasking.recommendations)
+  const liveRecommendations = useAppSelector((s) => s.tasking.recommendations)
   const decisionLog = useAppSelector((s) => s.tasking.decisionLog)
-  const asset = useAppSelector((s) => s.mission.protectedAsset)
+  const drones = replayFrame?.drones ?? liveDrones
+  const tracks = replayFrame?.tracks ?? liveTracks
+  const recommendations = replayFrame?.recommendations ?? liveRecommendations
+  const asset = mission.protectedAsset
   const policyZones = useAppSelector((s) => s.policy.zones)
   const connected = useAppSelector((s) => s.session.connected)
   const lastSyncAt = useAppSelector((s) => s.session.lastSyncAt)
@@ -1661,13 +1953,26 @@ export function BattlespaceMap() {
   const selectedDrone = drones.find((drone) => drone.id === selectedDroneId)
 
   useEffect(() => {
+    if (replayWorkspace) {
+      setInspectorOpen(false)
+      return
+    }
     if (selectedDroneId) {
       setInspectorView('asset')
       setInspectorOpen(true)
     } else {
       setInspectorView('logs')
     }
-  }, [selectedDroneId])
+  }, [replayWorkspace, selectedDroneId])
+
+  useEffect(() => {
+    const openRecommendations = () => {
+      if (replayWorkspace) return
+      setInspectorOpen(true)
+    }
+    window.addEventListener('sentinel:open-asset-matches', openRecommendations)
+    return () => window.removeEventListener('sentinel:open-asset-matches', openRecommendations)
+  }, [replayWorkspace])
 
   useEffect(() => {
     const timer = window.setTimeout(() => mapRef.current?.resize(), 220)
@@ -2373,6 +2678,68 @@ export function BattlespaceMap() {
   }, [mapFocusRequest, mapReady])
 
   useEffect(() => {
+    let active = true
+    const refresh = async () => {
+      const [sensorResult, typeResult, stateResult, fusionResult] =
+        await Promise.allSettled([
+        apiRequest<{ sensors: EdgeSensor[] }>('/api/v1/edge/sensors'),
+        apiRequest<{ sensorTypes: SensorType[] }>('/api/v1/edge/sensor-types'),
+        apiRequest<{ origin: SimOrigin }>('/api/v1/sim/state'),
+        apiRequest<SensorFusionSnapshot>('/api/v1/fusion/sensor-tracks'),
+      ])
+      if (!active) return
+      if (sensorResult.status === 'fulfilled') {
+        setRuntimeSensors(sensorResult.value.sensors)
+      }
+      if (typeResult.status === 'fulfilled') {
+        setSensorTypes(typeResult.value.sensorTypes)
+      }
+      if (stateResult.status === 'fulfilled') {
+        setSimOrigin(stateResult.value.origin)
+      } else {
+        setSimOrigin({
+          latDeg: asset.lat,
+          lngDeg: asset.lng,
+          elevationM: asset.alt,
+        })
+      }
+      if (fusionResult.status === 'fulfilled') {
+        setFusedSensorTracks(fusionResult.value.tracks)
+      }
+    }
+    void refresh()
+    const timer = window.setInterval(() => void refresh(), 2_000)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
+  }, [asset.alt, asset.lat, asset.lng])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!mapReady || !map || !map.isStyleLoaded()) return
+    ensureRuntimeSensorLayers(map)
+    ensureFusedSensorTrackLayers(map)
+    if (!simOrigin) return
+    setSourceData(
+      map,
+      RUNTIME_SENSOR_SOURCE,
+      runtimeSensorFeatures(runtimeSensors, simOrigin),
+    )
+    setSourceData(
+      map,
+      FUSED_SENSOR_TRACK_SOURCE,
+      fusedSensorTrackFeatures(fusedSensorTracks, simOrigin),
+    )
+  }, [
+    fusedSensorTracks,
+    mapReady,
+    runtimeSensors,
+    simOrigin,
+    styleEpoch,
+  ])
+
+  useEffect(() => {
     const map = mapRef.current
     if (!mapReady || !map) return
 
@@ -2497,6 +2864,56 @@ export function BattlespaceMap() {
     const onMapClick = (e: MapMouseEvent) => {
       if (isOperatorUiTarget(e.originalEvent.target)) return
       if (activeMapToolRef.current === 'range') return
+      if (activeMapToolRef.current === 'sensor-placement') {
+        const origin = simOriginRef.current
+        const sensorTypeId = sensorPlacementTypeRef.current
+        if (!origin || !sensorTypeId) {
+          setSensorPlacementStatus('Simulator origin or sensor type unavailable')
+          return
+        }
+        e.preventDefault()
+        const position = lngLatToEnu(
+          e.lngLat.lng,
+          e.lngLat.lat,
+          origin,
+        )
+        setSensorPlacementStatus('Creating edge-routed sensor…')
+        void apiRequest<EdgeSensor>('/api/v1/edge/sensors', {
+          method: 'POST',
+          body: JSON.stringify({
+            commandId: crypto.randomUUID(),
+            sensorId: `sim-sensor-${Date.now().toString(36)}`,
+            sensorTypeId,
+            pose: {
+              frame: 'LOCAL_ENU',
+              eastM: position.eastM,
+              northM: position.northM,
+              upM: 2,
+              rollRad: 0,
+              pitchRad: 0,
+              yawRad: 0,
+            },
+          }),
+        })
+          .then((sensor) => {
+            setRuntimeSensors((current) => [
+              ...current.filter((item) => item.sensorId !== sensor.sensorId),
+              sensor,
+            ])
+            setSensorPlacementStatus(
+              sensor.visualState === 'ACTIVE'
+                ? `${sensor.displayName} active in sensor-sim and Gazebo`
+                : `${sensor.displayName} active; Gazebo visual unavailable`,
+            )
+            dispatch(setActiveMapTool(null))
+          })
+          .catch((error: unknown) => {
+            setSensorPlacementStatus(
+              error instanceof Error ? error.message : 'Sensor placement failed',
+            )
+          })
+        return
+      }
 
       const threatId = resolveThreatId(map, e.point)
       if (threatId) return
@@ -2903,6 +3320,9 @@ export function BattlespaceMap() {
         'map-shell',
         inspectorOpen ? 'is-inspector-open' : '',
         activeMapTool === 'range' ? 'is-range-active' : '',
+        activeMapTool === 'sensor-placement'
+          ? 'is-sensor-placement-active'
+          : '',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -2996,6 +3416,31 @@ export function BattlespaceMap() {
           </button>
         </div>
       )}
+      {activeMapTool === 'sensor-placement' && (
+        <div className="map-range-hint map-sensor-placement-hint" role="status" data-operator-ui>
+          <div>
+            <span className="panel__eyebrow">Sensor placement active</span>
+            <strong>
+              Click the map to place{' '}
+              {sensorTypes.find(
+                (sensorType) =>
+                  sensorType.sensorTypeId === sensorPlacementTypeId,
+              )?.displayName ?? 'sensor'}
+            </strong>
+            {sensorPlacementStatus && <small>{sensorPlacementStatus}</small>}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              dispatch(setActiveMapTool(null))
+              setSensorPlacementStatus(null)
+            }}
+            aria-label="Cancel sensor placement"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
       {mapReady && (
         <div className="map-overlay-tabs" role="tablist" aria-label="Map overlay">
           <button
@@ -3049,30 +3494,9 @@ export function BattlespaceMap() {
               BUILDINGS
             </span>
           )}
-          <button
-            type="button"
-            className={[
-              'map-inspector-toggle',
-              inspectorOpen ? 'is-active' : '',
-            ]
-              .filter(Boolean)
-              .join(' ')}
-            aria-label={inspectorOpen ? 'Close map inspector' : 'Open map inspector'}
-            aria-expanded={inspectorOpen}
-            title={inspectorOpen ? 'Close inspector' : 'Open logs'}
-            onClick={() => {
-              if (inspectorOpen) {
-                setInspectorOpen(false)
-              } else {
-                setInspectorView('logs')
-                setInspectorOpen(true)
-              }
-            }}
-          >
-            <span aria-hidden="true"><i /><i /><i /></span>
-          </button>
         </div>
       )}
+      {replayWorkspace && replayRecording && <MissionPlaybackTimeline />}
       <aside
         className={[
           'map-inspector',
@@ -3086,16 +3510,11 @@ export function BattlespaceMap() {
         <header className="map-inspector__header">
           <div>
             <p className="panel__eyebrow">
-              {inspectorView === 'asset' ? 'Selection' : 'System'}
+              {inspectorView === 'asset' ? 'Selection' : 'Tasking'}
             </p>
-            <h2>{inspectorView === 'asset' ? 'Asset details' : 'Logs'}</h2>
+            <h2>{inspectorView === 'asset' ? 'Asset details' : 'Ranked assets'}</h2>
           </div>
           <div className="map-inspector__header-actions">
-            {inspectorView === 'asset' && (
-              <button type="button" onClick={() => setInspectorView('logs')}>
-                Logs
-              </button>
-            )}
             <button
               type="button"
               aria-label="Close inspector"
@@ -3127,6 +3546,10 @@ export function BattlespaceMap() {
                 {selectedDrone.comms}
               </span>
             </section>
+
+            <AssetRecommendationsSection
+              preferredTrackId={selectedDrone.assignedTrackId ?? selectedTrackId}
+            />
 
             <section className="map-inspector__section">
               <h3>Telemetry</h3>
@@ -3160,6 +3583,7 @@ export function BattlespaceMap() {
           </div>
         ) : (
           <div className="map-inspector__logs" role="log" aria-live="polite">
+            <AssetRecommendationsSection preferredTrackId={selectedTrackId} />
             <div className="map-inspector__log-entry">
               <time className="mono">
                 {lastSyncAt ? new Date(lastSyncAt).toLocaleTimeString() : '--:--:--'}

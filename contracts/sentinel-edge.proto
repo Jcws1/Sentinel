@@ -1,0 +1,113 @@
+syntax = "proto3";
+
+package sentinel.edge.v1;
+
+message SourceRegistration {
+  string schema_version = 1;
+  string source_id = 2;
+  string display_name = 3;
+  string source_kind = 4;
+  string mode = 5;
+  string adapter_type = 6;
+  repeated string capabilities = 7;
+  string instance_id = 8;
+  string started_at = 9;
+}
+
+message ObservationBatch {
+  repeated SensorObservation observations = 1;
+}
+
+message SensorObservation {
+  string schema_version = 1;
+  string observation_id = 2;
+  ObservationSource source = 3;
+  uint64 sequence = 4;
+  ObservationTime time = 5;
+  CoordinateFrame frame = 6;
+  oneof measurement {
+    RadarMeasurement radar = 7;
+    RfMeasurement rf = 8;
+    ImageryMeasurement imagery = 10;
+    AcousticMeasurement acoustic = 11;
+  }
+  ObservationQuality quality = 9;
+}
+
+message ObservationSource {
+  string source_id = 1;
+  string instance_id = 2;
+  string sensor_id = 3;
+  string sensor_type_id = 4;
+  string adapter_type = 5;
+  uint64 configuration_revision = 6;
+  string mode = 7;
+}
+
+message ObservationTime {
+  string observed_at = 1;
+  string sent_at = 2;
+  string clock_quality = 3;
+  double uncertainty_ms = 4;
+}
+
+message CoordinateFrame {
+  string id = 1;
+  string convention = 2;
+  string origin_revision = 3;
+}
+
+message RadarMeasurement {
+  double range_m = 1;
+  double bearing_rad = 2;
+  double elevation_rad = 3;
+  double radial_velocity_ms = 4;
+  double signal_to_noise_db = 5;
+}
+
+message RfMeasurement {
+  double bearing_rad = 1;
+  double center_frequency_hz = 2;
+  double bandwidth_hz = 3;
+  double signal_power_dbm = 4;
+  string emitter_family = 5;
+}
+
+message Classification {
+  string label = 1;
+  double confidence = 2;
+}
+
+message ImageryMeasurement {
+  string modality = 1;
+  double bearing_rad = 2;
+  double elevation_rad = 3;
+  repeated Classification classification = 4;
+  string media_ref = 5;
+}
+
+message AcousticMeasurement {
+  double bearing_rad = 1;
+  double peak_frequency_hz = 2;
+  double signal_to_noise_db = 3;
+  repeated Classification classification = 4;
+}
+
+message ObservationQuality {
+  double detection_confidence = 1;
+  repeated double covariance = 2;
+  string processing_level = 3;
+  uint64 stale_after_ms = 4;
+}
+
+message PublishAck {
+  uint64 accepted = 1;
+  uint64 rejected = 2;
+  uint64 ingress_sequence = 3;
+  repeated PublishError errors = 4;
+}
+
+message PublishError {
+  uint64 index = 1;
+  string message = 2;
+}

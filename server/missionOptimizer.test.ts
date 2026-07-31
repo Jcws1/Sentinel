@@ -68,7 +68,7 @@ test('optimizer finds the global capability-constrained assignment', () => {
   assert.equal(plan.status, 'PROPOSED')
 })
 
-test('optimizer leaves unsafe vehicles unassigned and auto-executes low-risk work', () => {
+test('optimizer leaves unsafe vehicles unassigned and defaults to operator confirmation', () => {
   const plan = optimizeAssignments(
     [
       {
@@ -85,5 +85,26 @@ test('optimizer leaves unsafe vehicles unassigned and auto-executes low-risk wor
     [drone('low-battery', 'Scout', 12, 103.81)],
   )
   assert.deepEqual(plan.unfilledObjectiveIds, ['patrol'])
+  assert.equal(plan.authority, 'OPERATOR_CONFIRM')
+  assert.equal(plan.status, 'PROPOSED')
+})
+
+test('optimizer permits auto-execution only when simulation mode explicitly enables it', () => {
+  const plan = optimizeAssignments(
+    [
+      {
+        id: 'patrol',
+        name: 'Patrol',
+        type: 'patrol_route',
+        priority: 40,
+        requiredCapabilities: [],
+        minVehicles: 1,
+        maxVehicles: 1,
+      },
+    ],
+    [drone('scout', 'Scout', 80, 103.81)],
+    { executionMode: 'SIMULATION', allowSimulationAutoExecute: true },
+  )
   assert.equal(plan.authority, 'AUTO_EXECUTE')
+  assert.equal(plan.status, 'AUTO_EXECUTED')
 })
