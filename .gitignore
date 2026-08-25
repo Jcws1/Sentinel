@@ -27,6 +27,10 @@ llm/models/
 llm/benchmarks/*.json
 !llm/benchmarks/.gitkeep
 
+# Downloaded accuracy datasets and generated evaluation artifacts
+evaluation/data/
+evaluation/output/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

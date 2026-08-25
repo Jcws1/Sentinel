@@ -51,6 +51,12 @@ import { EdgeFusionPoller } from './edgeFusionPoller'
 import { registerAssistantProxyRoutes } from './assistantProxy'
 import { objectiveFromAssistantDraft } from './assistantPlanning'
 import type { MissionDraft } from '../assistant/types'
+import {
+  activateDemoScenario,
+  DEMO_SCENARIOS,
+  demoScenarioStatus,
+  setDemoScenarioTimelineScale,
+} from './demoScenarios'
 
 loadEnvFile()
 
@@ -128,6 +134,41 @@ app.get('/api/v1/edge-map/health', async (_req, res) => {
 
 app.get('/api/v1/sensors/cdse', (_req, res) => {
   res.json(cdsePoller.snapshot())
+})
+
+app.get('/api/v1/demo-scenarios', (_req, res) => {
+  res.json({
+    scenarios: DEMO_SCENARIOS,
+    active: demoScenarioStatus(state),
+  })
+})
+
+app.post('/api/v1/demo-scenarios/:id/activate', (req, res) => {
+  try {
+    const runtime = activateDemoScenario(state, req.params.id)
+    broadcastSnapshot()
+    res.status(201).json(runtime)
+  } catch (error) {
+    res.status(404).json({
+      error: error instanceof Error ? error.message : 'Scenario activation failed',
+    })
+  }
+})
+
+app.patch('/api/v1/demo-scenarios/:id/timeline-scale', (req, res) => {
+  try {
+    const result = setDemoScenarioTimelineScale(
+      state,
+      req.params.id,
+      Number(req.body?.timelineScale),
+    )
+    broadcastSnapshot()
+    res.json(result)
+  } catch (error) {
+    res.status(400).json({
+      error: error instanceof Error ? error.message : 'Invalid timeline scale',
+    })
+  }
 })
 
 const CDSE_HISTORY_WINDOWS = {

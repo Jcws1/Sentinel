@@ -42,6 +42,9 @@ export interface Drone {
   payloadStatus: string
   assignedTrackId: string | null
   meshLinks: string[]
+  speed?: number
+  bearing?: number
+  scenarioAnchor?: Position
 }
 
 export interface ThreatTrack {
@@ -55,6 +58,17 @@ export interface ThreatTrack {
   fusionConfidence: number
   recommendedAction: string
   sensors: string[]
+  scenario?: {
+    affiliation: 'unknown' | 'hostile'
+    ingress: 'south' | 'east'
+    targetId: string
+    targetName: string
+    targetPosition: Position
+    entryPosition: Position
+    phase: 'inbound' | 'scattered' | 'impact' | 'neutralized'
+    currentSpeed: number
+    impactAt?: number
+  }
 }
 
 export interface InterceptRoute {

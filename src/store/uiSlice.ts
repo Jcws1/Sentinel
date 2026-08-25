@@ -14,7 +14,7 @@ import {
   type OverlayVisibility,
 } from '../streamlined/overlayDefaults'
 
-export type WorkspaceView = 'tracks' | 'operations' | 'fleet' | 'policy' | 'sensors' | 'assistant' | 'replay'
+export type WorkspaceView = 'tracks' | 'operations' | 'fleet' | 'policy' | 'sensors' | 'assistant' | 'replay' | 'scenarios'
 export type DeploymentMode = 'cloud' | 'edge'
 /** PRD v3.0 primary UI modes */
 export type ModeId = 'defense' | 'recon' | 'attack'

@@ -2,6 +2,7 @@ import { useAppDispatch, useAppSelector } from '../store'
 import { setOverflowMenuOpen, setWorkspace, type WorkspaceView } from '../store/uiSlice'
 
 const ITEMS: Array<{ id: WorkspaceView; label: string; detail: string }> = [
+  { id: 'scenarios', label: 'Scenarios', detail: 'Launch and monitor operational rehearsals' },
   { id: 'fleet', label: 'Fleet detail', detail: 'Assets, battery, mesh links' },
   { id: 'tracks', label: 'Sensor fusion', detail: 'Track provenance & correlation' },
   { id: 'policy', label: 'ROE config', detail: 'Engagement Authority only' },

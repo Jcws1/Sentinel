@@ -6,6 +6,7 @@ import type {
 } from '../src/types'
 import type { DecisionLogDto, PolicyDto } from '../src/api/types'
 import { circlePolygon } from '../src/utils/geo'
+import type { DemoScenarioRuntime } from '../src/api/demoScenarioTypes'
 
 export interface DecisionEntry {
   id: string
@@ -23,6 +24,7 @@ export interface C2State {
   recommendations: TaskingRecommendation[]
   decisionLog: DecisionEntry[]
   policy: PolicyDto
+  scenario: DemoScenarioRuntime | null
   tick: number
 }
 
@@ -186,6 +188,7 @@ export function createInitialState(): C2State {
       ],
       readOnly: true,
     },
+    scenario: null,
     tick: 0,
   }
 }

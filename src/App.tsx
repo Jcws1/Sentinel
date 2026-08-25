@@ -20,6 +20,7 @@ import { setWorkspace } from './store/uiSlice'
 import { AssistantWorkspace } from './components/AssistantWorkspace'
 import { MissionHistoryPanel } from './components/MissionHistoryPanel'
 import { MissionReplayLogPanel } from './components/MissionReplayLogPanel'
+import { ScenariosWorkspace } from './components/ScenariosWorkspace'
 
 export default function App() {
   const dispatch = useAppDispatch()
@@ -53,12 +54,14 @@ export default function App() {
   const fleetWorkspace = workspace === 'fleet'
   const assistantWorkspace = workspace === 'assistant'
   const replayWorkspace = workspace === 'replay'
+  const scenariosWorkspace = workspace === 'scenarios'
   const showLeft =
     replayWorkspace || (
       !sensorWorkspace &&
       !policyWorkspace &&
       !fleetWorkspace &&
       !assistantWorkspace &&
+      !scenariosWorkspace &&
       (workspace === 'tracks' || workspace === 'operations')
     )
   const showRight =
@@ -67,6 +70,7 @@ export default function App() {
       !policyWorkspace &&
       !fleetWorkspace &&
       !assistantWorkspace &&
+      !scenariosWorkspace &&
       modeProfile.showRightPanel
     )
   const leftPanel =
@@ -133,6 +137,7 @@ export default function App() {
             {showLeft && leftPanel}
             {showRight && rightPanel}
             {assistantWorkspace && <AssistantWorkspace />}
+            {scenariosWorkspace && <ScenariosWorkspace />}
             {fleetWorkspace && (
               <aside className="fleet-manager-panel" data-operator-ui>
                 <button

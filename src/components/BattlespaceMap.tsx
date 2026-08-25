@@ -463,6 +463,10 @@ type DisplayPoint = {
   selected: boolean
   alert: boolean
   confidence: number
+  scenarioPhase?: 'inbound' | 'scattered' | 'impact' | 'neutralized'
+  labelVisible: boolean
+  scenarioAffiliation?: 'unknown' | 'hostile'
+  neutralized: boolean
 }
 
 type LiveState = {
@@ -1244,6 +1248,7 @@ function addOverlayLayers(map: MapboxMap) {
     'uncertainty',
     'threat-halos',
     'threat-alert-rings',
+    'scenario-impact-rings',
     RANGE_SOURCE,
   ]
 
@@ -1627,9 +1632,16 @@ function addOverlayLayers(map: MapboxMap) {
           9,
           7,
         ],
-        'circle-color': '#5b9fd4',
+        'circle-color': [
+          'case',
+          ['boolean', ['get', 'neutralized'], false],
+          '#777a7f',
+          '#5b9fd4',
+        ],
         'circle-stroke-color': [
           'case',
+          ['boolean', ['get', 'neutralized'], false],
+          '#a8abb0',
           ['boolean', ['get', 'selected'], false],
           '#ffffff',
           '#0a0b0c',
@@ -1641,6 +1653,7 @@ function addOverlayLayers(map: MapboxMap) {
       id: 'drone-labels',
       type: 'symbol',
       source: 'drones',
+      filter: ['==', ['get', 'labelVisible'], true],
       layout: {
         'text-field': ['get', 'id'],
         'text-size': 11,
@@ -1650,7 +1663,12 @@ function addOverlayLayers(map: MapboxMap) {
         'text-ignore-placement': true,
       },
       paint: {
-        'text-color': '#5b9fd4',
+        'text-color': [
+          'case',
+          ['boolean', ['get', 'neutralized'], false],
+          '#9a9da2',
+          '#5b9fd4',
+        ],
         'text-halo-color': '#0a0b0c',
         'text-halo-width': 1.25,
       },
@@ -1669,6 +1687,25 @@ function addOverlayLayers(map: MapboxMap) {
       },
     },
     {
+      id: 'scenario-impact-pulse',
+      type: 'circle',
+      source: 'scenario-impact-rings',
+      paint: {
+        'circle-radius': ['get', 'pulseRadius'],
+        'circle-color': [
+          'match',
+          ['get', 'scenarioAffiliation'],
+          'unknown',
+          '#c4921a',
+          '#c44b4b',
+        ],
+        'circle-opacity': ['get', 'fillOpacity'],
+        'circle-stroke-color': '#ff4545',
+        'circle-stroke-width': 3,
+        'circle-stroke-opacity': ['get', 'pulseOpacity'],
+      },
+    },
+    {
       id: 'threat-points',
       type: 'circle',
       source: 'threats',
@@ -1679,7 +1716,12 @@ function addOverlayLayers(map: MapboxMap) {
           9,
           7,
         ],
-        'circle-color': '#c44b4b',
+        'circle-color': [
+          'case',
+          ['boolean', ['get', 'neutralized'], false],
+          '#777a7f',
+          ['match', ['get', 'scenarioAffiliation'], 'unknown', '#c4921a', '#c44b4b'],
+        ],
         'circle-stroke-color': [
           'case',
           ['boolean', ['get', 'alert'], false],
@@ -1703,6 +1745,7 @@ function addOverlayLayers(map: MapboxMap) {
       id: 'threat-labels',
       type: 'symbol',
       source: 'threats',
+      filter: ['==', ['get', 'labelVisible'], true],
       layout: {
         'text-field': ['get', 'id'],
         'text-size': 11,
@@ -1712,7 +1755,12 @@ function addOverlayLayers(map: MapboxMap) {
         'text-ignore-placement': true,
       },
       paint: {
-        'text-color': '#c44b4b',
+        'text-color': [
+          'case',
+          ['boolean', ['get', 'neutralized'], false],
+          '#9a9da2',
+          ['match', ['get', 'scenarioAffiliation'], 'unknown', '#e0b84a', '#c44b4b'],
+        ],
         'text-halo-color': '#0a0b0c',
         'text-halo-width': 1.25,
       },
@@ -1733,7 +1781,12 @@ function addOverlayLayers(map: MapboxMap) {
           16,
           30,
         ],
-        'circle-color': '#c44b4b',
+        'circle-color': [
+          'case',
+          ['boolean', ['get', 'neutralized'], false],
+          '#777a7f',
+          ['match', ['get', 'scenarioAffiliation'], 'unknown', '#c4921a', '#c44b4b'],
+        ],
         'circle-opacity': [
           'case',
           ['boolean', ['get', 'selected'], false],
@@ -1742,6 +1795,8 @@ function addOverlayLayers(map: MapboxMap) {
         ],
         'circle-stroke-color': [
           'case',
+          ['boolean', ['get', 'neutralized'], false],
+          '#a8abb0',
           ['boolean', ['get', 'selected'], false],
           '#ffffff',
           '#c44b4b',
@@ -1800,6 +1855,10 @@ function upsertDisplay(
   selected: boolean,
   alert: boolean,
   confidence: number,
+  scenarioPhase?: DisplayPoint['scenarioPhase'],
+  labelVisible = true,
+  scenarioAffiliation?: DisplayPoint['scenarioAffiliation'],
+  neutralized = false,
 ) {
   const existing = display.get(key)
   if (!existing) {
@@ -1815,6 +1874,10 @@ function upsertDisplay(
       selected,
       alert,
       confidence,
+      scenarioPhase,
+      labelVisible,
+      scenarioAffiliation,
+      neutralized,
     })
     return
   }
@@ -1824,6 +1887,10 @@ function upsertDisplay(
   existing.selected = selected
   existing.alert = alert
   existing.confidence = confidence
+  existing.scenarioPhase = scenarioPhase
+  existing.labelVisible = labelVisible
+  existing.scenarioAffiliation = scenarioAffiliation
+  existing.neutralized = neutralized
   existing.id = id
   existing.kind = kind
 }
@@ -2577,7 +2644,7 @@ export function BattlespaceMap() {
     track('asset')
     upsertDisplay(display, 'asset', 'ASSET', 'asset', asset, false, false, 100)
 
-    for (const drone of drones) {
+    for (const [index, drone] of drones.entries()) {
       const key = `friendly:${drone.id}`
       track(key)
       upsertDisplay(
@@ -2589,10 +2656,14 @@ export function BattlespaceMap() {
         drone.id === selectedDroneId,
         false,
         drone.positioningConfidence,
+        undefined,
+        drones.length <= 20 || index % 6 === 0,
+        undefined,
+        drone.lifecycle === 'FAULT',
       )
     }
 
-    for (const threat of tracks) {
+    for (const [index, threat] of tracks.entries()) {
       const key = `threat:${threat.id}`
       track(key)
       upsertDisplay(
@@ -2602,8 +2673,12 @@ export function BattlespaceMap() {
         'threat',
         threat.position,
         threat.id === selectedTrackId,
-        alertTrackIds.includes(threat.id),
+        alertTrackIds.includes(threat.id) && threat.scenario?.phase !== 'neutralized',
         threat.fusionConfidence,
+        threat.scenario?.phase,
+        tracks.length <= 20 || index % 5 === 0,
+        threat.scenario?.affiliation,
+        threat.scenario?.phase === 'neutralized',
       )
     }
 
@@ -2676,6 +2751,32 @@ export function BattlespaceMap() {
       offset: [120, 40],
     })
   }, [mapFocusRequest, mapReady])
+
+  useEffect(() => {
+    const frameScenario = () => {
+      const map = mapRef.current
+      if (!mapReady || !map) return
+      trailsRef.current.clear()
+      for (const point of displayRef.current.values()) {
+        point.lng = point.targetLng
+        point.lat = point.targetLat
+        point.alt = point.targetAlt
+      }
+      map.fitBounds([[103.61, 1.11], [104.14, 1.48]], {
+        padding: {
+          top: 82,
+          bottom: 112,
+          left: 48,
+          right: Math.min(490, window.innerWidth * 0.42),
+        },
+        maxZoom: 10.8,
+        duration: mapMotionDuration(reducedMotionRef.current, 900),
+        pitch: 0,
+      })
+    }
+    window.addEventListener('sentinel:frame-demo-scenario', frameScenario)
+    return () => window.removeEventListener('sentinel:frame-demo-scenario', frameScenario)
+  }, [mapReady])
 
   useEffect(() => {
     let active = true
@@ -3042,6 +3143,7 @@ export function BattlespaceMap() {
         const uncertaintyFeatures: MapFeature[] = []
         const threatHaloFeatures: MapFeature[] = []
         const threatAlertRingFeatures: MapFeature[] = []
+        const impactRingFeatures: MapFeature[] = []
         const meshFeatures: MapFeature[] = []
         let assetFeature: MapFeature | null = null
         const alertPulse = pulseAlerts ? 0.5 + 0.5 * Math.sin(now / 550) : 0.65
@@ -3075,9 +3177,13 @@ export function BattlespaceMap() {
             selected: point.selected,
             alert: point.alert,
             confidence: point.confidence,
+            labelVisible: point.labelVisible,
+            scenarioAffiliation: point.scenarioAffiliation ?? '',
+            neutralized: point.neutralized,
             hovered:
               point.id === hoveredThreatRef.current ||
               point.id === pinnedThreatRef.current,
+            scenarioPhase: point.scenarioPhase ?? '',
           })
 
           if (point.kind === 'friendly') {
@@ -3123,6 +3229,19 @@ export function BattlespaceMap() {
                   id: point.id,
                   pulseRadius: ringRadius,
                   pulseOpacity: ringOpacity,
+                }),
+              )
+            }
+            if (point.scenarioPhase === 'impact') {
+              const impactPulse = live.reducedMotion
+                ? 0.5
+                : 0.5 + 0.5 * Math.sin(now / 180)
+              impactRingFeatures.push(
+                pointFeature(`${point.id}-impact-ring`, point, {
+                  id: point.id,
+                  pulseRadius: 24 + impactPulse * 18,
+                  pulseOpacity: 0.55 + impactPulse * 0.4,
+                  fillOpacity: 0.08 + impactPulse * 0.1,
                 }),
               )
             }
@@ -3183,6 +3302,7 @@ export function BattlespaceMap() {
         setSourceData(current, 'uncertainty', uncertaintyFeatures)
         setSourceData(current, 'threat-halos', threatHaloFeatures)
         setSourceData(current, 'threat-alert-rings', threatAlertRingFeatures)
+        setSourceData(current, 'scenario-impact-rings', impactRingFeatures)
         setSourceData(current, 'mesh', meshFeatures)
         setSourceData(current, 'routes', routeFeatures)
         lastGeoPushRef.current = now
