@@ -103,6 +103,7 @@ export class AssistantOrchestrator {
           message,
           context,
           draft,
+          allowDraftPatch: route.mayMutateDraft,
           onProgress: (chunks) => {
             if (chunks === 1 || chunks % 8 === 0) send({ type: 'model.progress', chunks })
           },

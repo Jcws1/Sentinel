@@ -165,13 +165,13 @@ export function ThreatCallout({
       <dl className="threat-callout__kv mono">
         <div>
           <dt>ETA</dt>
-          <dd className={track.etaToAsset < 45 ? 'tone-warn' : ''}>
-            {track.etaToAsset}s
+          <dd className={track.etaAvailable !== false && track.etaToAsset < 45 ? 'tone-warn' : ''}>
+            {track.etaAvailable === false ? 'N/A' : `${track.etaToAsset}s`}
           </dd>
         </div>
         <div>
           <dt>Fusion</dt>
-          <dd>{track.fusionConfidence}%</dd>
+          <dd>{track.sourceConfidenceAvailable === false ? 'N/A' : `${track.fusionConfidence}%`}</dd>
         </div>
         <div>
           <dt>Speed</dt>

@@ -70,6 +70,14 @@ test('C2 client reads only the canonical snapshot endpoint and compacts it', asy
   ])
   assert.equal(context.source, 'SENTINEL_C2_CANONICAL_SNAPSHOT')
   assert.equal(context.assets[0].assetId, 'Scout-01')
+  assert.deepEqual(context.assetSummary, {
+    totalReporting: 1,
+    includedInModelContext: 1,
+  })
+  assert.deepEqual(context.trackSummary, {
+    totalReporting: 1,
+    includedInModelContext: 1,
+  })
   assert.equal(context.tracks[0]?.trackId, 'hidden-track')
   assert.equal(context.tracks[0]?.etaToProtectedAssetSeconds, 42)
   assert.equal('recommendedAction' in (context.tracks[0] ?? {}), false)

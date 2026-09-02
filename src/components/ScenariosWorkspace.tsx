@@ -54,7 +54,9 @@ export function ScenariosWorkspace() {
       setRuntime(next)
       dispatch(setMapOverlayTab('scenarios'))
       window.setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('sentinel:frame-demo-scenario'))
+        window.dispatchEvent(new CustomEvent('sentinel:frame-demo-scenario', {
+          detail: { bounds: scenario.mapBounds },
+        }))
       }, 120)
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Scenario activation failed')
@@ -106,6 +108,7 @@ export function ScenariosWorkspace() {
         {definitions.map((scenario, scenarioIndex) => {
           const isCurrent = runtime?.id === scenario.id
           const isGnssFade = scenario.kind === 'gnss-fade'
+          const isRadarReplay = scenario.kind === 'radar-replay'
           const timelineScale = isCurrent && runtime ? runtime.timelineScale : scenario.timelineScale
           return (
             <article key={scenario.id} className={isCurrent ? 'is-current' : ''}>
@@ -116,6 +119,11 @@ export function ScenariosWorkspace() {
               <h2>{scenario.name}</h2>
               <p>{scenario.summary}</p>
 
+              <div className="scenarios-workspace__context">
+                <span>{scenario.siteType} · {scenario.scale}</span>
+                <p>{scenario.c2Objective}</p>
+              </div>
+
               <dl className="scenarios-workspace__forces">
                 {isGnssFade ? (
                   <>
@@ -123,25 +131,55 @@ export function ScenariosWorkspace() {
                     <div><dt>GNSS phases</dt><dd>5</dd></div>
                     <div><dt>Duration</dt><dd>{Math.round((scenario.durationSeconds ?? 0) / 60)}m</dd></div>
                   </>
+                ) : isRadarReplay ? (
+                  <>
+                    <div><dt>Source tracks</dt><dd>{scenario.radarTrackCount}</dd></div>
+                    <div><dt>Peak estimate</dt><dd>{scenario.estimatedObjects}</dd></div>
+                    <div><dt>Duration</dt><dd>{Math.round((scenario.durationSeconds ?? 0) / 60)}m</dd></div>
+                  </>
                 ) : (
                   <>
-                    <div><dt>Unknown · south</dt><dd>{scenario.unknownInbound}</dd></div>
-                    <div><dt>Hostile · east</dt><dd>{scenario.hostileInbound}</dd></div>
+                    <div><dt>Unknown tracks</dt><dd>{scenario.unknownInbound}</dd></div>
+                    <div><dt>Hostile tracks</dt><dd>{scenario.hostileInbound}</dd></div>
                     <div><dt>Friendly fleet</dt><dd>{scenario.friendlyDrones}</dd></div>
                   </>
                 )}
               </dl>
 
               <div className="scenarios-workspace__targets">
-                <span>{isGnssFade ? 'AFFECTED AREAS' : 'SCATTER TARGETS'}</span>
+                <span>{isGnssFade ? 'AFFECTED AREAS' : isRadarReplay ? 'SUPPLIED DATA CONTENT' : 'SCATTER TARGETS'}</span>
                 <p>{scenario.targets.join(' · ')}</p>
               </div>
 
-              {isCurrent && runtime && !isGnssFade && (
+              {isCurrent && runtime && !isGnssFade && !isRadarReplay && (
                 <div className="scenarios-workspace__progress" aria-live="polite">
                   <div><span>Remaining</span><strong>{runtime.remainingInbound}</strong></div>
                   <div><span>Scattered</span><strong>{runtime.scattered}</strong></div>
                   <div><span>Impacts</span><strong>{runtime.impacts}</strong></div>
+                </div>
+              )}
+
+              {isCurrent && runtime && isRadarReplay && (
+                <div className="scenarios-workspace__gnss scenarios-workspace__radar" aria-live="polite">
+                  <div className="scenarios-workspace__gnss-phase">
+                    <span>Thales radar replay</span>
+                    <strong data-phase="choppy">SYNTHETIC</strong>
+                  </div>
+                  <progress
+                    max={scenario.durationSeconds ?? 1}
+                    value={runtime.sourceTimeSeconds ?? 0}
+                    aria-label="Radar replay progress"
+                  />
+                  <div className="scenarios-workspace__gnss-clock">
+                    <span>{Math.floor((runtime.sourceTimeSeconds ?? 0) / 60)}:{String(Math.floor((runtime.sourceTimeSeconds ?? 0) % 60)).padStart(2, '0')} source time</span>
+                    <span>{Math.round(((runtime.sourceTimeSeconds ?? 0) / (scenario.durationSeconds ?? 1)) * 100)}%</span>
+                  </div>
+                  <dl>
+                    <div><dt>Active tracks</dt><dd>{runtime.radarTrackCount ?? 0}</dd></div>
+                    <div><dt>Est. objects</dt><dd>{runtime.estimatedObjects ?? 0}</dd></div>
+                    <div><dt>Confidence</dt><dd>N/A</dd></div>
+                  </dl>
+                  <p className="scenarios-workspace__quality">{scenario.dataQuality}</p>
                 </div>
               )}
 
@@ -207,7 +245,7 @@ export function ScenariosWorkspace() {
       </div>
 
       <div className="scenarios-workspace__note">
-        Scenario 01 rehearses physical interception. Scenario 02 progressively removes trustworthy GNSS and requires validated fallback navigation and recovery.
+        Six Singapore-context rehearsals: aviation, infrastructure, urban and maritime response, saturation handling, and GNSS-constrained recovery. GNSS zones depict likely signal-constrained environments, not verified interference.
       </div>
     </aside>
   )

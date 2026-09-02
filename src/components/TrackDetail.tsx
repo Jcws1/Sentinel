@@ -50,11 +50,11 @@ export function TrackDetail() {
         </div>
         <div>
           <dt>Conf</dt>
-          <dd>{track.fusionConfidence}%</dd>
+          <dd>{track.sourceConfidenceAvailable === false ? 'N/A' : `${track.fusionConfidence}%`}</dd>
         </div>
         <div>
           <dt>ETA</dt>
-          <dd>{track.etaToAsset}s</dd>
+          <dd>{track.etaAvailable === false ? 'N/A' : `${track.etaToAsset}s`}</dd>
         </div>
         <div>
           <dt>Action</dt>

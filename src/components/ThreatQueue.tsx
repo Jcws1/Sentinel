@@ -68,14 +68,16 @@ function TrackRow({
           </span>
           <span className="object-row__class mono">{track.threatClass}</span>
           <span className="object-row__eta mono">
-            <span
-              className="object-row__eta-bar"
-              style={{
-                width: `${Math.min(100, Math.max(8, ((90 - track.etaToAsset) / 90) * 100))}%`,
-              }}
-              aria-hidden="true"
-            />
-            {track.etaToAsset}s
+            {track.etaAvailable !== false && (
+              <span
+                className="object-row__eta-bar"
+                style={{
+                  width: `${Math.min(100, Math.max(8, ((90 - track.etaToAsset) / 90) * 100))}%`,
+                }}
+                aria-hidden="true"
+              />
+            )}
+            {track.etaAvailable === false ? 'ETA N/A' : `${track.etaToAsset}s`}
           </span>
           <span
             className={[
@@ -93,8 +95,8 @@ function TrackRow({
         <div className="object-row__secondary mono">
           <span>BRG {track.bearing}°</span>
           <span>{track.speed} m/s</span>
-          <span>ALT {track.altitude} m</span>
-          <span>FUS {track.fusionConfidence}%</span>
+          <span>ALT {track.altitudeAvailable === false ? 'N/A' : `${track.altitude} m`}</span>
+          <span>FUS {track.sourceConfidenceAvailable === false ? 'N/A' : `${track.fusionConfidence}%`}</span>
         </div>
 
         {rec && isSelected && (

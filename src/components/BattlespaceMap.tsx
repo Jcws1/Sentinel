@@ -1372,6 +1372,8 @@ function addOverlayLayers(map: MapboxMap) {
           '#3d9b6e',
           'prd_anchor',
           '#a855f7',
+          'gnss_constrained',
+          '#c4921a',
           '#8a8c90',
         ],
         'fill-opacity': [
@@ -1385,6 +1387,8 @@ function addOverlayLayers(map: MapboxMap) {
           0.2,
           'prd_anchor',
           0.16,
+          'gnss_constrained',
+          0.08,
           0.1,
         ],
       },
@@ -1406,6 +1410,8 @@ function addOverlayLayers(map: MapboxMap) {
           '#5fd49a',
           'prd_anchor',
           '#c084fc',
+          'gnss_constrained',
+          '#e0b84a',
           '#8a8c90',
         ],
         'line-width': [
@@ -1476,6 +1482,8 @@ function addOverlayLayers(map: MapboxMap) {
           '#8fd9b0',
           'prd_anchor',
           '#e9d5ff',
+          'gnss_constrained',
+          '#f0d78c',
           '#d8d9db',
         ],
         'text-halo-color': '#06070a',
@@ -2753,7 +2761,7 @@ export function BattlespaceMap() {
   }, [mapFocusRequest, mapReady])
 
   useEffect(() => {
-    const frameScenario = () => {
+    const frameScenario = (event: Event) => {
       const map = mapRef.current
       if (!mapReady || !map) return
       trailsRef.current.clear()
@@ -2762,7 +2770,10 @@ export function BattlespaceMap() {
         point.lat = point.targetLat
         point.alt = point.targetAlt
       }
-      map.fitBounds([[103.61, 1.11], [104.14, 1.48]], {
+      const requestedBounds = (event as CustomEvent<{
+        bounds?: [[number, number], [number, number]]
+      }>).detail?.bounds
+      map.fitBounds(requestedBounds ?? [[103.61, 1.11], [104.14, 1.48]], {
         padding: {
           top: 82,
           bottom: 112,
@@ -3784,9 +3795,14 @@ export function BattlespaceMap() {
             </span>
           </>
         ) : (
-          <span>
-            <i className="swatch swatch--prd" aria-hidden="true" /> PRD scenario
-          </span>
+          <>
+            <span>
+              <i className="swatch swatch--prd" aria-hidden="true" /> Exercise area
+            </span>
+            <span>
+              <i className="swatch swatch--gnss" aria-hidden="true" /> GNSS constrained
+            </span>
+          </>
         )}
         <span>
           <i className="swatch swatch--friendly" aria-hidden="true" /> Friendly

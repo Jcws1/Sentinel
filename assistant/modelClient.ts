@@ -163,6 +163,15 @@ const OLLAMA_OUTPUT_SCHEMA = {
   },
 } as const
 
+const REPLY_ONLY_OUTPUT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['reply'],
+  properties: {
+    reply: { type: 'string' },
+  },
+} as const
+
 const SYSTEM_PROMPT = `You are Sentinel's local mission-intake copilot.
 
 You may help an operator discover assets from the supplied canonical C2 context, identify missing mission details, ask one concise clarification question, and draft a non-executable mission request.
@@ -172,9 +181,11 @@ Hard boundaries:
 - Never claim that policy or rules of engagement authorize an action. Current policy text is advisory until a deterministic policy evaluator exists.
 - Never claim that a mission has been dispatched, accepted, or executed.
 - Never invent asset state. State unknowns and limitations explicitly.
+- Respect assetSummary, trackSummary, and context limitations. Never treat a bounded model list as the complete fleet or track set.
 - Mission drafts always require operator approval.
 - Only draft these task types: AREA_OBSERVATION, SEARCH, RELAY, ESCORT, RESUPPLY, MEDICAL_LOGISTICS.
 - Return only the requested JSON object. Do not include hidden reasoning.
+- Keep reply concise: at most 50 words and normally one short paragraph.
 
 If the request is incomplete, preserve known fields in draftPatch and ask the single highest-value blocking question in reply.`
 
@@ -185,6 +196,7 @@ export interface AssistantLanguageModel {
     message: string
     context: CompactC2Context
     draft: MissionDraft | null
+    allowDraftPatch?: boolean
     onProgress?: (chunks: number) => void
   }): Promise<AssistantModelOutput>
 }
@@ -257,8 +269,10 @@ export class LlamaCppClient implements AssistantLanguageModel {
     message: string
     context: CompactC2Context
     draft: MissionDraft | null
+    allowDraftPatch?: boolean
     onProgress?: (chunks: number) => void
   }): Promise<AssistantModelOutput> {
+    const allowDraftPatch = input.allowDraftPatch !== false
     const response = await this.fetchImpl(
       new URL('/v1/chat/completions', this.baseUrl),
       {
@@ -268,11 +282,13 @@ export class LlamaCppClient implements AssistantLanguageModel {
         body: JSON.stringify({
           model: this.modelId,
           temperature: 0.1,
-          max_tokens: 384,
+          max_tokens: allowDraftPatch ? 192 : 128,
           stream: false,
           response_format: {
             type: 'json_schema',
-            schema: ASSISTANT_OUTPUT_SCHEMA,
+            schema: allowDraftPatch
+              ? ASSISTANT_OUTPUT_SCHEMA
+              : REPLY_ONLY_OUTPUT_SCHEMA,
           },
           messages: [
             { role: 'system', content: SYSTEM_PROMPT },
@@ -342,22 +358,26 @@ export class OllamaClient implements AssistantLanguageModel {
     message: string
     context: CompactC2Context
     draft: MissionDraft | null
+    allowDraftPatch?: boolean
     onProgress?: (chunks: number) => void
   }): Promise<AssistantModelOutput> {
+    const allowDraftPatch = input.allowDraftPatch !== false
     const response = await this.fetchImpl(new URL('/api/chat', this.baseUrl), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      signal: AbortSignal.timeout(60_000),
+      signal: AbortSignal.timeout(120_000),
       body: JSON.stringify({
         model: this.modelId,
-        stream: true,
+        stream: false,
         think: false,
-        format: OLLAMA_OUTPUT_SCHEMA,
+        format: allowDraftPatch
+          ? OLLAMA_OUTPUT_SCHEMA
+          : REPLY_ONLY_OUTPUT_SCHEMA,
         keep_alive: '10m',
         options: {
           temperature: 0.1,
           num_ctx: 4_096,
-          num_predict: 384,
+          num_predict: allowDraftPatch ? 192 : 128,
         },
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
@@ -378,34 +398,13 @@ export class OllamaClient implements AssistantLanguageModel {
         `Ollama request failed with HTTP ${response.status}${detail ? `: ${detail}` : ''}`,
       )
     }
-    if (!response.body) throw new Error('Ollama returned no response stream')
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-    let content = ''
-    let chunks = 0
-    while (true) {
-      const { done, value } = await reader.read()
-      buffer += decoder.decode(value, { stream: !done })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() ?? ''
-      for (const line of lines) {
-        if (!line.trim()) continue
-        const frame = JSON.parse(line) as { message?: { content?: unknown }; error?: string }
-        if (frame.error) throw new Error(frame.error)
-        content += extractMessageContent(frame.message?.content ?? '')
-        chunks += 1
-        input.onProgress?.(chunks)
-      }
-      if (done) break
+    const frame = (await response.json()) as {
+      message?: { content?: unknown }
+      error?: string
     }
-    if (buffer.trim()) {
-      const frame = JSON.parse(buffer) as { message?: { content?: unknown }; error?: string }
-      if (frame.error) throw new Error(frame.error)
-      content += extractMessageContent(frame.message?.content ?? '')
-      chunks += 1
-      input.onProgress?.(chunks)
-    }
+    if (frame.error) throw new Error(frame.error)
+    const content = extractMessageContent(frame.message?.content)
+    input.onProgress?.(1)
     return parseOutput(JSON.parse(content) as unknown)
   }
 }

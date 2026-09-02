@@ -1,9 +1,74 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { activateDemoScenario, setDemoScenarioTimelineScale } from './demoScenarios'
-import { SINGAPORE_GNSS_FADE_SCENARIO_ID } from '../src/api/demoScenarioTypes'
-import { advanceGnssFadeScenario, advanceSimulation } from './simulation'
+import { activateDemoScenario, DEMO_SCENARIOS, setDemoScenarioTimelineScale } from './demoScenarios'
+import {
+  CHANGI_AIRSPACE_INCURSION_SCENARIO_ID,
+  MANDAI_GNSS_RECOVERY_SCENARIO_ID,
+  THALES_SWARMBREAKERS_01_SCENARIO_ID,
+  THALES_SWARMBREAKERS_03_SCENARIO_ID,
+  THALES_SWARMBREAKERS_04_SCENARIO_ID,
+} from '../src/api/demoScenarioTypes'
+import { advanceGnssFadeScenario, advanceSimulation, advanceThalesRadarReplay } from './simulation'
 import { createInitialState } from './state'
+
+test('scenario catalogue includes Singapore rehearsals and Thales radar replays', () => {
+  assert.equal(DEMO_SCENARIOS.length, 9)
+  assert.equal(DEMO_SCENARIOS.filter((scenario) => scenario.kind === 'gnss-fade').length, 2)
+  assert.equal(DEMO_SCENARIOS.filter((scenario) => scenario.kind === 'radar-replay').length, 3)
+  assert.ok(DEMO_SCENARIOS.every((scenario) => scenario.siteType && scenario.scale && scenario.c2Objective))
+})
+
+test('Thales 01 establishes its clustered swarm at the supplied source time', () => {
+  const state = createInitialState()
+  const runtime = activateDemoScenario(state, THALES_SWARMBREAKERS_01_SCENARIO_ID, 1_000)
+
+  assert.equal(state.tracks.length, 0)
+  assert.equal(runtime.initialInbound, 1)
+  advanceThalesRadarReplay(state, 2_000, 25.248)
+  assert.equal(state.tracks.length, 1)
+  assert.equal(state.tracks[0]?.estimatedGroupSize, 147)
+  assert.equal(state.tracks[0]?.sourceConfidenceAvailable, false)
+  assert.equal(state.tracks[0]?.altitudeAvailable, false)
+})
+
+test('Thales 03 keeps the aircraft-sized object separate from the swarm', () => {
+  const state = createInitialState()
+  activateDemoScenario(state, THALES_SWARMBREAKERS_03_SCENARIO_ID, 1_000)
+  advanceThalesRadarReplay(state, 2_000, 54)
+
+  assert.equal(state.tracks.length, 2)
+  assert.ok(state.tracks.some((track) => track.estimatedGroupSize === 1))
+  assert.ok(state.tracks.some((track) => (track.estimatedGroupSize ?? 0) > 100))
+})
+
+test('Thales 04 introduces the supplied 100 and 20 drone split tracks in sequence', () => {
+  const state = createInitialState()
+  activateDemoScenario(state, THALES_SWARMBREAKERS_04_SCENARIO_ID, 1_000)
+  state.scenario!.elapsedSeconds = 1_760
+  advanceThalesRadarReplay(state, 2_000, 5)
+  assert.equal(state.tracks.length, 2)
+  assert.ok(state.tracks.some((track) => (track.estimatedGroupSize ?? 0) >= 90))
+
+  state.scenario!.elapsedSeconds = 1_880
+  advanceThalesRadarReplay(state, 3_000, 5)
+  assert.equal(state.tracks.length, 3)
+  assert.ok(state.tracks.some((track) => (track.estimatedGroupSize ?? 0) <= 20))
+})
+
+test('Changi unknowns are first detected inside the protected airspace', () => {
+  const state = createInitialState()
+  activateDemoScenario(state, CHANGI_AIRSPACE_INCURSION_SCENARIO_ID, 1_000)
+
+  const unknowns = state.tracks.filter((track) => track.scenario?.affiliation === 'unknown')
+  assert.equal(unknowns.length, 2)
+  assert.ok(unknowns.every((track) => track.scenario?.ingress === 'internal'))
+  assert.ok(unknowns.every((track) => track.scenario?.phase === 'scattered'))
+  assert.equal(state.scenario?.scattered, 2)
+  assert.equal(
+    state.decisionLog.filter((entry) => entry.action === 'INTERNAL_TRACK_DETECTED').length,
+    2,
+  )
+})
 
 test('multi-vector demo seeds the requested forces and ingress vectors', () => {
   const state = createInitialState()
@@ -121,7 +186,7 @@ test('scenario tracks scatter at the border, impact, and disappear', () => {
 
 test('GNSS fade scenario seeds a distributed navigation patrol', () => {
   const state = createInitialState()
-  const runtime = activateDemoScenario(state, SINGAPORE_GNSS_FADE_SCENARIO_ID, 1_000)
+  const runtime = activateDemoScenario(state, MANDAI_GNSS_RECOVERY_SCENARIO_ID, 1_000)
 
   assert.equal(state.drones.length, 36)
   assert.equal(state.tracks.length, 0)
@@ -135,7 +200,7 @@ test('GNSS fade scenario seeds a distributed navigation patrol', () => {
 
 test('GNSS fade progresses through choppy, degraded, denied and validated recovery', () => {
   const state = createInitialState()
-  activateDemoScenario(state, SINGAPORE_GNSS_FADE_SCENARIO_ID, 1_000)
+  activateDemoScenario(state, MANDAI_GNSS_RECOVERY_SCENARIO_ID, 1_000)
   const runtime = state.scenario!
 
   runtime.elapsedSeconds = 44

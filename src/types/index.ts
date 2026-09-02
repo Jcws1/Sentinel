@@ -58,9 +58,14 @@ export interface ThreatTrack {
   fusionConfidence: number
   recommendedAction: string
   sensors: string[]
+  estimatedGroupSize?: number
+  sourceScenario?: string
+  etaAvailable?: boolean
+  sourceConfidenceAvailable?: boolean
+  altitudeAvailable?: boolean
   scenario?: {
     affiliation: 'unknown' | 'hostile'
-    ingress: 'south' | 'east'
+    ingress: 'south' | 'east' | 'internal'
     targetId: string
     targetName: string
     targetPosition: Position

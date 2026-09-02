@@ -44,7 +44,7 @@ async function forwardStream(
       method: 'POST',
       headers: { accept: 'application/x-ndjson', 'content-type': 'application/json' },
       body: JSON.stringify(req.body ?? {}),
-      signal: AbortSignal.timeout(70_000),
+      signal: AbortSignal.timeout(135_000),
     })
     res.status(response.status)
     res.type(response.headers.get('content-type') ?? 'application/x-ndjson')
@@ -81,7 +81,7 @@ export function registerAssistantProxyRoutes(
     forward(baseUrl, fetchImpl, req, res, '/api/v1/assistant/health', 3_000),
   )
   app.post('/api/v1/assistant/turn', (req, res) =>
-    forward(baseUrl, fetchImpl, req, res, '/api/v1/assistant/turn', 70_000),
+    forward(baseUrl, fetchImpl, req, res, '/api/v1/assistant/turn', 135_000),
   )
   app.post('/api/v1/assistant/turn/stream', (req, res) =>
     void forwardStream(baseUrl, fetchImpl, req, res),

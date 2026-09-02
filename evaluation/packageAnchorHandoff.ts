@@ -5,6 +5,7 @@ import path from 'node:path'
 const sourceRoot = path.resolve('evaluation/output/mun-frl-quarry1')
 const blindRoot = path.resolve('evaluation/output/anchor-blind-handoff')
 const internalRoot = path.resolve('evaluation/output/internal-evaluation')
+const scoringRoot = path.resolve('evaluation/output/anchor-scoring-handoff')
 
 function hash(value: Buffer | string): string {
   return createHash('sha256').update(value).digest('hex')
@@ -218,4 +219,237 @@ await Promise.all([
 internalFiles.push('INTERNAL_ACCURACY_REPORT.md', 'DEGRADATION_TIMELINE.private.md')
 await writeChecksums(internalRoot, internalFiles)
 
-console.log(JSON.stringify({ blindRoot, internalRoot }, null, 2))
+const scoringFiles = await copyFiles(scoringRoot, {
+  'gateway-gnss-degraded.telemetry.ndjson': 'uav-gps-cycle.gateway.ndjson',
+  'gnss-degraded.anchor-input.ndjson': 'uav-position-health.sidecar.ndjson',
+  'truth.private.ndjson': 'uav-ground-truth.ppk.ndjson',
+})
+await writeFile(
+  path.join(scoringRoot, 'gateway-handshake.json'),
+  `${JSON.stringify(handshake, null, 2)}\n`,
+)
+
+const gatewaySchema = {
+  $schema: 'https://json-schema.org/draft/2020-12/schema',
+  $id: 'https://sentinel.local/schemas/sentinel-sim-telemetry-frame-1.0.json',
+  title: 'Sentinel simulator telemetry frame',
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'protocol',
+    'protocolVersion',
+    'messageId',
+    'sequence',
+    'timestamp',
+    'scenarioId',
+    'type',
+    'data',
+  ],
+  properties: {
+    protocol: { const: 'sentinel-sim' },
+    protocolVersion: { const: '1.0' },
+    messageId: { type: 'string' },
+    sequence: { type: 'integer', minimum: 0 },
+    timestamp: { type: 'string', format: 'date-time' },
+    scenarioId: { type: 'string' },
+    type: { const: 'telemetry.frame' },
+    data: {
+      type: 'object',
+      required: [
+        'vehicleId',
+        'lifecycle',
+        'pose',
+        'navigationSource',
+        'updatedAt',
+      ],
+      properties: {
+        vehicleId: { type: 'string' },
+        lifecycle: { const: 'ACTIVE' },
+        navigationSource: { enum: ['GNSS', 'SIMULATED_VIO'] },
+        updatedAt: { type: 'string', format: 'date-time' },
+        pose: {
+          type: 'object',
+          required: [
+            'frame',
+            'eastM',
+            'northM',
+            'upM',
+            'rollRad',
+            'pitchRad',
+            'yawRad',
+          ],
+          properties: {
+            frame: { const: 'LOCAL_ENU' },
+            eastM: { type: 'number' },
+            northM: { type: 'number' },
+            upM: { type: 'number' },
+            rollRad: { type: 'number' },
+            pitchRad: { type: 'number' },
+            yawRad: { type: 'number' },
+          },
+        },
+      },
+    },
+  },
+}
+const healthSchema = {
+  $schema: 'https://json-schema.org/draft/2020-12/schema',
+  title: 'Sentinel evaluation position-health sidecar',
+  type: 'object',
+  required: [
+    'schemaVersion',
+    'vehicleId',
+    'sequence',
+    'sourceTimestampNs',
+    'frame',
+    'position',
+    'navigationSource',
+    'fixStatus',
+    'quality',
+    'provenance',
+  ],
+  properties: {
+    schemaVersion: { const: 'sentinel-position-evaluation/1.0' },
+    vehicleId: { type: 'string' },
+    sequence: { type: 'integer', minimum: 0 },
+    sourceTimestampNs: { type: 'string', pattern: '^[0-9]+$' },
+    navigationSource: { enum: ['GNSS', 'DEAD_RECKONING'] },
+    fixStatus: { enum: ['VALID', 'DEGRADED', 'UNAVAILABLE'] },
+    position: { $ref: '#/$defs/enu' },
+    quality: { type: 'object' },
+    provenance: {
+      type: 'object',
+      required: ['dataset', 'sequence', 'sourceRecord', 'sourceKind'],
+      properties: {
+        sourceKind: { enum: ['MEASURED', 'MODELLED'] },
+      },
+    },
+  },
+  $defs: {
+    enu: {
+      type: 'object',
+      required: ['eastM', 'northM', 'upM'],
+      properties: {
+        eastM: { type: 'number' },
+        northM: { type: 'number' },
+        upM: { type: 'number' },
+      },
+    },
+  },
+}
+const truthSchema = {
+  $schema: 'https://json-schema.org/draft/2020-12/schema',
+  title: 'Sentinel PPK ground-truth position frame',
+  type: 'object',
+  required: [
+    'schemaVersion',
+    'vehicleId',
+    'timestampNs',
+    'frameId',
+    'position',
+    'provenance',
+  ],
+  properties: {
+    schemaVersion: { const: 'sentinel-position-truth/1.0' },
+    vehicleId: { type: 'string' },
+    timestampNs: { type: 'string', pattern: '^[0-9]+$' },
+    frameId: { const: 'MUN_FRL_QUARRY1_ENU' },
+    position: {
+      type: 'object',
+      required: ['eastM', 'northM', 'upM'],
+      properties: {
+        eastM: { type: 'number' },
+        northM: { type: 'number' },
+        upM: { type: 'number' },
+      },
+    },
+    provenance: {
+      type: 'object',
+      required: ['sourceKind', 'instrument'],
+      properties: {
+        sourceKind: { const: 'MEASURED' },
+        instrument: { type: 'string' },
+        statedAccuracyM: { type: 'number', minimum: 0 },
+      },
+    },
+  },
+}
+
+const scoringReadme = `# Sentinel one-UAV GPS-cycle scoring handoff
+
+This package answers Anchor's request for a handshake/schema, one short UAV
+recording containing normal GNSS, controlled degradation, loss, and recovery,
+and a separate time-aligned position reference.
+
+## Files to replay and score
+
+- \`uav-gps-cycle.gateway.ndjson\`: the exact existing \`sentinel-sim\`
+  gateway envelope. Replay this into Anchor, one JSON object per line.
+- \`uav-position-health.sidecar.ndjson\`: evaluation-only health metadata keyed
+  by the same UAV ID, sequence, and source timestamp. It is not part of the
+  current gateway contract.
+- \`uav-ground-truth.ppk.ndjson\`: separate measured PPK reference. Interpolate
+  it to each candidate \`sourceTimestampNs\` to score position error.
+- \`gateway-handshake.json\`: local ENU origin and protocol information.
+- \`*.schema.json\`: machine-readable schemas for all three record types.
+
+## One-UAV timeline
+
+| Elapsed time | State | Classification |
+|---|---|---|
+| 0–30 s | Raw onboard GNSS baseline; the opening motor/takeoff records precede P-GPS flight state | MEASURED |
+| 30–45 s | Increasing deterministic position disturbance | MODELLED |
+| 45–85 s | GNSS unavailable; dead-reckoning drift and fix age increase | MODELLED |
+| 85–100 s | GNSS recovery with decaying validation offset | MODELLED |
+| 100 s–end | Raw onboard GNSS restored | MEASURED |
+
+## Important semantics
+
+- UAV ID: \`MUN-FRL-QUARRY1-UAV\` in every stream.
+- Gateway \`timestamp\` is ISO-8601 UTC; sidecar/truth timestamps are decimal
+  nanoseconds since Unix epoch UTC.
+- Position is local ENU in metres: east, north, up from the handshake origin.
+- Gateway \`sequence\` and sidecar \`sequence\` are monotonic and correspond
+  one-to-one. PPK truth is an independent 5 Hz stream and has no sequence join.
+- The gateway maps evaluation dead reckoning to \`SIMULATED_VIO\`, the closest
+  value in the existing simulator contract. The sidecar preserves the more
+  precise \`DEAD_RECKONING\` and \`UNAVAILABLE\` labels.
+- Attitude values in the gateway file are zero placeholders because the public
+  source did not expose attitude. Do not score them.
+- No measured velocity or odometry was available. None has been invented.
+- Satellite count in the sidecar is measured during the real source segment and
+  explicitly MODELLED as zero during denial. Reported uncertainty/fix age in
+  faulted phases are MODELLED test inputs, not measured sensor accuracy.
+- PPK and onboard DJI GNSS are related GNSS sources, so common-mode GNSS errors
+  are not independently observable. PPK remains separate from replay input.
+
+This is a scoring handoff, not a blind evaluation: Anchor is intentionally
+receiving the reference track. Use a later unseen recording for unbiased final
+accept/dead-reckon/withhold evaluation.
+`
+
+await Promise.all([
+  writeFile(path.join(scoringRoot, 'README.md'), scoringReadme),
+  writeFile(
+    path.join(scoringRoot, 'gateway-event.schema.json'),
+    `${JSON.stringify(gatewaySchema, null, 2)}\n`,
+  ),
+  writeFile(
+    path.join(scoringRoot, 'position-health-sidecar.schema.json'),
+    `${JSON.stringify(healthSchema, null, 2)}\n`,
+  ),
+  writeFile(
+    path.join(scoringRoot, 'ground-truth.schema.json'),
+    `${JSON.stringify(truthSchema, null, 2)}\n`,
+  ),
+])
+scoringFiles.push(
+  'gateway-handshake.json',
+  'README.md',
+  'gateway-event.schema.json',
+  'position-health-sidecar.schema.json',
+  'ground-truth.schema.json',
+)
+await writeChecksums(scoringRoot, scoringFiles)
+
+console.log(JSON.stringify({ blindRoot, internalRoot, scoringRoot }, null, 2))

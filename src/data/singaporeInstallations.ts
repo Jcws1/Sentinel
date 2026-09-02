@@ -11,6 +11,7 @@ export type InstallationKind =
   | 'military_land'
   | 'military_naval'
   | 'prd_anchor'
+  | 'gnss_constrained'
 
 export interface InstallationProps {
   id: string
@@ -331,16 +332,16 @@ const LAND_BASES: InstallationFeature[] = [
   ),
 ]
 
-/** PRD scenario geographic anchors — shown on Scenarios tab only. */
+/** Scenario areas and broad GNSS-constrained environments shown on the Scenarios tab only. */
 const PRD_SCENARIO_ANCHORS: InstallationFeature[] = [
   ...site(
     {
       id: 'prd-changi-naval',
-      name: 'Changi Naval Base sector',
-      shortName: 'SWARM INBOUND',
+      name: 'Changi aviation sector',
+      shortName: 'AIRSPACE INCURSION',
       kind: 'prd_anchor',
-      prdScenario: 'Swarm Inbound',
-      source: 'Sentinel PRD · Changi Naval Base',
+      prdScenario: '1-3 tracks',
+      source: 'Sentinel scenario exercise · aviation sector',
     },
     104.026,
     1.318,
@@ -350,10 +351,10 @@ const PRD_SCENARIO_ANCHORS: InstallationFeature[] = [
     {
       id: 'prd-jurong-island',
       name: 'Jurong Island',
-      shortName: 'HEDGEHOG',
+      shortName: 'INFRASTRUCTURE ALERT',
       kind: 'prd_anchor',
-      prdScenario: 'Hedgehog Warning',
-      source: 'Sentinel PRD · Jurong Island',
+      prdScenario: '3-8 tracks',
+      source: 'Sentinel scenario exercise · critical infrastructure',
     },
     103.705,
     1.27,
@@ -362,11 +363,11 @@ const PRD_SCENARIO_ANCHORS: InstallationFeature[] = [
   ...site(
     {
       id: 'prd-tengah-town',
-      name: 'Tengah New Town',
-      shortName: 'BLIND ZONE',
+      name: 'Tengah urban sector',
+      shortName: 'URBAN BLIND SPOT',
       kind: 'prd_anchor',
-      prdScenario: 'Blind Zone Mapping',
-      source: 'Sentinel PRD · Tengah',
+      prdScenario: 'GNSS constrained',
+      source: 'Sentinel scenario exercise · urban environment',
     },
     103.715,
     1.375,
@@ -376,10 +377,10 @@ const PRD_SCENARIO_ANCHORS: InstallationFeature[] = [
     {
       id: 'prd-pulau-ubin',
       name: 'Pulau Ubin',
-      shortName: 'SURGICAL STRIKE',
+      shortName: 'PERIMETER BREACH',
       kind: 'prd_anchor',
-      prdScenario: 'Surgical Strike',
-      source: 'Sentinel PRD · Pulau Ubin',
+      prdScenario: '1-4 tracks',
+      source: 'Sentinel scenario exercise · maritime perimeter',
     },
     103.96,
     1.409,
@@ -389,10 +390,10 @@ const PRD_SCENARIO_ANCHORS: InstallationFeature[] = [
     {
       id: 'prd-safti',
       name: 'SAFTI Live Firing Area',
-      shortName: 'SATURATION',
+      shortName: 'MULTI-WAVE SATURATION',
       kind: 'prd_anchor',
-      prdScenario: 'Overwhelming Wave',
-      source: 'Sentinel PRD · SAFTI',
+      prdScenario: '20-60 tracks',
+      source: 'Sentinel scenario exercise · response sector',
     },
     103.685,
     1.345,
@@ -401,15 +402,45 @@ const PRD_SCENARIO_ANCHORS: InstallationFeature[] = [
   ...site(
     {
       id: 'prd-mandai',
-      name: 'Mandai Jungle Corridor',
-      shortName: 'DENIED OPS',
+      name: 'Mandai canopy corridor',
+      shortName: 'GNSS RECOVERY',
       kind: 'prd_anchor',
-      prdScenario: 'Fighting Blind',
-      source: 'Sentinel PRD · Mandai',
+      prdScenario: 'Fallback navigation',
+      source: 'Sentinel scenario exercise · canopy environment',
     },
     103.78,
     1.405,
     { radiusM: 1400 },
+  ),
+]
+
+/** General GNSS signal-constrained context, not verified interference or denial zones. */
+const GNSS_CONSTRAINED_AREAS: InstallationFeature[] = [
+  ...site(
+    {
+      id: 'gnss-cbd-urban-canyon',
+      name: 'Dense urban environment',
+      shortName: 'GNSS CONSTRAINED',
+      kind: 'gnss_constrained',
+      prdScenario: 'Urban canyon / indoor context',
+      source: 'Sentinel context layer · broad environment classification',
+    },
+    103.852,
+    1.292,
+    { radiusM: 1600 },
+  ),
+  ...site(
+    {
+      id: 'gnss-mandai-canopy',
+      name: 'Canopy environment',
+      shortName: 'GNSS CONSTRAINED',
+      kind: 'gnss_constrained',
+      prdScenario: 'Canopy context',
+      source: 'Sentinel context layer · broad environment classification',
+    },
+    103.78,
+    1.405,
+    { radiusM: 2100 },
   ),
 ]
 
@@ -426,14 +457,14 @@ export const PRD_SCENARIOS: {
   features: InstallationFeature[]
 } = {
   type: 'FeatureCollection',
-  features: PRD_SCENARIO_ANCHORS,
+  features: [...PRD_SCENARIO_ANCHORS, ...GNSS_CONSTRAINED_AREAS],
 }
 
 /** @deprecated use MILITARY_BASES or filter by map overlay tab */
 export const SINGAPORE_INSTALLATIONS = MILITARY_BASES
 
 export const INSTALLATIONS_ATTRIBUTION =
-  'Bases: Wikipedia/ICAO/OSM open listings · Scenarios: Sentinel PRD anchors'
+  'Bases: Wikipedia/ICAO/OSM open listings · Scenarios: Sentinel exercise and GNSS context layers'
 
 export function installationsForTab(tab: 'bases' | 'scenarios') {
   return tab === 'scenarios' ? PRD_SCENARIOS : MILITARY_BASES

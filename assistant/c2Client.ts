@@ -34,6 +34,8 @@ export class ReadOnlyC2Client {
   async getCompactContext(): Promise<CompactC2Context> {
     const snapshot = await this.getSnapshot()
     const retrievedAt = new Date().toISOString()
+    const modelAssets = snapshot.drones.slice(0, 3)
+    const modelTracks = snapshot.tracks.slice(0, 5)
     return {
       retrievedAt,
       source: 'SENTINEL_C2_CANONICAL_SNAPSHOT',
@@ -43,7 +45,7 @@ export class ReadOnlyC2Client {
         c2Link: snapshot.mission.c2Link,
         gnss: snapshot.mission.gnss,
       },
-      assets: snapshot.drones.map((drone) => ({
+      assets: modelAssets.map((drone) => ({
         assetId: drone.id,
         displayName: drone.displayName || drone.id,
         platformType: drone.type,
@@ -55,7 +57,11 @@ export class ReadOnlyC2Client {
         assignedMissionId: drone.assignedTrackId,
         lifecycle: drone.lifecycle || 'UNKNOWN',
       })),
-      tracks: snapshot.tracks.slice(0, 50).map((track) => ({
+      assetSummary: {
+        totalReporting: snapshot.drones.length,
+        includedInModelContext: modelAssets.length,
+      },
+      tracks: modelTracks.map((track) => ({
         trackId: track.id,
         threatClass: String(track.threatClass),
         position: track.position,
@@ -66,6 +72,10 @@ export class ReadOnlyC2Client {
         contributingSensors: track.sensors.slice(0, 8),
         alert: snapshot.alertTrackIds.includes(track.id),
       })),
+      trackSummary: {
+        totalReporting: snapshot.tracks.length,
+        includedInModelContext: modelTracks.length,
+      },
       policy: {
         summary: snapshot.policy.summary.slice(0, 20),
         machineEvaluable: false,
@@ -74,6 +84,12 @@ export class ReadOnlyC2Client {
       },
       limitations: [
         'The assistant receives the canonical C2 snapshot only.',
+        ...(snapshot.drones.length > modelAssets.length
+          ? [`The model context includes ${modelAssets.length} of ${snapshot.drones.length} reporting assets; use deterministic asset queries for the complete fleet.`]
+          : []),
+        ...(snapshot.tracks.length > modelTracks.length
+          ? [`The model context includes ${modelTracks.length} of ${snapshot.tracks.length} reporting tracks; use deterministic threat queries for the complete track set.`]
+          : []),
         'No Gazebo truth, sensor-simulator control API, raw MAVLink, or execution endpoint is available.',
         'Current asset records do not yet carry complete observation-time and commandability metadata.',
         'Current fused track records do not yet carry per-track observation timestamps, affiliation evidence, or authoritative identity.',

@@ -6812,6 +6812,14 @@ button {
   min-height: 200px;
 }
 
+.swatch--gnss {
+  width: 8px;
+  height: 8px;
+  background: rgba(196, 146, 26, 0.16);
+  border: 1px solid #e0b84a;
+  border-radius: 50%;
+}
+
 /* Built-in operational rehearsals opened from Utilities. */
 .scenarios-workspace {
   position: absolute;
@@ -6909,6 +6917,23 @@ button {
   color: var(--text-dim);
   font-size: 10px;
   line-height: 1.55;
+}
+.scenarios-workspace__context {
+  padding: 10px 14px;
+  border-top: var(--hairline);
+  background: rgba(143, 183, 255, .045);
+}
+.scenarios-workspace__context span {
+  color: #8fb7ff;
+  font: 700 7px/1 var(--mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.scenarios-workspace__context p {
+  margin: 7px 0 0;
+  color: var(--text-dim);
+  font-size: 9px;
+  line-height: 1.45;
 }
 
 .scenarios-workspace__forces,
@@ -7018,6 +7043,15 @@ button {
   margin: 0;
   color: #f0f2f5;
   font: 600 13px/1 var(--mono);
+}
+.scenarios-workspace__radar progress { accent-color: #8fb7ff; }
+.scenarios-workspace__radar dl { grid-template-columns: repeat(3, 1fr); }
+.scenarios-workspace__quality {
+  margin: 14px -14px -14px;
+  padding: 10px 14px;
+  border-top: var(--hairline);
+  color: #e0b84a;
+  font: 8px/1.5 var(--mono);
 }
 .scenarios-workspace__timeline {
   padding: 13px 14px 14px;

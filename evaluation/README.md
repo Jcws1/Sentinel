@@ -36,6 +36,9 @@ The package step creates two deliberately separate folders:
   receive before returning decisions.
 - `evaluation/output/internal-evaluation/` contains the private sidecars,
   degradation timeline, normalized output, and accuracy report.
+- `evaluation/output/anchor-scoring-handoff/` contains one complete GNSS cycle,
+  its evaluation-only position-health sidecar, and a separate measured PPK
+  reference for Anchor's requested non-blind replay scoring.
 
 The current primary result is a temporal holdout: the first 30 seconds are used
 to calibrate clock offset and vertical datum, and only later samples are scored.

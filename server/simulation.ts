@@ -1,10 +1,16 @@
 import { buildRecommendation } from '../src/utils/tasking'
 import {
-  SINGAPORE_GNSS_FADE_SCENARIO_ID,
+  GNSS_FADE_SCENARIO_IDS,
   type GnssFadePhase,
 } from '../src/api/demoScenarioTypes'
-import type { Position, TaskingRecommendation } from '../src/types'
+import type { Position, TaskingRecommendation, ThreatTrack } from '../src/types'
 import type { C2State } from './state'
+import {
+  THALES_RADAR_REPLAY_IDS,
+  thalesRadarReplay,
+  type RadarReplayKeyframe,
+  type RadarReplayTrack,
+} from './thalesRadarReplays'
 
 const SIMULATION_TICK_SECONDS = 0.4
 const IMPACT_VISIBLE_MS = 2_400
@@ -117,6 +123,127 @@ function interpolatePosition(from: Position, to: Position, time: number): Positi
     lng: from.lng + (to.lng - from.lng) * time,
     lat: from.lat + (to.lat - from.lat) * time,
     alt: from.alt + (to.alt - from.alt) * time,
+  }
+}
+
+function radarReplayFrame(
+  track: RadarReplayTrack,
+  elapsedSeconds: number,
+): { position: Position; estimatedObjects: number; bearing: number; speed: number } | null {
+  const first = track.keyframes[0]
+  const last = track.keyframes[track.keyframes.length - 1]
+  if (!first || !last || elapsedSeconds < first.t || elapsedSeconds > last.t) return null
+
+  let from: RadarReplayKeyframe = first
+  let to: RadarReplayKeyframe = last
+  for (let index = 1; index < track.keyframes.length; index += 1) {
+    const candidate = track.keyframes[index]!
+    if (candidate.t >= elapsedSeconds) {
+      to = candidate
+      from = track.keyframes[index - 1]!
+      break
+    }
+  }
+  const duration = Math.max(0.001, to.t - from.t)
+  const progress = Math.max(0, Math.min(1, (elapsedSeconds - from.t) / duration))
+  const fromPosition = { lng: from.lon, lat: from.lat, alt: 0 }
+  const toPosition = { lng: to.lon, lat: to.lat, alt: 0 }
+  return {
+    position: interpolatePosition(fromPosition, toPosition, progress),
+    estimatedObjects: from.estimatedObjects + (to.estimatedObjects - from.estimatedObjects) * progress,
+    bearing: bearingTo(fromPosition, toPosition),
+    speed: distanceMeters(fromPosition, toPosition) / duration,
+  }
+}
+
+function radarReplayThreat(
+  replayId: string,
+  track: RadarReplayTrack,
+  frame: NonNullable<ReturnType<typeof radarReplayFrame>>,
+  remainingSeconds: number,
+): ThreatTrack {
+  const last = track.keyframes[track.keyframes.length - 1]!
+  return {
+    id: `THALES-${replayId.slice(-2)}-${track.id}`,
+    threatClass: track.role === 'aircraft' ? 'I' : 'III',
+    position: frame.position,
+    bearing: Math.round(frame.bearing),
+    speed: Math.round(frame.speed * 10) / 10,
+    altitude: 0,
+    etaToAsset: Math.max(0, Math.round(remainingSeconds)),
+    fusionConfidence: 0,
+    recommendedAction: 'Hold',
+    sensors: ['Thales simulated ground radar'],
+    estimatedGroupSize: Math.max(1, Math.round(frame.estimatedObjects)),
+    sourceScenario: replayId,
+    etaAvailable: false,
+    sourceConfidenceAvailable: false,
+    altitudeAvailable: false,
+    scenario: {
+      affiliation: 'unknown',
+      ingress: 'internal',
+      targetId: `${replayId}-${track.id}-end`,
+      targetName: 'End of supplied radar track',
+      targetPosition: { lng: last.lon, lat: last.lat, alt: 0 },
+      entryPosition: { ...frame.position },
+      phase: 'inbound',
+      currentSpeed: frame.speed,
+    },
+  }
+}
+
+export function advanceThalesRadarReplay(state: C2State, now: number, stepSeconds: number): void {
+  const runtime = state.scenario
+  if (!runtime?.active || !THALES_RADAR_REPLAY_IDS.includes(runtime.id)) return
+  const replay = thalesRadarReplay(runtime.id)
+  if (!replay) return
+
+  const elapsed = Math.min(replay.durationSeconds, (runtime.elapsedSeconds ?? 0) + stepSeconds)
+  const previousIds = new Set(state.tracks.map((track) => track.id))
+  const nextTracks: ThreatTrack[] = []
+  for (const sourceTrack of replay.tracks) {
+    const frame = radarReplayFrame(sourceTrack, elapsed)
+    if (!frame) continue
+    const lastTime = sourceTrack.keyframes[sourceTrack.keyframes.length - 1]!.t
+    const track = radarReplayThreat(replay.id, sourceTrack, frame, lastTime - elapsed)
+    nextTracks.push(track)
+    if (!previousIds.has(track.id)) {
+      state.decisionLog.unshift({
+        id: `log-${now}-${track.id}-established`,
+        timestamp: now,
+        actor: 'system',
+        action: 'RADAR_TRACK_ESTABLISHED',
+        detail: `${track.id} established from clustered replay data; estimated group size ${track.estimatedGroupSize}`,
+      })
+    }
+  }
+
+  const nextIds = new Set(nextTracks.map((track) => track.id))
+  for (const previousId of previousIds) {
+    if (!nextIds.has(previousId)) {
+      state.decisionLog.unshift({
+        id: `log-${now}-${previousId}-ended`,
+        timestamp: now,
+        actor: 'system',
+        action: 'RADAR_TRACK_ENDED',
+        detail: `${previousId} reached the end of its supplied measurement-updated track`,
+      })
+    }
+  }
+
+  state.tracks = nextTracks
+  state.recommendations = []
+  runtime.elapsedSeconds = elapsed
+  runtime.sourceTimeSeconds = elapsed
+  runtime.radarTrackCount = nextTracks.length
+  runtime.estimatedObjects = nextTracks.reduce(
+    (total, track) => total + (track.estimatedGroupSize ?? 1),
+    0,
+  )
+  runtime.remainingInbound = nextTracks.length
+  if (elapsed >= replay.durationSeconds) {
+    runtime.active = false
+    runtime.completedAt = now
   }
 }
 
@@ -256,7 +383,7 @@ const GNSS_PHASE_DETAILS: Record<GnssFadePhase, string> = {
 
 export function advanceGnssFadeScenario(state: C2State, now: number, stepSeconds: number): void {
   const runtime = state.scenario
-  if (!runtime?.active || runtime.id !== SINGAPORE_GNSS_FADE_SCENARIO_ID) return
+  if (!runtime?.active || !GNSS_FADE_SCENARIO_IDS.includes(runtime.id as typeof GNSS_FADE_SCENARIO_IDS[number])) return
 
   runtime.elapsedSeconds = Math.min(360, (runtime.elapsedSeconds ?? 0) + stepSeconds)
   const previousPhase = runtime.gnssPhase ?? 'BASELINE'
@@ -520,10 +647,10 @@ export function advanceSimulation(
     const radius =
       drone.type === 'Scout' ? 0.004 : drone.type === 'Relay' ? 0.0015 : 0.0025
     const offset = orbitOffset(state.tick * 0.02, radius, phase)
-    const orbitCenter = state.scenario?.id === SINGAPORE_GNSS_FADE_SCENARIO_ID
+    const orbitCenter = state.scenario && GNSS_FADE_SCENARIO_IDS.includes(state.scenario.id as typeof GNSS_FADE_SCENARIO_IDS[number])
       ? (drone.scenarioAnchor ?? drone.position)
       : asset
-    const orbitScale = state.scenario?.id === SINGAPORE_GNSS_FADE_SCENARIO_ID ? 0.35 : 1
+    const orbitScale = state.scenario && GNSS_FADE_SCENARIO_IDS.includes(state.scenario.id as typeof GNSS_FADE_SCENARIO_IDS[number]) ? 0.35 : 1
     drone.position = {
       lng: drone.position.lng * 0.98 + (orbitCenter.lng + offset.lng * orbitScale) * 0.02,
       lat: drone.position.lat * 0.98 + (orbitCenter.lat + offset.lat * orbitScale) * 0.02,
@@ -532,8 +659,10 @@ export function advanceSimulation(
   }
 
   if (!hold && state.scenario?.active) {
-    if (state.scenario.id === SINGAPORE_GNSS_FADE_SCENARIO_ID) {
+    if (GNSS_FADE_SCENARIO_IDS.includes(state.scenario.id as typeof GNSS_FADE_SCENARIO_IDS[number])) {
       advanceGnssFadeScenario(state, now, stepSeconds)
+    } else if (THALES_RADAR_REPLAY_IDS.includes(state.scenario.id)) {
+      advanceThalesRadarReplay(state, now, stepSeconds)
     } else {
       advanceScenarioTracks(state, now, stepSeconds)
     }

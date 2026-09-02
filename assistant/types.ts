@@ -105,7 +105,15 @@ export interface CompactC2Context {
     gnss: string
   }
   assets: CompactAssetState[]
+  assetSummary?: {
+    totalReporting: number
+    includedInModelContext: number
+  }
   tracks: CompactThreatTrack[]
+  trackSummary?: {
+    totalReporting: number
+    includedInModelContext: number
+  }
   policy: {
     summary: string[]
     machineEvaluable: false

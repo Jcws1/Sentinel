@@ -526,11 +526,11 @@ function HostileObjectRow({
           <dl className="field-nav__hostile-stats">
             <div>
               <dt>ETA</dt>
-              <dd>{track.etaToAsset}s</dd>
+              <dd>{track.etaAvailable === false ? 'N/A' : `${track.etaToAsset}s`}</dd>
             </div>
             <div>
               <dt>Fusion</dt>
-              <dd>{track.fusionConfidence}%</dd>
+              <dd>{track.sourceConfidenceAvailable === false ? 'N/A' : `${track.fusionConfidence}%`}</dd>
             </div>
             <div>
               <dt>Speed</dt>
