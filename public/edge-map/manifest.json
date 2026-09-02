@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "sentinel-sg-osm-2026-07-18",
+  "generatedAt": "2026-07-18T08:55:36Z",
+  "refreshAfter": "2026-08-18T08:55:36Z",
+  "coverage": {
+    "name": "Singapore / Johor operational area",
+    "bounds": [103.45, 1.10, 104.25, 1.65],
+    "maxZoom": 15
+  },
+  "resources": {
+    "basemap": true,
+    "buildings": true,
+    "terrain": true,
+    "imagery": false,
+    "glyphs": "local"
+  },
+  "attribution": [
+    "OpenStreetMap contributors",
+    "Protomaps basemap",
+    "Sentinel local operational map pack"
+  ],
+  "style": "style.json"
+}

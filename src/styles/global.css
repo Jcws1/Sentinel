@@ -1,0 +1,231 @@
+@import "tailwindcss";
+@import "./tokens.css";
+@import "./fonts.css";
+
+/* MapLibre ships its own stylesheet. It is imported here rather than in the
+   map module so the cascade order is explicit: library styles first, our
+   overrides after. */
+@import "maplibre-gl/dist/maplibre-gl.css";
+
+/* ---------------------------------------------------------------------------
+   Base
+--------------------------------------------------------------------------- */
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    /* The console owns the viewport. Nothing scrolls at the document level;
+       scrolling happens inside panels. */
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  body {
+    background-color: var(--color-surface-0);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    line-height: var(--text-sm--line-height);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+
+    /* cv05 gives lowercase `l` a tail, separating it from `1` and `I`. At
+       11px in a console where a misread identifier is an operational error,
+       that disambiguation is worth more than the default drawing. */
+    font-feature-settings: "cv05" 1;
+  }
+
+  /* Chrome is not selectable text. Panels opt content back in with
+     .select-text where an operator genuinely needs to copy a value. */
+  body {
+    user-select: none;
+    cursor: default;
+  }
+
+  /* One focus treatment for the whole app: a hairline ring, keyboard only. */
+  :focus {
+    outline: none;
+  }
+
+  :focus-visible {
+    outline: 1px solid var(--color-border-focus);
+    outline-offset: 1px;
+    border-radius: var(--radius-xs);
+  }
+
+  /* Numerics never reflow as they tick. */
+  code,
+  kbd,
+  samp,
+  pre,
+  .tabular {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1, "zero" 1;
+  }
+
+  /* Thin, unobtrusive scrollbars inside panels. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-strong) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--color-border-strong);
+    border-radius: var(--radius-full);
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Utilities
+   Two compound treatments used often enough, and consistently enough, that
+   repeating them at call sites would let them drift apart.
+--------------------------------------------------------------------------- */
+
+@utility panel-surface {
+  background-color: var(--color-panel);
+  backdrop-filter: blur(var(--panel-blur)) saturate(var(--panel-saturate));
+  -webkit-backdrop-filter: blur(var(--panel-blur)) saturate(var(--panel-saturate));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-panel);
+}
+
+@utility label-caps {
+  font-size: var(--text-2xs);
+  line-height: var(--text-2xs--line-height);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+/* ---------------------------------------------------------------------------
+   Radix state animations
+   Keyed off the data-state attributes Radix sets. Opacity only, so one rule
+   covers every `side` a popover can open on.
+--------------------------------------------------------------------------- */
+
+@layer components {
+  .tooltip-content[data-state='delayed-open'],
+  .tooltip-content[data-state='instant-open'] {
+    animation: fade-in var(--duration-instant) var(--ease-out);
+  }
+
+  .tooltip-content[data-state='closed'] {
+    animation: fade-out var(--duration-instant) var(--ease-out);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Operators running long shifts on a moving vehicle; respect the OS setting. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Cesium credit line
+
+   Google's attribution is a licence condition, so it has to be visible and
+   unobstructed whenever its tiles are on screen. Two things fight that:
+   Cesium renders credits bottom-LEFT, which is where the cursor-mode palette
+   sits, and it positions them absolutely, which collapses any wrapper to zero
+   size and lets the content overflow off-screen. Both are corrected here.
+--------------------------------------------------------------------------- */
+
+@layer components {
+  .sentinel-cesium-credit {
+    position: absolute;
+    right: 8px;
+    bottom: 4px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--text-2xs);
+    color: rgb(255 255 255 / 0.75);
+    /* The mesh underneath is photographic and can be any brightness, so the
+       credit needs its own contrast rather than relying on the ground. */
+    text-shadow: 0 1px 2px rgb(0 0 0 / 0.9);
+  }
+
+  /* Undo Cesium's absolute positioning so the wrapper actually has a size. */
+  .sentinel-cesium-credit .cesium-widget-credits {
+    position: static !important;
+    display: flex !important;
+    align-items: center;
+    gap: 6px;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .sentinel-cesium-credit a {
+    color: rgb(255 255 255 / 0.75);
+  }
+
+  .sentinel-cesium-credit img {
+    vertical-align: middle;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   MapLibre overrides
+   The library's default controls and attribution are light-themed and sized
+   for a consumer map. Neutralise them here so no component has to.
+--------------------------------------------------------------------------- */
+
+@layer components {
+  .maplibregl-map {
+    font-family: var(--font-sans);
+  }
+
+  .maplibregl-canvas {
+    outline: none;
+  }
+
+  .maplibregl-ctrl-attrib {
+    background-color: var(--color-panel) !important;
+    color: var(--color-text-tertiary);
+    font-size: var(--text-2xs);
+    border-radius: var(--radius-xs);
+  }
+
+  .maplibregl-ctrl-attrib a {
+    color: var(--color-text-tertiary);
+  }
+}

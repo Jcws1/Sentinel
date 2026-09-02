@@ -1,0 +1,17 @@
+{
+  "version": 8,
+  "name": "Sentinel Void",
+  "metadata": {
+    "sentinel:note": "Zero-dependency fallback. No sources, no glyphs, no sprite, no network. This is what the console shows on an edge node with no tile bundle provisioned: an empty geographic void that deck.gl overlays still render correctly over."
+  },
+  "sources": {},
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "#0a0b0d"
+      }
+    }
+  ]
+}

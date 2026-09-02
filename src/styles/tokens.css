@@ -1,0 +1,204 @@
+/* ---------------------------------------------------------------------------
+   Sentinel v2 — design tokens
+   Single source of truth. Nothing downstream defines a colour, a size, a
+   radius or a duration; it reads one of these.
+
+   Declared inside Tailwind's @theme so each token also generates a utility
+   (--color-surface-1 -> bg-surface-1, text-surface-1, border-surface-1).
+   The default Tailwind palette and type scale are reset to `initial` on
+   purpose: if a hue is not listed here it cannot be used by accident.
+--------------------------------------------------------------------------- */
+
+@theme {
+  /* -- reset Tailwind defaults ------------------------------------------- */
+  --color-*: initial;
+  --font-*: initial;
+  --text-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+
+  /* == COLOUR ============================================================ */
+
+  /* Absolutes. Used to build alphas, not applied directly. */
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --color-black: #000000;
+  --color-white: #ffffff;
+
+  /* -- Opaque surfaces ---------------------------------------------------
+     surface-0 is the ground the map sits on and the colour a blank viewport
+     shows. Never pure black: pure black flattens against an OLED bezel and
+     kills the sense of depth the panel layer depends on. */
+  --color-surface-0: #0a0b0d;
+  --color-surface-1: #0e1013;
+  --color-surface-2: #14171b;
+  --color-surface-3: #1b1f24;
+
+  /* -- Translucent surfaces (the floating panel layer) --------------------
+     These sit over live map imagery, so they are alpha + backdrop-blur, not
+     flat fills. Tuned so 12px type stays legible over both dark water and
+     bright terrain. */
+  --color-panel: rgb(12 14 17 / 0.84);
+  --color-panel-header: rgb(20 23 27 / 0.86);
+  --color-panel-inset: rgb(0 0 0 / 0.28);
+  --color-rail: rgb(10 11 13 / 0.92);
+  --color-scrim: rgb(6 7 9 / 0.64);
+
+  /* -- Borders -----------------------------------------------------------
+     White alphas, not grey hexes: they read correctly over an opaque surface
+     and over a translucent panel alike. Deliberately near the threshold of
+     visibility — structure should be felt, not drawn. */
+  --color-border-faint: rgb(255 255 255 / 0.045);
+  --color-border: rgb(255 255 255 / 0.08);
+  --color-border-strong: rgb(255 255 255 / 0.14);
+  --color-border-focus: rgb(255 255 255 / 0.42);
+
+  /* -- Text ramp ---------------------------------------------------------- */
+  --color-text: rgb(255 255 255 / 0.92);
+  --color-text-secondary: rgb(255 255 255 / 0.62);
+  --color-text-tertiary: rgb(255 255 255 / 0.40);
+  --color-text-disabled: rgb(255 255 255 / 0.22);
+  --color-text-inverse: #0a0b0d;
+
+  /* -- Interaction states -------------------------------------------------
+     Monochrome system: hover / active / selected are white washes, never a
+     hue. A hue in chrome would compete with the signal palette below. */
+  --color-state-hover: rgb(255 255 255 / 0.05);
+  --color-state-active: rgb(255 255 255 / 0.09);
+  --color-state-selected: rgb(255 255 255 / 0.13);
+
+  /* -- Signal palette -----------------------------------------------------
+     RESERVED. Domain state only — track classification, policy violation,
+     link loss, engagement state. Never chrome, never decoration, never a
+     hover. If colour appears on screen it means something is true about the
+     mission, and the operator can trust that without reading a label.
+     Unused this session; declared so the meaning is fixed before anyone is
+     tempted to invent one. */
+  --color-signal-nominal: #3dd68c;
+  --color-signal-caution: #ffb020;
+  --color-signal-critical: #ff4d3d;
+  --color-signal-track: #4da3ff;
+  --color-signal-hostile: #ff2d55;
+
+  /* == TYPOGRAPHY ========================================================= */
+
+  /* Self-hosted only — vendored in src/assets/fonts and declared in
+     fonts.css. An edge node has no route to a font CDN, so there is no
+     webfont link anywhere in this project.
+
+     Inter stands in for Shield AI's Kern Standard (Pizza Typefaces), which is
+     a commercial licence we do not hold. Same neo-grotesque genre. When the
+     licence is acquired, add "Kern Standard" ahead of "Inter" here — that
+     single edit repoints the whole console. */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono",
+    "Segoe UI Mono", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  /* Tight scale. 12px is the body size; 13px is as large as running text
+     gets. Anything bigger belongs to a number, not a sentence. */
+  --text-2xs: 10px;
+  --text-2xs--line-height: 14px;
+  --text-2xs--letter-spacing: 0.04em;
+
+  --text-xs: 11px;
+  --text-xs--line-height: 15px;
+  --text-xs--letter-spacing: 0.01em;
+
+  --text-sm: 12px;
+  --text-sm--line-height: 16px;
+  --text-sm--letter-spacing: 0em;
+
+  --text-base: 13px;
+  --text-base--line-height: 18px;
+  --text-base--letter-spacing: 0em;
+
+  --text-lg: 15px;
+  --text-lg--line-height: 20px;
+  --text-lg--letter-spacing: -0.01em;
+
+  /* Numeric readout. Monospace, tabular, slightly tracked out — used for
+     IDs, coordinates, altitudes, countdowns: anything that changes in place
+     at 20Hz and must not reflow while it does. */
+  --text-num: 12px;
+  --text-num--line-height: 16px;
+  --text-num--letter-spacing: 0.02em;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
+  /* Section labels: 10px, uppercase, tracked out. */
+  --tracking-label: 0.08em;
+
+  /* == SPACE ============================================================== */
+
+  /* 4px base drives the whole Tailwind scale (p-1 = 4px, p-2 = 8px, ...). */
+  --spacing: 4px;
+
+  /* == RADIUS ============================================================= */
+
+  /* A tactical console is machined, not rounded. Nothing exceeds 4px. */
+  --radius-none: 0px;
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-full: 9999px;
+
+  /* == ELEVATION ========================================================== */
+
+  /* Panels earn depth from blur and a hairline, not from a heavy drop
+     shadow. The shadow only has to detach the panel from busy imagery. */
+  --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.36);
+  --shadow-popover: 0 2px 4px rgb(0 0 0 / 0.44), 0 12px 32px rgb(0 0 0 / 0.44);
+  --shadow-rail: 1px 0 0 rgb(255 255 255 / 0.06);
+
+  /* == MOTION ============================================================= */
+
+  /* Fast and unshowy. Nothing in an operator's path animates longer than
+     160ms; map-synchronised elements do not animate at all. */
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-instant: 80ms;
+  --duration-fast: 120ms;
+  --duration-normal: 160ms;
+}
+
+/* ---------------------------------------------------------------------------
+   Non-theme tokens
+   Layout constants and stacking order. These are plain custom properties —
+   they describe the frame, not a design scale, so they generate no utility.
+   Read them with the v4 var shorthand: w-(--rail-width).
+--------------------------------------------------------------------------- */
+
+:root {
+  /* -- Frame geometry ----------------------------------------------------- */
+  --topbar-height: 40px;
+  --rail-width: 48px;
+  --rail-item-size: 32px;
+  --rail-indicator-width: 2px;
+  --modebar-height: 40px;
+  --panel-gutter: 12px;
+  --panel-header-height: 32px;
+  --panel-min-width: 280px;
+  --panel-default-width: 320px;
+  --panel-max-height: calc(100vh - (var(--panel-gutter) * 2));
+
+  /* -- Stacking order -----------------------------------------------------
+     The layering is load-bearing: full-bleed map underneath, panels floating
+     over it, rail above panels so it is never occluded. Every z-index in the
+     app comes from this list; no component invents its own. */
+  --z-map: 0;
+  --z-map-overlay: 10;
+  --z-panel: 20;
+  --z-modebar: 25;
+  --z-rail: 30;
+  --z-topbar: 30;
+  --z-popover: 40;
+  --z-modal: 50;
+  --z-toast: 60;
+
+  /* -- Panel material ----------------------------------------------------- */
+  --panel-blur: 12px;
+  --panel-saturate: 120%;
+}

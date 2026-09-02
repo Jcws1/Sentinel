@@ -1,0 +1,153 @@
+{
+  "version": 8,
+  "name": "Sentinel Dark",
+  "metadata": {
+    "sentinel:note": "Self-hosted basemap style. Every URL below contains the {BASEMAP_URL} placeholder, substituted at load time by src/map/basemap.ts from VITE_BASEMAP_URL. There is no CDN host in this file and none may be added: an edge node resolves nothing off-box.",
+    "sentinel:schema": "openmaptiles"
+  },
+  "glyphs": "{BASEMAP_URL}/glyphs/{fontstack}/{range}.pbf",
+  "sprite": "{BASEMAP_URL}/sprite",
+  "sources": {
+    "basemap": {
+      "type": "vector",
+      "url": "{BASEMAP_URL}/tiles.json"
+    }
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": { "background-color": "#0a0b0d" }
+    },
+    {
+      "id": "landcover",
+      "type": "fill",
+      "source": "basemap",
+      "source-layer": "landcover",
+      "paint": { "fill-color": "#101215", "fill-opacity": 0.6 }
+    },
+    {
+      "id": "landuse",
+      "type": "fill",
+      "source": "basemap",
+      "source-layer": "landuse",
+      "paint": { "fill-color": "#121417", "fill-opacity": 0.5 }
+    },
+    {
+      "id": "water",
+      "type": "fill",
+      "source": "basemap",
+      "source-layer": "water",
+      "paint": { "fill-color": "#070809" }
+    },
+    {
+      "id": "waterway",
+      "type": "line",
+      "source": "basemap",
+      "source-layer": "waterway",
+      "minzoom": 8,
+      "paint": { "line-color": "#0b0d0f", "line-width": 1 }
+    },
+    {
+      "id": "building",
+      "type": "fill",
+      "source": "basemap",
+      "source-layer": "building",
+      "minzoom": 13,
+      "paint": {
+        "fill-color": "#16191d",
+        "fill-outline-color": "#1c2026",
+        "fill-opacity": 0.8
+      }
+    },
+    {
+      "id": "road-minor",
+      "type": "line",
+      "source": "basemap",
+      "source-layer": "transportation",
+      "minzoom": 12,
+      "filter": ["in", "class", "minor", "service", "track", "path"],
+      "layout": { "line-cap": "round", "line-join": "round" },
+      "paint": {
+        "line-color": "#1a1e23",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 12, 0.4, 18, 4]
+      }
+    },
+    {
+      "id": "road-major",
+      "type": "line",
+      "source": "basemap",
+      "source-layer": "transportation",
+      "filter": ["in", "class", "primary", "secondary", "tertiary", "trunk"],
+      "layout": { "line-cap": "round", "line-join": "round" },
+      "paint": {
+        "line-color": "#22272d",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.5, 18, 8]
+      }
+    },
+    {
+      "id": "road-motorway",
+      "type": "line",
+      "source": "basemap",
+      "source-layer": "transportation",
+      "filter": ["==", "class", "motorway"],
+      "layout": { "line-cap": "round", "line-join": "round" },
+      "paint": {
+        "line-color": "#2b3138",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.6, 18, 12]
+      }
+    },
+    {
+      "id": "aeroway",
+      "type": "line",
+      "source": "basemap",
+      "source-layer": "aeroway",
+      "minzoom": 10,
+      "paint": { "line-color": "#262b31", "line-width": 1.5 }
+    },
+    {
+      "id": "boundary-country",
+      "type": "line",
+      "source": "basemap",
+      "source-layer": "boundary",
+      "filter": ["<=", "admin_level", 2],
+      "layout": { "line-cap": "round", "line-join": "round" },
+      "paint": {
+        "line-color": "#3a4148",
+        "line-width": 0.8,
+        "line-dasharray": [3, 2]
+      }
+    },
+    {
+      "id": "boundary-state",
+      "type": "line",
+      "source": "basemap",
+      "source-layer": "boundary",
+      "filter": ["==", "admin_level", 4],
+      "paint": {
+        "line-color": "#2a3037",
+        "line-width": 0.6,
+        "line-dasharray": [2, 3]
+      }
+    },
+    {
+      "id": "place-label",
+      "type": "symbol",
+      "source": "basemap",
+      "source-layer": "place",
+      "filter": ["in", "class", "city", "town"],
+      "layout": {
+        "text-field": ["get", "name"],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 4, 10, 12, 13],
+        "text-letter-spacing": 0.05,
+        "text-max-width": 8
+      },
+      "paint": {
+        "text-color": "#6b7076",
+        "text-halo-color": "#0a0b0d",
+        "text-halo-width": 1.2
+      }
+    }
+  ]
+}
