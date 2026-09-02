@@ -1,7 +1,8 @@
 import * as ToggleGroup from '@radix-ui/react-toggle-group'
-import type { ReactNode } from 'react'
 
 import { AnnotationList } from '@/components/panel/AnnotationList'
+import { Section } from '@/components/panel/Section'
+import { StatusRow } from '@/components/panel/StatusRow'
 import { Icon } from '@/components/primitives/Icon'
 import { cn } from '@/lib/cn'
 import {
@@ -29,15 +30,6 @@ import {
   setMapMode,
   setMapPack,
 } from '@/state/mapView'
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <div className="label-caps">{title}</div>
-      {children}
-    </div>
-  )
-}
 
 const optionClass = (active: boolean) =>
   cn(
@@ -132,17 +124,6 @@ function SourcePicker() {
         </ToggleGroup.Item>
       ))}
     </ToggleGroup.Root>
-  )
-}
-
-function StatusRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3">
-      <span className="shrink-0 text-2xs text-text-tertiary">{label}</span>
-      <span className="text-right font-mono text-2xs tabular text-text-secondary select-text">
-        {value}
-      </span>
-    </div>
   )
 }
 

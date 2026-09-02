@@ -3,6 +3,7 @@ import { setCursorMode, resetCursorMode } from '@/state/cursorMode'
 import { recenterCamera } from '@/map/cameraControl'
 import { cancelDraft, undoVertex } from '@/state/annotations'
 import { cancelVertexDrag } from '@/map/annotations/editController'
+import { toggleSwarmPanel, clearSwarmSelection } from '@/state/swarm'
 import type { ViewId } from './views'
 import type { CursorModeId } from '@/map/cursorModes'
 
@@ -38,6 +39,7 @@ import type { CursorModeId } from '@/map/cursorModes'
 export type CommandId =
   | `view.${ViewId}`
   | `cursor.${CursorModeId}`
+  | 'swarm.toggle'
   | 'camera.recenter'
   | 'annotation.undoVertex'
   | 'ui.dismiss'
@@ -110,6 +112,23 @@ export const KEYBINDINGS: readonly Keybinding[] = [
     run: () => selectView('events'),
   },
 
+  // ── Right dock ────────────────────────────────────── Alt + letter ──
+  {
+    command: 'swarm.toggle',
+    label: 'Alt S',
+    description:
+      'Show or hide the swarm dock. Alt rather than a bare S because bare ' +
+      'letters are the cursor-mode namespace, and Alt+digit is taken by the ' +
+      'rail slots.',
+    // Matched on the physical key, against this file's own preference for
+    // `key` on letters: Option+S on macOS delivers event.key === "ß", which
+    // the case-insensitive comparison below would never match. The physical
+    // key is the same cap on every layout.
+    code: 'KeyS',
+    alt: true,
+    run: () => toggleSwarmPanel(),
+  },
+
   // ── Cursor modes ───────────────────────────────────── bare letter ──
   {
     command: 'cursor.select',
@@ -180,9 +199,10 @@ export const KEYBINDINGS: readonly Keybinding[] = [
     label: 'Esc',
     description:
       'Step back one level: put back a vertex being dragged, else abandon a ' +
-      'half-drawn shape, else drop the active tool to Select, and only ' +
-      'close the panel if the tool was already Select. Escape mid-draw ' +
-      'must not also discard the panel the operator was reading.',
+      'half-drawn shape, else drop the active tool to Select, else close an ' +
+      'open drone detail, and only close the panel once none of those ' +
+      'applied. Escape mid-draw must not also discard the panel the ' +
+      'operator was reading.',
     key: 'Escape',
     run: () => {
       // Most local first. Abandoning a half-drawn zone must not also reset the
@@ -194,6 +214,12 @@ export const KEYBINDINGS: readonly Keybinding[] = [
       if (cancelVertexDrag()) return
       if (cancelDraft()) return
       if (resetCursorMode()) return
+      // Detail -> grid is a step back, so it belongs in the chain. Escape
+      // does not go on to close the swarm dock itself: the step below
+      // already closes the left panel, and one key dismissing whichever of
+      // two surfaces happens to be open is exactly the ambiguity this chain
+      // exists to avoid. The dock closes by its header button, or Alt+S.
+      if (clearSwarmSelection()) return
       setPanelVisible(false)
     },
   },
