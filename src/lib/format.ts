@@ -79,3 +79,38 @@ export function formatResolution(
   const mpp = metresPerPixel(zoom, tileSize, lat)
   return mpp >= 10 ? `${Math.round(mpp)} m/px` : `${mpp.toFixed(1)} m/px`
 }
+
+/* --- aircraft readouts --------------------------------------------------- */
+
+/**
+ * Speed in km/h from an internal m/s.
+ *
+ * km/h because that is the unit every airframe in this class is specified
+ * and briefed in. The model stays SI; the conversion happens once, here.
+ */
+export function formatSpeed(metresPerSecond: number): string {
+  return `${Math.round(metresPerSecond * 3.6)} km/h`
+}
+
+/** Altitude AGL, whole metres, thousands separated. `1,450 m` */
+export function formatAltitude(metres: number): string {
+  return `${Math.round(metres).toLocaleString()} m`
+}
+
+/**
+ * Endurance as `m:ss`.
+ *
+ * Not "2.5 min": this is a countdown an operator subtracts a transit time
+ * from, and minutes-and-seconds is the arithmetic they are actually doing.
+ * Zero-padded seconds keep the width fixed as it ticks down.
+ */
+export function formatDuration(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds))
+  const minutes = Math.floor(total / 60)
+  return `${minutes}:${String(total % 60).padStart(2, '0')}`
+}
+
+/** A 0..1 fraction as whole percent. `0.42` → `42%` */
+export function formatPercent(fraction: number): string {
+  return `${Math.round(fraction * 100)}%`
+}

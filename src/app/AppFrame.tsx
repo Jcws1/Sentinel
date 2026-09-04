@@ -1,47 +1,28 @@
-import { X } from 'lucide-react'
-
 import { IconRail } from '@/components/rail/IconRail'
 import { ModeBar } from '@/components/modebar/ModeBar'
-import { Icon } from '@/components/primitives/Icon'
+import { Panel } from '@/components/panel/Panel'
 import { TooltipProvider } from '@/components/primitives/Tooltip'
+import { SwarmHandle } from '@/components/swarm/SwarmHandle'
+import { SwarmPanel } from '@/components/swarm/SwarmPanel'
 import { TopBar } from '@/components/topbar/TopBar'
 import { MapCanvas } from '@/map/MapCanvas'
 import { getCursorMode } from '@/map/cursorModes'
 import { useCursorMode } from '@/state/cursorMode'
+import { useSwarmPanelOpen } from '@/state/swarm'
 import { useActiveView, usePanelVisible, setPanelVisible } from '@/state/ui'
 import { getView } from './views'
 import { useGlobalShortcuts } from './useGlobalShortcuts'
 
-/**
- * PROVISIONAL panel shell — replaced by the reusable <Panel> at build step 5,
- * which adds collapse, resize and a stable header slot API. Here only so the
- * rail has somewhere to route to.
- */
-function PanelShell() {
+/** The rail's destination: whichever view the active slot names. */
+function RailPanel() {
   const activeView = useActiveView()
   const view = getView(activeView)
   const Body = view.component
 
   return (
-    <section className="panel-surface pointer-events-auto flex max-h-full w-(--panel-default-width) flex-col overflow-hidden">
-      <header className="flex h-(--panel-header-height) shrink-0 items-center justify-between border-b border-border-faint pr-1 pl-3">
-        <h2 className="text-xs font-medium tracking-wide text-text">
-          {view.label}
-        </h2>
-        <button
-          type="button"
-          onClick={() => setPanelVisible(false)}
-          aria-label={`Close ${view.label}`}
-          className="grid size-6 cursor-pointer place-items-center rounded-xs text-text-tertiary transition-colors duration-(--duration-fast) hover:bg-state-hover hover:text-text"
-        >
-          <Icon icon={X} size="sm" />
-        </button>
-      </header>
-
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <Body />
-      </div>
-    </section>
+    <Panel title={view.label} onClose={() => setPanelVisible(false)}>
+      <Body />
+    </Panel>
   )
 }
 
@@ -59,9 +40,13 @@ function PanelShell() {
  * in an absolutely positioned layer instead of a flex sibling: a grid
  * dashboard would reflow the canvas on every layout change, and at 20Hz with
  * a WebGL context that is exactly the cost we cannot pay.
+ *
+ * The same reasoning governs the right dock. It is a sibling inside the
+ * overlay field, so opening and closing it moves nothing underneath.
  */
 export function AppFrame() {
   const panelVisible = usePanelVisible()
+  const swarmOpen = useSwarmPanelOpen()
   const cursorMode = useCursorMode()
 
   useGlobalShortcuts()
@@ -101,10 +86,17 @@ export function AppFrame() {
                 cursor mode must never be hidden behind a panel. */}
             <div className="flex min-h-0 flex-1 flex-col">
               <div
-                className="min-h-0 flex-1 p-(--panel-gutter) pb-0"
+                className="flex min-h-0 flex-1 items-start gap-(--panel-gutter) p-(--panel-gutter) pb-0"
                 style={{ zIndex: 'var(--z-panel)' }}
               >
-                {panelVisible ? <PanelShell /> : null}
+                {panelVisible ? <RailPanel /> : null}
+
+                {/* Right dock. ml-auto pins it to the far edge whether or not
+                    the rail's panel is mounted, so closing the left panel
+                    does not slide this one across the viewport. */}
+                <div className="ml-auto flex max-h-full min-h-0 shrink-0">
+                  {swarmOpen ? <SwarmPanel /> : <SwarmHandle />}
+                </div>
               </div>
 
               <div className="shrink-0 p-(--panel-gutter)">

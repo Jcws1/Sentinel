@@ -175,8 +175,7 @@ export const SOURCE_PACKS: readonly SourcePack[] = [
     offline: true,
     description:
       'Minimal footprint, single-provenance DEM. Same accuracy as the SE Asia ' +
-      'pack over Singapore, at 1/24th the size — the one to provision when ' +
-      'storage or transfer is tight.',
+      'pack over Singapore, at 1/24th the size.',
     basemapStyle: EDGE.style,
     bounds: EDGE_BOUNDS,
     terrain: {
@@ -223,14 +222,13 @@ export const SOURCE_PACKS: readonly SourcePack[] = [
 
   {
     id: 'seasia',
-    label: 'SE Asia 3D — offline',
+    label: 'SE Asia 3D',
     renderer: 'vector',
     // Both halves are local: nothing here touches the network.
     offline: true,
     description:
       'Wide-area offline pack. Supersedes the edge pack on coverage, DEM ' +
-      'resolution and map vintage — at 24× the disk. The default for normal ' +
-      'operations.',
+      'resolution and map vintage.',
     // Reuses the v1 dark style, repointed at the wider archive.
     basemapStyle: EDGE.style,
     basemapSourceOverride: 'pmtiles:///edge-map/data/seasia-base.pmtiles',
@@ -255,14 +253,13 @@ export const SOURCE_PACKS: readonly SourcePack[] = [
 
   {
     id: 'photoreal',
-    label: "God's Eye — photoreal",
+    label: "Photorealistic Imagery",
     renderer: 'photoreal',
     offline: false,
     requiresKey: 'google',
     description:
-      'Google Earth imagery — textured photogrammetry mesh. Briefing use ' +
-      'only: streams per view, cannot be cached, and the camera is fenced to ' +
-      'Singapore and Johor to bound API spend.',
+      'Google Earth imagery — textured photogrammetry mesh. The camera is fenced to ' +
+      'Singapore and Johor.',
     // No MapLibre style: the mesh IS the world. A transparent host style is
     // substituted at build time.
     basemapStyle: null,

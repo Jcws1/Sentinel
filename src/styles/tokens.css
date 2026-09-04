@@ -184,6 +184,11 @@
   --panel-default-width: 320px;
   --panel-max-height: calc(100vh - (var(--panel-gutter) * 2));
 
+  /* Right dock. The panel reuses --panel-default-width; only the collapsed
+     tab and the tile grid need geometry of their own. */
+  --swarm-handle-width: 28px;
+  --swarm-tile-gap: 6px;
+
   /* -- Stacking order -----------------------------------------------------
      The layering is load-bearing: full-bleed map underneath, panels floating
      over it, rail above panels so it is never occluded. Every z-index in the
