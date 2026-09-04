@@ -55,17 +55,12 @@ function ViewModePicker() {
         <ToggleGroup.Item
           key={item.id}
           value={item.id}
-          className={cn(optionClass(item.id === mode), 'flex-row items-start gap-2.5')}
+          className={cn(optionClass(item.id === mode), 'flex-row items-center gap-2.5')}
         >
-          <span className="mt-px shrink-0">
+          <span className="shrink-0">
             <Icon icon={item.icon} size="sm" />
           </span>
-          <span className="flex flex-col gap-0.5">
-            <span className="text-xs font-medium">{item.label}</span>
-            <span className="text-2xs leading-snug text-text-tertiary">
-              {item.description}
-            </span>
-          </span>
+          <span className="text-xs font-medium">{item.label}</span>
         </ToggleGroup.Item>
       ))}
     </ToggleGroup.Root>

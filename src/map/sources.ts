@@ -21,9 +21,7 @@ import type { Bounds } from '@/lib/format'
 =========================================================================== */
 
 export type SourcePackId =
-  | 'edge'
   | 'seasia'
-  | 'terrain-free'
   | 'photoreal'
   | 'void'
 
@@ -98,15 +96,6 @@ export interface SourcePack {
 const GOOGLE_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? ''
 const ION_TOKEN = import.meta.env.VITE_CESIUM_ION_TOKEN ?? ''
 
-/**
- * Optional local Mapterhorn extract. Set VITE_TERRAIN_PMTILES to a path like
- * `pmtiles:///edge-map/data/seasia-terrain.pmtiles` and the free terrain pack
- * flips from streaming to fully offline with no other change — which is the
- * "self-hosted tiles can be dropped in" requirement, honoured for elevation
- * as well as for the basemap.
- */
-const LOCAL_TERRAIN = import.meta.env.VITE_TERRAIN_PMTILES ?? ''
-
 export function keyFor(requirement: KeyRequirement): string {
   return requirement === 'google' ? GOOGLE_KEY : ION_TOKEN
 }
@@ -169,58 +158,6 @@ export const EDGE = {
 
 export const SOURCE_PACKS: readonly SourcePack[] = [
   {
-    id: 'edge',
-    label: 'Edge pack',
-    renderer: 'vector',
-    offline: true,
-    description:
-      'Minimal footprint, single-provenance DEM. Same accuracy as the SE Asia ' +
-      'pack over Singapore, at 1/24th the size.',
-    basemapStyle: EDGE.style,
-    bounds: EDGE_BOUNDS,
-    terrain: {
-      tiles: ['/edge-map/data/terrain/{z}/{x}/{y}.png'],
-      // Baked to Mapbox Terrain-RGB by the Sentinel v1 pipeline.
-      encoding: 'mapbox',
-      tileSize: 256,
-      minzoom: 8,
-      maxzoom: 12,
-      bounds: EDGE_BOUNDS,
-      attribution: 'Copernicus DEM GLO-30 / European Union',
-    },
-    footprintMB: 41,
-    demLabel: 'Copernicus GLO-30',
-    needs: [],
-    attribution: 'OpenStreetMap contributors / Protomaps · Copernicus GLO-30',
-  },
-
-  {
-    id: 'terrain-free',
-    label: 'Global 3D — free',
-    renderer: 'vector',
-    // Flips to true the moment a local extract is configured.
-    offline: LOCAL_TERRAIN.length > 0,
-    description: LOCAL_TERRAIN
-      ? 'OpenFreeMap vector over a local Mapterhorn extract. Keyless.'
-      : 'OpenFreeMap vector over Mapterhorn global terrain. Keyless, ' +
-        'CC BY 4.0, worldwide. 512px tiles ≈ 2× the edge pack’s resolution.',
-    basemapStyle: 'https://tiles.openfreemap.org/styles/positron',
-    terrain: {
-      ...(LOCAL_TERRAIN
-        ? { url: LOCAL_TERRAIN }
-        : { tiles: ['https://tiles.mapterhorn.com/{z}/{x}/{y}.webp'] }),
-      // Mapterhorn serves terrarium, NOT mapbox. Verified from its TileJSON.
-      encoding: 'terrarium',
-      tileSize: 512,
-      maxzoom: 12,
-      attribution: '© Mapterhorn (CC BY 4.0)',
-    },
-    demLabel: 'Mapterhorn (blended open DEMs)',
-    needs: ['tiles.openfreemap.org', 'tiles.mapterhorn.com'],
-    attribution: 'OpenStreetMap contributors · © Mapterhorn',
-  },
-
-  {
     id: 'seasia',
     label: 'SE Asia 3D',
     renderer: 'vector',
@@ -258,8 +195,7 @@ export const SOURCE_PACKS: readonly SourcePack[] = [
     offline: false,
     requiresKey: 'google',
     description:
-      'Google Earth imagery — textured photogrammetry mesh. The camera is fenced to ' +
-      'Singapore and Johor.',
+      'Google Earth imagery with textured photogrammetry mesh.',
     // No MapLibre style: the mesh IS the world. A transparent host style is
     // substituted at build time.
     basemapStyle: null,
@@ -303,17 +239,17 @@ export const HOME_CAMERA = {
 /**
  * Which pack to boot with.
  *
- * Defaults to the edge pack because that is what ships to the node. It never
- * defaults to anything needing a key or a network, however configured — a
- * console that opens on a blank screen because a credential expired is worse
- * than one that opens on a smaller map.
+ * Defaults to the SE Asia pack because it is fully offline. It never defaults
+ * to anything needing a key or a network, however configured — a console that
+ * opens on a blank screen because a credential expired is worse than one that
+ * opens on a smaller map.
  */
 export function defaultPack(): SourcePackId {
   const configured = import.meta.env.VITE_MAP_PACK
-  if (!configured) return 'edge'
+  if (!configured) return 'seasia'
 
   const pack = BY_ID.get(configured as SourcePackId)
-  if (!pack) return 'edge'
-  if (!hasKey(pack)) return 'edge'
+  if (!pack) return 'seasia'
+  if (!hasKey(pack)) return 'seasia'
   return pack.id
 }

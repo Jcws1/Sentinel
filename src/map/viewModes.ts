@@ -1,4 +1,4 @@
-import { Box, Map as MapIcon, Minus, type LucideIcon } from 'lucide-react'
+import { Box, Map as MapIcon, type LucideIcon } from 'lucide-react'
 
 /* ===========================================================================
    VIEW MODES — how the map is drawn and where the camera sits.
@@ -7,13 +7,12 @@ import { Box, Map as MapIcon, Minus, type LucideIcon } from 'lucide-react'
    mode says what the operator is looking at. Both can change independently.
 =========================================================================== */
 
-export type ViewModeId = 'tactical' | 'flat' | 'minimal'
+export type ViewModeId = 'tactical' | 'flat'
 
 export interface ViewMode {
   id: ViewModeId
   label: string
   icon: LucideIcon
-  description: string
   /** Camera pitch in degrees. 0 is straight down. */
   pitch: number
   /** Drape the basemap over the DEM. */
@@ -46,9 +45,6 @@ export const VIEW_MODES: readonly ViewMode[] = [
     id: 'tactical',
     label: 'Tactical 3D',
     icon: Box,
-    description:
-      'Pitched view with terrain and extruded buildings. The urban structure ' +
-      'that governs line of sight and interceptor routing.',
     pitch: 55,
     terrain: true,
     terrainExaggeration: 1.5,
@@ -60,29 +56,12 @@ export const VIEW_MODES: readonly ViewMode[] = [
     id: 'flat',
     label: 'Flat 2D',
     icon: MapIcon,
-    description:
-      'Straight down, no terrain. Truest for bearings and distances, and the ' +
-      'cheapest to render.',
     pitch: 0,
     terrain: false,
     terrainExaggeration: 1,
     hillshade: false,
     buildings3d: false,
     pois: true,
-  },
-  {
-    id: 'minimal',
-    label: 'Minimal',
-    icon: Minus,
-    description:
-      'Flat, with POIs and clutter suppressed. For when the overlay is the ' +
-      'subject and the basemap is only context.',
-    pitch: 0,
-    terrain: false,
-    terrainExaggeration: 1,
-    hillshade: false,
-    buildings3d: false,
-    pois: false,
   },
 ]
 
