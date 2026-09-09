@@ -1,0 +1,959 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Sentinel Multisource Fusion Research</title>
+  <style>
+    :root { color-scheme: light dark; --bg: #f4f7fb; --paper: #fff; --text: #172033; --muted: #5e687a; --line: #d8dfeb; --accent: #006f8b; --code: #eef3f8; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #0e1420; --paper: #151d2a; --text: #e8edf5; --muted: #a8b2c2; --line: #344052; --accent: #65d7f2; --code: #0d1521; } }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.65 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    main { width: min(1120px, calc(100% - 32px)); margin: 32px auto; padding: clamp(24px, 5vw, 64px); background: var(--paper); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 16px 50px rgba(0,0,0,.08); }
+    h1, h2, h3 { line-height: 1.2; letter-spacing: -.02em; }
+    h1 { margin-top: 0; font-size: clamp(2rem, 5vw, 3.25rem); }
+    h2 { margin-top: 2.5em; padding-bottom: .35em; border-bottom: 1px solid var(--line); }
+    h3 { margin-top: 2em; }
+    a { color: var(--accent); text-underline-offset: 3px; }
+    table { width: 100%; margin: 1.25rem 0; border-collapse: collapse; font-size: .91rem; }
+    th, td { padding: .7rem .75rem; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: color-mix(in srgb, var(--accent) 10%, var(--paper)); }
+    tr:nth-child(even) td { background: color-mix(in srgb, var(--text) 3%, var(--paper)); }
+    pre { overflow-x: auto; padding: 1rem; background: var(--code); border: 1px solid var(--line); border-radius: 9px; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .9em; }
+    :not(pre) > code { padding: .12em .35em; background: var(--code); border-radius: 4px; }
+    blockquote { margin-left: 0; padding-left: 1rem; border-left: 4px solid var(--accent); color: var(--muted); }
+    .meta { margin-bottom: 2rem; color: var(--muted); font-size: .88rem; }
+    @media (max-width: 760px) { main { width: 100%; margin: 0; border: 0; border-radius: 0; padding: 20px; } table { display: block; overflow-x: auto; white-space: nowrap; } }
+    @media print { body { background: #fff; color: #111; } main { width: 100%; margin: 0; padding: 0; border: 0; box-shadow: none; } a { color: #005b70; } h2 { break-after: avoid; } table, pre { break-inside: avoid; } }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="meta">Generated from the Sentinel research report on 2026-09-02 16:01 +08:00.</div>
+<h1 id="sentinel-multisource-fusion-research-and-target-architecture">Sentinel multisource fusion research and target architecture</h1>
+<p><strong>Status:</strong> Recommended architecture and implementation roadmap<br />
+<strong>Date:</strong> 2 September 2026<br />
+<strong>Scope:</strong> Public and commercial sources, startup patterns, open-source software,
+fusion methods, evaluation, and a practical migration path for Sentinel.<br />
+<strong>Interpretation:</strong> “AIP” means Aeronautical Information Publication.</p>
+<h2 id="executive-recommendation">1. Executive recommendation</h2>
+<p>Sentinel should evolve from a short-lived, radar-seeded track combiner into a
+<strong>hybrid probabilistic evidence graph</strong> with two coupled fusion paths:</p>
+<ol>
+<li>A low-latency tracking path for radar, RF direction finding, EO/IR,
+acoustic, LiDAR, ADS-B, AIS, Remote ID, and vehicle telemetry.</li>
+<li>An asynchronous intelligence path for satellite scenes/detections,
+AIP/AIXM, NOTAM, weather, terrain, infrastructure, and OSINT-derived events.</li>
+</ol>
+<p>The paths should share identity, provenance, space-time, uncertainty, and
+source-health primitives, but they should not use one freshness rule or one
+measurement schema. Satellite imagery is a scene captured at an earlier time;
+AIP is authoritative context rather than a target detection; cooperative radio
+reports are claims that may be stale or spoofed; RF bearings are measurements
+without range.</p>
+<p>The recommended tracking core is:</p>
+<ul>
+<li><strong>Phase 1:</strong> interacting multiple-model extended/unscented Kalman filtering
+(IMM-EKF/UKF), statistical gating, global nearest-neighbour association, and
+explicit bearing triangulation.</li>
+<li><strong>Phase 2:</strong> JPDA for dense/crossing targets, a fixed-lag smoother for
+out-of-sequence measurements, and covariance intersection for external
+tracks whose correlation is unknown.</li>
+<li><strong>Phase 3:</strong> evaluate MHT or labelled random-finite-set tracking only where
+tests show JPDA is insufficient.</li>
+</ul>
+<p>Learned models should extract detections, embeddings, classifications, and
+anomaly scores. They should not replace the auditable kinematic estimator. A
+single end-to-end multimodal transformer is a poor first production model: no
+public dataset represents Sentinel's full sensor mix, missing modalities are
+normal, latency differs by orders of magnitude, and operator-visible
+provenance is a core safety requirement.</p>
+<h2 id="what-exists-and-what-must-change">2. What exists and what must change</h2>
+<p>Sentinel already has several sound foundations:</p>
+<ul>
+<li>A standalone edge gateway and simulator boundary.</li>
+<li>Typed radar, RF, EO, IR, acoustic, and cooperative-ID concepts.</li>
+<li>Source registration, timestamps, clock quality, covariance, processing
+level, health, record/replay, and raw-evidence references.</li>
+<li>A clear rule that bearing-only observations cannot fabricate range.</li>
+<li>A separate analytic sensor-track layer rather than silently feeding every
+detection into tasking.</li>
+</ul>
+<p>The current fusion implementation is deliberately an MVP. Its important
+limitations are:</p>
+<table>
+<thead>
+<tr>
+<th>Current behaviour</th>
+<th>Consequence with more sources</th>
+<th>Required change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Only radar creates a positioned track</td>
+<td>Two or more RF/acoustic/EO bearings cannot triangulate a target</td>
+<td>Add bearing/ray hypothesis initiation and multi-sensor triangulation</td>
+</tr>
+<tr>
+<td>Nearest-neighbour spatial association</td>
+<td>Track swaps in clutter, crossings, and swarms</td>
+<td>Add Mahalanobis gating and JPDA; retain MHT as an evaluated option</td>
+</tr>
+<tr>
+<td>Alpha smoothing and finite-difference velocity</td>
+<td>Covariance and motion uncertainty are not physically consistent</td>
+<td>Use EKF/UKF plus IMM motion models</td>
+</tr>
+<tr>
+<td>One 2.5 s coast / 8 s deletion policy</td>
+<td>Satellite, ADS-B, AIS, and strategic objects vanish incorrectly</td>
+<td>Per-source and per-track-class lifecycle policies</td>
+</tr>
+<tr>
+<td>Confidence only increases when evidence arrives</td>
+<td>Correlated sources can double-count evidence and false confidence accumulates</td>
+<td>Calibrated likelihood updates, dependence groups, decay, and conflict evidence</td>
+</tr>
+<tr>
+<td>Four-value covariance</td>
+<td>Cannot represent full 3D position/velocity or cross-correlation</td>
+<td>6D/9D state and full covariance with frame metadata</td>
+</tr>
+<tr>
+<td>Arrival-order processing</td>
+<td>Late satellite and network-delayed reports cannot correct history</td>
+<td>Event time, acquisition time, delivery time, watermark, and fixed-lag replay</td>
+</tr>
+<tr>
+<td>Flat sensor/observation IDs</td>
+<td>Weak lineage for derived detections and external tracks</td>
+<td>Immutable evidence records and a derivation/provenance graph</td>
+</tr>
+<tr>
+<td>Classification labels pooled naively</td>
+<td>Scores from different models are not comparable</td>
+<td>Per-model calibration, reliability weighting, unknown class, and evidence ledger</td>
+</tr>
+<tr>
+<td>Track IDs are process-local</td>
+<td>Restarts and track splits/merges break continuity</td>
+<td>Stable entity IDs plus versioned track hypotheses and alias history</td>
+</tr>
+</tbody>
+</table>
+<p>The relevant baseline is in <code>server/sensorFusion.ts</code>,
+<code>contracts/edgeTypes.ts</code>, and <code>docs/BATTLEFIELD_SENSOR_DATA_RESEARCH.md</code>.</p>
+<h2 id="target-architecture">3. Target architecture</h2>
+<pre class="mermaid">flowchart LR
+    A[Live sensors and cooperative radio] --> B[Edge adapters]
+    C[Satellite, AIP, NOTAM, weather, AIS/ADS-B APIs] --> D[External-source adapters]
+    B --> E[Immutable evidence log]
+    D --> E
+    E --> F[Validation, time/frame normalization, deduplication]
+    F --> G[Low-latency measurement and track fusion]
+    F --> H[Scene, context, identity and event fusion]
+    G &lt;--> I[Entity and evidence graph]
+    H &lt;--> I
+    I --> J[Canonical world model]
+    J --> K[Operator picture, alerts and decision support]
+    J --> L[Replay, evaluation and model training]
+</pre>
+<h3 id="keep-five-concepts-separate">3.1 Keep five concepts separate</h3>
+<ol>
+<li><strong>Observation:</strong> what a source measured, including geometry and uncertainty.</li>
+<li><strong>Detection:</strong> a model- or sensor-derived candidate object in a frame, scene,
+spectrum, or point cloud.</li>
+<li><strong>Local track:</strong> a source's own filtered estimate, with its processing level
+and correlation group declared.</li>
+<li><strong>Entity hypothesis:</strong> Sentinel's belief that observations/tracks refer to
+the same real-world object.</li>
+<li><strong>Context feature/event:</strong> airspace, route, obstacle, weather cell, runway
+closure, imagery footprint, or other information that affects
+interpretation but is not a moving-object measurement.</li>
+</ol>
+<p>This separation is consistent with the new <a href="https://www.ogc.org/standards/ogc-api-connected-systems/">OGC API Connected Systems</a>,
+which bridges static features, dynamic observations, system events, and
+commands, and with the distinction between observations and features in its
+<a href="https://docs.ogc.org/is/23-002/23-002.html">Dynamic Data specification</a>.
+Sentinel does not need to adopt the complete OGC model internally, but its
+adapter semantics are a useful compatibility target.</p>
+<h3 id="proposed-canonical-event-families">3.2 Proposed canonical event families</h3>
+<pre><code class="language-ts">type SentinelEvidenceEvent =
+  | MeasurementObservation
+  | ImageOrSceneDetection
+  | SourceTrackReport
+  | CooperativeIdentityReport
+  | ContextFeatureRevision
+  | ContextEvent
+  | SourceHealthOrCalibration
+
+interface CommonEvidence {
+  evidenceId: string
+  schemaVersion: string
+  sourceId: string
+  sensorId?: string
+  adapterType: string
+  sourceMode: 'LIVE' | 'SIMULATED' | 'REPLAY'
+  observedAt: string        // physical measurement/acquisition time
+  producedAt: string        // source processing completion
+  receivedAt: string        // Sentinel ingress time
+  validTime?: { from: string; until?: string }
+  clock: { basis: string; uncertaintyMs?: number }
+  frame: { id: string; convention: string; transformRevision?: string }
+  quality: {
+    covariance?: number[]
+    confidence?: number
+    staleAfterMs?: number
+    calibrationId?: string
+  }
+  lineage: {
+    parentEvidenceIds?: string[]
+    modelId?: string
+    modelVersion?: string
+    correlationGroup?: string
+  }
+  integrity: {
+    payloadSha256?: string
+    signatureStatus?: 'VERIFIED' | 'FAILED' | 'NOT_PRESENT' | 'UNKNOWN'
+  }
+}
+</code></pre>
+<p>Use acquisition/event time for fusion and delivery time for latency/health.
+This is the central prerequisite for satellite and delayed network sources.
+Event-time and processing-time are explicitly distinct concepts in stream
+processing systems such as <a href="https://kafka.apache.org/10/streams/core-concepts/">Kafka Streams</a>.</p>
+<h3 id="trackentity-state">3.3 Track/entity state</h3>
+<p>A canonical kinematic hypothesis should carry at least:</p>
+<ul>
+<li>position and velocity in a declared Earth-fixed/local frame;</li>
+<li>optional acceleration/turn-rate state selected by the IMM;</li>
+<li>full covariance and last prediction/update times;</li>
+<li>existence probability rather than a generic confidence score;</li>
+<li>association hypotheses and source-correlation groups;</li>
+<li>classification and identity as separate calibrated distributions;</li>
+<li>contributing and conflicting evidence IDs;</li>
+<li>provenance summary, quality flags, and source health at observation time;</li>
+<li>lifecycle, split/merge/alias history, and reason for confirmation/deletion;</li>
+<li>last direct measurement time versus last contextual update time.</li>
+</ul>
+<p>Identity must never be inferred solely from kinematics. ADS-B, AIS, Remote ID,
+callsigns, registrations, visual markings, RF fingerprints, and operator input
+are evidence claims with different authentication and spoofing risks.</p>
+<h2 id="source-portfolio">4. Source portfolio</h2>
+<p>The priority is not the maximum number of feeds. It is complementary coverage,
+independent failure modes, trustworthy timing, and a path to evaluate each
+source's marginal value.</p>
+<h3 id="recommended-source-matrix">4.1 Recommended source matrix</h3>
+<table>
+<thead>
+<tr>
+<th>Source family</th>
+<th>Examples and access</th>
+<th>Native evidence</th>
+<th>Time scale</th>
+<th>Fusion role</th>
+<th>Priority</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ground radar / ASTERIX</td>
+<td>Existing simulator; SAPIENT; ASTERIX CAT-048 plots and CAT-062 tracks</td>
+<td>Range, angle, Doppler, plot/track, covariance</td>
+<td>10 ms–seconds</td>
+<td>Primary local kinematics</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>Passive RF / SDR</td>
+<td>Local SDR, DF arrays, GNU Radio, vendor sensors</td>
+<td>Energy, spectrum, protocol, bearing/AoA/TDOA</td>
+<td>ms–seconds</td>
+<td>Detect emissions, classify, triangulate, cue EO/radar</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>EO/IR cameras</td>
+<td>ONVIF/MISB, fixed/PTZ/payload cameras</td>
+<td>Pixels, boxes, rays, embeddings, temperature</td>
+<td>30 ms–seconds</td>
+<td>Classify and refine bearing; visual evidence</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>Acoustic arrays</td>
+<td>Local arrays, SAPIENT/vendor reports</td>
+<td>Bearing, spectrum, class, audio reference</td>
+<td>100 ms–seconds</td>
+<td>Passive confirmation and triangulation</td>
+<td>P1</td>
+</tr>
+<tr>
+<td>LiDAR / depth</td>
+<td>Local point clouds or vendor tracks</td>
+<td>3D points, clusters, tracks</td>
+<td>50 ms–seconds</td>
+<td>Precise short-range geometry</td>
+<td>P1</td>
+</tr>
+<tr>
+<td>ADS-B / Mode S / MLAT</td>
+<td>Own <code>readsb</code>/<code>dump1090</code> receiver; <a href="https://openskynetwork.github.io/opensky-api/">OpenSky API</a> for research; commercial feeds for production</td>
+<td>Cooperative aircraft state, ICAO address, callsign</td>
+<td>sub-second–seconds</td>
+<td>Exclusion/identification, air-picture context, anomaly detection</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>UAS Remote ID</td>
+<td><a href="https://github.com/opendroneid">OpenDroneID</a> receivers; MAVLink messages</td>
+<td>UAS/operator/takeoff position, velocity, ID, time</td>
+<td>seconds</td>
+<td>Cooperative ID and consistency checking, never sole threat label</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>AIP / AIXM</td>
+<td><a href="https://www.caas.gov.sg/industry/airspace-management-and-aerial-activities/aeronautical-information-services/">CAAS AIM-SG</a>; <a href="https://aixm.aero/">AIXM</a>; EAD Pro for operational European use</td>
+<td>Airspace, routes, navaids, aerodromes, obstacles, procedures, effective times</td>
+<td>AIRAC / amendments</td>
+<td>Authoritative 4D context and validation constraints</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>NOTAM / AIP SUP</td>
+<td>CAAS AIM-SG; operational EAD/authorised feeds</td>
+<td>Temporary airspace/facility events and validity</td>
+<td>minutes–days</td>
+<td>Dynamic geofences, runway/navaid state, alert context</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>Local weather radar and observations</td>
+<td><a href="https://data.gov.sg/datasets?formats=API&amp;resultId=d_418e9ac3414fd927b7405631e0a7bc82&amp;sort=updatedAt">data.gov.sg weather radar</a>, METAR/TAF/SIGMET where licensed</td>
+<td>Precipitation, wind, visibility, cloud, lightning</td>
+<td>1–15 minutes</td>
+<td>Sensor performance model, route risk, clutter explanation</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>National geospatial context</td>
+<td><a href="https://www.onemap.gov.sg/apidocs/">OneMap</a>, terrain, buildings, land use</td>
+<td>Features, elevation, obstruction geometry</td>
+<td>days–months</td>
+<td>LOS, clutter priors, geocoding and operator context</td>
+<td>P0</td>
+</tr>
+<tr>
+<td>Open optical EO</td>
+<td><a href="https://dataspace.copernicus.eu/analyse/apis/catalogue-apis">Copernicus Data Space</a> Sentinel-2; Landsat</td>
+<td>Multispectral scene and derived detections/change</td>
+<td>days plus delivery</td>
+<td>Wide-area change detection and baseline imagery</td>
+<td>P1</td>
+</tr>
+<tr>
+<td>Open SAR</td>
+<td>Copernicus Sentinel-1 through STAC/OData</td>
+<td>All-weather/day-night SAR scene, detections, coherence/change</td>
+<td>days plus delivery</td>
+<td>Vessel/vehicle/infrastructure detection and change</td>
+<td>P1</td>
+</tr>
+<tr>
+<td>Commercial optical tasking</td>
+<td><a href="https://docs.planet.com/develop/apis/tasking/">Planet Tasking API</a>, BlackSky, Maxar</td>
+<td>High-resolution scene and analytics</td>
+<td>tens of minutes–days</td>
+<td>On-demand confirmation and monitoring</td>
+<td>P2, buy</td>
+</tr>
+<tr>
+<td>Commercial SAR tasking</td>
+<td><a href="https://docs.iceye.com/constellation/api/tasking/">ICEYE API</a>, <a href="https://docs.capellaspace.com/constellation-tasking/tasking-requests/">Capella API</a>, <a href="https://docs.canopy.umbra.space/docs/tasking">Umbra Canopy</a></td>
+<td>High-resolution SAR scene, phase/amplitude, analytics</td>
+<td>hours–days</td>
+<td>Cloud/night confirmation, maritime and change monitoring</td>
+<td>P2, buy</td>
+</tr>
+<tr>
+<td>Space-based RF geolocation</td>
+<td><a href="https://www.he360.com/wp-content/uploads/HawkEye-360-RFGeo-Product-Sheet-September-22-1.pdf">HawkEye 360 RFGeo</a>, Unseenlabs</td>
+<td>Emitter geolocation, confidence ellipse, signal metadata</td>
+<td>hours–days</td>
+<td>Wide-area RF awareness and cueing</td>
+<td>P2, buy</td>
+</tr>
+<tr>
+<td>Satellite/terrestrial AIS</td>
+<td>Local receiver, MPA/OCEANS-X, <a href="https://spire.com/maritime/">Spire Maritime</a></td>
+<td>Vessel state, identity, voyage, collection source</td>
+<td>seconds–hours</td>
+<td>Maritime tracking, SAR association, spoof/dark-target analysis</td>
+<td>P1</td>
+</tr>
+<tr>
+<td>Satellite ADS-B</td>
+<td><a href="https://aviation-docs.spire.com/api/tracking-history/introduction/">Spire Aviation</a> or another licensed provider</td>
+<td>Aircraft tracks beyond terrestrial coverage</td>
+<td>seconds–hours</td>
+<td>Fill over-water/gap coverage</td>
+<td>P2, buy</td>
+</tr>
+<tr>
+<td>Satellite weather/fire</td>
+<td>Himawari/NOAA products; <a href="https://firms.modaps.eosdis.nasa.gov/api/">NASA FIRMS</a></td>
+<td>Cloud, storms, thermal anomalies, active-fire points</td>
+<td>minutes–hours</td>
+<td>Environmental state and incident detection</td>
+<td>P1</td>
+</tr>
+<tr>
+<td>Space-object/radio context</td>
+<td><a href="https://docs.satnogs.org/projects/satnogs-network/en/latest/api.html">SatNOGS API</a>, TLE/ephemeris providers</td>
+<td>Passes, transmitters, observations, decoded telemetry</td>
+<td>seconds–days</td>
+<td>Explain interference and satellite visibility; not ground-target evidence</td>
+<td>P2</td>
+</tr>
+<tr>
+<td>Maritime authority data</td>
+<td><a href="https://sg-mdh.mpa.gov.sg/sites/default/files/Singapore%20Maritime%20Data%20Hub%20API%20User%20Guide%20%20%20Documentation%20v1.4.pdf">Singapore Maritime Data Hub</a> / <a href="https://oceans-x.mpa.gov.sg/">OCEANS-X</a></td>
+<td>Vessel position, arrivals, port and registry context</td>
+<td>seconds–days</td>
+<td>Singapore maritime operating picture</td>
+<td>P1, access-dependent</td>
+</tr>
+<tr>
+<td>Human/OSINT reports</td>
+<td>Authenticated operator reports, approved news/social feeds</td>
+<td>Text, media, claimed location/time</td>
+<td>seconds–hours</td>
+<td>Cueing and corroboration only</td>
+<td>P2</td>
+</tr>
+</tbody>
+</table>
+<p><code>P0</code> means implement contracts/adapters first; <code>P1</code> means add after the new
+fusion semantics exist; <code>P2</code> means evaluate behind a provider-neutral adapter.</p>
+<h3 id="satellite-specific-design">4.2 Satellite-specific design</h3>
+<p>Use <a href="https://www.ogc.org/standards/stac/">STAC</a> as the catalogue abstraction
+for imagery and derived assets. STAC covers optical, SAR, hyperspectral, video,
+point clouds, LiDAR, DEM, and ML labels. Keep pixels in COG/Zarr/object storage;
+put only item metadata, footprints, detections, embeddings, and immutable asset
+references on the event bus.</p>
+<p>Each scene-derived detection needs:</p>
+<ul>
+<li>satellite/instrument, product level, orbit/look geometry and processing
+baseline;</li>
+<li>acquisition start/end, publication and Sentinel receipt times;</li>
+<li>footprint and per-detection position/shape covariance;</li>
+<li>cloud, shadow, incidence-angle, speckle, resolution and quality metadata;</li>
+<li>model/version/calibration and chip/asset hash;</li>
+<li>a <code>negativeCoverage</code> record only when the area was observable and the model's
+tested detection limits apply.</li>
+</ul>
+<p>Do not turn a current satellite basemap into “live intelligence.” A displayed
+tile must show its acquisition time and processing lineage. For tasking APIs,
+record request, feasibility, schedule, collection, delivery, and failure as
+separate lifecycle events.</p>
+<h3 id="aip-specific-design">4.3 AIP-specific design</h3>
+<p><a href="https://www.caas.gov.sg/industry/airspace-management-and-aerial-activities/aeronautical-information-services/">CAAS states</a>
+that Singapore AIP is the authoritative permanent reference and that AIM-SG
+also provides amendments, supplements, AICs and NOTAM lists. The older CAAS
+eAIP announcement describes the publication as structured XML built on an
+AIXM-compliant model. For production, prefer an authorised machine-readable
+feed or documented export over scraping rendered pages.</p>
+<p>AIP/AIXM data belongs in a versioned temporal feature store:</p>
+<ul>
+<li>feature ID and geometry;</li>
+<li>baseline/effective AIRAC cycle;</li>
+<li>correction/amendment source and publication time;</li>
+<li>validity interval and supersession link;</li>
+<li>authority and integrity status;</li>
+<li>original document/data reference and hash.</li>
+</ul>
+<p>Use it to check whether a track is near an aerodrome, airway, restricted area,
+obstacle, procedure volume, or navigation facility. Do not treat “inside a
+restricted area” as proof of hostile identity. <a href="https://www.eurocontrol.int/model/aeronautical-information-exchange-model">AIXM</a>
+supports both static AIP-like information and dynamic NOTAM-like information.
+EAD Basic explicitly warns that it is not an operational source; operational
+use requires the appropriate EAD service/agreement.</p>
+<h3 id="radio-specific-design">4.4 Radio-specific design</h3>
+<p>Model four different products:</p>
+<ol>
+<li><strong>Raw/reference:</strong> I/Q, spectrogram, packet bytes, receiver settings.</li>
+<li><strong>Signal:</strong> frequency, bandwidth, power, modulation/protocol likelihood.</li>
+<li><strong>Geometry:</strong> AoA/bearing, TDOA/FDOA, confidence region.</li>
+<li><strong>Decoded claim:</strong> address/ID, claimed position, velocity and status.</li>
+</ol>
+<p>Decoded claims should be cross-checked against RF geometry, physical radar/EO,
+plausible motion, registry/AIP context, and message timing. A receiver seeing no
+emission is not evidence that no object exists. Maintain receiver calibration,
+antenna pattern, clock uncertainty and legal collection constraints.</p>
+<h2 id="fusion-model-in-detail">5. Fusion model in detail</h2>
+<h3 id="space-time-normalization">5.1 Space-time normalization</h3>
+<ul>
+<li>Retain WGS84 source geometry and transform to a mission-local ENU/ECEF frame
+through a versioned transform service.</li>
+<li>Express uncertainty through the transform; do not copy covariance unchanged
+between polar, image, WGS84 and ENU frames.</li>
+<li>Use observation/acquisition time, a bounded reorder buffer, and watermarks.</li>
+<li>Maintain recent state history so late evidence can update the correct point
+and re-propagate forward.</li>
+<li>Give context features validity intervals; never overwrite history in place.</li>
+</ul>
+<h3 id="initiation-and-state-estimation">5.2 Initiation and state estimation</h3>
+<p>Track initiation paths should include:</p>
+<ul>
+<li>range/bearing or Cartesian detections from radar/LiDAR;</li>
+<li>intersection of multiple time-aligned RF/acoustic/EO rays;</li>
+<li>cooperative positions with identity-claim flags;</li>
+<li>external/local source tracks with declared covariance;</li>
+<li>satellite scene detections with much longer, domain-specific lifecycle rules.</li>
+</ul>
+<p>Use an IMM with constant velocity, constant acceleration, and coordinated-turn
+models. EKF is sufficient for many polar measurements; use UKF where nonlinear
+geometry or uncertainty makes linearization fragile. A fixed-lag factor-graph
+smoother is a good second-stage option for delayed imagery and offline replay;
+<a href="https://gtsam.org/docs/">GTSAM</a> is a mature BSD-licensed implementation, but it
+does not provide the complete multi-target association front-end.</p>
+<h3 id="association">5.3 Association</h3>
+<p>Construct candidate costs from:</p>
+<ul>
+<li>Mahalanobis position/bearing residual;</li>
+<li>timestamp and feasible-motion residual;</li>
+<li>object size/class/embedding compatibility;</li>
+<li>cooperative ID or RF fingerprint compatibility;</li>
+<li>source field-of-view and missed-detection model;</li>
+<li>context without letting context force identity.</li>
+</ul>
+<p>Start with global nearest neighbour for a deterministic baseline, then add
+JPDA. <a href="https://github.com/dstl/Stone-Soup/blob/main/docs/tutorials/08_JPDATutorial.py">Stone Soup's JPDA tutorial</a>
+is directly useful for prototyping. MHT retains multiple scan-level association
+hypotheses and is valuable in dense ambiguity, but it requires aggressive
+pruning and should be justified by measured gains. The ISIF review
+<a href="https://isif.org/media/forty-years-multiple-hypothesis-tracking">Forty Years of Multiple Hypothesis Tracking</a>
+is a useful map of MHT variants and their relationship to random-finite-set
+methods. Track splits and merges must remain explicit operator-visible events.</p>
+<h3 id="distributed-and-track-to-track-fusion">5.4 Distributed and track-to-track fusion</h3>
+<p>External radar/ASTERIX tracks, vendor C-UAS tracks, satellite-derived tracks,
+and upstream C2 tracks may share raw observations. Naively applying a Kalman
+update can count the same evidence twice. Require a <code>correlationGroup</code> and use:</p>
+<ul>
+<li>measurement-level fusion when raw normalized observations are available;</li>
+<li>track-to-track association followed by covariance intersection when
+cross-correlation is unknown;</li>
+<li>equivalent-measurement or documented cross-covariance methods only when the
+upstream filter exposes enough information.</li>
+</ul>
+<p>Stone Soup includes track-to-track association and covariance-intersection
+capabilities; its <a href="https://github.com/dstl/Stone-Soup">project repository</a> is
+MIT-licensed and purpose-built for tracking/state-estimation experiments.
+Unknown common information is a real consistency problem rather than an edge
+case; this <a href="https://eprints.soton.ac.uk/475490/">track-to-track fusion paper</a>
+describes covariance-intersection-based Bayesian multitarget fusion, while the
+<a href="https://www.sciencedirect.com/science/article/pii/S1270963820309081">out-of-sequence track literature</a>
+shows why delayed upstream tracks require more than arrival-order updates.</p>
+<h3 id="classification-identity-and-anomaly-fusion">5.5 Classification, identity and anomaly fusion</h3>
+<p>Keep three distributions separate:</p>
+<ul>
+<li><strong>class:</strong> drone, bird, aircraft, vessel, vehicle, unknown;</li>
+<li><strong>identity/affiliation claim:</strong> callsign, registration, friendly, neutral,
+unknown, conflicting;</li>
+<li><strong>behaviour/anomaly:</strong> loitering, route deviation, transponder inconsistency,
+RF silence, unusual speed, or other domain-labelled condition.</li>
+</ul>
+<p>Calibrate every model by environment and sensor configuration using temperature
+scaling/isotonic regression as appropriate. Fuse calibrated likelihoods or
+log-odds with dependence groups and decay. Store positive, negative, and
+conflicting evidence. “Unknown” must be a first-class outcome.</p>
+<p>Learned attention/transformer fusion can be evaluated for semantic or anomaly
+ranking after the deterministic baseline exists. It must support missing
+modalities, return per-source contributions, and pass ablation/calibration
+tests before affecting operator alerts.</p>
+<h3 id="sensor-management-and-tip-and-cue">5.6 Sensor management and tip-and-cue</h3>
+<p>The world model should create collection requests, not just consume data:</p>
+<ul>
+<li>RF bearing cues radar sector search or EO/PTZ slew.</li>
+<li>Radar track cues EO/IR zoom and classification.</li>
+<li>AIS/ADS-B inconsistency cues SAR/optical archive search.</li>
+<li>Satellite change/detection cues local sensors on the next coverage window.</li>
+<li>Weather and terrain predict degraded sensor performance.</li>
+</ul>
+<p>Keep tasking feasibility and command authorisation outside the estimator. The
+<a href="https://csapi.developer.ogc.org/">OGC Connected Systems model</a> and commercial
+satellite tasking APIs provide useful lifecycle patterns.</p>
+<h2 id="startup-and-market-lessons">6. Startup and market lessons</h2>
+<p>These are architectural signals from public company material, not independent
+performance validation or purchase endorsements.</p>
+<h3 id="y-combinator-patterns">6.1 Y Combinator patterns</h3>
+<table>
+<thead>
+<tr>
+<th>Company</th>
+<th>Public proposition</th>
+<th>Lesson for Sentinel</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://www.ycombinator.com/companies/surtr-defense-systems">Surtr Defense Systems</a></td>
+<td>Provider-neutral counter-UAS OS fusing radar, RF, camera and acoustic inputs with a human in the loop</td>
+<td>Hardware-neutral adapters and operator trust are a market requirement, not polish</td>
+</tr>
+<tr>
+<td><a href="https://www.ycombinator.com/companies/arlo-industries">Arlo Industries</a></td>
+<td>Distributed passive mesh sensing</td>
+<td>Many inexpensive, time-synchronised nodes can improve geometry and resilience; network/calibration quality becomes part of fusion</td>
+</tr>
+<tr>
+<td><a href="https://www.ycombinator.com/companies/guardian-rf">Guardian RF</a></td>
+<td>Passive RF detection/classification and operational API integration</td>
+<td>RF must be a first-class sensor family, including non-Remote-ID signals and degraded connectivity</td>
+</tr>
+<tr>
+<td><a href="https://www.ycombinator.com/companies/skymerse">Skymerse</a></td>
+<td>Interprets NOTAM and fragmented flight-operations data</td>
+<td>AIP/NOTAM value comes from temporal operational impact, not simply rendering documents</td>
+</tr>
+<tr>
+<td><a href="https://www.ycombinator.com/companies/axionorbital-space">AxionOrbital Space</a></td>
+<td>ML-assisted SAR interpretation</td>
+<td>SAR needs specialised preprocessing/models; generated optical-like views must never replace physical SAR evidence</td>
+</tr>
+<tr>
+<td><a href="https://www.ycombinator.com/companies/basalt">Basalt</a></td>
+<td>Automated satellite constellation operations and streaming</td>
+<td>Treat tasking/collection/delivery as an automated workflow with telemetry and failure states</td>
+</tr>
+<tr>
+<td><a href="https://www.ycombinator.com/companies/icarus">Icarus</a></td>
+<td>Persistent stratospheric sensing</td>
+<td>HAPS can fill revisit gaps between local sensors and satellites; use the same platform/instrument abstraction</td>
+</tr>
+<tr>
+<td><a href="https://www.ycombinator.com/companies/conntour">Conntour</a></td>
+<td>Natural-language search/alerts over many cameras</td>
+<td>Natural language is useful over an indexed evidence store, but detections must remain model-versioned and reviewable</td>
+</tr>
+</tbody>
+</table>
+<p>The strongest common pattern is not a novel neural architecture. It is a
+provider-neutral data layer, distributed edge processing, automatic cueing,
+model-assisted triage, and a human-visible evidence trail.</p>
+<h3 id="established-platform-patterns">6.2 Established platform patterns</h3>
+<p><a href="https://developer.anduril.com/guides/concepts/principles">Anduril's public Lattice principles</a>
+emphasise local-first operation, standardised data models, bandwidth awareness,
+and edge processing. Its public entity documentation links track measurement
+time to provenance/source-update time. <a href="https://shield.ai/hivemind/">Shield AI Hivemind</a>
+emphasises platform-independent autonomy under GPS/comms degradation. Sentinel
+should borrow the architectural patterns—local-first, open adapters, common
+entities, graceful degradation, provenance—without making unverifiable claims
+about proprietary algorithms.</p>
+<h2 id="open-source-shortlist">7. Open-source shortlist</h2>
+<h3 id="adopt-or-prototype">7.1 Adopt or prototype</h3>
+<table>
+<thead>
+<tr>
+<th>Project</th>
+<th>Use</th>
+<th>Recommendation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/dstl/Stone-Soup">dstl/Stone-Soup</a></td>
+<td>Kalman/particle filters, JPDA/MHT, initiators, track fusion, OOSM examples, metrics and simulation</td>
+<td>Use as a research oracle and Python benchmark harness before porting the selected production algorithm</td>
+</tr>
+<tr>
+<td><a href="https://github.com/borglab/gtsam">borglab/GTSAM</a></td>
+<td>Incremental factor graphs and fixed-lag smoothing</td>
+<td>Evaluate for delayed/offline state smoothing, not as the whole multi-target tracker</td>
+</tr>
+<tr>
+<td><a href="https://github.com/stac-utils/pystac">stac-utils/pystac</a> and <a href="https://pystac-client.readthedocs.io/">pystac-client</a></td>
+<td>Provider-neutral EO catalogue access</td>
+<td>Use in the external-source service</td>
+</tr>
+<tr>
+<td><a href="https://github.com/stac-utils/stac-fastapi-pgstac">stac-fastapi-pgstac</a></td>
+<td>Local searchable STAC catalogue on PostgreSQL/PostGIS</td>
+<td>Use if Sentinel caches/catalogues many scene and derived assets</td>
+</tr>
+<tr>
+<td><a href="https://github.com/opendroneid">OpenDroneID</a></td>
+<td>Remote ID decoders/receivers</td>
+<td>Build a cooperative-ID adapter and conformance fixtures</td>
+</tr>
+<tr>
+<td><a href="https://github.com/antirez/dump1090">dump1090</a> / maintained <code>readsb</code> ecosystem</td>
+<td>Local Mode S/ADS-B receive path</td>
+<td>Use a maintained decoder and consume Beast/JSON output behind an adapter</td>
+</tr>
+<tr>
+<td><a href="https://github.com/junzis/pyModeS">pyModeS</a></td>
+<td>Mode S/ADS-B decoding and research tooling</td>
+<td>Useful for fixtures, parity checks and analysis</td>
+</tr>
+<tr>
+<td><a href="https://github.com/M0r13n/pyais">pyais</a></td>
+<td>AIS NMEA decoding/streaming</td>
+<td>Use for maritime adapter prototypes</td>
+</tr>
+<tr>
+<td><a href="https://github.com/gnuradio/gnuradio">GNU Radio</a> and <a href="https://github.com/sigmf/SigMF">SigMF</a></td>
+<td>SDR processing and portable signal metadata</td>
+<td>Use SigMF references for bounded I/Q evidence; do not put samples on the C2 event bus</td>
+</tr>
+<tr>
+<td><a href="https://satnogs.org/documentation/">SatNOGS</a></td>
+<td>Open ground-station stack and satellite observation API</td>
+<td>Use for space/radio context experiments, not authoritative target tracking</td>
+</tr>
+<tr>
+<td><a href="https://iuu.xview.us/">xView3 baseline/data</a></td>
+<td>Sentinel-1 SAR vessel detection and AIS-derived labels</td>
+<td>Strong SAR+AIS evaluation case; large storage/compute footprint</td>
+</tr>
+<tr>
+<td><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC8573135/">Halmstad drone dataset</a></td>
+<td>Visible, thermal and acoustic drone/non-drone data</td>
+<td>Regression/evaluation for EO/IR/acoustic evidence fusion</td>
+</tr>
+<tr>
+<td><a href="https://github.com/ZhaoJ9014/Anti-UAV">Anti-UAV</a></td>
+<td>Visible/thermal small-target tracking</td>
+<td>Benchmark detection loss/reacquisition and false negatives</td>
+</tr>
+<tr>
+<td><a href="https://github.com/openradarinitiative/open_radar_datasets">Open Radar Initiative datasets</a></td>
+<td>Radar tracks and micro-Doppler</td>
+<td>Radar schema/classification regression</td>
+</tr>
+</tbody>
+</table>
+<h3 id="repositories-to-treat-as-references-not-dependencies">7.2 Repositories to treat as references, not dependencies</h3>
+<p>Small “all-in-one” fusion demos can illustrate workflows but often lack tests,
+calibration, licensing clarity, provenance, and operational data. For example,
+public SAR+AIS dark-vessel demos show the useful pattern—time-align AIS to the
+scene, perform optimal assignment, expose unmatched detections—but Sentinel
+should reimplement the tested algorithm inside its own contracts rather than
+adopt an unmaintained application wholesale.</p>
+<h2 id="storage-and-service-design">8. Storage and service design</h2>
+<p>Recommended logical stores:</p>
+<table>
+<thead>
+<tr>
+<th>Store</th>
+<th>Contents</th>
+<th>Candidate technology</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Immutable evidence log</td>
+<td>Validated canonical events and lineage</td>
+<td>Append-only NDJSON for MVP; durable event log later</td>
+</tr>
+<tr>
+<td>Hot track state</td>
+<td>Current hypotheses, history window, covariance</td>
+<td>In-process first; Redis/PostgreSQL when needed</td>
+</tr>
+<tr>
+<td>Geospatial/temporal feature store</td>
+<td>AIP/NOTAM, AOIs, airspace, infrastructure, entity history</td>
+<td>PostgreSQL + PostGIS with bitemporal columns</td>
+</tr>
+<tr>
+<td>EO asset catalogue</td>
+<td>STAC items, footprints, product/model metadata</td>
+<td>PySTAC/PgSTAC</td>
+</tr>
+<tr>
+<td>Large evidence objects</td>
+<td>COG, Zarr, video, audio, I/Q/SigMF</td>
+<td>S3-compatible object storage, content-addressed references</td>
+</tr>
+<tr>
+<td>Evaluation registry</td>
+<td>Dataset/model/configuration hashes and metrics</td>
+<td>Versioned manifests plus artifact store</td>
+</tr>
+</tbody>
+</table>
+<p>Do not add Kafka, Redis, or a graph database merely to look scalable. The
+existing services can first implement the semantics with an append-only log and
+PostGIS. Introduce a broker only when replay, fan-out, throughput, or independent
+consumers justify the operational burden.</p>
+<h2 id="evaluation-and-acceptance">9. Evaluation and acceptance</h2>
+<h3 id="metrics">9.1 Metrics</h3>
+<table>
+<thead>
+<tr>
+<th>Concern</th>
+<th>Metrics</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Detection</td>
+<td>Probability of detection/false alarm by range, class, weather, clutter and sensor configuration; precision/recall and PR-AUC</td>
+</tr>
+<tr>
+<td>Tracking</td>
+<td>GOSPA/OSPA, position/velocity RMSE, track continuity, fragmentation, ID switches, time-to-confirm, time-to-reacquire</td>
+</tr>
+<tr>
+<td>Consistency</td>
+<td>NIS/NEES and covariance coverage; residual distributions by sensor/model</td>
+</tr>
+<tr>
+<td>Classification</td>
+<td>Per-class precision/recall, confusion matrix, Brier score/ECE, open-set/unknown performance</td>
+</tr>
+<tr>
+<td>Association</td>
+<td>Correct association rate, swaps at crossings, split/merge accuracy, ambiguity duration</td>
+</tr>
+<tr>
+<td>Timeliness</td>
+<td>Observation-to-ingress, ingress-to-track, collection-to-delivery, percent processed within watermark</td>
+</tr>
+<tr>
+<td>Resilience</td>
+<td>Performance under sensor loss, packet delay, clock skew, stale data, duplicates, spoofed cooperative claims and correlated feeds</td>
+</tr>
+<tr>
+<td>Operator utility</td>
+<td>Alert precision, evidence-review time, provenance completeness, veto/override rate</td>
+</tr>
+</tbody>
+</table>
+<h3 id="required-experiments">9.2 Required experiments</h3>
+<ol>
+<li>Current nearest-neighbour engine versus EKF-GNN on identical replay.</li>
+<li>GNN versus JPDA in crossings, clutter and swarm density sweeps.</li>
+<li>Radar-only versus radar+RF, radar+EO/IR, and all-source ablations.</li>
+<li>Two/three passive-bearing sensors initiating a track without radar.</li>
+<li>Satellite detection arriving 30 minutes late and correctly updating history
+without teleporting the current track.</li>
+<li>Duplicate ADS-B/AIS from multiple aggregators without double confidence.</li>
+<li>Cooperative position spoof inconsistent with physical radar/RF geometry.</li>
+<li>AIP/NOTAM revision and cancellation with reproducible historical replay.</li>
+<li>Source clock offset and covariance miscalibration tests.</li>
+<li>Complete source outage, recovery, and instance-ID change without duplicate
+tracks.</li>
+</ol>
+<p>Every metric must be stratified by source availability; aggregate accuracy can
+hide catastrophic performance when a favoured modality is absent.</p>
+<h2 id="build-versus-buy">10. Build-versus-buy</h2>
+<h3 id="build">Build</h3>
+<ul>
+<li>Canonical evidence contracts, provenance, adapter SDK and conformance suite.</li>
+<li>Space/time transforms and uncertainty handling.</li>
+<li>Core association, track management and evidence ledger.</li>
+<li>Replay, evaluation, source-health and operator explanations.</li>
+<li>Open-source/local adapters for ADS-B, Remote ID, AIS, CDSE, AIM-SG publications
+where authorised, OneMap, and Singapore weather data.</li>
+</ul>
+<h3 id="buy-or-partner">Buy or partner</h3>
+<ul>
+<li>Commercial high-resolution optical/SAR tasking and licensed derived products.</li>
+<li>Space-based RF geolocation and global satellite AIS/ADS-B.</li>
+<li>Operational AIP/NOTAM/flight-data redistribution rights where public access
+is not licensed for production.</li>
+<li>Vendor sensor adapters when actual hardware is selected.</li>
+</ul>
+<p>Keep provider-specific billing, tasking and entitlements outside the canonical
+world model. A provider should be replaceable without changing track/entity
+types or the operator UI.</p>
+<h2 id="prioritised-roadmap">11. Prioritised roadmap</h2>
+<h3 id="sprint-0-contracts-and-truth-tests-12-weeks">Sprint 0 — contracts and truth tests (1–2 weeks)</h3>
+<ol>
+<li>Add <code>observedAt</code>, <code>producedAt</code>, <code>receivedAt</code>, validity interval,
+correlation group, model version, integrity and lineage to evidence v2.</li>
+<li>Add event families for context revisions, cooperative claims, scene
+detections and external tracks.</li>
+<li>Expand track covariance/state and separate existence, class and identity.</li>
+<li>Create golden fixtures for late, duplicate, correlated, conflicting,
+bearing-only and context-only evidence.</li>
+</ol>
+<h3 id="sprint-1-credible-tracking-baseline-24-weeks">Sprint 1 — credible tracking baseline (2–4 weeks)</h3>
+<ol>
+<li>Implement EKF/UKF measurement models for Cartesian, range-bearing-elevation,
+bearing/elevation and cooperative position.</li>
+<li>Add Mahalanobis gating, global assignment and passive-bearing
+triangulation.</li>
+<li>Add per-domain lifecycle policies and deterministic replay metrics.</li>
+<li>Build a parallel Stone Soup benchmark to validate numerical behaviour.</li>
+</ol>
+<h3 id="sprint-2-highest-value-new-sources-24-weeks">Sprint 2 — highest-value new sources (2–4 weeks)</h3>
+<ol>
+<li>Local ADS-B/Mode S adapter.</li>
+<li>OpenDroneID adapter.</li>
+<li>CAAS AIP/AIM-SG versioned ingest and NOTAM/context model, subject to access
+and reuse terms.</li>
+<li>data.gov.sg weather radar and OneMap context adapters.</li>
+<li>CDSE STAC scene catalogue plus one derived Sentinel-1/2 detection/change
+workflow.</li>
+</ol>
+<h3 id="sprint-3-ambiguity-and-delayed-evidence-35-weeks">Sprint 3 — ambiguity and delayed evidence (3–5 weeks)</h3>
+<ol>
+<li>JPDA and explicit association probabilities.</li>
+<li>Bounded event-time reorder buffer and fixed-lag smoother/replay.</li>
+<li>Track-to-track association and covariance intersection.</li>
+<li>Source reliability/calibration registry and conflict evidence.</li>
+</ol>
+<h3 id="sprint-4-maritime-and-commercial-pilot-36-weeks">Sprint 4 — maritime and commercial pilot (3–6 weeks)</h3>
+<ol>
+<li>AIS adapter using an authorised Singapore/global feed.</li>
+<li>Sentinel-1 SAR vessel detection and SAR↔AIS association benchmark on
+xView3-style data.</li>
+<li>Run one time-boxed commercial SAR or optical API pilot and one satellite RF
+or satellite AIS/ADS-B pilot.</li>
+<li>Compare marginal information gain, latency, availability, licence and cost
+before procurement.</li>
+</ol>
+<h3 id="later">Later</h3>
+<ul>
+<li>MHT/RFS comparison for dense swarms.</li>
+<li>Factor-graph fixed-lag smoothing if the simpler delayed-update design is
+insufficient.</li>
+<li>Learned multimodal semantic/anomaly fusion with modality dropout and
+calibrated explanations.</li>
+<li>Automated sensor tasking/tip-and-cue with human-approved policy boundaries.</li>
+</ul>
+<h2 id="gono-go-gates">12. Go/no-go gates</h2>
+<p>Do not call the new model “better” until it passes all of these:</p>
+<ul>
+<li>GOSPA and continuity improve on held-out, cluttered multisensor replay.</li>
+<li>Calibration is at least as good as the current baseline; confidence does not
+rise solely because duplicate aggregators repeat the same source.</li>
+<li>Removing any modality degrades gracefully rather than causing invalid state.</li>
+<li>Late satellite evidence changes the correct historical hypothesis without
+creating an impossible current jump.</li>
+<li>Every operator-visible fact can be traced to immutable evidence, model and
+context versions.</li>
+<li>Public/demo data is labelled non-operational and licensed production data is
+kept separate.</li>
+<li>Source failure, spoofing, clock error and contradictory identity claims are
+visible rather than silently averaged away.</li>
+</ul>
+<h2 id="bottom-line">13. Bottom line</h2>
+<p>The most valuable immediate expansion is not “more AI.” It is richer evidence
+semantics plus four complementary source groups: local physical sensing,
+cooperative radio, authoritative aeronautical/maritime context, and delayed
+wide-area satellite evidence. With those foundations, Sentinel can add
+providers and learned models without corrupting the world model or losing the
+operator's ability to understand why a track exists.</p>
+
+  </main>
+</body>
+</html>

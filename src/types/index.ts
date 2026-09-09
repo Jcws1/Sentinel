@@ -60,6 +60,7 @@ export interface ThreatTrack {
   sensors: string[]
   estimatedGroupSize?: number
   sourceScenario?: string
+  operatorAuthorizedForIntercept?: boolean
   etaAvailable?: boolean
   sourceConfidenceAvailable?: boolean
   altitudeAvailable?: boolean

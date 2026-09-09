@@ -8,6 +8,20 @@ import type {
 import type { C2State } from './state'
 import { upsertRecommendation } from './simulation'
 
+function authorizeReplayTrackForIntercept(state: C2State, trackId: string): void {
+  const track = state.tracks.find((candidate) => candidate.id === trackId)
+  if (!track?.sourceScenario || track.operatorAuthorizedForIntercept) return
+  track.operatorAuthorizedForIntercept = true
+  track.recommendedAction = 'Intercept'
+  state.decisionLog.unshift({
+    id: `log-${Date.now()}-${trackId}-operator-authority`,
+    timestamp: Date.now(),
+    actor: 'operator',
+    action: 'AUTHORIZE_INTERCEPT_TASKING',
+    detail: `Operator authorised intercept planning for ${trackId}; source classification remains unknown`,
+  })
+}
+
 export function getTrackDetail(
   state: C2State,
   trackId: string,
@@ -33,6 +47,8 @@ export function requestPlan(
 ): TaskingRecommendation {
   const track = state.tracks.find((t) => t.id === body.trackId)
   if (!track) throw new Error(`Track ${body.trackId} not found`)
+
+  authorizeReplayTrackForIntercept(state, track.id)
 
   const rec = buildRecommendation(track, state.drones, body.preferredDroneIds)
   if (!rec) throw new Error('No available interceptors')
@@ -179,6 +195,7 @@ export function engageTrack(
     return { accepted: true, trackId, droneIds: already.droneIds }
   }
 
+  authorizeReplayTrackForIntercept(state, track.id)
   if (track.recommendedAction === 'Hold') {
     throw new Error('Track is on hold — clear hold before engaging')
   }

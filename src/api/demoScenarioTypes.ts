@@ -30,6 +30,7 @@ export interface DemoScenarioDefinition {
   scale: string
   c2Objective: string
   timelineScale: number
+  startOffsetSeconds?: number
   durationSeconds?: number
   dataSource?: string
   dataQuality?: string

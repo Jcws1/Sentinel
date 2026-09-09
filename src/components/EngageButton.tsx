@@ -41,20 +41,25 @@ export function EngageButton({
   const missionBlocked =
     mission.state === 'HOLD' || mission.state === 'RECALL'
   const onHold = track?.recommendedAction === 'Hold'
+  const replayAuthorizationAvailable = Boolean(track?.sourceScenario)
   const disabled =
-    externallyDisabled || busy || !!engaged || onHold || missionBlocked || !track
+    externallyDisabled || busy || !!engaged || (onHold && !replayAuthorizationAvailable) || missionBlocked || !track
 
   useEffect(() => {
     if (engaged) setBusy(false)
   }, [engaged])
+
+  const effectiveIdleLabel = onHold && replayAuthorizationAvailable
+    ? idleLabel === 'Engage' ? 'Authorize & engage' : `Authorize & ${idleLabel.toLowerCase()}`
+    : idleLabel
 
   const label = busy
     ? 'Engaging…'
     : engaged
       ? 'Engaged'
       : pending
-        ? idleLabel
-        : idleLabel
+        ? effectiveIdleLabel
+        : effectiveIdleLabel
 
   const variantClass =
     variant === 'sm'
@@ -90,7 +95,7 @@ export function EngageButton({
         .join(' ')}
       data-operator-ui
       disabled={disabled}
-      aria-label={engaged ? `${trackId} engaged` : `${idleLabel} ${trackId}`}
+      aria-label={engaged ? `${trackId} engaged` : `${effectiveIdleLabel} ${trackId}`}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => {
         e.stopPropagation()

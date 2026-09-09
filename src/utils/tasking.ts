@@ -39,7 +39,15 @@ export function buildRecommendation(
 
   if (available.length === 0) return null
 
-  const assigned = available.slice(0, track.threatClass === 'I' ? 2 : 1)
+  const desiredCount =
+    (track.estimatedGroupSize ?? 0) >= 100
+      ? 3
+      : (track.estimatedGroupSize ?? 0) >= 20
+        ? 2
+        : track.threatClass === 'I'
+          ? 2
+          : 1
+  const assigned = available.slice(0, desiredCount)
   const primary = assigned[0]
   const dist = distanceMeters(primary.position, track.position)
   const etaSeconds = Math.max(8, Math.round(dist / 28))

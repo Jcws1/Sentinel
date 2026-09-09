@@ -10,6 +10,7 @@ import {
 } from '../src/api/demoScenarioTypes'
 import { advanceGnssFadeScenario, advanceSimulation, advanceThalesRadarReplay } from './simulation'
 import { createInitialState } from './state'
+import { engageTrack, requestPlan } from './services'
 
 test('scenario catalogue includes Singapore rehearsals and Thales radar replays', () => {
   assert.equal(DEMO_SCENARIOS.length, 9)
@@ -53,6 +54,42 @@ test('Thales 04 introduces the supplied 100 and 20 drone split tracks in sequenc
   advanceThalesRadarReplay(state, 3_000, 5)
   assert.equal(state.tracks.length, 3)
   assert.ok(state.tracks.some((track) => (track.estimatedGroupSize ?? 0) <= 20))
+})
+
+test('Thales 04 supports operator-authorised tasking and inherits authority across the split', () => {
+  const state = createInitialState()
+  activateDemoScenario(state, THALES_SWARMBREAKERS_04_SCENARIO_ID, 1_000)
+  advanceThalesRadarReplay(state, 2_000, 5)
+
+  const main = state.tracks.find((track) => track.id === 'THALES-04-main-0')!
+  assert.equal(state.scenario?.elapsedSeconds, 1_605)
+  assert.equal(state.drones.length, 12)
+  assert.equal(main.recommendedAction, 'Hold')
+
+  const recommendation = requestPlan(state, { trackId: main.id })
+  assert.equal(main.operatorAuthorizedForIntercept, true)
+  assert.equal(main.recommendedAction, 'Intercept')
+  assert.equal(recommendation.droneIds.length, 3)
+
+  state.scenario!.elapsedSeconds = 1_760
+  advanceThalesRadarReplay(state, 3_000, 5)
+  assert.ok(state.recommendations.some((item) => item.id === recommendation.id))
+  assert.ok(state.tracks.every((track) => track.operatorAuthorizedForIntercept))
+  assert.ok(state.tracks.some((track) => track.id === 'THALES-04-split-100'))
+})
+
+test('emergency engage explicitly authorises and dispatches against a Thales replay track', () => {
+  const state = createInitialState()
+  activateDemoScenario(state, THALES_SWARMBREAKERS_04_SCENARIO_ID, 1_000)
+  advanceThalesRadarReplay(state, 2_000, 5)
+  const track = state.tracks[0]!
+
+  const result = engageTrack(state, track.id)
+
+  assert.equal(result.accepted, true)
+  assert.equal(result.droneIds.length, 3)
+  assert.equal(track.operatorAuthorizedForIntercept, true)
+  assert.ok(state.recommendations.some((item) => item.trackId === track.id && item.status === 'confirmed'))
 })
 
 test('Changi unknowns are first detected inside the protected airspace', () => {

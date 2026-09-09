@@ -199,13 +199,31 @@ export function advanceThalesRadarReplay(state: C2State, now: number, stepSecond
   if (!replay) return
 
   const elapsed = Math.min(replay.durationSeconds, (runtime.elapsedSeconds ?? 0) + stepSeconds)
-  const previousIds = new Set(state.tracks.map((track) => track.id))
+  const previousTracks = new Map(state.tracks.map((track) => [track.id, track]))
+  const previousIds = new Set(previousTracks.keys())
+  const replayAuthorizationActive = state.tracks.some(
+    (track) => track.sourceScenario === replay.id && track.operatorAuthorizedForIntercept,
+  )
   const nextTracks: ThreatTrack[] = []
   for (const sourceTrack of replay.tracks) {
     const frame = radarReplayFrame(sourceTrack, elapsed)
     if (!frame) continue
     const lastTime = sourceTrack.keyframes[sourceTrack.keyframes.length - 1]!.t
     const track = radarReplayThreat(replay.id, sourceTrack, frame, lastTime - elapsed)
+    const previousTrack = previousTracks.get(track.id)
+    if (previousTrack?.scenario?.phase === 'neutralized') {
+      track.position = { ...previousTrack.position }
+      track.speed = 0
+      track.recommendedAction = 'Neutralized'
+      track.operatorAuthorizedForIntercept = true
+      if (track.scenario) {
+        track.scenario.phase = 'neutralized'
+        track.scenario.currentSpeed = 0
+      }
+    } else if (previousTrack?.operatorAuthorizedForIntercept || replayAuthorizationActive) {
+      track.operatorAuthorizedForIntercept = true
+      track.recommendedAction = 'Intercept'
+    }
     nextTracks.push(track)
     if (!previousIds.has(track.id)) {
       state.decisionLog.unshift({
@@ -215,6 +233,15 @@ export function advanceThalesRadarReplay(state: C2State, now: number, stepSecond
         action: 'RADAR_TRACK_ESTABLISHED',
         detail: `${track.id} established from clustered replay data; estimated group size ${track.estimatedGroupSize}`,
       })
+      if (replayAuthorizationActive) {
+        state.decisionLog.unshift({
+          id: `log-${now}-${track.id}-authority-inherited`,
+          timestamp: now,
+          actor: 'system',
+          action: 'INTERCEPT_AUTHORITY_INHERITED',
+          detail: `${track.id} inherited operator tasking authority after the authorised swarm split`,
+        })
+      }
     }
   }
 
@@ -232,7 +259,9 @@ export function advanceThalesRadarReplay(state: C2State, now: number, stepSecond
   }
 
   state.tracks = nextTracks
-  state.recommendations = []
+  state.recommendations = state.recommendations.filter((recommendation) =>
+    nextIds.has(recommendation.trackId),
+  )
   runtime.elapsedSeconds = elapsed
   runtime.sourceTimeSeconds = elapsed
   runtime.radarTrackCount = nextTracks.length

@@ -45,8 +45,8 @@ export function assessDecisionEvidence(
         )
       : 4000
 
-  let roePass = false
-  if (
+  let roePass = track.operatorAuthorizedForIntercept === true
+  if (!roePass &&
     track.threatClass === 'I' &&
     track.fusionConfidence >= 85 &&
     distToAssetM <= weaponFreeM
@@ -71,6 +71,10 @@ export function assessDecisionEvidence(
 /** Operator-facing assessment for a pending intercept decision. */
 export function assessDecisionContext(track: ThreatTrack): DecisionContext {
   const factors: string[] = []
+
+  if (track.operatorAuthorizedForIntercept) {
+    factors.push('Operator authorised intercept tasking for this radar track')
+  }
 
   if (track.threatClass === 'I') {
     factors.push('Class I — weapon-free zone eligible')
@@ -97,7 +101,9 @@ export function assessDecisionContext(track: ThreatTrack): DecisionContext {
   else if (track.threatClass === 'I' || track.etaToAsset < 60) urgency = 'high'
 
   const roeHint =
-    track.threatClass === 'I' && track.fusionConfidence >= 85
+    track.operatorAuthorizedForIntercept
+      ? 'Operator-authorised intercept — confirmation still required'
+      : track.threatClass === 'I' && track.fusionConfidence >= 85
       ? 'Within ROE — operator confirm required'
       : track.threatClass !== 'I' && track.fusionConfidence < 90
         ? 'Policy caution — fusion below hold-fire threshold'

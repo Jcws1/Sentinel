@@ -135,15 +135,19 @@ const taskingSlice = createSlice({
     ) {
       state.recommendations = action.payload.recommendations
       state.decisionLog = action.payload.decisionLog
-      const activeStillPending = action.payload.recommendations.find(
+      const activeStillAvailable = action.payload.recommendations.find(
         (r) =>
-          r.id === state.activeRecommendationId && r.status === 'pending',
+          r.id === state.activeRecommendationId &&
+          (r.status === 'pending' || r.status === 'confirmed' || r.status === 'auto-executing'),
       )
-      if (!activeStillPending) {
+      if (!activeStillAvailable) {
         const firstPending = action.payload.recommendations.find(
           (r) => r.status === 'pending',
         )
-        state.activeRecommendationId = firstPending?.id ?? null
+        const firstEngaged = action.payload.recommendations.find(
+          (r) => r.status === 'confirmed' || r.status === 'auto-executing',
+        )
+        state.activeRecommendationId = firstPending?.id ?? firstEngaged?.id ?? null
       }
       if (
         state.lastVetoedId &&

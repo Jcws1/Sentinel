@@ -558,7 +558,9 @@ function HostileObjectRow({
                 ? 'Adding…'
                 : missionAdded
                   ? 'In mission'
-                  : 'Add to mission'}
+                  : track.sourceScenario && track.recommendedAction === 'Hold'
+                    ? 'Authorize & add'
+                    : 'Add to mission'}
             </button>
           </div>
         </section>

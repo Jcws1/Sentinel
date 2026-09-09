@@ -70,7 +70,6 @@ import {
   categoryForMapKinds,
   normalizeMapKind,
 } from '../utils/mapObjectClassification'
-import { AssetRecommendationsSection } from './AssetRecommendationsSection'
 import { MissionPlaybackTimeline } from './MissionPlaybackTimeline'
 import { recordingById } from '../data/missionRecordings'
 import { frameAt } from '../utils/missionReplay'
@@ -2041,15 +2040,6 @@ export function BattlespaceMap() {
   }, [replayWorkspace, selectedDroneId])
 
   useEffect(() => {
-    const openRecommendations = () => {
-      if (replayWorkspace) return
-      setInspectorOpen(true)
-    }
-    window.addEventListener('sentinel:open-asset-matches', openRecommendations)
-    return () => window.removeEventListener('sentinel:open-asset-matches', openRecommendations)
-  }, [replayWorkspace])
-
-  useEffect(() => {
     const timer = window.setTimeout(() => mapRef.current?.resize(), 220)
     return () => window.clearTimeout(timer)
   }, [inspectorOpen])
@@ -3641,9 +3631,9 @@ export function BattlespaceMap() {
         <header className="map-inspector__header">
           <div>
             <p className="panel__eyebrow">
-              {inspectorView === 'asset' ? 'Selection' : 'Tasking'}
+              {inspectorView === 'asset' ? 'Selection' : 'Operations'}
             </p>
-            <h2>{inspectorView === 'asset' ? 'Asset details' : 'Ranked assets'}</h2>
+            <h2>{inspectorView === 'asset' ? 'Asset details' : 'Activity log'}</h2>
           </div>
           <div className="map-inspector__header-actions">
             <button
@@ -3678,10 +3668,6 @@ export function BattlespaceMap() {
               </span>
             </section>
 
-            <AssetRecommendationsSection
-              preferredTrackId={selectedDrone.assignedTrackId ?? selectedTrackId}
-            />
-
             <section className="map-inspector__section">
               <h3>Telemetry</h3>
               <dl className="map-inspector__properties">
@@ -3714,7 +3700,6 @@ export function BattlespaceMap() {
           </div>
         ) : (
           <div className="map-inspector__logs" role="log" aria-live="polite">
-            <AssetRecommendationsSection preferredTrackId={selectedTrackId} />
             <div className="map-inspector__log-entry">
               <time className="mono">
                 {lastSyncAt ? new Date(lastSyncAt).toLocaleTimeString() : '--:--:--'}

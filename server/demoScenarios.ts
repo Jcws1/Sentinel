@@ -127,7 +127,7 @@ export const DEMO_SCENARIOS: DemoScenarioDefinition[] = [
     summary: 'Replays the clustered tracker output for one inbound swarm whose speed increases over a 33-minute synthetic radar recording.',
     unknownInbound: 1,
     hostileInbound: 0,
-    friendlyDrones: 0,
+    friendlyDrones: 8,
     targets: ['Clustered track 0', 'Plot-while-scan radar export', 'Acceleration-ramp trajectory'],
     siteType: 'Simulated ground radar replay',
     scale: '~150 estimated drones',
@@ -147,7 +147,7 @@ export const DEMO_SCENARIOS: DemoScenarioDefinition[] = [
     summary: 'Replays two independent clustered tracks: one aircraft-sized object and one swarm estimated near 200 drones.',
     unknownInbound: 2,
     hostileInbound: 0,
-    friendlyDrones: 0,
+    friendlyDrones: 10,
     targets: ['Aircraft-sized track 0', 'Swarm track 1', 'Crossing surveillance volume'],
     siteType: 'Simulated mixed-airspace radar replay',
     scale: '1 aircraft + ~200 drones',
@@ -167,12 +167,13 @@ export const DEMO_SCENARIOS: DemoScenarioDefinition[] = [
     summary: 'Replays a roughly 300-drone group that manoeuvres and separates into main, ~20-drone and ~100-drone tracks.',
     unknownInbound: 3,
     hostileInbound: 0,
-    friendlyDrones: 0,
+    friendlyDrones: 12,
     targets: ['Main swarm track', '~20-drone split', '~100-drone split'],
     siteType: 'Simulated swarm split radar replay',
     scale: '~300 drones · 3 tracks',
     c2Objective: 'Preserve track identity and estimated group size through a multi-axis split.',
     timelineScale: 10,
+    startOffsetSeconds: 1600,
     durationSeconds: 2416.88,
     dataSource: 'Thales SwarmBreakers scenario 04 · perp_dive_split_180_20_100',
     dataQuality: 'Synthetic; clustered 2-D tracks; velocities missing; one source jump requires review.',
@@ -348,9 +349,7 @@ export function activateDemoScenario(state: C2State, id: string, now = Date.now(
   state.mission.protectedAsset = scenarioCenter
   state.mission.gnss = 'active'
   state.mission.fallbackPositioning = null
-  state.drones = definition.kind === 'radar-replay'
-    ? []
-    : definition.kind === 'gnss-fade'
+  state.drones = definition.kind === 'gnss-fade'
     ? Array.from({ length: definition.friendlyDrones }, (_, index) => gnssPatrolDrone(index))
     : Array.from(
         { length: definition.friendlyDrones },
@@ -393,10 +392,10 @@ export function activateDemoScenario(state: C2State, id: string, now = Date.now(
         }
       : definition.kind === 'radar-replay'
         ? {
-            elapsedSeconds: 0,
+            elapsedSeconds: definition.startOffsetSeconds ?? 0,
             radarTrackCount: 0,
             estimatedObjects: 0,
-            sourceTimeSeconds: 0,
+            sourceTimeSeconds: definition.startOffsetSeconds ?? 0,
           }
         : {}),
   }

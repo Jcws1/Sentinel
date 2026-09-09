@@ -1,5 +1,3 @@
-import type { ModeId } from '../../store/uiSlice'
-
 type BaseProps = {
   mission: string
 }
@@ -188,8 +186,4 @@ export function DeniedOpsCard({
       </div>
     </div>
   )
-}
-
-export function shouldShowFlowRail(_mode: ModeId): boolean {
-  return false
 }

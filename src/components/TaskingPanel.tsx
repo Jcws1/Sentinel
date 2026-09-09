@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useAppDispatch, useAppSelector } from '../store'
 import { pushToast, setActiveRecommendation, setIntentPaletteOpen, setLastVetoedId } from '../store/taskingSlice'
 import { confirmAllPendingCommand, engageTrackCommand, setMissionStateCommand, submitDecisionCommand } from '../store/commandThunks'
@@ -8,17 +8,14 @@ import { getModeProfile } from '../modeProfiles'
 import { setMode } from '../store/uiSlice'
 import type { IntentAction } from '../types'
 import { prioritizeThreats } from '../utils/tasking'
-import { DefenseDecisionLane } from './tasking/DefenseDecisionLane'
-import { FlowRail } from './tasking/FlowRail'
-import { IntentPalette } from './tasking/IntentPalette'
-import { AreaReconCard, DeniedOpsCard, SaturationCard, TargetedAttackCard, shouldShowFlowRail } from './tasking/ScenarioCards'
+import { AreaReconCard, DeniedOpsCard, TargetedAttackCard } from './tasking/ScenarioCards'
+import { MissionTaskWorkspace } from './tasking/MissionTaskWorkspace'
 
 export function TaskingPanel() {
   const recommendations = useAppSelector((s) => s.tasking.recommendations)
   const activeId = useAppSelector((s) => s.tasking.activeRecommendationId)
   const lastVetoedId = useAppSelector((s) => s.tasking.lastVetoedId)
   const selectedTrackId = useAppSelector((s) => s.threats.selectedTrackId)
-  const alertTrackIds = useAppSelector((s) => s.threats.alertTrackIds)
   const tracks = useAppSelector((s) => s.threats.tracks)
   const intentOpen = useAppSelector((s) => s.tasking.intentPaletteOpen)
   const toasts = useAppSelector((s) => s.tasking.toasts)
@@ -30,7 +27,6 @@ export function TaskingPanel() {
 
   const [busy, setBusy] = useState(false)
   const [hotkeysArmed, setHotkeysArmed] = useState(false)
-  const [confirmAllArmedUntil, setConfirmAllArmedUntil] = useState(0)
   const [authHolding, setAuthHolding] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const authTimer = useRef<number | null>(null)
@@ -55,25 +51,28 @@ export function TaskingPanel() {
       return order[0].id === ta.id ? -1 : 1
     })
   const engaged = recommendations.filter((r) => r.status === 'confirmed')
-
-  const activeIndex = pending.findIndex((r) => r.id === activeId)
-  const active = pending[activeIndex >= 0 ? activeIndex : 0] ?? pending.find((r) => r.trackId === selectedTrackId) ?? null
+  const lastVetoed = recommendations.find((r) => r.id === lastVetoedId) ?? [...recommendations].reverse().find((r) => r.status === 'vetoed') ?? null
+  const selectedPending = pending.find((r) => r.trackId === selectedTrackId) ?? null
+  const selectedEngaged = engaged.find((r) => r.trackId === selectedTrackId) ?? null
+  const activePending = pending.find((r) => r.id === activeId) ?? pending[0] ?? null
+  const activeEngaged = engaged.find((r) => r.id === activeId) ?? engaged[0] ?? null
+  const activeById =
+    recommendations.find(
+      (recommendation) =>
+        recommendation.id === activeId &&
+        (recommendation.status === 'pending' ||
+          recommendation.status === 'confirmed' ||
+          recommendation.status === 'auto-executing'),
+    ) ?? null
+  const active =
+    intentOpen && lastVetoed
+      ? lastVetoed
+      : activeById ?? selectedPending ?? selectedEngaged ?? activePending ?? activeEngaged
   const activeTrack = active ? tracks.find((t) => t.id === active.trackId) : null
-  const isAlert = !!(activeTrack && alertTrackIds.includes(activeTrack.id))
-  const lastVetoed = recommendations.find((r) => r.id === lastVetoedId) ?? [...recommendations].reverse().find((r) => r.status === 'vetoed')
 
-  const showDecision = !!((flow.stage === 'decide' || flow.stage === 'recommend') && active && activeTrack)
-
-  const selectPending = (recId: string, trackId: string) => {
+  const selectTask = (recId: string, trackId: string) => {
     dispatch(setActiveRecommendation(recId))
     dispatch(operatorSelectTrack(trackId))
-  }
-
-  const stepPending = (delta: number) => {
-    if (pending.length < 2) return
-    const idx = pending.findIndex((r) => r.id === active?.id)
-    const next = (idx + delta + pending.length) % pending.length
-    selectPending(pending[next].id, pending[next].trackId)
   }
 
   const vetoRec = async () => {
@@ -91,19 +90,13 @@ export function TaskingPanel() {
     }
   }
 
-  const confirmAll = async () => {
-    if (busy) return
-    if (Date.now() > confirmAllArmedUntil) {
-      setConfirmAllArmedUntil(Date.now() + 5000)
-      dispatch(pushToast('Press Confirm all again to execute'))
-      return
-    }
+  const approvePlan = async (recommendationIds: string[]) => {
+    if (busy || recommendationIds.length === 0) return
     setBusy(true)
     try {
-      await dispatch(confirmAllPendingCommand(pending.map((rec) => rec.id))).unwrap()
-      setConfirmAllArmedUntil(0)
+      await dispatch(confirmAllPendingCommand(recommendationIds)).unwrap()
     } catch (error) {
-      dispatch(pushToast(error instanceof Error ? error.message : 'Confirm all failed'))
+      dispatch(pushToast(error instanceof Error ? error.message : 'Plan approval failed'))
     } finally {
       setBusy(false)
     }
@@ -151,37 +144,30 @@ export function TaskingPanel() {
     }
   }
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-      if (intentOpen) {
-        if (e.key === 'Escape') {
-          dispatch(setIntentPaletteOpen(false))
-          dispatch(setLastVetoedId(null))
-        }
-        return
+  const onOperatorKey = useEffectEvent((event: KeyboardEvent) => {
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return
+    if (intentOpen) {
+      if (event.key === 'Escape') {
+        dispatch(setIntentPaletteOpen(false))
+        dispatch(setLastVetoedId(null))
       }
-      if (!active || busy || !hotkeysArmed) return
-      if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
-        e.preventDefault()
-        void dispatch(engageTrackCommand(active.trackId))
-      }
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        void vetoRec()
-      }
-      if (e.key === 'ArrowLeft' || e.key === '[') {
-        e.preventDefault()
-        stepPending(-1)
-      }
-      if (e.key === 'ArrowRight' || e.key === ']') {
-        e.preventDefault()
-        stepPending(1)
-      }
+      return
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [intentOpen, active, busy, hotkeysArmed])
+    if (!active || active.status !== 'pending' || busy || !hotkeysArmed) return
+    if (event.key === 'Enter' && !event.metaKey && !event.ctrlKey && !event.shiftKey) {
+      event.preventDefault()
+      void dispatch(engageTrackCommand(active.trackId))
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      void vetoRec()
+    }
+  })
+
+  useEffect(() => {
+    window.addEventListener('keydown', onOperatorKey)
+    return () => window.removeEventListener('keydown', onOperatorKey)
+  }, [])
 
   const scoutCount = drones.filter((d) => d.type === 'Scout').length
   const avgScoutBattery =
@@ -189,50 +175,39 @@ export function TaskingPanel() {
       ? Math.round(drones.filter((d) => d.type === 'Scout').reduce((sum, d) => sum + d.battery, 0) / scoutCount)
       : 0
   const avgConfidence = tracks.length > 0 ? Math.round(tracks.reduce((sum, t) => sum + t.fusionConfidence, 0) / tracks.length) : 0
-  const decoyEstimate = tracks.filter((t) => t.threatClass === 'III').length
-  const lowInterceptors = drones.filter((d) => d.type === 'Interceptor' && d.battery < 35).length
   const deniedRisk = mission.gnss === 'denied' || mission.c2Link === 'lost'
+  const cinematicMap = new URLSearchParams(window.location.search).get('view') === 'cinematic'
 
   const primaryLane =
-    mode === 'defense' && showDecision && active && activeTrack
-      ? pending.length > 5
-        ? (
-            <SaturationCard
-              mission={modeProfile.label}
-              pendingCount={pending.length}
-              decoyEstimate={decoyEstimate}
-              lowInterceptors={lowInterceptors}
-              busy={busy}
-              hasActive={!!active}
-              onBatchConfirm={() => void confirmAll()}
-              onVeto={() => void vetoRec()}
-              onIgnoreDecoys={() => void applyIntentAction('IGNORE')}
-            />
-          )
-        : (
-            <DefenseDecisionLane
-              pending={pending}
-              active={active}
-              activeTrack={activeTrack}
-              activeIndex={activeIndex}
-              isAlert={isAlert}
-              busy={busy}
-              confirmAllArmedUntil={confirmAllArmedUntil}
-              hotkeysArmed={hotkeysArmed}
-              onSelectPending={selectPending}
-              onStepPending={stepPending}
-              onVeto={() => void vetoRec()}
-              onConfirmAll={() => void confirmAll()}
-            />
-          )
-      : mode === 'defense' && flow.stage === 'execute' && engaged.length > 0
-        ? (
-            <div className="execute-chip map-ui-surface" role="status">
-              <span className="panel__eyebrow">Execute</span>
-              <span>{engaged.map((r) => `${r.trackId} ← ${r.droneIds.join(', ')}`).join(' · ')}</span>
-            </div>
-          )
-        : mode === 'defense' && pending.length === 0
+    cinematicMap && engaged.length > 0
+      ? (
+          <div className="standby-chip map-ui-surface" role="status">
+            <span className="panel__eyebrow">Blue team intercept</span>
+            <span>{engaged.length} Thales groups tasked</span>
+            <span className="standby-chip__hint">3D tactical view · interceptors executing</span>
+          </div>
+        )
+      : mode === 'defense' && active && activeTrack
+      ? (
+          <MissionTaskWorkspace
+            pending={pending}
+            engaged={engaged}
+            active={active}
+            activeTrack={activeTrack}
+            busy={busy}
+            intentOpen={intentOpen}
+            lastVetoed={lastVetoed}
+            onSelectTask={selectTask}
+            onApprovePlan={(recommendationIds) => void approvePlan(recommendationIds)}
+            onReject={() => void vetoRec()}
+            onApplyIntent={(intent) => void applyIntentAction(intent)}
+            onSkipIntent={() => {
+              dispatch(setIntentPaletteOpen(false))
+              dispatch(setLastVetoedId(null))
+            }}
+          />
+        )
+      : mode === 'defense' && pending.length === 0 && engaged.length === 0
           ? (
               <div className="standby-chip map-ui-surface" role="status">
                 <span className="panel__eyebrow">Detect</span>
@@ -293,7 +268,6 @@ export function TaskingPanel() {
         if (!rootRef.current?.contains(e.relatedTarget as Node)) setHotkeysArmed(false)
       }}
     >
-      {shouldShowFlowRail(mode) && <FlowRail stage={flow.stage} pendingCount={pending.length} />}
       {deniedRisk && (
         <DeniedOpsCard
           mission="Degraded overlay"
@@ -306,18 +280,6 @@ export function TaskingPanel() {
       )}
       {pendingCommands > 0 && <div className="command-health-chip map-ui-surface mono">SYNC {pendingCommands}</div>}
       <div className="tasking-primary-lane">{primaryLane}</div>
-
-      {intentOpen && lastVetoed && (
-        <IntentPalette
-          lastVetoed={lastVetoed}
-          busy={busy}
-          onApplyIntent={(intent) => void applyIntentAction(intent)}
-          onSkip={() => {
-            dispatch(setIntentPaletteOpen(false))
-            dispatch(setLastVetoedId(null))
-          }}
-        />
-      )}
 
       <div className="toast-stack">
         {toasts.map((toast) => (
