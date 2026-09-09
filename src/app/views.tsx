@@ -6,6 +6,10 @@ import {
   ShieldCheck,
   ScrollText,
   Settings,
+  ListChecks,
+  RadioTower,
+  Bot,
+  Clapperboard,
   type LucideIcon,
 } from 'lucide-react'
 import type { ComponentType } from 'react'
@@ -17,13 +21,21 @@ import { FleetView } from '@/views/FleetView'
 import { PolicyView } from '@/views/PolicyView'
 import { EventsView } from '@/views/EventsView'
 import { SettingsView } from '@/views/SettingsView'
+import { TaskingView } from '@/views/TaskingView'
+import { SensorsView } from '@/views/SensorsView'
+import { AssistantView } from '@/views/AssistantView'
+import { ScenariosView } from '@/views/ScenariosView'
 
 export type ViewId =
   | 'home'
   | 'map'
   | 'tracks'
+  | 'tasking'
   | 'fleet'
+  | 'sensors'
   | 'policy'
+  | 'assistant'
+  | 'scenarios'
   | 'events'
   | 'settings'
 
@@ -72,6 +84,13 @@ export const VIEWS: readonly ViewDefinition[] = [
     component: TracksView,
   },
   {
+    id: 'tasking',
+    label: 'Tasking',
+    icon: ListChecks,
+    group: 'mission',
+    component: TaskingView,
+  },
+  {
     id: 'fleet',
     label: 'Fleet',
     icon: Waypoints,
@@ -79,11 +98,32 @@ export const VIEWS: readonly ViewDefinition[] = [
     component: FleetView,
   },
   {
+    id: 'sensors',
+    label: 'Sensors',
+    icon: RadioTower,
+    group: 'mission',
+    component: SensorsView,
+  },
+  {
     id: 'policy',
     label: 'Policy',
     icon: ShieldCheck,
     group: 'mission',
     component: PolicyView,
+  },
+  {
+    id: 'assistant',
+    label: 'Assistant',
+    icon: Bot,
+    group: 'mission',
+    component: AssistantView,
+  },
+  {
+    id: 'scenarios',
+    label: 'Scenarios',
+    icon: Clapperboard,
+    group: 'mission',
+    component: ScenariosView,
   },
   {
     id: 'events',

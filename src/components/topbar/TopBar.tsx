@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { Brand } from './Brand'
+import { cycleAutoMode, setMissionMode, setMissionState, useOperations } from '@/state/operations'
 
 /**
  * Station time zone.
@@ -69,15 +70,30 @@ function useStationTime() {
 
 export function TopBar() {
   const { display, machine } = useStationTime()
+  const operations = useOperations()
+  const pending = operations.tasks.filter((task) => task.status === 'review').length
 
   return (
     <header
-      className="flex h-(--topbar-height) shrink-0 items-center justify-between border-b border-border bg-panel-header pr-3 backdrop-blur-(--panel-blur)"
+      className="flex h-(--topbar-height) shrink-0 items-center gap-2 border-b border-border bg-panel-header pr-3 backdrop-blur-(--panel-blur)"
       style={{ zIndex: 'var(--z-topbar)' }}
     >
       {/* No left padding: Brand owns its own rail-width column so the
           insignia stays centred on the rail regardless of disc size. */}
       <Brand />
+
+      <nav aria-label="Mission mode" className="flex items-center gap-0.5">
+        {(['defense', 'recon', 'attack'] as const).map((mode) => <button key={mode} type="button" aria-pressed={operations.mode === mode} onClick={() => setMissionMode(mode)} className={`rounded-xs px-2 py-1 text-2xs uppercase ${operations.mode === mode ? 'bg-state-selected text-text' : 'text-text-tertiary hover:bg-state-hover'}`}>{mode}</button>)}
+      </nav>
+
+      <div className="ml-auto flex items-center gap-2 font-mono text-2xs">
+        <span className={operations.connected ? 'text-signal-nominal' : 'text-signal-critical'}>LINK {operations.connected ? 'ONLINE' : 'OFFLINE'}</span>
+        <span className={operations.gnss === 'ACTIVE' ? 'text-signal-nominal' : 'text-signal-caution'}>GNSS {operations.gnss}</span>
+        <span className="text-text-secondary">QUEUE {pending}</span>
+        <button type="button" onClick={cycleAutoMode} className="rounded-xs border border-border px-1.5 py-1 text-text-secondary">AUTO {operations.autoMode}</button>
+        <button type="button" onClick={() => setMissionState(operations.missionState === 'HOLD' ? 'ACTIVE' : 'HOLD')} className="rounded-xs border border-signal-caution/40 px-1.5 py-1 text-signal-caution">{operations.missionState === 'HOLD' ? 'RESUME' : 'HOLD'}</button>
+        <button type="button" onClick={() => setMissionState('RECALL')} className="rounded-xs border border-signal-critical/40 px-1.5 py-1 text-signal-critical">RECALL</button>
+      </div>
 
       {/* The clock is the only status readout here, because it is the only one
           currently backed by real data. Node identity and link health return
