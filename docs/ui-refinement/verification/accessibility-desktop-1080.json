@@ -1,0 +1,18 @@
+{
+  "violations": [],
+  "passes": 23,
+  "incomplete": [
+    {
+      "id": "aria-prohibited-attr",
+      "description": "Ensure ARIA attributes are not prohibited for an element's role",
+      "nodes": [
+        {
+          "target": [
+            ".wall-clock"
+          ],
+          "summary": "Fix all of the following:\n  aria-label attribute is not well supported on a div with no valid role attribute."
+        }
+      ]
+    }
+  ]
+}

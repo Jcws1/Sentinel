@@ -1,0 +1,23 @@
+.probe {
+  border: 1px solid #b0a168;
+  background: #262316;
+  padding: 16px;
+  width: min(100%, 540px);
+  font-size: 12px;
+  color: #f0e3b8;
+  flex-shrink: 0;
+}
+.probe strong,
+.probe output {
+  display: block;
+  margin-bottom: 10px;
+}
+.probe output {
+  overflow-wrap: anywhere;
+  font-family: monospace;
+}
+.probe button {
+  border: 1px solid #b0a168;
+  margin: 4px 8px 0 0;
+  padding: 7px;
+}

@@ -1,0 +1,248 @@
+{
+  "context": {
+    "selection": "sample-bravo",
+    "time": 120.15000000000008,
+    "sequence": 15
+  },
+  "workspace": {
+    "views": [
+      {
+        "id": "command",
+        "location": "main",
+        "selectedInPane": false
+      },
+      {
+        "id": "tactical",
+        "location": "main",
+        "selectedInPane": true
+      }
+    ],
+    "revision": 9,
+    "activeViewId": "tactical"
+  },
+  "layout": {
+    "global": {
+      "tabEnablePopout": true,
+      "tabEnableRename": false,
+      "tabSetEnableMaximize": false,
+      "tabSetMinWidth": 260,
+      "tabSetMinHeight": 180
+    },
+    "borders": [],
+    "layout": {
+      "type": "row",
+      "id": "#eb18d09b-2f25-4928-a732-ff2feed18ba9",
+      "children": [
+        {
+          "type": "tabset",
+          "id": "#aee77a4e-13e1-47c6-9af8-1adec0e5c108",
+          "selected": 1,
+          "children": [
+            {
+              "type": "tab",
+              "id": "command",
+              "name": "Command Picture",
+              "component": "command",
+              "enableWindowReMount": true
+            },
+            {
+              "type": "tab",
+              "id": "tactical",
+              "name": "Tactical Map",
+              "component": "tactical",
+              "enableWindowReMount": true
+            }
+          ],
+          "active": true
+        }
+      ]
+    },
+    "subLayouts": {}
+  },
+  "events": [
+    {
+      "type": "mount",
+      "viewId": "tactical"
+    },
+    {
+      "type": "visibility",
+      "viewId": "tactical",
+      "visible": true
+    },
+    {
+      "type": "resize",
+      "viewId": "tactical",
+      "width": 1180,
+      "height": 798
+    },
+    {
+      "type": "dispose",
+      "viewId": "tactical"
+    },
+    {
+      "type": "mount",
+      "viewId": "tactical"
+    },
+    {
+      "type": "visibility",
+      "viewId": "tactical",
+      "visible": true
+    },
+    {
+      "type": "mount",
+      "viewId": "command"
+    },
+    {
+      "type": "visibility",
+      "viewId": "command",
+      "visible": true
+    },
+    {
+      "type": "resize",
+      "viewId": "tactical",
+      "width": 0,
+      "height": 0
+    },
+    {
+      "type": "resize",
+      "viewId": "command",
+      "width": 1180,
+      "height": 798
+    },
+    {
+      "type": "dispose",
+      "viewId": "tactical"
+    },
+    {
+      "type": "mount",
+      "viewId": "tactical"
+    },
+    {
+      "type": "visibility",
+      "viewId": "tactical",
+      "visible": true
+    },
+    {
+      "type": "resize",
+      "viewId": "tactical",
+      "width": 1180,
+      "height": 761
+    },
+    {
+      "type": "dispose",
+      "viewId": "tactical"
+    },
+    {
+      "type": "mount",
+      "viewId": "tactical"
+    },
+    {
+      "type": "visibility",
+      "viewId": "tactical",
+      "visible": true
+    },
+    {
+      "type": "resize",
+      "viewId": "tactical",
+      "width": 580,
+      "height": 349.90625
+    },
+    {
+      "type": "visibility",
+      "viewId": "command",
+      "visible": false
+    },
+    {
+      "type": "resize",
+      "viewId": "command",
+      "width": 0,
+      "height": 0
+    },
+    {
+      "type": "resize",
+      "viewId": "tactical",
+      "width": 1180,
+      "height": 798
+    },
+    {
+      "type": "visibility",
+      "viewId": "command",
+      "visible": true
+    },
+    {
+      "type": "dispose",
+      "viewId": "tactical"
+    },
+    {
+      "type": "mount",
+      "viewId": "tactical"
+    },
+    {
+      "type": "visibility",
+      "viewId": "tactical",
+      "visible": true
+    },
+    {
+      "type": "resize",
+      "viewId": "command",
+      "width": 1180,
+      "height": 798
+    },
+    {
+      "type": "resize",
+      "viewId": "tactical",
+      "width": 0,
+      "height": 0
+    },
+    {
+      "type": "dispose",
+      "viewId": "tactical"
+    },
+    {
+      "type": "mount",
+      "viewId": "tactical"
+    },
+    {
+      "type": "visibility",
+      "viewId": "tactical",
+      "visible": true
+    },
+    {
+      "type": "resize",
+      "viewId": "tactical",
+      "width": 1180,
+      "height": 761
+    },
+    {
+      "type": "visibility",
+      "viewId": "command",
+      "visible": false
+    },
+    {
+      "type": "dispose",
+      "viewId": "tactical"
+    },
+    {
+      "type": "mount",
+      "viewId": "tactical"
+    },
+    {
+      "type": "visibility",
+      "viewId": "tactical",
+      "visible": true
+    },
+    {
+      "type": "resize",
+      "viewId": "command",
+      "width": 0,
+      "height": 0
+    },
+    {
+      "type": "resize",
+      "viewId": "tactical",
+      "width": 1180,
+      "height": 798
+    }
+  ],
+  "elapsedMs": 229
+}

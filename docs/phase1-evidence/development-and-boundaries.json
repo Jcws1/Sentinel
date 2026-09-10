@@ -1,0 +1,7 @@
+{
+  "diagnostics": [],
+  "leakedTestMarkers": [],
+  "disallowedProductDependencies": [],
+  "productionHarnessDirectory": false,
+  "browser": "152.0.4191.66"
+}

@@ -1,0 +1,287 @@
+{
+  "context": {
+    "selection": "sample-bravo",
+    "time": 122.66000000000136,
+    "sequence": 266
+  },
+  "workspace": {
+    "views": [
+      {
+        "id": "timeline",
+        "location": "main",
+        "selectedInPane": true
+      },
+      {
+        "id": "tactical",
+        "location": "main",
+        "selectedInPane": false
+      },
+      {
+        "id": "command",
+        "location": "main",
+        "selectedInPane": true
+      }
+    ],
+    "revision": 20,
+    "activeViewId": "command"
+  },
+  "layout": {
+    "global": {
+      "tabEnablePopout": true,
+      "tabEnableRename": false,
+      "tabSetEnableMaximize": false,
+      "tabSetMinWidth": 260,
+      "tabSetMinHeight": 180
+    },
+    "borders": [],
+    "layout": {
+      "type": "row",
+      "id": "#6ed412e9-5c7c-4fb0-bc68-b1dd24c6c47e",
+      "children": [
+        {
+          "type": "tabset",
+          "id": "#93511e04-1b18-4847-85cf-90834154c9dd",
+          "weight": 59.89761092150171,
+          "children": [
+            {
+              "type": "tab",
+              "id": "timeline",
+              "name": "Timeline",
+              "component": "timeline",
+              "enableWindowReMount": true
+            },
+            {
+              "type": "tab",
+              "id": "tactical",
+              "name": "Tactical Map",
+              "component": "tactical",
+              "enableWindowReMount": true
+            }
+          ]
+        },
+        {
+          "type": "tabset",
+          "id": "#b13d83c4-3d35-487c-8115-c39f8680f696",
+          "weight": 40.10238907849829,
+          "children": [
+            {
+              "type": "tab",
+              "id": "command",
+              "name": "Command Picture",
+              "component": "command",
+              "enableWindowReMount": true
+            }
+          ],
+          "active": true
+        }
+      ]
+    },
+    "subLayouts": {}
+  },
+  "events": [
+    {
+      "type": "mount",
+      "viewId": "tactical"
+    },
+    {
+      "type": "visibility",
+      "viewId": "tactical",
+      "visible": true
+    },
+    {
+      "type": "resize",
+      "viewId": "tactical",
+      "width": 1180,
+      "height": 798
+    },
+    {
+      "type": "visibility",
+      "viewId": "tactical",
+      "visible": false
+    },
+    {
+      "type": "mount",
+      "viewId": "timeline"
+    },
+    {
+      "type": "visibility",
+      "viewId": "timeline",
+      "visible": true
+    },
+    {
+      "type": "resize",
+      "viewId": "tactical",
+      "width": 0,
+      "height": 0
+    },
+    {
+      "type": "resize",
+      "viewId": "timeline",
+      "width": 1180,
+      "height": 798
+    },
+    {
+      "type": "mount",
+      "viewId": "command"
+    },
+    {
+      "type": "visibility",
+      "viewId": "command",
+      "visible": true
+    },
+    {
+      "type": "resize",
+      "viewId": "timeline",
+      "width": 586,
+      "height": 798
+    },
+    {
+      "type": "resize",
+      "viewId": "command",
+      "width": 586,
+      "height": 798
+    },
+    {
+      "type": "resize",
+      "viewId": "timeline",
+      "width": 605,
+      "height": 798
+    },
+    {
+      "type": "resize",
+      "viewId": "command",
+      "width": 567,
+      "height": 798
+    },
+    {
+      "type": "resize",
+      "viewId": "timeline",
+      "width": 625,
+      "height": 798
+    },
+    {
+      "type": "resize",
+      "viewId": "command",
+      "width": 547,
+      "height": 798
+    },
+    {
+      "type": "resize",
+      "viewId": "timeline",
+      "width": 634,
+      "height": 798
+    },
+    {
+      "type": "resize",
+      "viewId": "command",
+      "width": 538,
+      "height": 798
+    },
+    {
+      "type": "resize",
+      "viewId": "timeline",
+      "width": 654,
+      "height": 798
+    },
+    {
+      "type": "resize",
+      "viewId": "command",
+      "width": 518,
+      "height": 798
+    },
+    {
+      "type": "resize",
+      "viewId": "timeline",
+      "width": 663,
+      "height": 798
+    },
+    {
+      "type": "resize",
+      "viewId": "command",
+      "width": 509,
+      "height": 798
+    },
+    {
+      "type": "resize",
+      "viewId": "timeline",
+      "width": 673,
+      "height": 798
+    },
+    {
+      "type": "resize",
+      "viewId": "command",
+      "width": 499,
+      "height": 798
+    },
+    {
+      "type": "resize",
+      "viewId": "timeline",
+      "width": 683,
+      "height": 798
+    },
+    {
+      "type": "resize",
+      "viewId": "command",
+      "width": 489,
+      "height": 798
+    },
+    {
+      "type": "resize",
+      "viewId": "timeline",
+      "width": 692,
+      "height": 798
+    },
+    {
+      "type": "resize",
+      "viewId": "command",
+      "width": 480,
+      "height": 798
+    },
+    {
+      "type": "resize",
+      "viewId": "timeline",
+      "width": 702,
+      "height": 798
+    },
+    {
+      "type": "resize",
+      "viewId": "command",
+      "width": 470,
+      "height": 798
+    },
+    {
+      "type": "visibility",
+      "viewId": "tactical",
+      "visible": true
+    },
+    {
+      "type": "visibility",
+      "viewId": "timeline",
+      "visible": false
+    },
+    {
+      "type": "resize",
+      "viewId": "tactical",
+      "width": 702,
+      "height": 798
+    },
+    {
+      "type": "resize",
+      "viewId": "timeline",
+      "width": 0,
+      "height": 0
+    },
+    {
+      "type": "dispose",
+      "viewId": "command"
+    },
+    {
+      "type": "resize",
+      "viewId": "tactical",
+      "width": 1180,
+      "height": 798
+    }
+  ],
+  "elapsedMs": 2682.800000011921,
+  "observedUpdatesPerSecond": 99.15014164261892
+}

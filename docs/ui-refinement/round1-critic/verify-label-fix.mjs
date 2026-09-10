@@ -1,0 +1,10 @@
+import { chromium } from '../../../frontend/node_modules/@playwright/test/index.mjs';
+import fs from 'node:fs';
+const browser=await chromium.launch({channel:'msedge',headless:true});
+const page=await browser.newPage();
+await page.goto('http://127.0.0.1:5183');
+const labels=await page.locator('.activity-button:disabled').evaluateAll(es=>es.map(e=>e.getAttribute('aria-label')));
+if(labels.length!==6 || labels.some(label=>label.includes('\uFFFD') || !label.endsWith(' - not implemented'))) throw new Error('Accessible label verification failed: '+JSON.stringify(labels));
+fs.writeFileSync('docs/ui-refinement/round1-critic/label-fix-check.json',JSON.stringify({url:page.url(),labels,result:'PASS'},null,2));
+fs.appendFileSync('docs/ui-refinement/round1-critic/REPORT.md','\n## Verification addendum\n\nAfter the implementer corrected the malformed accessible-label separator and rebuilt the preview, I independently loaded a fresh Edge browser context. All six unavailable module buttons now use the ASCII separator ` - not implemented`, and none contains U+FFFD. This resolves finding 1. The original critique and 8/10 score are preserved; no further aesthetic review was performed. Evidence: label-fix-check.json and verify-label-fix.mjs.\n');
+console.log(JSON.stringify(labels,null,2));await browser.close();
