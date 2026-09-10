@@ -1,0 +1,141 @@
+{
+  "cases": [
+    {
+      "file": "golden.request.json",
+      "kind": "request",
+      "schemaValid": true,
+      "semantic": "confirmed-valid-input",
+      "note": "Unchanged parsed JSON from source §7"
+    },
+    {
+      "file": "golden.response.json",
+      "kind": "response",
+      "schemaValid": true,
+      "semantic": "not-evaluated",
+      "note": "Unchanged published output; no Phase 0 resolver"
+    },
+    {
+      "file": "empty-snapshot.request.json",
+      "kind": "request",
+      "schemaValid": true,
+      "semantic": "confirmed-valid-input",
+      "note": ""
+    },
+    {
+      "file": "hold.request.json",
+      "kind": "request",
+      "schemaValid": true,
+      "semantic": "not-evaluated",
+      "note": "Requires prior running run"
+    },
+    {
+      "file": "neutral-removed.request.json",
+      "kind": "request",
+      "schemaValid": true,
+      "semantic": "not-evaluated",
+      "note": "No opposing pairs; removed preservation C11"
+    },
+    {
+      "file": "invalid-live.request.json",
+      "kind": "request",
+      "schemaValid": false,
+      "semantic": "invalid",
+      "note": ""
+    },
+    {
+      "file": "invalid-unknown-field.request.json",
+      "kind": "request",
+      "schemaValid": false,
+      "semantic": "invalid",
+      "note": ""
+    },
+    {
+      "file": "invalid-null.request.json",
+      "kind": "request",
+      "schemaValid": false,
+      "semantic": "invalid",
+      "note": ""
+    },
+    {
+      "file": "invalid-active-zero.request.json",
+      "kind": "request",
+      "schemaValid": false,
+      "semantic": "invalid",
+      "note": ""
+    },
+    {
+      "file": "invalid-probability.request.json",
+      "kind": "request",
+      "schemaValid": false,
+      "semantic": "invalid",
+      "note": ""
+    },
+    {
+      "file": "invalid-positive-delta.request.json",
+      "kind": "request",
+      "schemaValid": false,
+      "semantic": "invalid",
+      "note": ""
+    },
+    {
+      "file": "invalid-coordinate.request.json",
+      "kind": "request",
+      "schemaValid": false,
+      "semantic": "invalid",
+      "note": ""
+    },
+    {
+      "file": "invalid-offset.request.json",
+      "kind": "request",
+      "schemaValid": false,
+      "semantic": "invalid",
+      "note": ""
+    },
+    {
+      "file": "unclosed-ring.request.json",
+      "kind": "request",
+      "schemaValid": true,
+      "semantic": "invalid-deferred",
+      "note": "closure requires semantic validation"
+    },
+    {
+      "file": "duplicate-drone-id.request.json",
+      "kind": "request",
+      "schemaValid": true,
+      "semantic": "invalid-deferred",
+      "note": "duplicate identity requires semantic validation"
+    },
+    {
+      "file": "reversed-band.request.json",
+      "kind": "request",
+      "schemaValid": true,
+      "semantic": "invalid-deferred",
+      "note": "lower <= upper requires semantic validation"
+    },
+    {
+      "file": "before-execute.request.json",
+      "kind": "request",
+      "schemaValid": true,
+      "semantic": "invalid-deferred",
+      "note": "timestamp lower bound requires semantic validation"
+    },
+    {
+      "file": "missing-rule.request.json",
+      "kind": "request",
+      "schemaValid": true,
+      "semantic": "invalid-deferred",
+      "note": "eligible golden pair lacks required rule"
+    }
+  ],
+  "parserCases": [
+    {
+      "file": "malformed.request.txt",
+      "expected": "syntax-error-400"
+    },
+    {
+      "file": "duplicate-key.request.txt",
+      "expected": "duplicate-key-reject",
+      "policy": "C09; HTTP code provisional"
+    }
+  ]
+}

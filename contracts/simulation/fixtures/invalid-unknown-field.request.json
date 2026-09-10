@@ -1,0 +1,81 @@
+{
+  "schema_version": "1.0",
+  "mission_id": "MSN-REDTEAM-001",
+  "command": {
+    "command_id": "CMD-0001",
+    "action": "START",
+    "issued_at": "2026-09-06T00:00:00.000Z",
+    "execute_at": "2026-09-06T00:00:01.000Z",
+    "source_mode": "SIMULATED"
+  },
+  "area": {
+    "area_id": "TRAINING-AREA-A",
+    "polygon": [
+      [
+        103.8,
+        1.3
+      ],
+      [
+        103.9,
+        1.3
+      ],
+      [
+        103.9,
+        1.4
+      ],
+      [
+        103.8,
+        1.4
+      ],
+      [
+        103.8,
+        1.3
+      ]
+    ],
+    "min_altitude_m": 0,
+    "max_altitude_m": 500
+  },
+  "resolution": {
+    "interaction_radius_m": 100,
+    "location_grid_deg": 0.001
+  },
+  "calibration_profile": {
+    "profile_id": "NOTIONAL-UNIT-TEST",
+    "version": "1.0.0",
+    "evidence_status": "NOTIONAL",
+    "source_summary": "Synthetic values for deterministic software tests only.",
+    "rules": [
+      {
+        "actor_class": "I",
+        "subject_class": "I",
+        "probability": 1,
+        "health_delta": -40
+      }
+    ]
+  },
+  "samples_by_timestamp": {
+    "2026-09-06T00:00:01.000Z": [
+      {
+        "drone_id": "RED-001",
+        "longitude_deg": 103.85,
+        "latitude_deg": 1.35,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-001",
+        "longitude_deg": 103.8504,
+        "latitude_deg": 1.35,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      }
+    ]
+  },
+  "unexpected": true
+}

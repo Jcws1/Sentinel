@@ -1,0 +1,65 @@
+{
+  "schema_version": "1.0",
+  "mission_id": "MSN-REDTEAM-001",
+  "command_ack": {
+    "command_id": "CMD-0001",
+    "status": "SUCCEEDED",
+    "run_status": "RUNNING",
+    "error_code": null,
+    "error_path": null,
+    "error_message": null
+  },
+  "calibration": {
+    "profile_id": "NOTIONAL-UNIT-TEST",
+    "version": "1.0.0",
+    "evidence_status": "NOTIONAL"
+  },
+  "results_by_timestamp": {
+    "2026-09-06T00:00:01.000Z": {
+      "interactions": [
+        {
+          "interaction_id": "eeeb957e3be315d758ad600cc25ab949fe9378c5fe34915e6b117035697f7bde",
+          "location_id": "grid:0.001:91350:283850:2",
+          "red_drone_id": "RED-001",
+          "blue_drone_id": "BLUE-001",
+          "separation_m": 44.466,
+          "outcome": "MUTUAL_EFFECT",
+          "effects": [
+            {
+              "actor_drone_id": "RED-001",
+              "subject_drone_id": "BLUE-001",
+              "probability": 1,
+              "draw": 0.8204014648443899,
+              "applied": true,
+              "health_delta": -40
+            },
+            {
+              "actor_drone_id": "BLUE-001",
+              "subject_drone_id": "RED-001",
+              "probability": 1,
+              "draw": 0.08531604384705933,
+              "applied": true,
+              "health_delta": -40
+            }
+          ]
+        }
+      ],
+      "drone_health": [
+        {
+          "drone_id": "BLUE-001",
+          "health_before": 100,
+          "health_after": 60,
+          "status_after": "ACTIVE",
+          "state_discontinuity": false
+        },
+        {
+          "drone_id": "RED-001",
+          "health_before": 100,
+          "health_after": 60,
+          "status_after": "ACTIVE",
+          "state_discontinuity": false
+        }
+      ]
+    }
+  }
+}

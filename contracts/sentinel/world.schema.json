@@ -1,0 +1,1040 @@
+{
+  "$defs": {
+    "Altitude": {
+      "additionalProperties": false,
+      "properties": {
+        "metres": {
+          "title": "Metres",
+          "type": "number"
+        },
+        "reference": {
+          "enum": [
+            "MSL",
+            "ELLIPSOID",
+            "AGL"
+          ],
+          "title": "Reference",
+          "type": "string"
+        },
+        "datumId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Datumid"
+        }
+      },
+      "required": [
+        "metres",
+        "reference"
+      ],
+      "title": "Altitude",
+      "type": "object"
+    },
+    "AltitudeBand": {
+      "additionalProperties": false,
+      "properties": {
+        "lower": {
+          "$ref": "#/$defs/Altitude"
+        },
+        "upper": {
+          "$ref": "#/$defs/Altitude"
+        }
+      },
+      "required": [
+        "lower",
+        "upper"
+      ],
+      "title": "AltitudeBand",
+      "type": "object"
+    },
+    "Asset": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "missionId": {
+          "minLength": 1,
+          "title": "Missionid",
+          "type": "string"
+        },
+        "entityId": {
+          "minLength": 1,
+          "title": "Entityid",
+          "type": "string"
+        },
+        "availability": {
+          "enum": [
+            "available",
+            "assigned",
+            "unavailable",
+            "unknown"
+          ],
+          "title": "Availability",
+          "type": "string"
+        },
+        "capabilityCodes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Capabilitycodes",
+          "type": "array"
+        },
+        "taskIds": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Taskids",
+          "type": "array"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        }
+      },
+      "required": [
+        "id",
+        "missionId",
+        "entityId",
+        "availability",
+        "provenance"
+      ],
+      "title": "Asset",
+      "type": "object"
+    },
+    "Classification": {
+      "additionalProperties": false,
+      "properties": {
+        "scheme": {
+          "title": "Scheme",
+          "type": "string"
+        },
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        }
+      },
+      "required": [
+        "scheme",
+        "code"
+      ],
+      "title": "Classification",
+      "type": "object"
+    },
+    "Entity": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "missionId": {
+          "minLength": 1,
+          "title": "Missionid",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "classification": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Classification"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "affiliation": {
+          "enum": [
+            "friendly",
+            "hostile",
+            "neutral",
+            "unknown"
+          ],
+          "title": "Affiliation",
+          "type": "string"
+        },
+        "condition": {
+          "enum": [
+            "operational",
+            "degraded",
+            "non-operational",
+            "unknown"
+          ],
+          "title": "Condition",
+          "type": "string"
+        },
+        "presence": {
+          "enum": [
+            "present",
+            "unobserved",
+            "removed"
+          ],
+          "title": "Presence",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "extensions": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Extensions",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "missionId",
+        "label",
+        "kind",
+        "affiliation",
+        "condition",
+        "presence",
+        "provenance"
+      ],
+      "title": "Entity",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "Mission": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "domain": {
+          "title": "Domain",
+          "type": "string"
+        },
+        "lifecycle": {
+          "enum": [
+            "draft",
+            "active",
+            "completed",
+            "cancelled"
+          ],
+          "title": "Lifecycle",
+          "type": "string"
+        },
+        "createdAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Createdat",
+          "type": "string"
+        },
+        "updatedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Updatedat",
+          "type": "string"
+        },
+        "zoneIds": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Zoneids",
+          "type": "array"
+        },
+        "referencePoint": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Position3D"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "extensions": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Extensions",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "domain",
+        "lifecycle",
+        "createdAt",
+        "updatedAt"
+      ],
+      "title": "Mission",
+      "type": "object"
+    },
+    "Polygon": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "Polygon",
+          "default": "Polygon",
+          "title": "Type",
+          "type": "string"
+        },
+        "coordinates": {
+          "items": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "maximum": 180,
+                  "minimum": -180,
+                  "type": "number"
+                },
+                {
+                  "maximum": 90,
+                  "minimum": -90,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "title": "Coordinates",
+          "type": "array"
+        }
+      },
+      "required": [
+        "coordinates"
+      ],
+      "title": "Polygon",
+      "type": "object"
+    },
+    "Position3D": {
+      "additionalProperties": false,
+      "properties": {
+        "longitudeDeg": {
+          "maximum": 180,
+          "minimum": -180,
+          "title": "Longitudedeg",
+          "type": "number"
+        },
+        "latitudeDeg": {
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Latitudedeg",
+          "type": "number"
+        },
+        "altitude": {
+          "$ref": "#/$defs/Altitude"
+        }
+      },
+      "required": [
+        "longitudeDeg",
+        "latitudeDeg",
+        "altitude"
+      ],
+      "title": "Position3D",
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/SourceRef"
+        },
+        "effectiveAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Effectiveat",
+          "type": "string"
+        },
+        "recordedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Recordedat",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "effectiveAt",
+        "recordedAt"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "Sensor": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "missionId": {
+          "minLength": 1,
+          "title": "Missionid",
+          "type": "string"
+        },
+        "entityId": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entityid"
+        },
+        "modality": {
+          "title": "Modality",
+          "type": "string"
+        },
+        "coverageZoneIds": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Coveragezoneids",
+          "type": "array"
+        },
+        "status": {
+          "enum": [
+            "available",
+            "unavailable",
+            "unknown"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        }
+      },
+      "required": [
+        "id",
+        "missionId",
+        "modality",
+        "status",
+        "provenance"
+      ],
+      "title": "Sensor",
+      "type": "object"
+    },
+    "SentinelEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "missionId": {
+          "minLength": 1,
+          "title": "Missionid",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "effectiveAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Effectiveat",
+          "type": "string"
+        },
+        "recordedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Recordedat",
+          "type": "string"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "warning",
+            "critical"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "entityIds": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Entityids",
+          "type": "array"
+        },
+        "zoneIds": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Zoneids",
+          "type": "array"
+        },
+        "taskIds": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Taskids",
+          "type": "array"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Position3D"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "source": {
+          "$ref": "#/$defs/SourceRef"
+        },
+        "detailRef": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detailref"
+        },
+        "extensions": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Extensions",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "missionId",
+        "sequence",
+        "effectiveAt",
+        "recordedAt",
+        "type",
+        "severity",
+        "source"
+      ],
+      "title": "SentinelEvent",
+      "type": "object"
+    },
+    "SourceRef": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "simulation",
+            "sensor",
+            "manual",
+            "import"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "simulated",
+            "live",
+            "replay"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "externalId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Externalid"
+        },
+        "recordingId": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recordingid"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "mode"
+      ],
+      "title": "SourceRef",
+      "type": "object"
+    },
+    "Task": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "missionId": {
+          "minLength": 1,
+          "title": "Missionid",
+          "type": "string"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "proposed",
+            "accepted",
+            "active",
+            "completed",
+            "cancelled"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "assetIds": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Assetids",
+          "type": "array"
+        },
+        "subjectEntityIds": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Subjectentityids",
+          "type": "array"
+        },
+        "zoneIds": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Zoneids",
+          "type": "array"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        }
+      },
+      "required": [
+        "id",
+        "missionId",
+        "type",
+        "status",
+        "provenance"
+      ],
+      "title": "Task",
+      "type": "object"
+    },
+    "Track": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "missionId": {
+          "minLength": 1,
+          "title": "Missionid",
+          "type": "string"
+        },
+        "entityId": {
+          "minLength": 1,
+          "title": "Entityid",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/SourceRef"
+        },
+        "state": {
+          "enum": [
+            "tracking",
+            "stale",
+            "ended"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "latest": {
+          "$ref": "#/$defs/TrackSample"
+        },
+        "historySeriesId": {
+          "minLength": 1,
+          "title": "Historyseriesid",
+          "type": "string"
+        },
+        "predictedSeriesId": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Predictedseriesid"
+        }
+      },
+      "required": [
+        "id",
+        "missionId",
+        "entityId",
+        "source",
+        "state",
+        "latest",
+        "historySeriesId"
+      ],
+      "title": "Track",
+      "type": "object"
+    },
+    "TrackSample": {
+      "additionalProperties": false,
+      "properties": {
+        "timestamp": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "position": {
+          "$ref": "#/$defs/Position3D"
+        },
+        "velocity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Velocity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "discontinuity": {
+          "default": false,
+          "title": "Discontinuity",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "timestamp",
+        "position"
+      ],
+      "title": "TrackSample",
+      "type": "object"
+    },
+    "Velocity": {
+      "additionalProperties": false,
+      "properties": {
+        "speedMps": {
+          "minimum": 0,
+          "title": "Speedmps",
+          "type": "number"
+        },
+        "headingTrueDeg": {
+          "exclusiveMaximum": 360,
+          "minimum": 0,
+          "title": "Headingtruedeg",
+          "type": "number"
+        },
+        "verticalSpeedMps": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Verticalspeedmps"
+        }
+      },
+      "required": [
+        "speedMps",
+        "headingTrueDeg"
+      ],
+      "title": "Velocity",
+      "type": "object"
+    },
+    "Zone": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "missionId": {
+          "minLength": 1,
+          "title": "Missionid",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "purpose": {
+          "title": "Purpose",
+          "type": "string"
+        },
+        "geometry": {
+          "$ref": "#/$defs/Polygon"
+        },
+        "altitudeBand": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AltitudeBand"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "validFrom": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Validfrom"
+        },
+        "validUntil": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Validuntil"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        }
+      },
+      "required": [
+        "id",
+        "missionId",
+        "label",
+        "purpose",
+        "geometry",
+        "provenance"
+      ],
+      "title": "Zone",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": "0.1-draft",
+      "default": "0.1-draft",
+      "title": "Schemaversion",
+      "type": "string"
+    },
+    "mission": {
+      "$ref": "#/$defs/Mission"
+    },
+    "frameId": {
+      "minLength": 1,
+      "title": "Frameid",
+      "type": "string"
+    },
+    "streamEpoch": {
+      "minLength": 1,
+      "title": "Streamepoch",
+      "type": "string"
+    },
+    "sequence": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Sequence",
+      "type": "integer"
+    },
+    "effectiveAt": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+      "title": "Effectiveat",
+      "type": "string"
+    },
+    "entities": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Entity"
+      },
+      "propertyNames": {
+        "minLength": 1
+      },
+      "title": "Entities",
+      "type": "object"
+    },
+    "tracks": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Track"
+      },
+      "propertyNames": {
+        "minLength": 1
+      },
+      "title": "Tracks",
+      "type": "object"
+    },
+    "assets": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Asset"
+      },
+      "propertyNames": {
+        "minLength": 1
+      },
+      "title": "Assets",
+      "type": "object"
+    },
+    "sensors": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Sensor"
+      },
+      "propertyNames": {
+        "minLength": 1
+      },
+      "title": "Sensors",
+      "type": "object"
+    },
+    "zones": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Zone"
+      },
+      "propertyNames": {
+        "minLength": 1
+      },
+      "title": "Zones",
+      "type": "object"
+    },
+    "tasks": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Task"
+      },
+      "propertyNames": {
+        "minLength": 1
+      },
+      "title": "Tasks",
+      "type": "object"
+    },
+    "recentEvents": {
+      "items": {
+        "$ref": "#/$defs/SentinelEvent"
+      },
+      "title": "Recentevents",
+      "type": "array"
+    }
+  },
+  "required": [
+    "mission",
+    "frameId",
+    "streamEpoch",
+    "sequence",
+    "effectiveAt",
+    "entities",
+    "tracks",
+    "assets",
+    "sensors",
+    "zones",
+    "tasks",
+    "recentEvents"
+  ],
+  "title": "WorldFrame",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sentinel:world:0.1-draft"
+}
