@@ -5,10 +5,19 @@ import {
   Crosshair,
   Map,
   ScanSearch,
+  Info,
 } from 'lucide-react';
 
-// Shell descriptors identify empty workspace views, never fabricated domain objects.
+// View kinds describe capabilities, never domain objects or individual pane instances.
 export const viewRegistry = {
+  credits: {
+    unavailable: '',
+    title: 'Credits',
+    category: 'Settings',
+    icon: Info,
+    description: 'Map sources and licences.',
+    future: '',
+  },
   tactical: {
     unavailable: 'Tactical rendering is not implemented.',
     title: 'Tactical Map',
@@ -55,7 +64,7 @@ export const viewRegistry = {
     future: 'Event history and replay will be available in a later phase.',
   },
   inspector: {
-    unavailable: 'Entity selection and details are not implemented.',
+    unavailable: 'Detailed entity inspection is not implemented.',
     title: 'Entity Inspector',
     category: 'Detail on demand',
     icon: ScanSearch,
@@ -64,8 +73,21 @@ export const viewRegistry = {
       'Entity details will appear here when selection and mission data are connected.',
   },
 } as const;
-export type ViewId = keyof typeof viewRegistry;
-export const viewIds = Object.keys(viewRegistry) as ViewId[];
+export type ViewKind = keyof typeof viewRegistry;
+export type ViewId = ViewKind | `tactical:${number}`;
+// Navigation opens the primary instance of each view kind.
+export const viewIds = Object.keys(viewRegistry) as ViewKind[];
+export function viewKind(id: ViewId): ViewKind {
+  return id.startsWith('tactical:') ? 'tactical' : (id as ViewKind);
+}
+export function viewTitle(id: ViewId): string {
+  return id.startsWith('tactical:')
+    ? `Tactical Map ${id.slice('tactical:'.length)}`
+    : viewRegistry[viewKind(id)].title;
+}
 export function isViewId(value: string): value is ViewId {
-  return Object.hasOwn(viewRegistry, value);
+  if (Object.hasOwn(viewRegistry, value)) return true;
+  if (!/^tactical:[1-9]\d*$/.test(value)) return false;
+  const instance = Number(value.slice('tactical:'.length));
+  return Number.isSafeInteger(instance) && instance >= 2;
 }

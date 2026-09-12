@@ -1,3 +1,4 @@
+import { closeTab, tabAction } from './actions';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -5,7 +6,7 @@ import { resolve } from 'node:path';
 
 const product = 'http://127.0.0.1:5181';
 const harness = 'http://127.0.0.1:5182/tests/harness/index.html';
-const evidence = resolve('../docs/ui-refinement/verification');
+const evidence = resolve('../docs/chrome-refinement/evidence');
 const failures = new WeakMap<Page, string[]>();
 test.beforeAll(async ({ browser }) => {
   await mkdir(evidence, { recursive: true });
@@ -87,14 +88,22 @@ test('registry navigation focuses singleton views without reloading, closes and 
       .getByRole('button', { name: `Open ${title} from Views`, exact: true })
       .click();
     await expect(tab(page, title)).toHaveAttribute('aria-selected', 'true');
-    await expect(
-      page.getByRole('heading', { name: title, exact: true }),
-    ).toBeVisible();
-    await expect(
-      page
-        .getByRole('region', { name: `${title} view`, exact: true })
-        .getByText('NOT IMPLEMENTED', { exact: true }),
-    ).toBeVisible();
+    if (title === 'Tactical Map' || title === '3D View') {
+      await expect(page.locator('.tactical-view:visible')).toBeVisible();
+      await expect(page.locator('.tactical-view:visible')).toContainText(
+        'Load a mission',
+      );
+      await expect(page.locator('.tactical-view:visible canvas')).toBeVisible();
+    } else {
+      await expect(
+        page.getByRole('heading', { name: title, exact: true }),
+      ).toBeVisible();
+      await expect(
+        page
+          .getByRole('region', { name: `${title} view`, exact: true })
+          .getByText('NOT IMPLEMENTED', { exact: true }),
+      ).toBeVisible();
+    }
   }
   await page.getByRole('button', { name: 'Open Map', exact: true }).click();
   await expect(page.getByRole('tab')).toHaveCount(6);
@@ -103,9 +112,7 @@ test('registry navigation focuses singleton views without reloading, closes and 
     await page
       .getByRole('button', { name: `Open ${title} from Views`, exact: true })
       .click();
-    await page
-      .getByRole('button', { name: `Close ${title} view`, exact: true })
-      .click();
+    await closeTab(page, title);
     await expect(tab(page, title)).toHaveCount(0);
   }
   await expect(
@@ -124,6 +131,10 @@ test('keyboard focus, tab activation and closure, menus, dialog and divider resi
   page,
 }) => {
   await page.goto(product);
+  await page.keyboard.press('Tab');
+  await expect(
+    page.getByRole('button', { name: 'Load mission', exact: true }),
+  ).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(
     page.getByRole('button', { name: 'Open Map', exact: true }),
@@ -153,10 +164,7 @@ test('keyboard focus, tab activation and closure, menus, dialog and divider resi
   );
   await page.keyboard.press('F6');
   await expect(
-    page.getByRole('button', {
-      name: 'Open Command Picture to side',
-      exact: true,
-    }),
+    page.getByRole('tabpanel', { name: 'Command Picture', exact: true }),
   ).toBeFocused();
   await page.keyboard.press('F6');
   await expect(tab(page, 'Command Picture')).toBeFocused();
@@ -258,9 +266,7 @@ test('actual drag reordering and Open to Side preserve isolated shared context u
   await expect(
     page.locator('[data-probe="tactical"] [data-probe-value]'),
   ).toHaveText(JSON.stringify(snapshot.context));
-  await page
-    .getByRole('button', { name: 'Close Command Picture view', exact: true })
-    .click();
+  await closeTab(page, 'Command Picture');
   const events = (await page.evaluate(() => window.__workspaceTest.snapshot()))
     .events;
   expect(
@@ -316,9 +322,11 @@ test('native close returns a child to a floating panel; explicit redock and reop
   const child = await childPromise;
   const childErrors: string[] = [];
   child.on('pageerror', (error) => childErrors.push(error.message));
+  await tab(child, 'Tactical Map').click({ button: 'right' });
   await expect(
-    child.getByRole('button', { name: 'Return to workspace', exact: true }),
+    child.getByRole('menuitem', { name: 'Return to workspace', exact: true }),
   ).toBeVisible();
+  await child.keyboard.press('Escape');
   await child
     .getByRole('button', { name: 'Select sample Bravo', exact: true })
     .click();
@@ -356,12 +364,13 @@ test('native close returns a child to a floating panel; explicit redock and reop
       ),
     )
     .toBe('float');
+  await tab(page, 'Tactical Map').click({ button: 'right' });
   await expect(
-    page.getByRole('button', { name: 'Return to workspace', exact: true }),
+    page.getByRole('menuitem', { name: 'Return to workspace', exact: true }),
   ).toBeVisible();
   await page.screenshot({ path: resolve(evidence, 'popout-return-float.png') });
   await page
-    .getByRole('button', { name: 'Return to workspace', exact: true })
+    .getByRole('menuitem', { name: 'Return to workspace', exact: true })
     .click();
   await expect
     .poll(() =>
@@ -393,9 +402,7 @@ test('native close returns a child to a floating panel; explicit redock and reop
   await expect(second.locator('[data-probe-value]')).toHaveText(
     JSON.stringify(state),
   );
-  await second
-    .getByRole('button', { name: 'Return to workspace', exact: true })
-    .click();
+  await tabAction(second, 'Tactical Map', 'Return to workspace');
   await expect.poll(() => second.isClosed()).toBe(true);
   await expect(tab(page, 'Tactical Map')).toHaveCount(1);
   expect(childErrors).toEqual([]);
@@ -420,9 +427,7 @@ for (const size of [
     await page.setViewportSize(size);
     await page.goto(product);
     await side(page, 'Entity Inspector');
-    await expect(
-      page.getByRole('heading', { name: 'Tactical Map', exact: true }),
-    ).toBeVisible();
+    await expect(page.locator('.tactical-view')).toBeVisible();
     await expect(
       page.getByRole('heading', { name: 'Entity Inspector', exact: true }),
     ).toBeVisible();
@@ -468,18 +473,11 @@ test('module constraints, neutral chrome and a wall clock independent of the wor
 }) => {
   await page.clock.install({ time: new Date('2026-09-10T15:30:00.000Z') });
   await page.goto(product);
-  await expect(page.locator('.app-header')).toHaveText(
-    'Sentinel v323:30:00UTC+8',
-  );
-  await expect(page.locator('.app-header button')).toHaveCount(0);
-  for (const name of [
-    'Home',
-    'Tracks',
-    'Sensors',
-    'Reports',
-    'Events',
-    'Settings',
-  ]) {
+  await expect(page.locator('.app-header')).toContainText('Sentinel v3');
+  await expect(page.locator('.app-header')).toContainText('No mission');
+  await expect(page.locator('.wall-clock')).toHaveText('23:30:00UTC+8');
+  await expect(page.locator('.mission-controls')).toBeVisible();
+  for (const name of ['Home', 'Tracks', 'Sensors', 'Reports', 'Events']) {
     const control = page.getByRole('button', {
       name: `${name} - not implemented`,
       exact: true,

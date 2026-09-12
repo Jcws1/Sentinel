@@ -1,5 +1,7 @@
 # Sentinel v3 demo prerequisites — Phase 0
 
+**Current map-service setup (11 September 2026):** use [MAP_SERVICES_SETUP.md](MAP_SERVICES_SETUP.md) for accounts, asset IDs, token restrictions, configuration and restart instructions, and the [map-services review](map-services/REVIEW.md) for verified behavior. Tactical now defaults to MapTiler `streets-v4`; Cesium imagery/terrain/buildings integration and shared-view continuity are implemented. Authenticated provider coverage remains unverified. Phase 3B is deferred. The Phase 0 and Phase 3A sections below are historical records and their provider/deferred-scope statements are superseded by that guide.
+
 Status: proposed data/hardware configuration, 2026-09-10. No provider account has been created, paid plan enabled, token obtained, imagery downloaded or production map built. This runbook separates proposed choices from verified behavior. Docking verification is in [docking-evaluation.md](docking-evaluation.md).
 
 ## Proposed demo configuration
@@ -55,3 +57,51 @@ Later provisional workload: 200 entities, five authoritative updates/second, 60 
 6. Reopen a stored deterministic recording and use fallback backgrounds if hosted data fails. A recorded run is a replay, clearly labeled. Full offline/on-premises packaging remains out of scope.
 
 Phase 0 only documents this preflight; it has not executed map-provider, terrain or simulation rehearsals.
+
+## Phase 3A Tactical update — 11 September 2026
+
+The sections above preserve the Phase 0 proposal. Phase 3A implemented the Tactical MapLibre projection, local graticule fallback and provider configuration boundary. Its historical verification/critique status is maintained in [Phase 3A review](phase3a-review.md). Cesium imagery, terrain and buildings were deferred at that stage; the current [map-services guide](MAP_SERVICES_SETUP.md) supersedes that deferral. Geoid conversion and vertical-fidelity validation remain outstanding.
+
+### Run the bounded Tactical demonstration
+
+Start the existing single-process backend with `SENTINEL_FIXTURES=1`, following [backend setup](../backend/README.md). Run `npm ci` and `npm run dev` from `frontend`, then open `http://127.0.0.1:5180`. Vite proxies the same-origin `/api` REST/WebSocket routes to port 8000 by default; `SENTINEL_API_TARGET` can change that local proxy target.
+
+1. In the header, choose **Missions > No mission → Synthetic Tactical**. The same dropdown switches and unloads missions. This backend-authored fixture supplies four affiliation meanings, a last-known observation, an unlocated Entity and one synthetic test-area polygon. Alpha and Bravo remain unchanged.
+2. Select a symbol. Its neutral selection ring preserves affiliation geometry/colour; the compact selection notice names the same shared Entity.
+3. Advance the fixture explicitly through the backend developer interface below. The normal UI has no advancement button and does not auto-advance. The three canned stages change a position/add F-02, then remove U-01 and F-01's Track, then restore the baseline with later committed time/sequence. Missing identities and missing positions remain explicit. This is fixture advancement, not simulation resolution or a route.
+4. Right-click the Tactical tab (or focus it and press **Shift+F10 / Context Menu**) and choose **New Tactical pane**. Both panes share mission/frame/selection/layer context but keep independent cameras. The same tab menu retains Open to Side and Close view, targeting that tab even when inactive. Use **Pan**, **Recenter** and **Map layers**; focus the canvas for arrow-key pan, `+`/`−` zoom, bracket-key symbol review and Enter selection.
+5. Switch tabs, resize, close both Tactical panes and reopen the primary Tactical view from navigation. Confirm the real map canvas, geometry and picking return. This final close/reopen sequence is a mandatory regression following the round 1 critique.
+6. Disconnect the backend and verify a retained complete frame with STALE notices; restore it and wait for a verified snapshot. Provider failure is a separate state and must preserve the same mission and selection.
+
+These historical Phase 3A steps stopped before Cesium. The current map-services slice also supports the **Tactical / 3D** switch and simultaneous projections; entity browsing/detail, trails, replay, analytics and operational pop-outs remain deferred. Authenticated hosted provider access and final-hardware checks remain separately outstanding.
+
+With the local fixture backend running on port 8000, a separate PowerShell terminal can commit one sample through the existing test interface:
+
+```powershell
+$fixtureWorld = Invoke-RestMethod 'http://127.0.0.1:8000/api/missions/fixture-tactical/world'
+$fixtureCommit = @{ expectedSequence = $fixtureWorld.sequence } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8000/api/fixtures/fixture-tactical/advance' -ContentType 'application/json' -Body $fixtureCommit
+```
+
+This requires the opt-in fixture source. A concurrent advance returns 409; reread the latest sequence before deliberately submitting another sample. Production mission commands are outside this phase. The [chrome-refinement review](chrome-refinement/REVIEW.md) records the subsequent header/menu changes; older phase reports retain their historical UI descriptions.
+
+### Historical Phase 3A Tactical provider configuration
+
+The table records the Phase 3A configuration before map-service defaults were added. For the current filled-in defaults and both provider credentials, use [MAP_SERVICES_SETUP.md](MAP_SERVICES_SETUP.md) and `frontend/.env.example`; paste credentials into ignored `frontend/.env.local`.
+
+| Variable | Meaning |
+| --- | --- |
+| `VITE_TACTICAL_STYLE_URL` | Phase 3A required a supplied style URL. The current documented default is `https://api.maptiler.com/maps/streets-v4/style.json`; a custom URL remains optional. |
+| `VITE_MAPTILER_KEY` | Existing read-only, origin-restricted browser key. It is attached only to the exact `api.maptiler.com` style host, not forwarded to other provider hosts. |
+
+These Vite values are public browser configuration, read at development start/build time. Restart Vite or rebuild after changes. Existing account entitlement, attribution, quota and origin restrictions still need validation; no account, payment or token was created for this implementation.
+
+No approved hosted style/credentials were available during Phase 3A. The default **LOCAL GRID / CREDENTIAL REQUIRED** view provides an explicitly limited geographic graticule, operational overlays and scale. It supplies no land, roads or imagery. The configured-provider path resolves relative glyph/sprite/tile URLs, retains supplied source attribution and mutes basemap decoration. Loading and tile-readiness deadlines produce an explicit fallback with **Retry basemap**. A renderer error is separately labelled with **Retry renderer**.
+
+Tests use a synthetic style to exercise failure/retry, muted styling and attribution; this does not verify MapTiler network access or a real custom basemap's visual discipline. Real hosted-style/sprite/glyph/tile loading, actual source attribution, coverage, remaining quota and venue-network behaviour must still be checked with approved credentials. No public tile service is used as an unapproved substitute.
+
+If the initial bundled worker cannot load, the map shows **Map resources unavailable / RELOAD REQUIRED** after its startup deadline. Restore asset access and use **Reload application**, then load the mission again. This deliberately resets the client session because MapLibre can retain a failed initial shared worker; it does not erase backend recordings. The worker-block/reload regression verifies this distinction from ordinary provider fallback, which retains mission and selection context.
+
+MapLibre 6.9.0's worker is bundled through Vite's `?worker&url` path and registered explicitly, including the shared ESM dependency in the production bundle. [Official MapLibre Vite instructions](https://maplibre.org/maplibre-gl-js/docs/#installation). No map renderer or provider integration has been added to the isolated workspace harness.
+
+Tactical is a flat Mercator projection: points beyond ±85.051129° are omitted with a visible range notice, and antimeridian-spanning framing/filtering is not supported. Non-wrapping local fixtures establish this slice; polar/global wrapping, 3D altitude conversion, terrain fidelity and final-hardware performance remain separate gates.

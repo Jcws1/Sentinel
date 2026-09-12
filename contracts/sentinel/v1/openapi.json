@@ -1,0 +1,2051 @@
+{
+  "components": {
+    "schemas": {
+      "AdvanceFixtureRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedSequence": {
+            "maximum": 9007199254740991.0,
+            "minimum": 0.0,
+            "title": "Expectedsequence",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expectedSequence"
+        ],
+        "title": "AdvanceFixtureRequest",
+        "type": "object"
+      },
+      "Altitude": {
+        "additionalProperties": false,
+        "properties": {
+          "datumId": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Datumid"
+          },
+          "metres": {
+            "title": "Metres",
+            "type": "number"
+          },
+          "reference": {
+            "enum": [
+              "MSL",
+              "ELLIPSOID",
+              "AGL"
+            ],
+            "title": "Reference",
+            "type": "string"
+          }
+        },
+        "required": [
+          "metres",
+          "reference"
+        ],
+        "title": "Altitude",
+        "type": "object"
+      },
+      "AltitudeBand": {
+        "additionalProperties": false,
+        "properties": {
+          "lower": {
+            "$ref": "#/components/schemas/Altitude"
+          },
+          "upper": {
+            "$ref": "#/components/schemas/Altitude"
+          }
+        },
+        "required": [
+          "lower",
+          "upper"
+        ],
+        "title": "AltitudeBand",
+        "type": "object"
+      },
+      "Asset": {
+        "additionalProperties": false,
+        "properties": {
+          "availability": {
+            "enum": [
+              "available",
+              "assigned",
+              "unavailable",
+              "unknown"
+            ],
+            "title": "Availability",
+            "type": "string"
+          },
+          "capabilityCodes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Capabilitycodes",
+            "type": "array"
+          },
+          "entityId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Entityid",
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Id",
+            "type": "string"
+          },
+          "missionId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Missionid",
+            "type": "string"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/Provenance"
+          },
+          "taskIds": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            "title": "Taskids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "missionId",
+          "entityId",
+          "availability",
+          "provenance"
+        ],
+        "title": "Asset",
+        "type": "object"
+      },
+      "AssetChanges": {
+        "additionalProperties": false,
+        "properties": {
+          "removes": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            "title": "Removes",
+            "type": "array"
+          },
+          "upserts": {
+            "patternProperties": {
+              "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+                "$ref": "#/components/schemas/Asset"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 256,
+              "minLength": 1
+            },
+            "title": "Upserts",
+            "type": "object"
+          }
+        },
+        "required": [
+          "upserts",
+          "removes"
+        ],
+        "title": "AssetChanges",
+        "type": "object"
+      },
+      "Classification": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Label"
+          },
+          "scheme": {
+            "minLength": 1,
+            "title": "Scheme",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scheme",
+          "code"
+        ],
+        "title": "Classification",
+        "type": "object"
+      },
+      "DeltaMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "changes": {
+            "$ref": "#/components/schemas/WorldChanges"
+          },
+          "effectiveAt": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+            "title": "Effectiveat",
+            "type": "string"
+          },
+          "frameId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Frameid",
+            "type": "string"
+          },
+          "missionId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Missionid",
+            "type": "string"
+          },
+          "previousSequence": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "title": "Previoussequence",
+            "type": "integer"
+          },
+          "recordedAt": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+            "title": "Recordedat",
+            "type": "string"
+          },
+          "recordingId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Recordingid",
+            "type": "string"
+          },
+          "schemaVersion": {
+            "const": "1.0",
+            "title": "Schemaversion",
+            "type": "string"
+          },
+          "sequence": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "streamEpoch": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Streamepoch",
+            "type": "string"
+          },
+          "type": {
+            "const": "delta",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "schemaVersion",
+          "missionId",
+          "streamEpoch",
+          "sequence",
+          "previousSequence",
+          "frameId",
+          "recordingId",
+          "effectiveAt",
+          "recordedAt",
+          "changes"
+        ],
+        "title": "DeltaMessage",
+        "type": "object"
+      },
+      "Entity": {
+        "additionalProperties": false,
+        "properties": {
+          "affiliation": {
+            "enum": [
+              "friendly",
+              "hostile",
+              "neutral",
+              "unknown"
+            ],
+            "title": "Affiliation",
+            "type": "string"
+          },
+          "classification": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Classification"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "condition": {
+            "enum": [
+              "operational",
+              "degraded",
+              "non-operational",
+              "unknown"
+            ],
+            "title": "Condition",
+            "type": "string"
+          },
+          "extensions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Extensions",
+            "type": "object"
+          },
+          "id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "minLength": 1,
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "missionId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Missionid",
+            "type": "string"
+          },
+          "presence": {
+            "enum": [
+              "present",
+              "unobserved",
+              "removed"
+            ],
+            "title": "Presence",
+            "type": "string"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/Provenance"
+          }
+        },
+        "required": [
+          "id",
+          "missionId",
+          "label",
+          "kind",
+          "affiliation",
+          "condition",
+          "presence",
+          "provenance"
+        ],
+        "title": "Entity",
+        "type": "object"
+      },
+      "EntityChanges": {
+        "additionalProperties": false,
+        "properties": {
+          "removes": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            "title": "Removes",
+            "type": "array"
+          },
+          "upserts": {
+            "patternProperties": {
+              "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+                "$ref": "#/components/schemas/Entity"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 256,
+              "minLength": 1
+            },
+            "title": "Upserts",
+            "type": "object"
+          }
+        },
+        "required": [
+          "upserts",
+          "removes"
+        ],
+        "title": "EntityChanges",
+        "type": "object"
+      },
+      "EventList": {
+        "additionalProperties": false,
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/SentinelEvent"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "missionId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Missionid",
+            "type": "string"
+          },
+          "nextAfter": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextafter"
+          },
+          "schemaVersion": {
+            "const": "1.0",
+            "title": "Schemaversion",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "missionId",
+          "events"
+        ],
+        "title": "EventList",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HeartbeatMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "missionId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Missionid",
+            "type": "string"
+          },
+          "schemaVersion": {
+            "const": "1.0",
+            "title": "Schemaversion",
+            "type": "string"
+          },
+          "sequence": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "serverTime": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+            "title": "Servertime",
+            "type": "string"
+          },
+          "streamEpoch": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Streamepoch",
+            "type": "string"
+          },
+          "type": {
+            "const": "heartbeat",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "schemaVersion",
+          "missionId",
+          "streamEpoch",
+          "sequence",
+          "serverTime"
+        ],
+        "title": "HeartbeatMessage",
+        "type": "object"
+      },
+      "JsonValue": {},
+      "Mission": {
+        "additionalProperties": false,
+        "properties": {
+          "createdAt": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "domain": {
+            "minLength": 1,
+            "title": "Domain",
+            "type": "string"
+          },
+          "extensions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Extensions",
+            "type": "object"
+          },
+          "id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Id",
+            "type": "string"
+          },
+          "lifecycle": {
+            "enum": [
+              "draft",
+              "active",
+              "completed",
+              "cancelled"
+            ],
+            "title": "Lifecycle",
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "referencePoint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Position3D"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "updatedAt": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+            "title": "Updatedat",
+            "type": "string"
+          },
+          "zoneIds": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            "title": "Zoneids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "domain",
+          "lifecycle",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "Mission",
+        "type": "object"
+      },
+      "MissionList": {
+        "additionalProperties": false,
+        "properties": {
+          "fixtureAdvanceEnabled": {
+            "default": false,
+            "title": "Fixtureadvanceenabled",
+            "type": "boolean"
+          },
+          "missions": {
+            "items": {
+              "$ref": "#/components/schemas/Mission"
+            },
+            "title": "Missions",
+            "type": "array"
+          },
+          "schemaVersion": {
+            "const": "1.0",
+            "title": "Schemaversion",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "missions"
+        ],
+        "title": "MissionList",
+        "type": "object"
+      },
+      "Polygon": {
+        "additionalProperties": false,
+        "properties": {
+          "coordinates": {
+            "items": {
+              "items": {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "maximum": 180,
+                    "minimum": -180,
+                    "type": "number"
+                  },
+                  {
+                    "maximum": 90,
+                    "minimum": -90,
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "minItems": 1,
+            "title": "Coordinates",
+            "type": "array"
+          },
+          "type": {
+            "const": "Polygon",
+            "default": "Polygon",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "coordinates"
+        ],
+        "title": "Polygon",
+        "type": "object"
+      },
+      "Position3D": {
+        "additionalProperties": false,
+        "properties": {
+          "altitude": {
+            "$ref": "#/components/schemas/Altitude"
+          },
+          "latitudeDeg": {
+            "maximum": 90,
+            "minimum": -90,
+            "title": "Latitudedeg",
+            "type": "number"
+          },
+          "longitudeDeg": {
+            "maximum": 180,
+            "minimum": -180,
+            "title": "Longitudedeg",
+            "type": "number"
+          }
+        },
+        "required": [
+          "longitudeDeg",
+          "latitudeDeg",
+          "altitude"
+        ],
+        "title": "Position3D",
+        "type": "object"
+      },
+      "Provenance": {
+        "additionalProperties": false,
+        "properties": {
+          "effectiveAt": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+            "title": "Effectiveat",
+            "type": "string"
+          },
+          "recordedAt": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+            "title": "Recordedat",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceRef"
+          }
+        },
+        "required": [
+          "source",
+          "effectiveAt",
+          "recordedAt"
+        ],
+        "title": "Provenance",
+        "type": "object"
+      },
+      "RecordingMetadata": {
+        "additionalProperties": false,
+        "properties": {
+          "establishedAt": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+            "title": "Establishedat",
+            "type": "string"
+          },
+          "eventCount": {
+            "maximum": 9007199254740991.0,
+            "minimum": 0.0,
+            "title": "Eventcount",
+            "type": "integer"
+          },
+          "frameCount": {
+            "maximum": 9007199254740991.0,
+            "minimum": 0.0,
+            "title": "Framecount",
+            "type": "integer"
+          },
+          "id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Id",
+            "type": "string"
+          },
+          "latestSequence": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740991.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latestsequence"
+          },
+          "missionId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Missionid",
+            "type": "string"
+          },
+          "schemaVersion": {
+            "const": "1.0",
+            "title": "Schemaversion",
+            "type": "string"
+          },
+          "streamEpoch": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Streamepoch",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "id",
+          "missionId",
+          "streamEpoch",
+          "establishedAt",
+          "frameCount",
+          "eventCount"
+        ],
+        "title": "RecordingMetadata",
+        "type": "object"
+      },
+      "ResyncRequiredMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "missionId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Missionid",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "schemaVersion": {
+            "const": "1.0",
+            "title": "Schemaversion",
+            "type": "string"
+          },
+          "type": {
+            "const": "resync-required",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "schemaVersion",
+          "missionId",
+          "reason"
+        ],
+        "title": "ResyncRequiredMessage",
+        "type": "object"
+      },
+      "Sensor": {
+        "additionalProperties": false,
+        "properties": {
+          "coverageZoneIds": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            "title": "Coveragezoneids",
+            "type": "array"
+          },
+          "entityId": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Entityid"
+          },
+          "id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Id",
+            "type": "string"
+          },
+          "missionId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Missionid",
+            "type": "string"
+          },
+          "modality": {
+            "title": "Modality",
+            "type": "string"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/Provenance"
+          },
+          "status": {
+            "enum": [
+              "available",
+              "unavailable",
+              "unknown"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "missionId",
+          "modality",
+          "status",
+          "provenance"
+        ],
+        "title": "Sensor",
+        "type": "object"
+      },
+      "SensorChanges": {
+        "additionalProperties": false,
+        "properties": {
+          "removes": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            "title": "Removes",
+            "type": "array"
+          },
+          "upserts": {
+            "patternProperties": {
+              "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+                "$ref": "#/components/schemas/Sensor"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 256,
+              "minLength": 1
+            },
+            "title": "Upserts",
+            "type": "object"
+          }
+        },
+        "required": [
+          "upserts",
+          "removes"
+        ],
+        "title": "SensorChanges",
+        "type": "object"
+      },
+      "SentinelEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "detailRef": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Detailref"
+          },
+          "effectiveAt": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+            "title": "Effectiveat",
+            "type": "string"
+          },
+          "entityIds": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            "title": "Entityids",
+            "type": "array"
+          },
+          "extensions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Extensions",
+            "type": "object"
+          },
+          "id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Id",
+            "type": "string"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Position3D"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "missionId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Missionid",
+            "type": "string"
+          },
+          "recordedAt": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+            "title": "Recordedat",
+            "type": "string"
+          },
+          "sequence": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "severity": {
+            "enum": [
+              "info",
+              "warning",
+              "critical"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceRef"
+          },
+          "taskIds": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            "title": "Taskids",
+            "type": "array"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          },
+          "zoneIds": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            "title": "Zoneids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "missionId",
+          "sequence",
+          "effectiveAt",
+          "recordedAt",
+          "type",
+          "severity",
+          "source"
+        ],
+        "title": "SentinelEvent",
+        "type": "object"
+      },
+      "SnapshotMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "frame": {
+            "$ref": "#/components/schemas/WorldFrame"
+          },
+          "missionId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Missionid",
+            "type": "string"
+          },
+          "schemaVersion": {
+            "const": "1.0",
+            "title": "Schemaversion",
+            "type": "string"
+          },
+          "sequence": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "streamEpoch": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Streamepoch",
+            "type": "string"
+          },
+          "type": {
+            "const": "snapshot",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "schemaVersion",
+          "missionId",
+          "streamEpoch",
+          "sequence",
+          "frame"
+        ],
+        "title": "SnapshotMessage",
+        "type": "object"
+      },
+      "SourceRef": {
+        "additionalProperties": false,
+        "properties": {
+          "externalId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Externalid"
+          },
+          "id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "simulation",
+              "sensor",
+              "manual",
+              "import"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "simulated",
+              "live",
+              "replay"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "recordingId": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Recordingid"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "mode"
+        ],
+        "title": "SourceRef",
+        "type": "object"
+      },
+      "Task": {
+        "additionalProperties": false,
+        "properties": {
+          "assetIds": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            "title": "Assetids",
+            "type": "array"
+          },
+          "id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Id",
+            "type": "string"
+          },
+          "missionId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Missionid",
+            "type": "string"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/Provenance"
+          },
+          "status": {
+            "enum": [
+              "proposed",
+              "accepted",
+              "active",
+              "completed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "subjectEntityIds": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            "title": "Subjectentityids",
+            "type": "array"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          },
+          "zoneIds": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            "title": "Zoneids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "missionId",
+          "type",
+          "status",
+          "provenance"
+        ],
+        "title": "Task",
+        "type": "object"
+      },
+      "TaskChanges": {
+        "additionalProperties": false,
+        "properties": {
+          "removes": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            "title": "Removes",
+            "type": "array"
+          },
+          "upserts": {
+            "patternProperties": {
+              "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+                "$ref": "#/components/schemas/Task"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 256,
+              "minLength": 1
+            },
+            "title": "Upserts",
+            "type": "object"
+          }
+        },
+        "required": [
+          "upserts",
+          "removes"
+        ],
+        "title": "TaskChanges",
+        "type": "object"
+      },
+      "Track": {
+        "additionalProperties": false,
+        "properties": {
+          "entityId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Entityid",
+            "type": "string"
+          },
+          "historySeriesId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Historyseriesid",
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Id",
+            "type": "string"
+          },
+          "latest": {
+            "$ref": "#/components/schemas/TrackSample"
+          },
+          "missionId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Missionid",
+            "type": "string"
+          },
+          "predictedSeriesId": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Predictedseriesid"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceRef"
+          },
+          "state": {
+            "enum": [
+              "tracking",
+              "stale",
+              "ended"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "missionId",
+          "entityId",
+          "source",
+          "state",
+          "latest",
+          "historySeriesId"
+        ],
+        "title": "Track",
+        "type": "object"
+      },
+      "TrackChanges": {
+        "additionalProperties": false,
+        "properties": {
+          "removes": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            "title": "Removes",
+            "type": "array"
+          },
+          "upserts": {
+            "patternProperties": {
+              "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+                "$ref": "#/components/schemas/Track"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 256,
+              "minLength": 1
+            },
+            "title": "Upserts",
+            "type": "object"
+          }
+        },
+        "required": [
+          "upserts",
+          "removes"
+        ],
+        "title": "TrackChanges",
+        "type": "object"
+      },
+      "TrackSample": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Confidence"
+          },
+          "discontinuity": {
+            "default": false,
+            "title": "Discontinuity",
+            "type": "boolean"
+          },
+          "position": {
+            "$ref": "#/components/schemas/Position3D"
+          },
+          "timestamp": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "velocity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Velocity"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "timestamp",
+          "position"
+        ],
+        "title": "TrackSample",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "Velocity": {
+        "additionalProperties": false,
+        "properties": {
+          "headingTrueDeg": {
+            "exclusiveMaximum": 360,
+            "minimum": 0,
+            "title": "Headingtruedeg",
+            "type": "number"
+          },
+          "speedMps": {
+            "minimum": 0,
+            "title": "Speedmps",
+            "type": "number"
+          },
+          "verticalSpeedMps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Verticalspeedmps"
+          }
+        },
+        "required": [
+          "speedMps",
+          "headingTrueDeg"
+        ],
+        "title": "Velocity",
+        "type": "object"
+      },
+      "WorldChanges": {
+        "additionalProperties": false,
+        "properties": {
+          "assets": {
+            "$ref": "#/components/schemas/AssetChanges"
+          },
+          "entities": {
+            "$ref": "#/components/schemas/EntityChanges"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/SentinelEvent"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "mission": {
+            "$ref": "#/components/schemas/Mission"
+          },
+          "sensors": {
+            "$ref": "#/components/schemas/SensorChanges"
+          },
+          "tasks": {
+            "$ref": "#/components/schemas/TaskChanges"
+          },
+          "tracks": {
+            "$ref": "#/components/schemas/TrackChanges"
+          },
+          "zones": {
+            "$ref": "#/components/schemas/ZoneChanges"
+          }
+        },
+        "required": [
+          "mission",
+          "entities",
+          "tracks",
+          "assets",
+          "sensors",
+          "zones",
+          "tasks",
+          "events"
+        ],
+        "title": "WorldChanges",
+        "type": "object"
+      },
+      "WorldFrame": {
+        "additionalProperties": false,
+        "properties": {
+          "assets": {
+            "patternProperties": {
+              "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+                "$ref": "#/components/schemas/Asset"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 256,
+              "minLength": 1
+            },
+            "title": "Assets",
+            "type": "object"
+          },
+          "effectiveAt": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+            "title": "Effectiveat",
+            "type": "string"
+          },
+          "entities": {
+            "patternProperties": {
+              "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+                "$ref": "#/components/schemas/Entity"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 256,
+              "minLength": 1
+            },
+            "title": "Entities",
+            "type": "object"
+          },
+          "frameId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Frameid",
+            "type": "string"
+          },
+          "mission": {
+            "$ref": "#/components/schemas/Mission"
+          },
+          "recentEvents": {
+            "items": {
+              "$ref": "#/components/schemas/SentinelEvent"
+            },
+            "maxItems": 100,
+            "title": "Recentevents",
+            "type": "array"
+          },
+          "recordedAt": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+            "title": "Recordedat",
+            "type": "string"
+          },
+          "recordingId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Recordingid",
+            "type": "string"
+          },
+          "schemaVersion": {
+            "const": "1.0",
+            "title": "Schemaversion",
+            "type": "string"
+          },
+          "sensors": {
+            "patternProperties": {
+              "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+                "$ref": "#/components/schemas/Sensor"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 256,
+              "minLength": 1
+            },
+            "title": "Sensors",
+            "type": "object"
+          },
+          "sequence": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "streamEpoch": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Streamepoch",
+            "type": "string"
+          },
+          "tasks": {
+            "patternProperties": {
+              "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+                "$ref": "#/components/schemas/Task"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 256,
+              "minLength": 1
+            },
+            "title": "Tasks",
+            "type": "object"
+          },
+          "tracks": {
+            "patternProperties": {
+              "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+                "$ref": "#/components/schemas/Track"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 256,
+              "minLength": 1
+            },
+            "title": "Tracks",
+            "type": "object"
+          },
+          "zones": {
+            "patternProperties": {
+              "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+                "$ref": "#/components/schemas/Zone"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 256,
+              "minLength": 1
+            },
+            "title": "Zones",
+            "type": "object"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "mission",
+          "frameId",
+          "recordingId",
+          "streamEpoch",
+          "sequence",
+          "effectiveAt",
+          "recordedAt",
+          "entities",
+          "tracks",
+          "assets",
+          "sensors",
+          "zones",
+          "tasks",
+          "recentEvents"
+        ],
+        "title": "WorldFrame",
+        "type": "object"
+      },
+      "Zone": {
+        "additionalProperties": false,
+        "properties": {
+          "altitudeBand": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AltitudeBand"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "geometry": {
+            "$ref": "#/components/schemas/Polygon"
+          },
+          "id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "missionId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Missionid",
+            "type": "string"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/Provenance"
+          },
+          "purpose": {
+            "title": "Purpose",
+            "type": "string"
+          },
+          "validFrom": {
+            "anyOf": [
+              {
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Validfrom"
+          },
+          "validUntil": {
+            "anyOf": [
+              {
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Validuntil"
+          }
+        },
+        "required": [
+          "id",
+          "missionId",
+          "label",
+          "purpose",
+          "geometry",
+          "provenance"
+        ],
+        "title": "Zone",
+        "type": "object"
+      },
+      "ZoneChanges": {
+        "additionalProperties": false,
+        "properties": {
+          "removes": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            "title": "Removes",
+            "type": "array"
+          },
+          "upserts": {
+            "patternProperties": {
+              "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+                "$ref": "#/components/schemas/Zone"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 256,
+              "minLength": 1
+            },
+            "title": "Upserts",
+            "type": "object"
+          }
+        },
+        "required": [
+          "upserts",
+          "removes"
+        ],
+        "title": "ZoneChanges",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Sentinel world authority",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/fixtures/{mission_id}/advance": {
+      "post": {
+        "description": "Opt-in synthetic fixture only. Advances one deterministic test sample; not an operational or simulation command.",
+        "operationId": "advance_api_fixtures__mission_id__advance_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdvanceFixtureRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorldFrame"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Advance"
+      }
+    },
+    "/api/missions": {
+      "get": {
+        "operationId": "missions_api_missions_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissionList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Missions"
+      }
+    },
+    "/api/missions/{mission_id}/events": {
+      "get": {
+        "operationId": "events_api_missions__mission_id__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "default": -1,
+              "maximum": 9007199254740991,
+              "minimum": -1,
+              "title": "After",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Events"
+      }
+    },
+    "/api/missions/{mission_id}/world": {
+      "get": {
+        "operationId": "world_api_missions__mission_id__world_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorldFrame"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "World"
+      }
+    },
+    "/api/recordings/{recording_id}": {
+      "get": {
+        "operationId": "recording_api_recordings__recording_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recording_id",
+            "required": true,
+            "schema": {
+              "title": "Recording Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingMetadata"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Recording"
+      }
+    }
+  },
+  "x-sentinel-websocket": {
+    "heartbeatSeconds": 5,
+    "initial": "atomic snapshot on every connection",
+    "path": "/api/missions/{mission_id}/stream",
+    "schema": "stream.schema.json"
+  }
+}

@@ -60,42 +60,57 @@ button:not(:disabled):hover {
   overflow: hidden;
 }
 .app-header {
-  height: 40px;
+  height: 32px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  padding: 0 16px 0 13px;
-  justify-content: space-between;
+  padding: 0 12px 0 8px;
+  gap: 18px;
   border-bottom: 1px solid var(--border-subtle);
   background: var(--surface-raised);
 }
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 13px;
+  gap: 6px;
+  flex-shrink: 0;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.025em;
+  letter-spacing: 0.005em;
   user-select: none;
 }
-.brand img {
-  width: 26px;
-  height: 30px;
-  object-fit: cover;
+.brand-logo {
+  position: relative;
+  overflow: hidden;
+  width: 24px;
+  height: 26px;
+  flex-shrink: 0;
+}
+.brand-logo img {
+  position: absolute;
+  left: -4px;
+  top: -3px;
+  width: 32px;
+  height: 32px;
+  max-width: none;
+  object-fit: contain;
   mix-blend-mode: screen;
 }
 .version {
-  margin-left: 3px;
+  margin-left: 2px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 400;
   color: var(--text-muted);
 }
 .wall-clock {
   display: flex;
   align-items: baseline;
-  gap: 10px;
-  font: 12px var(--font-mono);
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+  white-space: nowrap;
+  font: 11px var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 .wall-clock span {
@@ -108,7 +123,7 @@ button:not(:disabled):hover {
   display: flex;
 }
 .activity-bar {
-  width: 52px;
+  width: 40px;
   flex-shrink: 0;
   background: var(--surface-raised);
   border-right: 1px solid var(--border-subtle);
@@ -116,7 +131,7 @@ button:not(:disabled):hover {
   align-items: center;
   flex-direction: column;
   justify-content: space-between;
-  padding: 4px 0;
+  padding: 3px 0;
   user-select: none;
   z-index: 20;
 }
@@ -125,18 +140,18 @@ button:not(:disabled):hover {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
 }
 .activity-item {
   position: relative;
 }
 .activity-button {
-  width: 51px;
-  height: 46px;
+  width: 39px;
+  height: 38px;
   color: var(--text-secondary);
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   align-items: center;
   justify-content: center;
   position: relative;
@@ -150,7 +165,7 @@ button:not(:disabled):hover {
 }
 .activity-button[aria-pressed='true']::before {
   content: '';
-  height: 24px;
+  height: 20px;
   width: 2px;
   background: #d0d2d6;
   position: absolute;
@@ -166,7 +181,7 @@ button:not(:disabled):hover {
 }
 .activity-tooltip {
   position: absolute;
-  left: 58px;
+  left: 44px;
   top: 7px;
   z-index: 200;
   padding: 7px 10px;
@@ -200,7 +215,7 @@ button:not(:disabled):hover {
   background: var(--surface-hover);
 }
 .views-sidebar {
-  width: 208px;
+  width: 186px;
   flex-shrink: 0;
   background: var(--surface-raised);
   border-right: 1px solid var(--border-subtle);
@@ -213,9 +228,9 @@ button:not(:disabled):hover {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  height: 33px;
-  min-height: 33px;
-  padding: 0 12px;
+  height: 29px;
+  min-height: 29px;
+  padding: 0 10px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-size: 10px;
@@ -238,12 +253,12 @@ button:not(:disabled):hover {
 .view-list {
   display: flex;
   flex-direction: column;
-  padding: 5px 0;
+  padding: 3px 0;
 }
 .view-row {
   display: flex;
   align-items: center;
-  height: 32px;
+  height: 29px;
   position: relative;
 }
 .view-row[data-active='true'] {
@@ -266,15 +281,15 @@ button:not(:disabled):hover {
 }
 .view-launcher {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   text-align: left;
   flex: 1;
   min-width: 0;
   height: 100%;
   color: var(--text-secondary);
-  font-size: 12px;
-  padding-left: 12px;
+  font-size: 11px;
+  padding-left: 10px;
 }
 .view-launcher span {
   flex: 1;
@@ -298,35 +313,54 @@ button:not(:disabled):hover {
   position: relative;
   min-height: 0;
 }
+.workspace-scroll-shell {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+.workspace-scroll {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-color: var(--text-muted) var(--surface-base);
+}
+.workspace-scroll > .flexlayout__layout {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: min-content;
+  min-height: min-content;
+}
+.workspace-scroll:focus-visible {
+  outline: 1px solid var(--focus);
+  outline-offset: -1px;
+}
+.workspace-scroll-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 0 5px;
+  height: 26px;
+  flex-shrink: 0;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-base);
+  color: var(--text-secondary);
+  font-size: 11px;
+  user-select: none;
+}
+.workspace-scroll-controls .icon-button {
+  width: 26px;
+  height: 24px;
+}
 .pane {
   height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   background: var(--surface-base);
-}
-.pane-toolbar {
-  height: 34px;
-  flex-shrink: 0;
-  padding: 0 7px 0 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  border-bottom: 1px solid #ffffff06;
-  user-select: none;
-}
-.return-button {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text-primary);
-  font-size: 11px;
-  padding: 5px;
-  white-space: nowrap;
-}
-.return-button:hover {
-  background: var(--surface-hover);
 }
 .placeholder {
   flex: 1;
@@ -342,6 +376,10 @@ button:not(:disabled):hover {
   max-width: 100%;
   margin: auto;
   padding: 24px 0;
+}
+.placeholder > .constraint-tag {
+  align-self: flex-start;
+  margin-bottom: 12px;
 }
 h1 {
   font-size: 14px;
@@ -371,6 +409,8 @@ h1 {
 }
 .keyboard-button {
   height: 23px;
+  flex-shrink: 0;
+  white-space: nowrap;
   padding: 0 5px;
   display: inline-flex;
   align-items: center;
@@ -387,6 +427,10 @@ h1 {
   padding: 3px;
   background: var(--surface-overlay);
   border-radius: 1px;
+}
+.tab-context-menu {
+  /* Context actions must remain above FlexLayout's in-page floating panels. */
+  z-index: 4000;
 }
 .menu-label {
   font-size: 10px;
@@ -532,7 +576,7 @@ h1 {
   border-bottom: 1px solid var(--border-subtle);
 }
 .flexlayout__tab_button {
-  padding: 8px 10px;
+  padding: 5px 9px;
   border-radius: 0;
   border-right: 1px solid #ffffff05;
   position: relative;
@@ -575,35 +619,35 @@ h1 {
 }
 @media (min-width: 3000px) {
   .views-sidebar {
-    width: 232px;
+    width: 202px;
   }
   .view-launcher,
   .placeholder-description,
   .menu-item,
   .flexlayout__layout {
-    font-size: 14px;
+    font-size: 12px;
   }
   .flexlayout__layout {
-    --font-size: 14px;
+    --font-size: 12px;
   }
   .view-row {
-    height: 36px;
+    height: 31px;
   }
   .activity-bar {
-    width: 58px;
+    width: 40px;
   }
   .activity-button {
-    width: 57px;
-    height: 50px;
+    width: 39px;
+    height: 38px;
   }
   .activity-tooltip {
-    left: 64px;
+    left: 44px;
   }
   .app-header {
-    height: 44px;
+    height: 32px;
   }
   .wall-clock {
-    font-size: 14px;
+    font-size: 11px;
   }
   h1 {
     font-size: 16px;

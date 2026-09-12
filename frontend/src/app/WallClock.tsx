@@ -16,7 +16,11 @@ export function WallClock() {
     return () => window.clearInterval(timer);
   }, []);
   return (
-    <div className="wall-clock" aria-label="Current time, UTC plus 8">
+    <div
+      className="wall-clock"
+      role="group"
+      aria-label="Current time, UTC plus 8"
+    >
       <time dateTime={now.toISOString()}>{clockFormat.format(now)}</time>
       <span>UTC+8</span>
     </div>

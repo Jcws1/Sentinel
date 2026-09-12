@@ -14,17 +14,23 @@ import {
   PanelLeft,
   Plus,
   X,
+  Info,
 } from 'lucide-react';
 import { WorkspaceHost } from '../features/workspace/WorkspaceHost';
 import {
   viewIds,
   viewRegistry,
+  viewKind,
   type ViewId,
 } from '../features/workspace/viewRegistry';
 import type { WorkspaceBridge } from '../features/workspace/workspaceBridge';
 import type { PaneHooks } from '../features/workspace/PaneHost';
 import { WallClock } from './WallClock';
 import { modules, moduleForView } from './moduleRegistry';
+import {
+  MissionControls,
+  MissionStatus,
+} from '../features/mission/MissionControls';
 
 function ViewMenu({
   id,
@@ -35,8 +41,9 @@ function ViewMenu({
   bridge: WorkspaceBridge;
   open: boolean;
 }) {
-  const title = viewRegistry[id].title;
+  const title = bridge.getViewTitle(id);
   const actionChosen = useRef(false);
+  const actionTarget = useRef<ViewId | undefined>(undefined);
   const trigger = useRef<HTMLButtonElement>(null);
   function choose(action: () => void) {
     actionChosen.current = true;
@@ -62,8 +69,10 @@ function ViewMenu({
             actionChosen.current = false;
             event.preventDefault();
             const snapshot = bridge.getSnapshot();
-            const target = snapshot.views.some((view) => view.id === id)
-              ? id
+            const preferred = actionTarget.current ?? id;
+            actionTarget.current = undefined;
+            const target = snapshot.views.some((view) => view.id === preferred)
+              ? preferred
               : snapshot.activeViewId;
             // A completed command transfers focus to its view. Escape still returns to the menu trigger.
             if (target) bridge.focus(target);
@@ -85,6 +94,19 @@ function ViewMenu({
             <Columns2 size={15} />
             Open to Side
           </Menu.Item>
+          {['tactical', 'three-d'].includes(viewKind(id)) && (
+            <Menu.Item
+              className="menu-item"
+              onSelect={() =>
+                choose(() => {
+                  actionTarget.current = bridge.openAnotherMap(id);
+                })
+              }
+            >
+              <Plus size={15} />
+              New Tactical pane
+            </Menu.Item>
+          )}
           {open && (
             <>
               <Menu.Separator className="menu-separator" />
@@ -138,6 +160,10 @@ function Shortcuts() {
               <dd>Ctrl + Delete</dd>
             </div>
             <div>
+              <dt>Open actions for the focused tab</dt>
+              <dd>Shift + F10 / Menu</dd>
+            </div>
+            <div>
               <dt>Switch between tab and view content</dt>
               <dd>F6</dd>
             </div>
@@ -167,6 +193,7 @@ export function App({
 }: PaneHooks & { bridge: WorkspaceBridge }) {
   const workspace = useSyncExternalStore(bridge.subscribe, bridge.getSnapshot);
   const [showViews, setShowViews] = useState(true);
+  const openedCredits = useRef(false);
   const activeModule = moduleForView(workspace.activeViewId);
   function navigateActivity(event: KeyboardEvent<HTMLElement>) {
     if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
@@ -190,6 +217,50 @@ export function App({
   function moduleButton(item: (typeof modules)[number]) {
     const Icon = item.icon;
     const view = item.view;
+    if (item.id === 'settings')
+      return (
+        <div className="activity-item" key={item.id}>
+          <Menu.Root>
+            <Menu.Trigger
+              className="activity-button"
+              data-activity-view="settings"
+              aria-label="Settings"
+            >
+              <Icon size={17} strokeWidth={1.5} />
+            </Menu.Trigger>
+            <Menu.Portal>
+              <Menu.Content
+                className="menu-content"
+                side="right"
+                align="end"
+                sideOffset={6}
+                onCloseAutoFocus={(event) => {
+                  if (openedCredits.current) {
+                    openedCredits.current = false;
+                    event.preventDefault();
+                    bridge.focus('credits');
+                  }
+                }}
+              >
+                <Menu.Label className="menu-label">Settings</Menu.Label>
+                <Menu.Item
+                  className="menu-item"
+                  onSelect={() => {
+                    openedCredits.current = true;
+                    bridge.open('credits');
+                  }}
+                >
+                  <Info size={15} />
+                  Credits
+                </Menu.Item>
+              </Menu.Content>
+            </Menu.Portal>
+          </Menu.Root>
+          <span className="activity-tooltip" role="tooltip">
+            Settings<span>Credits</span>
+          </span>
+        </div>
+      );
     return (
       <div className="activity-item" key={item.id}>
         <button
@@ -204,7 +275,7 @@ export function App({
             if (view) bridge.open(view);
           }}
         >
-          <Icon size={21} strokeWidth={1.5} />
+          <Icon size={17} strokeWidth={1.5} />
           {!view && (
             <span className="unavailable-mark" aria-hidden="true">
               N/A
@@ -222,11 +293,14 @@ export function App({
     <div className="app-shell">
       <header className="app-header">
         <div className="brand">
-          <img src="/sentinel-logo.png" alt="" />
+          <span className="brand-logo" aria-hidden="true">
+            <img src="/sentinel-logo.png" alt="" draggable={false} />
+          </span>
           <span>
             Sentinel <span className="version">v3</span>
           </span>
         </div>
+        <MissionControls />
         <WallClock />
       </header>
       <div className="workbench-body">
@@ -246,7 +320,7 @@ export function App({
               aria-expanded={showViews}
               onClick={() => setShowViews(!showViews)}
             >
-              <PanelLeft size={19} />
+              <PanelLeft size={17} />
             </button>
             {modules.filter((item) => item.id === 'settings').map(moduleButton)}
           </div>
@@ -258,35 +332,47 @@ export function App({
               <span className="constraint-tag">VIEW ONLY</span>
             </div>
             <div className="view-list">
-              {viewIds.map((id) => {
-                const view = viewRegistry[id];
-                const Icon = view.icon;
-                const isOpen = workspace.views.some((item) => item.id === id);
-                return (
-                  <div
-                    key={id}
-                    className="view-row"
-                    data-active={workspace.activeViewId === id}
-                  >
-                    <button
-                      className="view-launcher"
-                      aria-label={`Open ${view.title} from Views`}
-                      onClick={() => bridge.open(id)}
+              {viewIds
+                .filter((id) => id !== 'credits')
+                .map((id) => {
+                  const view = viewRegistry[id];
+                  const title = bridge.getViewTitle(id);
+                  const Icon = view.icon;
+                  const isOpen = workspace.views.some(
+                    (item) => viewKind(item.id) === id,
+                  );
+                  return (
+                    <div
+                      key={id}
+                      className="view-row"
+                      data-active={
+                        workspace.activeViewId !== undefined &&
+                        viewKind(workspace.activeViewId) === id
+                      }
                     >
-                      <Icon size={15} strokeWidth={1.5} />
-                      <span>{view.title}</span>
-                      {isOpen && (
-                        <Check
-                          className="open-marker"
-                          size={11}
-                          aria-label="Open"
-                        />
-                      )}
-                    </button>
-                    <ViewMenu id={id} bridge={bridge} open={isOpen} />
-                  </div>
-                );
-              })}
+                      <button
+                        className="view-launcher"
+                        aria-label={`Open ${title} from Views`}
+                        onClick={() => bridge.open(id)}
+                      >
+                        <Icon size={15} strokeWidth={1.5} />
+                        <span>{title}</span>
+                        {isOpen && (
+                          <Check
+                            className="open-marker"
+                            size={11}
+                            aria-label="Open"
+                          />
+                        )}
+                      </button>
+                      <ViewMenu
+                        id={id}
+                        bridge={bridge}
+                        open={workspace.views.some((item) => item.id === id)}
+                      />
+                    </div>
+                  );
+                })}
             </div>
           </aside>
         )}
@@ -309,7 +395,7 @@ export function App({
         </main>
       </div>
       <footer className="status-bar">
-        <span>No mission loaded</span>
+        <MissionStatus />
         <Shortcuts />
       </footer>
     </div>

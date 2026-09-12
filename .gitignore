@@ -10,4 +10,14 @@ test-results/
 .env
 .env.local
 
-.docs/
+# Reproducible environmental pack; ~1.05 GB, never ordinary source control.
+frontend/public/edge-map/
+dist-test/
+dist-baseline/
+dist-after/
+
+docs/
+backend/data/
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal

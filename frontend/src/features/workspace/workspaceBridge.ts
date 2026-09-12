@@ -10,11 +10,30 @@ import {
   createWorkspaceMetadata,
   type ViewPlacement,
 } from '../../state/workspaceStore';
-import { isViewId, viewRegistry, type ViewId } from './viewRegistry';
+import { isViewId, viewKind, viewTitle, type ViewId } from './viewRegistry';
+import {
+  defaultMapPresentation,
+  type CameraIntent,
+  type MapMode,
+  type MapPresentation,
+} from '../../renderers/contracts';
+import { RendererPool } from '../../renderers/rendererPool';
 
 export class WorkspaceBridge {
+  /** Ephemeral resources; never included in FlexLayout JSON or workspace metadata. */
+  readonly renderers = new RendererPool();
   private readonly metadata = createWorkspaceMetadata();
   private disposed = false;
+  private nextMapInstance = 2;
+  // Retain a closed view's presentation preference, like its camera bookmark.
+  private readonly mapModes = new Map<ViewId, MapMode>();
+  private readonly mapPresentations = new Map<ViewId, MapPresentation>();
+  private readonly mapPitches = new Map<string, number>();
+  /** Per-view bookmarks only. No engine objects or domain state enter layout metadata. */
+  private readonly mapCameras = new Map<
+    ViewId,
+    { missionId: string; camera: CameraIntent }
+  >();
   /** The sole layout authority, consumed by the FlexLayout host. Never copied into a store. */
   readonly layoutModel: Model;
   readonly allowPopout: boolean;
@@ -50,6 +69,10 @@ export class WorkspaceBridge {
     this.layoutModel.setSplitterSize(8);
     this.layoutModel.addChangeListener(this.publish);
     this.publish();
+    if (import.meta.env.MODE === 'verification')
+      Object.assign(window, {
+        __sentinelRendererPoolTest: { inspect: () => this.renderers.inspect() },
+      });
   }
   getSnapshot = () => this.metadata.getState();
   subscribe = (listener: () => void) => this.metadata.subscribe(listener);
@@ -57,8 +80,8 @@ export class WorkspaceBridge {
     return {
       type: 'tab',
       id,
-      name: viewRegistry[id].title,
-      component: id,
+      name: this.getViewTitle(id),
+      component: viewKind(id),
       enableWindowReMount: true,
     };
   }
@@ -136,8 +159,18 @@ export class WorkspaceBridge {
   }
   close(id: ViewId) {
     if (this.disposed || !this.layoutModel.getNodeById(id)) return;
+    this.renderers.closeView(id);
     this.layoutModel.doAction(Actions.deleteTab(id));
-    const next = this.getSnapshot().activeViewId;
+    const workspace = this.getSnapshot();
+    // Removing the active tabset can leave FlexLayout without an active tabset.
+    // Retain a still-active view, otherwise activate one of the remaining selected
+    // tabs before scheduling DOM focus after the layout's next React commit.
+    const next =
+      workspace.activeViewId ??
+      workspace.views.find(
+        (view) => view.location === 'main' && view.selectedInPane,
+      )?.id ??
+      workspace.views.find((view) => view.selectedInPane)?.id;
     if (next) this.focus(next);
   }
   openToSide(id: ViewId, relativeTo?: ViewId) {
@@ -165,6 +198,71 @@ export class WorkspaceBridge {
     );
     this.focus(id);
   }
+  openAnotherMap(relativeTo?: ViewId): ViewId | undefined {
+    if (this.disposed) return;
+    let id: ViewId;
+    do {
+      id = `tactical:${this.nextMapInstance++}`;
+    } while (this.layoutModel.getNodeById(id));
+    this.openToSide(id, relativeTo);
+    return id;
+  }
+  getMapCamera(id: ViewId, missionId: string): CameraIntent | undefined {
+    const bookmark = this.mapCameras.get(id);
+    return bookmark?.missionId === missionId
+      ? {
+          ...bookmark.camera,
+          center: { ...bookmark.camera.center },
+          projection: this.getMapMode(id),
+          pitchFromNadirDeg: this.mapPitches.get(
+            `${id}:${missionId}:${this.getMapMode(id)}`,
+          ),
+        }
+      : undefined;
+  }
+  getMapMode(id: ViewId): MapMode {
+    return this.mapModes.get(id) ?? (id === 'three-d' ? 'three-d' : 'tactical');
+  }
+  getMapPresentation(id: ViewId): Readonly<MapPresentation> {
+    return this.mapPresentations.get(id) ?? defaultMapPresentation;
+  }
+  setMapPresentation(id: ViewId, change: Partial<MapPresentation>) {
+    if (this.disposed) return;
+    this.mapPresentations.set(id, {
+      ...this.getMapPresentation(id),
+      ...change,
+    });
+    this.publish();
+  }
+  getViewTitle(id: ViewId): string {
+    if (!['tactical', 'three-d'].includes(viewKind(id))) return viewTitle(id);
+    const suffix = id.startsWith('tactical:') ? ` ${id.split(':')[1]}` : '';
+    const noun = id === 'three-d' ? 'View' : 'Map';
+    return this.getMapMode(id) === 'three-d'
+      ? `3D ${noun}${suffix}`
+      : `Tactical ${noun}${suffix}`;
+  }
+  setMapMode(id: ViewId, mode: MapMode) {
+    if (this.disposed || !this.layoutModel.getNodeById(id)) return;
+    this.mapModes.set(id, mode);
+    this.layoutModel.doAction(
+      Actions.updateNodeAttributes(id, {
+        name: this.getViewTitle(id),
+      }),
+    );
+  }
+  setMapCamera(id: ViewId, missionId: string, camera: CameraIntent) {
+    if (this.disposed) return;
+    if (camera.projection && camera.pitchFromNadirDeg !== undefined)
+      this.mapPitches.set(
+        `${id}:${missionId}:${camera.projection}`,
+        camera.pitchFromNadirDeg,
+      );
+    this.mapCameras.set(id, {
+      missionId,
+      camera: { ...camera, center: { ...camera.center } },
+    });
+  }
   popOut(id: ViewId) {
     if (!this.allowPopout || this.disposed || !this.layoutModel.getNodeById(id))
       return;
@@ -184,7 +282,12 @@ export class WorkspaceBridge {
     this.focus(id);
   }
   dispose() {
+    this.renderers.dispose();
     this.disposed = true;
+    this.mapCameras.clear();
+    this.mapModes.clear();
+    this.mapPresentations.clear();
+    this.mapPitches.clear();
     this.layoutModel.removeChangeListener(this.publish);
   }
 }

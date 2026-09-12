@@ -1,10 +1,35 @@
 import { defineConfig } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
 import { resolve } from 'node:path';
+import { cesiumAssets } from './cesiumAssets.ts';
 
 export default defineConfig(({ mode }) => ({
+  server: {
+    watch: {
+      ignored: [
+        '**/dist*/**',
+        '**/public/edge-map/data/**',
+        '**/public/edge-map/assets/**',
+      ],
+    },
+    proxy: {
+      '/api': {
+        target: process.env.SENTINEL_API_TARGET ?? 'http://127.0.0.1:8000',
+        ws: true,
+      },
+    },
+  },
+  preview: {
+    proxy: {
+      '/api': {
+        target: process.env.SENTINEL_API_TARGET ?? 'http://127.0.0.1:8000',
+        ws: true,
+      },
+    },
+  },
   plugins: [
     tailwindcss(),
+    cesiumAssets(),
     {
       name: 'flexlayout-published-css-map',
       enforce: 'pre',

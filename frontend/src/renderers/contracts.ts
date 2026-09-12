@@ -1,0 +1,129 @@
+import type { Position3D, Zone } from '../contracts/generated';
+import type { DeepReadonly, Entity } from '../contracts/types';
+import type { ObjectRef } from '../state/sessionStore';
+import type { MapRegion } from './regions';
+
+/** View-local geographic intent. A 2D camera center has no invented altitude. */
+export interface CameraIntent {
+  center: { longitudeDeg: number; latitudeDeg: number };
+  groundSpanM: number;
+  headingTrueDeg: number;
+  /** Optional, pane-local orientation; never a source altitude or operational value. */
+  pitchFromNadirDeg?: number;
+  projection?: MapMode;
+}
+
+export interface SceneObject {
+  readonly ref: Readonly<ObjectRef & { kind: 'entity' }>;
+  readonly trackId: string;
+  readonly position: DeepReadonly<Position3D>;
+  readonly affiliation: Entity['affiliation'];
+  readonly label: string;
+  readonly selected: boolean;
+  readonly stale: boolean;
+}
+
+export interface SceneZone {
+  readonly ref: Readonly<ObjectRef & { kind: 'zone' }>;
+  readonly label: string;
+  readonly geometry: DeepReadonly<Zone['geometry']>;
+  readonly altitudeBand?: DeepReadonly<Zone['altitudeBand']>;
+}
+
+export type MapMode = 'tactical' | 'three-d';
+export interface MapPresentation {
+  buildings: boolean;
+  hillshade: boolean;
+  terrain: boolean;
+  environment: 'standard' | 'photorealistic';
+  daylight: boolean;
+}
+export const defaultMapPresentation: Readonly<MapPresentation> = Object.freeze({
+  buildings: false,
+  hillshade: true,
+  terrain: false,
+  environment: 'standard',
+  daylight: true,
+});
+export interface ProviderStatus {
+  kind:
+    | 'local'
+    | 'loading'
+    | 'hosted'
+    | 'error'
+    | 'renderer-limit'
+    | 'renderer-error'
+    | 'renderer-timeout';
+  source?: 'regional' | 'maptiler';
+  terrainError?: boolean;
+  reason?:
+    | 'context-lost'
+    | 'render-exception'
+    | 'initial-geometry'
+    | 'geometry-delay'
+    | 'capacity';
+  recoverable?: boolean;
+}
+export type LayerAvailability =
+  'local' | 'loading' | 'ready' | 'error' | 'disabled';
+export interface SpatialStatus {
+  imagery: LayerAvailability;
+  terrain: LayerAvailability;
+  buildings: LayerAvailability;
+  approximateHeights: number;
+  unavailableHeights: number;
+  surfaceZones: number;
+  unavailableZones: number;
+  environment?: 'standard' | 'photorealistic';
+  /** Environment actually contributing visible content, independent of desired base. */
+  displayedBase?: 'local' | 'standard' | 'photorealistic';
+  photorealistic?: LayerAvailability;
+  degraded?: boolean;
+  failureCode?: string;
+  retrying?: boolean;
+  retryAfterSeconds?: number;
+}
+export interface RendererCallbacks {
+  pick(id: string): void;
+  camera(missionId: string, camera: CameraIntent): void;
+  status(status: ProviderStatus): void;
+  announce(message: string): void;
+  spatial?(status: SpatialStatus): void;
+}
+/** A pane owns one projection. No transport or world mutation is exposed here. */
+export interface MapRenderer {
+  /** Suspends renderer work; the application applies its latest scene on resume. */
+  setActive(active: boolean): void;
+  canRetain(): boolean;
+  /** Accounted renderer cache bytes, not total GPU/process memory. */
+  retainedBytes(): number;
+  captureCamera(): CameraIntent | undefined;
+  restoreCamera(camera: CameraIntent): void;
+  setScene(scene: SceneProjection, bookmark?: CameraIntent): void;
+  setMode(mode: 'select' | 'pan'): void;
+  setPresentation(options: MapPresentation): void;
+  setPitch?(pitchFromNadirDeg: number): void;
+  recenter(): void;
+  retryProvider(): void;
+  dispose(): void;
+}
+
+/** Derived from one complete presentation frame; never an operational store. */
+export interface SceneProjection {
+  readonly missionId?: string;
+  readonly frameId?: string;
+  readonly sequence?: number;
+  readonly effectiveAt?: string;
+  readonly stale: boolean;
+  readonly objects: readonly SceneObject[];
+  readonly zones: readonly SceneZone[];
+  readonly selection: Readonly<{
+    id?: string;
+    label?: string;
+    status: 'none' | 'visible' | 'filtered' | 'unlocated' | 'missing';
+  }>;
+  /** All entities without a Track, independent of the current visibility filters. */
+  readonly unlocatedCount: number;
+  readonly referencePoint?: DeepReadonly<Position3D>;
+  readonly region?: MapRegion;
+}

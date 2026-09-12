@@ -1,0 +1,77 @@
+.pane:has(.credits-view) {
+  container-type: inline-size;
+}
+.credits-view {
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 20px 24px 28px;
+  color: #abb4bd;
+  font-size: 12px;
+  line-height: 1.6;
+  user-select: text;
+  min-width: 0;
+}
+.credits-heading > span {
+  color: #818c98;
+  font-size: 11px;
+}
+.credits-view h1 {
+  margin: 2px 0 10px;
+  font-size: 17px;
+  font-weight: 600;
+  color: #e1e5e9;
+}
+.credits-view > p {
+  margin: 0 0 24px;
+  max-width: 760px;
+}
+.credits-view section {
+  max-width: 880px;
+  margin-top: 24px;
+}
+.credits-view h2 {
+  margin: 0;
+  padding-bottom: 7px;
+  border-bottom: 1px solid #ffffff12;
+  color: #d4dbe2;
+  font-size: 12px;
+  font-weight: 600;
+}
+.credits-view dl {
+  margin: 0;
+}
+.credits-view dl > div {
+  display: grid;
+  grid-template-columns: minmax(110px, 170px) minmax(0, 1fr);
+  gap: 8px 16px;
+  padding: 9px 0;
+  border-bottom: 1px solid #ffffff08;
+}
+.credits-view dt {
+  color: #ccd3da;
+}
+.credits-view dd {
+  margin: 0;
+}
+.credits-view a {
+  color: #c7cfd7;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.credits-view a:hover {
+  color: #fff;
+}
+.credits-view:focus-visible,
+.credits-view a:focus-visible {
+  outline: 1px solid #d7dde4;
+  outline-offset: 2px;
+}
+@container (max-width: 480px) {
+  .credits-view {
+    padding: 16px;
+  }
+  .credits-view dl > div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}

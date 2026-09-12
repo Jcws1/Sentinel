@@ -1,8 +1,11 @@
-import { useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { TabNode } from 'flexlayout-react';
-import { Columns2, PanelBottomClose, X } from 'lucide-react';
 import type { WorkspaceBridge } from './workspaceBridge';
-import { viewRegistry, type ViewId } from './viewRegistry';
+import { viewRegistry, viewKind, viewTitle, type ViewId } from './viewRegistry';
+import { OperationalReadout } from '../mission/OperationalReadout';
+import { useOperationalRuntime } from '../../app/OperationalContext';
+import { TacticalMap } from '../map/TacticalMap';
+import { Credits } from '../credits/Credits';
 
 export type PaneLifecycleEvent =
   | { type: 'mount' | 'dispose'; viewId: ViewId }
@@ -25,6 +28,8 @@ export function PaneHost({
   bridge: WorkspaceBridge;
 }) {
   const host = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(() => node.isVisible());
+  const runtime = useOperationalRuntime();
   useEffect(() => {
     const element = host.current;
     if (!element) return;
@@ -36,8 +41,12 @@ export function PaneHost({
       visible: node.isVisible(),
     });
     node.setEventListener('visibility', ({ visible }: { visible: boolean }) => {
+      setVisible(visible);
       onPaneEvent?.({ type: 'visibility', viewId: id, visible });
     });
+    // FlexLayout can select a newly reopened tab between render and this effect.
+    // Reconcile after installing the listener so that transition cannot be missed.
+    setVisible(node.isVisible());
     let frame = 0;
     let previous = '';
     const Observer = (owner as Window & typeof globalThis).ResizeObserver;
@@ -60,17 +69,17 @@ export function PaneHost({
       onPaneEvent?.({ type: 'dispose', viewId: id });
     };
   }, [id, node, onPaneEvent]);
-  const view = viewRegistry[id];
-  const workspace = useSyncExternalStore(bridge.subscribe, bridge.getSnapshot);
-  const detached = workspace.views.some(
-    (view) => view.id === id && view.location !== 'main',
-  );
+  const kind = viewKind(id);
+  const title = runtime ? bridge.getViewTitle(id) : viewTitle(id);
+  const view = viewRegistry[kind];
+  const tactical =
+    (kind === 'tactical' || kind === 'three-d') && runtime !== null;
   return (
     <section
       ref={host}
       className="pane"
       data-view={id}
-      aria-label={`${view.title} view`}
+      aria-label={`${title} view`}
       onKeyDown={(event) => {
         // FlexLayout portals do not bubble React events through their DOM tabpanel ancestor.
         // Handle the content-to-tab half here; Layout handles the tab-to-content half.
@@ -87,40 +96,17 @@ export function PaneHost({
         }
       }}
     >
-      <div className="pane-toolbar">
-        <span className="constraint-tag">NOT IMPLEMENTED</span>
-        <div className="flex items-center gap-1">
-          {detached && (
-            <button className="return-button" onClick={() => bridge.redock(id)}>
-              <PanelBottomClose size={16} />
-              Return to workspace
-            </button>
-          )}
-          <button
-            className="icon-button"
-            aria-label={`Open ${view.title} to side`}
-            title="Open to Side"
-            onClick={() => bridge.openToSide(id)}
-          >
-            <Columns2 size={16} />
-          </button>
-          <button
-            className="icon-button"
-            aria-label={`Close ${view.title} view`}
-            title="Close view"
-            onClick={() => bridge.close(id)}
-          >
-            <X size={16} />
-          </button>
+      {kind === 'credits' ? (
+        <Credits />
+      ) : tactical ? (
+        <TacticalMap viewId={id} visible={visible} bridge={bridge} />
+      ) : (
+        <div className="placeholder">
+          <span className="constraint-tag">NOT IMPLEMENTED</span>
+          <OperationalReadout view={{ ...view, title }} viewId={id} />
+          {renderExtension?.(id)}
         </div>
-      </div>
-      <div className="placeholder">
-        <div className="placeholder-content">
-          <h1>{view.title}</h1>
-          <p className="placeholder-description">{view.unavailable}</p>
-        </div>
-        {renderExtension?.(id)}
-      </div>
+      )}
     </section>
   );
 }
