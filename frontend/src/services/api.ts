@@ -1,4 +1,8 @@
-import { decodeCatalog, validateFrame } from '../contracts/decode';
+import {
+  decodeCatalog,
+  decodeObservedHistory,
+  validateFrame,
+} from '../contracts/decode';
 
 export type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -16,6 +20,26 @@ async function request(
 
 export function createApi(base: string, fetcher: Fetcher) {
   return {
+    async observedHistory(
+      missionId: string,
+      entityId: string,
+      frameId: string,
+      windowSeconds: number,
+      signal: AbortSignal,
+    ) {
+      const query = new URLSearchParams({
+        entityId,
+        frameId,
+        windowSeconds: String(windowSeconds),
+      });
+      return decodeObservedHistory(
+        await request(
+          fetcher,
+          `${base}/missions/${encodeURIComponent(missionId)}/observed-history?${query}`,
+          { signal },
+        ),
+      );
+    },
     async listMissions(signal: AbortSignal) {
       return decodeCatalog(
         await request(fetcher, `${base}/missions`, { signal }),

@@ -48,6 +48,13 @@
 .map-layers {
   margin-left: auto;
 }
+.map-trail-status {
+  padding: 4px 9px;
+  font-size: 10px;
+  color: #9cabb8;
+  background: #0b1015;
+  border-top: 1px solid #ffffff0b;
+}
 .map-layer-menu {
   max-height: min(560px, var(--radix-dropdown-menu-content-available-height));
   overflow-y: auto;

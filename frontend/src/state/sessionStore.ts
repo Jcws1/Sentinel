@@ -23,6 +23,8 @@ export interface SelectionState {
   revision: number;
 }
 export interface FilterState {
+  search?: string;
+  observationStates?: readonly ('tracking' | 'stale' | 'ended' | 'unlocated')[];
   affiliations: readonly Entity['affiliation'][];
   classificationCodes: readonly string[];
   sourceIds: readonly string[];
@@ -35,7 +37,11 @@ export interface SessionState {
   selection: SelectionState;
   time: TimeState;
   filters: FilterState;
-  overlays: { zones: boolean };
+  overlays: {
+    zones: boolean;
+    history?: boolean;
+    historyWindowSeconds?: number;
+  };
 }
 export function initialSession(missionId?: string): SessionState {
   return {

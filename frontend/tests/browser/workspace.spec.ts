@@ -94,6 +94,12 @@ test('registry navigation focuses singleton views without reloading, closes and 
         'Load a mission',
       );
       await expect(page.locator('.tactical-view:visible canvas')).toBeVisible();
+    } else if (title === 'Entity Inspector') {
+      await expect(
+        page.getByText(
+          'Select an entity, then use Open Details to pin its inspector.',
+        ),
+      ).toBeVisible();
     } else {
       await expect(
         page.getByRole('heading', { name: title, exact: true }),
@@ -138,6 +144,10 @@ test('keyboard focus, tab activation and closure, menus, dialog and divider resi
   await page.keyboard.press('Tab');
   await expect(
     page.getByRole('button', { name: 'Open Map', exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(
+    page.getByRole('button', { name: 'Open Tracks', exact: true }),
   ).toBeFocused();
   await page.keyboard.press('ArrowDown');
   await expect(
@@ -429,7 +439,9 @@ for (const size of [
     await side(page, 'Entity Inspector');
     await expect(page.locator('.tactical-view')).toBeVisible();
     await expect(
-      page.getByRole('heading', { name: 'Entity Inspector', exact: true }),
+      page.getByText(
+        'Select an entity, then use Open Details to pin its inspector.',
+      ),
     ).toBeVisible();
     const dimensions = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
@@ -477,7 +489,7 @@ test('module constraints, neutral chrome and a wall clock independent of the wor
   await expect(page.locator('.app-header')).toContainText('No mission');
   await expect(page.locator('.wall-clock')).toHaveText('23:30:00UTC+8');
   await expect(page.locator('.mission-controls')).toBeVisible();
-  for (const name of ['Home', 'Tracks', 'Sensors', 'Reports', 'Events']) {
+  for (const name of ['Home', 'Sensors', 'Reports', 'Events']) {
     const control = page.getByRole('button', {
       name: `${name} - not implemented`,
       exact: true,

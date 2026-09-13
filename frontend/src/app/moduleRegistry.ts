@@ -15,7 +15,7 @@ import { viewKind, type ViewId } from '../features/workspace/viewRegistry';
 export const modules = [
   { id: 'home', label: 'Home', icon: House },
   { id: 'map', label: 'Map', icon: Map, view: 'tactical' },
-  { id: 'tracks', label: 'Tracks', icon: ScanSearch },
+  { id: 'tracks', label: 'Tracks', icon: ScanSearch, view: 'tracks' },
   { id: 'sensors', label: 'Sensors', icon: Radar },
   { id: 'command', label: 'Command Picture', icon: Crosshair, view: 'command' },
   { id: 'timeline', label: 'Timeline', icon: Clock3, view: 'timeline' },
@@ -29,5 +29,6 @@ export function moduleForView(view?: ViewId) {
   const kind = viewKind(view);
   if (kind === 'three-d') return 'map';
   if (kind === 'vertical') return 'command';
+  if (kind === 'inspector') return 'tracks';
   return modules.find((item) => item.view === kind)?.id;
 }

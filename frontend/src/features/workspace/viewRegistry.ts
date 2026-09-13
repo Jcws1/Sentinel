@@ -10,6 +10,14 @@ import {
 
 // View kinds describe capabilities, never domain objects or individual pane instances.
 export const viewRegistry = {
+  tracks: {
+    unavailable: 'Entity browsing is not implemented.',
+    title: 'Tracks',
+    category: 'Entity browser',
+    icon: ScanSearch,
+    description: 'Browse entities and their displayed observations.',
+    future: '',
+  },
   credits: {
     unavailable: '',
     title: 'Credits',
@@ -74,18 +82,43 @@ export const viewRegistry = {
   },
 } as const;
 export type ViewKind = keyof typeof viewRegistry;
-export type ViewId = ViewKind | `tactical:${number}`;
+export type ViewId = ViewKind | `tactical:${number}` | `inspector:${string}`;
+export function inspectorId(missionId: string, entityId: string): ViewId {
+  return `inspector:${encodeURIComponent(JSON.stringify([missionId, entityId]))}`;
+}
+export function inspectorIdentity(
+  id: string,
+): { missionId: string; entityId: string } | undefined {
+  if (!id.startsWith('inspector:')) return;
+  try {
+    const values: unknown = JSON.parse(decodeURIComponent(id.slice(10)));
+    if (
+      Array.isArray(values) &&
+      values.length === 2 &&
+      values.every(
+        (v) => typeof v === 'string' && v.length > 0 && v.length <= 256,
+      )
+    )
+      return { missionId: values[0], entityId: values[1] };
+  } catch {
+    /* Invalid workspace identity is not a domain lookup. */
+  }
+}
 // Navigation opens the primary instance of each view kind.
 export const viewIds = Object.keys(viewRegistry) as ViewKind[];
 export function viewKind(id: ViewId): ViewKind {
+  if (id.startsWith('inspector:')) return 'inspector';
   return id.startsWith('tactical:') ? 'tactical' : (id as ViewKind);
 }
 export function viewTitle(id: ViewId): string {
+  if (id.startsWith('inspector:'))
+    return `Details · ${inspectorIdentity(id)?.entityId ?? 'Unavailable'}`;
   return id.startsWith('tactical:')
     ? `Tactical Map ${id.slice('tactical:'.length)}`
     : viewRegistry[viewKind(id)].title;
 }
 export function isViewId(value: string): value is ViewId {
+  if (inspectorIdentity(value)) return true;
   if (Object.hasOwn(viewRegistry, value)) return true;
   if (!/^tactical:[1-9]\d*$/.test(value)) return false;
   const instance = Number(value.slice('tactical:'.length));

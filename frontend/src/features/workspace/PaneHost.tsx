@@ -6,6 +6,8 @@ import { OperationalReadout } from '../mission/OperationalReadout';
 import { useOperationalRuntime } from '../../app/OperationalContext';
 import { TacticalMap } from '../map/TacticalMap';
 import { Credits } from '../credits/Credits';
+import { TracksBrowser } from '../entities/TracksBrowser';
+import { EntityInspector } from '../entities/EntityInspector';
 
 export type PaneLifecycleEvent =
   | { type: 'mount' | 'dispose'; viewId: ViewId }
@@ -98,6 +100,10 @@ export function PaneHost({
     >
       {kind === 'credits' ? (
         <Credits />
+      ) : kind === 'tracks' && runtime ? (
+        <TracksBrowser bridge={bridge} />
+      ) : kind === 'inspector' && runtime ? (
+        <EntityInspector id={id} bridge={bridge} />
       ) : tactical ? (
         <TacticalMap viewId={id} visible={visible} bridge={bridge} />
       ) : (

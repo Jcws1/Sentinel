@@ -1,0 +1,209 @@
+import * as Menu from '@radix-ui/react-dropdown-menu';
+import { Check, ChevronRight, ListFilter } from 'lucide-react';
+import type { ApplicationRuntime, RuntimeSnapshot } from '../../app/runtime';
+import type { FilterState } from '../../state/sessionStore';
+
+export function filtersActive(filters: FilterState) {
+  return !!(
+    filters.search?.trim() ||
+    filters.affiliations.length ||
+    filters.classificationCodes.length ||
+    filters.sourceIds.length ||
+    filters.zoneIds.length ||
+    filters.observationStates?.length ||
+    !filters.showUnobserved ||
+    filters.showRemoved
+  );
+}
+function Choices({
+  name,
+  options,
+  selected,
+  change,
+}: {
+  name: string;
+  options: readonly { id: string; label: string }[];
+  selected: readonly string[];
+  change: (value: string[]) => void;
+}) {
+  return (
+    <Menu.Sub>
+      <Menu.SubTrigger className="menu-item">
+        {name}
+        {selected.length ? ` · ${selected.length}` : ''}
+        <ChevronRight size={12} />
+      </Menu.SubTrigger>
+      <Menu.Portal>
+        <Menu.SubContent
+          className="menu-content entity-filter-menu"
+          sideOffset={4}
+        >
+          <Menu.Label className="menu-label">
+            {name} · all when unchecked
+          </Menu.Label>
+          {options.map((option) => (
+            <Menu.CheckboxItem
+              className="menu-item"
+              key={option.id}
+              checked={selected.includes(option.id)}
+              onSelect={(e) => e.preventDefault()}
+              onCheckedChange={(checked) =>
+                change(
+                  checked
+                    ? [...selected, option.id]
+                    : selected.filter((v) => v !== option.id),
+                )
+              }
+            >
+              <Menu.ItemIndicator>
+                <Check size={12} />
+              </Menu.ItemIndicator>
+              {option.label}
+            </Menu.CheckboxItem>
+          ))}
+          {!options.length && (
+            <Menu.Label className="menu-label">None supplied</Menu.Label>
+          )}
+        </Menu.SubContent>
+      </Menu.Portal>
+    </Menu.Sub>
+  );
+}
+export function FilterItems({
+  runtime,
+  state,
+  presence = true,
+}: {
+  runtime: ApplicationRuntime;
+  state: RuntimeSnapshot;
+  presence?: boolean;
+}) {
+  const f = state.session.filters,
+    frame = state.presentation.frame;
+  const classes = new Map(
+    Object.values(frame?.entities ?? {})
+      .filter((e) => e.classification)
+      .map((e) => [
+        e.classification!.code,
+        e.classification!.label ?? e.classification!.code,
+      ]),
+  );
+  const sources = [
+    ...new Set([
+      ...Object.values(frame?.tracks ?? {}).map((t) => t.source.id),
+      ...Object.values(frame?.entities ?? {}).map(
+        (e) => e.provenance.source.id,
+      ),
+    ]),
+  ].sort();
+  return (
+    <>
+      <Menu.Label className="menu-label">
+        Shared · all maps and Tracks
+      </Menu.Label>
+      <Choices
+        name="Affiliation"
+        options={['friendly', 'hostile', 'neutral', 'unknown'].map((id) => ({
+          id,
+          label: id.toUpperCase(),
+        }))}
+        selected={f.affiliations}
+        change={(v) =>
+          runtime.setFilters({ affiliations: v as FilterState['affiliations'] })
+        }
+      />
+      <Choices
+        name="Observation"
+        options={[
+          { id: 'tracking', label: 'Tracking' },
+          { id: 'stale', label: 'Last known' },
+          { id: 'ended', label: 'Ended' },
+          { id: 'unlocated', label: 'No position' },
+        ]}
+        selected={f.observationStates ?? []}
+        change={(v) =>
+          runtime.setFilters({
+            observationStates: v as FilterState['observationStates'],
+          })
+        }
+      />
+      <Choices
+        name="Classification"
+        options={[...classes].sort().map(([id, label]) => ({ id, label }))}
+        selected={f.classificationCodes}
+        change={(v) => runtime.setFilters({ classificationCodes: v })}
+      />
+      <Choices
+        name="Source"
+        options={sources.map((id) => ({ id, label: id }))}
+        selected={f.sourceIds}
+        change={(v) => runtime.setFilters({ sourceIds: v })}
+      />
+      <Choices
+        name="Zone footprint"
+        options={Object.values(frame?.zones ?? {}).map((z) => ({
+          id: z.id,
+          label: z.label,
+        }))}
+        selected={f.zoneIds}
+        change={(v) => runtime.setFilters({ zoneIds: v })}
+      />
+      {presence && (
+        <Menu.CheckboxItem
+          className="menu-item"
+          checked={f.showUnobserved}
+          onSelect={(e) => e.preventDefault()}
+          onCheckedChange={(v) => runtime.setFilters({ showUnobserved: v })}
+        >
+          <Menu.ItemIndicator>
+            <Check size={12} />
+          </Menu.ItemIndicator>
+          Last-known observations
+        </Menu.CheckboxItem>
+      )}
+      <Menu.CheckboxItem
+        className="menu-item"
+        checked={f.showRemoved}
+        onSelect={(e) => e.preventDefault()}
+        onCheckedChange={(v) => runtime.setFilters({ showRemoved: v })}
+      >
+        <Menu.ItemIndicator>
+          <Check size={12} />
+        </Menu.ItemIndicator>
+        Removed entities
+      </Menu.CheckboxItem>
+      <Menu.Separator className="menu-separator" />
+      <Menu.Item className="menu-item" onSelect={() => runtime.resetFilters()}>
+        Reset all filters
+      </Menu.Item>
+    </>
+  );
+}
+export function EntityFilters({
+  runtime,
+  state,
+}: {
+  runtime: ApplicationRuntime;
+  state: RuntimeSnapshot;
+}) {
+  return (
+    <Menu.Root>
+      <Menu.Trigger
+        className="text-control filter-trigger"
+        aria-label="Shared entity filters"
+      >
+        <ListFilter size={14} />
+        Filters{filtersActive(state.session.filters) && ' · active'}
+      </Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Content
+          className="menu-content entity-filter-menu"
+          align="start"
+          sideOffset={5}
+        >
+          <FilterItems runtime={runtime} state={state} />
+        </Menu.Content>
+      </Menu.Portal>
+    </Menu.Root>
+  );
+}

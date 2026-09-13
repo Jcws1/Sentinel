@@ -10,9 +10,10 @@ from datetime import datetime, timedelta, timezone
 from app.domain.models import Mission
 from app.missions.service import MissionService
 from app.missions.tactical_fixture import TACTICAL_FIXTURE_ID, tactical_mission, tactical_source
+from app.missions.observation_fixture import OBSERVATION_FIXTURE_ID, observation_mission, observation_source
 from app.world.serialization import canonical
 
-FIXTURE_IDS = ("fixture-alpha", "fixture-bravo", TACTICAL_FIXTURE_ID)
+FIXTURE_IDS = ("fixture-alpha", "fixture-bravo", TACTICAL_FIXTURE_ID, OBSERVATION_FIXTURE_ID)
 BASE_TIME = datetime(2026, 9, 10, 0, 0, 0, tzinfo=timezone.utc)
 
 
@@ -21,6 +22,8 @@ def instant(sequence: int) -> str:
 
 
 def fixture_mission(mission_id: str) -> Mission:
+    if mission_id == OBSERVATION_FIXTURE_ID:
+        return observation_mission()
     if mission_id == TACTICAL_FIXTURE_ID:
         return tactical_mission()
     if mission_id not in FIXTURE_IDS:
@@ -31,6 +34,8 @@ def fixture_mission(mission_id: str) -> Mission:
 
 
 def fixture_source(mission_id: str, sequence: int, recorded_at: str) -> tuple[dict, list[dict]]:
+    if mission_id == OBSERVATION_FIXTURE_ID:
+        return observation_source(sequence, recorded_at)
     if mission_id == TACTICAL_FIXTURE_ID:
         return tactical_source(sequence, recorded_at)
     effective_at = instant(sequence)
@@ -67,6 +72,9 @@ async def seed_fixtures(service: MissionService):
         await service.establish(fixture_mission(mission_id))
         if service.repository.latest_text(mission_id) is None:
             await service.commit_source(mission_id, lambda previous, mid=mission_id: fixture_source(mid, 0, service.clock()))
+            if mission_id == OBSERVATION_FIXTURE_ID:
+                for sequence in range(1, 8):
+                    await service.commit_source(mission_id, lambda previous, seq=sequence: fixture_source(OBSERVATION_FIXTURE_ID, seq, service.clock()))
 
 
 async def advance_fixture(service: MissionService, mission_id: str, expected_sequence: int):

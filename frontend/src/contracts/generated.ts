@@ -1,5 +1,5 @@
 /* Generated from backend v1 JSON Schemas; do not edit.
- * Source SHA-256: 81031836d5522d3d3f7924db50bb3989475296f1a20f86d8a31271710c00adbf
+ * Source SHA-256: b2b172043755a5e07c1730faab7690e93abcccfc53999a818769740911329ff7
  */
 
 /**
@@ -446,4 +446,60 @@ export interface MissionList {
   fixtureAdvanceEnabled?: boolean;
   missions: Mission[];
   schemaVersion: '1.0';
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "ObservedSegment".
+ */
+export interface ObservedSegment {
+  breakReason:
+    | 'window-start'
+    | 'missing-observation'
+    | 'source-change'
+    | 'altitude-reference'
+    | 'discontinuity'
+    | 'time-regression'
+    | 'observation-gap';
+  historySeriesId: string;
+  /**
+   * @minItems 1
+   * @maxItems 2000
+   */
+  points: [RecordedObservation, ...RecordedObservation[]];
+  source: SourceRef;
+  trackId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "RecordedObservation".
+ */
+export interface RecordedObservation {
+  frameEffectiveAt: string;
+  frameId: string;
+  recordedAt: string;
+  sample: TrackSample;
+  sequence: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "ObservedHistory".
+ */
+export interface ObservedHistory {
+  entityId: string;
+  fromAt: string;
+  inspectedFrames: number;
+  maxGapSeconds?: 30;
+  missionId: string;
+  recordingId: string;
+  schemaVersion: '1.0';
+  /**
+   * @maxItems 2000
+   */
+  segments: ObservedSegment[];
+  streamEpoch: string;
+  throughAt: string;
+  throughFrameId: string;
+  throughSequence: number;
+  truncated: boolean;
+  windowSeconds: number;
 }

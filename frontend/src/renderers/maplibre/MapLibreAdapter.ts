@@ -383,6 +383,16 @@ export class MapLibreAdapter {
         restoredCamera ?? (this.scene ? undefined : this.initialCamera);
       if (this.installed) {
         this.filtersHidden = true;
+        this.map.setFilter(`${prefix}trail-line`, [
+          '==',
+          ['get', 'kind'],
+          'none',
+        ]);
+        this.map.setFilter(`${prefix}trail-points`, [
+          '==',
+          ['get', 'kind'],
+          'none',
+        ]);
         // Clear old mission geometry before the worker processes the new source.
         this.map.setFilter(symbols, ['==', ['get', 'kind'], 'none']);
         this.map.setFilter(`${prefix}zone-fill`, [
@@ -469,6 +479,29 @@ export class MapLibreAdapter {
         'line-width': 1,
         'line-opacity': 0.5,
         'line-dasharray': [4, 3],
+      },
+    });
+    this.map.addLayer({
+      id: `${prefix}trail-line`,
+      type: 'line',
+      source: sourceId,
+      filter: ['==', ['get', 'kind'], 'trail'],
+      paint: {
+        'line-color': '#c5d0da',
+        'line-width': 1.5,
+        'line-opacity': 0.7,
+      },
+    });
+    this.map.addLayer({
+      id: `${prefix}trail-points`,
+      type: 'circle',
+      source: sourceId,
+      filter: ['==', ['get', 'kind'], 'trail-point'],
+      paint: {
+        'circle-radius': 2,
+        'circle-color': '#d1dae2',
+        'circle-stroke-color': '#10161c',
+        'circle-stroke-width': 1,
       },
     });
     this.map.addLayer({
@@ -595,6 +628,39 @@ export class MapLibreAdapter {
         ),
       },
     }));
+    for (const path of scene.paths ?? []) {
+      // Never bridge across unsupported Mercator latitudes.
+      let segment: number[][] = [];
+      const flush = () => {
+        if (segment.length > 1)
+          features.push({
+            type: 'Feature',
+            properties: { kind: 'trail', pathId: path.id },
+            geometry: { type: 'LineString', coordinates: segment },
+          });
+        segment = [];
+      };
+      for (const point of path.points) {
+        const p = point.sample.position;
+        if (Math.abs(p.latitudeDeg) > 85.051129) {
+          flush();
+          continue;
+        }
+        const position = [p.longitudeDeg, p.latitudeDeg];
+        segment.push(position);
+        features.push({
+          type: 'Feature',
+          properties: {
+            kind: 'trail-point',
+            pointId: JSON.stringify([path.id, point.sample.timestamp]),
+            pathId: path.id,
+            timestamp: point.sample.timestamp,
+          },
+          geometry: { type: 'Point', coordinates: position },
+        });
+      }
+      flush();
+    }
     for (const object of scene.objects) {
       if (Math.abs(object.position.latitudeDeg) > 85.051129) continue;
       features.push({
@@ -635,6 +701,16 @@ export class MapLibreAdapter {
       this.filterRestoreQueued = false;
       if (this.disposed || !this.installed || !this.filtersHidden) return;
       this.filtersHidden = false;
+      this.map.setFilter(`${prefix}trail-line`, [
+        '==',
+        ['get', 'kind'],
+        'trail',
+      ]);
+      this.map.setFilter(`${prefix}trail-points`, [
+        '==',
+        ['get', 'kind'],
+        'trail-point',
+      ]);
       this.map.setFilter(symbols, ['==', ['get', 'kind'], 'entity']);
       this.map.setFilter(`${prefix}labels`, ['==', ['get', 'kind'], 'entity']);
       this.map.setFilter(`${prefix}selection`, [
@@ -926,6 +1002,19 @@ export class MapLibreAdapter {
         ),
       ].sort(),
       selectedId: this.scene?.selection.id,
+      trails: (this.scene?.paths ?? []).map((p) => ({
+        id: p.id,
+        trackId: p.trackId,
+        sourceId: p.source.id,
+        positions: p.points.map((v) => v.sample.position),
+        times: p.points.map((v) => v.sample.timestamp),
+      })),
+      // A GeoJSON observation may occur in several loaded vector tiles.
+      renderedTrailPoints: new Set(
+        features
+          .filter((f) => f.properties.kind === 'trail-point')
+          .map((f) => f.properties.pointId),
+      ).size,
       region: this.scene?.region,
       presentation: { ...this.presentation },
       pitch: this.map.getPitch(),

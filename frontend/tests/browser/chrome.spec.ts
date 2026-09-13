@@ -408,6 +408,10 @@ test('shrinking three existing panes to 760px keeps every map control reachable 
     await page.keyboard.press('Escape');
     await expect(layers).toBeFocused();
     const id = `fixture-tactical-${index === 0 ? 'hostile' : 'neutral'}-01`;
+    // Dismiss the summary before picking a symbol beneath its new contextual content.
+    await map
+      .getByRole('button', { name: 'Clear selection', exact: true })
+      .click();
     const point = (await inspect()).maps[index].points.find(
       (point) => point.id === id,
     )!;

@@ -21,6 +21,10 @@ import {
   type PresentationFrame,
 } from '../world/presentation';
 import { applyDelta } from '../world/reduce';
+import {
+  createObservedHistory,
+  type ObservedState,
+} from '../world/observedHistory';
 
 export interface RuntimeSnapshot {
   catalog: {
@@ -36,6 +40,7 @@ export interface RuntimeSnapshot {
   session: DeepReadonly<SessionState>;
   advancing: boolean;
   advanceError?: string;
+  observed: ObservedState;
 }
 export interface RuntimeDependencies {
   apiBase?: string;
@@ -88,18 +93,31 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
   let catalogAbort: AbortController | undefined;
   let advanceAbort: AbortController | undefined;
   let reconnectAttempts = 0;
+  const observed = createObservedHistory(
+    api.observedHistory,
+    publish,
+    requestTimeout,
+  );
 
   function publish() {
     const cache = world.getState();
     const operational = session.getState();
+    const presentation = derivePresentation(cache, operational, history);
+    observed.sync(
+      presentation.frame,
+      operational.selection.primary?.kind === 'entity'
+        ? operational.selection.primary.id
+        : undefined,
+      !!operational.overlays.history,
+      operational.overlays.historyWindowSeconds ?? 60,
+    );
     snapshot = Object.freeze({
       catalog: immutableCopy(catalog),
       connection: cache.connection,
       error: cache.error,
       missionId: operational.missionId,
-      presentation: Object.freeze(
-        derivePresentation(cache, operational, history),
-      ),
+      presentation: Object.freeze(presentation),
+      observed: observed.get(),
       session: immutableCopy(operational),
       advancing,
       advanceError,
@@ -161,6 +179,11 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
   }
   function publishFrame(frame: ImmutableFrame) {
     // Preserve missing selection IDs: the detail view reports unavailable data.
+    if (
+      world.getState().connection !== 'connected' &&
+      observed.get().status === 'error'
+    )
+      observed.retry();
     world.setState({ live: frame, connection: 'connected', error: undefined });
     reconnectAttempts = 0;
     publish();
@@ -339,6 +362,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       cancelTransport();
       reconnectAttempts = 0;
       history.clear();
+      observed.clear();
       session.setState(initialSession(missionId), true);
       world.setState({ connection: 'connecting' }, true);
       connect();
@@ -350,6 +374,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       cancelAdvance();
       cancelTransport();
       history.clear();
+      observed.clear();
       session.setState(initialSession(), true);
       world.setState({ connection: 'idle' }, true);
       publish();
@@ -391,8 +416,30 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
     },
     setZonesVisible(zones: boolean) {
       if (disposed) return;
-      session.setState({ overlays: { zones } });
+      session.setState({ overlays: { ...session.getState().overlays, zones } });
       publish();
+    },
+    resetFilters() {
+      if (disposed) return;
+      session.setState({ filters: initialSession().filters });
+      publish();
+    },
+    setHistoryVisible(visible: boolean) {
+      if (disposed) return;
+      session.setState({
+        overlays: {
+          ...session.getState().overlays,
+          history: visible,
+          historyWindowSeconds: 60,
+        },
+      });
+      publish();
+    },
+    retryHistory() {
+      if (!disposed) {
+        observed.retry();
+        publish();
+      }
     },
     async advanceFixture() {
       const frame = world.getState().live;
@@ -461,6 +508,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       cancelTransport();
       listeners.clear();
       history.clear();
+      observed.clear();
     },
   };
 }

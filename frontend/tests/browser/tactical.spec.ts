@@ -114,6 +114,23 @@ async function pick(page: Page, suffix: string, viewId = 'tactical') {
   const point = (await inspect(page, viewId)).points.find(
     (item) => item.id === id,
   )!;
+  const canvas = mapPane(page, viewId).locator('canvas');
+  const canvasBox = (await canvas.boundingBox())!;
+  const summary = mapPane(page, viewId).locator('.map-selection');
+  const summaryBox = (await summary.isVisible())
+    ? await summary.boundingBox()
+    : null;
+  if (
+    summaryBox &&
+    canvasBox.x + point.x >= summaryBox.x &&
+    canvasBox.x + point.x <= summaryBox.x + summaryBox.width &&
+    canvasBox.y + point.y >= summaryBox.y &&
+    canvasBox.y + point.y <= summaryBox.y + summaryBox.height
+  ) {
+    await mapPane(page, viewId)
+      .getByRole('button', { name: 'Clear selection', exact: true })
+      .click();
+  }
   await mapPane(page, viewId)
     .locator('canvas')
     .click({ position: { x: point.x, y: point.y } });
@@ -270,6 +287,11 @@ test('committed additions, changes and removals preserve camera and stable Entit
     'Unavailable in this frame',
   );
   await pick(page, 'hostile-01');
+  // The new quick summary occupies this corner; dismiss it before testing the
+  // former symbol's empty geographic location through the actual canvas.
+  await mapPane(page)
+    .getByRole('button', { name: 'Clear selection', exact: true })
+    .click();
   await mapPane(page)
     .locator('canvas')
     .click({ position: { x: removedPoint.x, y: removedPoint.y } });
@@ -360,7 +382,7 @@ test('simultaneous maps share selection and layers without creating backend subs
     'data-selection',
     entityId('stale-01'),
   );
-  await expect(mapPane(page)).toContainText('Filtered');
+  await expect(mapPane(page)).toContainText('Hidden by shared filters');
   await mapPane(page, 'tactical:2')
     .getByRole('button', { name: 'Clear selection', exact: true })
     .click();

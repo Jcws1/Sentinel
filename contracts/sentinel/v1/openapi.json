@@ -628,6 +628,167 @@
         "title": "MissionList",
         "type": "object"
       },
+      "ObservedHistory": {
+        "additionalProperties": false,
+        "properties": {
+          "entityId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Entityid",
+            "type": "string"
+          },
+          "fromAt": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+            "title": "Fromat",
+            "type": "string"
+          },
+          "inspectedFrames": {
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Inspectedframes",
+            "type": "integer"
+          },
+          "maxGapSeconds": {
+            "const": 30,
+            "default": 30,
+            "title": "Maxgapseconds",
+            "type": "integer"
+          },
+          "missionId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Missionid",
+            "type": "string"
+          },
+          "recordingId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Recordingid",
+            "type": "string"
+          },
+          "schemaVersion": {
+            "const": "1.0",
+            "title": "Schemaversion",
+            "type": "string"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/ObservedSegment"
+            },
+            "maxItems": 2000,
+            "title": "Segments",
+            "type": "array"
+          },
+          "streamEpoch": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Streamepoch",
+            "type": "string"
+          },
+          "throughAt": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+            "title": "Throughat",
+            "type": "string"
+          },
+          "throughFrameId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Throughframeid",
+            "type": "string"
+          },
+          "throughSequence": {
+            "maximum": 9007199254740991.0,
+            "minimum": 0.0,
+            "title": "Throughsequence",
+            "type": "integer"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          },
+          "windowSeconds": {
+            "maximum": 300.0,
+            "minimum": 5.0,
+            "title": "Windowseconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "missionId",
+          "entityId",
+          "recordingId",
+          "streamEpoch",
+          "throughFrameId",
+          "throughSequence",
+          "throughAt",
+          "fromAt",
+          "windowSeconds",
+          "inspectedFrames",
+          "truncated",
+          "segments"
+        ],
+        "title": "ObservedHistory",
+        "type": "object"
+      },
+      "ObservedSegment": {
+        "additionalProperties": false,
+        "properties": {
+          "breakReason": {
+            "enum": [
+              "window-start",
+              "missing-observation",
+              "source-change",
+              "altitude-reference",
+              "discontinuity",
+              "time-regression",
+              "observation-gap"
+            ],
+            "title": "Breakreason",
+            "type": "string"
+          },
+          "historySeriesId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Historyseriesid",
+            "type": "string"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/RecordedObservation"
+            },
+            "maxItems": 2000,
+            "minItems": 1,
+            "title": "Points",
+            "type": "array"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceRef"
+          },
+          "trackId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Trackid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "trackId",
+          "historySeriesId",
+          "source",
+          "breakReason",
+          "points"
+        ],
+        "title": "ObservedSegment",
+        "type": "object"
+      },
       "Polygon": {
         "additionalProperties": false,
         "properties": {
@@ -719,6 +880,46 @@
           "recordedAt"
         ],
         "title": "Provenance",
+        "type": "object"
+      },
+      "RecordedObservation": {
+        "additionalProperties": false,
+        "properties": {
+          "frameEffectiveAt": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+            "title": "Frameeffectiveat",
+            "type": "string"
+          },
+          "frameId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Frameid",
+            "type": "string"
+          },
+          "recordedAt": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+            "title": "Recordedat",
+            "type": "string"
+          },
+          "sample": {
+            "$ref": "#/components/schemas/TrackSample"
+          },
+          "sequence": {
+            "maximum": 9007199254740991.0,
+            "minimum": 0.0,
+            "title": "Sequence",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "frameId",
+          "sequence",
+          "frameEffectiveAt",
+          "recordedAt",
+          "sample"
+        ],
+        "title": "RecordedObservation",
         "type": "object"
       },
       "RecordingMetadata": {
@@ -1961,6 +2162,80 @@
           }
         },
         "summary": "Events"
+      }
+    },
+    "/api/missions/{mission_id}/observed-history": {
+      "get": {
+        "description": "Bounded observed series as known at one committed frame; no replay playback or prediction.",
+        "operationId": "observed_history_api_missions__mission_id__observed_history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "entityId",
+            "required": true,
+            "schema": {
+              "maxLength": 256,
+              "minLength": 1,
+              "title": "Entityid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "frameId",
+            "required": true,
+            "schema": {
+              "maxLength": 256,
+              "minLength": 1,
+              "title": "Frameid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "windowSeconds",
+            "required": false,
+            "schema": {
+              "default": 60,
+              "maximum": 300,
+              "minimum": 5,
+              "title": "Windowseconds",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObservedHistory"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Observed History"
       }
     },
     "/api/missions/{mission_id}/world": {

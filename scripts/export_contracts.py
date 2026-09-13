@@ -12,6 +12,7 @@ from app.domain.models import WorldFrame, MissionList
 from app.main import create_app
 from app.missions.fixtures import fixture_source, instant
 from app.world.contracts import StreamMessage
+from app.recording.history import ObservedHistory
 
 
 def exports() -> dict[str, dict]:
@@ -26,6 +27,7 @@ def exports() -> dict[str, dict]:
             "world.schema.json": json_schema(WorldFrame.model_json_schema()),
             "stream.schema.json": json_schema(TypeAdapter(StreamMessage).json_schema()),
             "mission-list.schema.json": json_schema(MissionList.model_json_schema()),
+            "observed-history.schema.json": json_schema(ObservedHistory.model_json_schema()),
             "fixture.world.json": frame}
 
 

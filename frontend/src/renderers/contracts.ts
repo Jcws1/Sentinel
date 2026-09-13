@@ -1,4 +1,4 @@
-import type { Position3D, Zone } from '../contracts/generated';
+import type { Position3D, Zone, ObservedSegment } from '../contracts/generated';
 import type { DeepReadonly, Entity } from '../contracts/types';
 import type { ObjectRef } from '../state/sessionStore';
 import type { MapRegion } from './regions';
@@ -30,6 +30,15 @@ export interface SceneZone {
   readonly altitudeBand?: DeepReadonly<Zone['altitudeBand']>;
 }
 
+export interface ScenePath {
+  readonly id: string;
+  readonly entityId: string;
+  readonly trackId: string;
+  readonly source: DeepReadonly<ObservedSegment['source']>;
+  readonly breakReason: ObservedSegment['breakReason'];
+  readonly points: DeepReadonly<ObservedSegment['points']>;
+  readonly affiliation: Entity['affiliation'];
+}
 export type MapMode = 'tactical' | 'three-d';
 export interface MapPresentation {
   buildings: boolean;
@@ -117,6 +126,7 @@ export interface SceneProjection {
   readonly stale: boolean;
   readonly objects: readonly SceneObject[];
   readonly zones: readonly SceneZone[];
+  readonly paths?: readonly ScenePath[];
   readonly selection: Readonly<{
     id?: string;
     label?: string;

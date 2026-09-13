@@ -13,7 +13,7 @@ import {
   Layers,
   MousePointer2,
   RotateCcw,
-  X,
+  ChevronRight,
 } from 'lucide-react';
 import { useOperationalRuntime } from '../../app/OperationalContext';
 import type { WorkspaceBridge } from '../workspace/workspaceBridge';
@@ -25,7 +25,10 @@ import {
   isMapTiler,
 } from '../../renderers/providers';
 import { cesiumProvider } from '../../renderers/cesium/config';
-import { altitudeDisclosure } from '../../renderers/cesium/altitude';
+import {
+  altitudeDisclosure,
+  visualHeight,
+} from '../../renderers/cesium/altitude';
 import type {
   MapRenderer,
   ProviderStatus,
@@ -36,6 +39,10 @@ import type { RendererLease } from '../../renderers/rendererPool';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
 import './tactical.css';
+import { EntitySummary } from '../entities/EntitySummary';
+import { countText } from '../entities/values';
+import { FilterItems, filtersActive } from '../entities/EntityFilters';
+import { entityRows } from '../../world/entityRows';
 
 export function TacticalMap({
   viewId,
@@ -55,8 +62,8 @@ export function TacticalMap({
   const latestPresentation = useRef(presentation);
   latestPresentation.current = presentation;
   const scene = useMemo(
-    () => createScene(state.presentation, state.session),
-    [state.presentation, state.session],
+    () => createScene(state.presentation, state.session, state.observed),
+    [state.presentation, state.session, state.observed],
   );
   const canvas = useRef<HTMLDivElement>(null);
   const adapter = useRef<MapRenderer | undefined>(undefined);
@@ -229,13 +236,10 @@ export function TacticalMap({
     adapter.current?.setMode(mode);
   }, [mode, visible, generation]);
   const selection = scene.selection;
-  const selectionStatus = {
-    none: '',
-    visible: '',
-    missing: 'Unavailable',
-    unlocated: 'No position',
-    filtered: 'Filtered',
-  }[selection.status];
+  const filtered = filtersActive(state.session.filters);
+  const rows = state.presentation.frame
+    ? entityRows(state.presentation.frame, state.session.filters)
+    : [];
   const polarCount = scene.objects.filter(
     (object) => Math.abs(object.position.latitudeDeg) > 85.051129,
   ).length;
@@ -333,6 +337,36 @@ export function TacticalMap({
               align="end"
               collisionPadding={8}
             >
+              <Menu.Sub>
+                <Menu.SubTrigger className="menu-item">
+                  Shared entity filters
+                  <ChevronRight size={12} />
+                </Menu.SubTrigger>
+                <Menu.Portal>
+                  <Menu.SubContent
+                    className="menu-content entity-filter-menu"
+                    sideOffset={4}
+                  >
+                    <FilterItems
+                      runtime={runtime}
+                      state={state}
+                      presence={false}
+                    />
+                  </Menu.SubContent>
+                </Menu.Portal>
+              </Menu.Sub>
+              <Menu.CheckboxItem
+                className="menu-item"
+                checked={!!state.session.overlays.history}
+                onCheckedChange={(checked) =>
+                  runtime.setHistoryVisible(checked)
+                }
+              >
+                <Menu.ItemIndicator>
+                  <Check size={13} />
+                </Menu.ItemIndicator>
+                Observed trail · selected · 60 s
+              </Menu.CheckboxItem>
               <Menu.CheckboxItem
                 className="menu-item"
                 checked={state.session.overlays.zones}
@@ -755,24 +789,7 @@ export function TacticalMap({
               />
             </a>
           )}
-        {selection.id && (
-          <div className="map-selection" role="status">
-            <span className="map-selection-label">SELECTED</span>
-            <span className="map-value" title={selection.id}>
-              {selection.label ?? selection.id}
-            </span>
-            {selectionStatus && (
-              <span className="constraint-tag">{selectionStatus}</span>
-            )}
-            <button
-              className="icon-button"
-              aria-label="Clear selection"
-              onClick={() => runtime.selectEntity(undefined)}
-            >
-              <X size={13} />
-            </button>
-          </div>
-        )}
+        <EntitySummary state={state} runtime={runtime} bridge={bridge} map />
       </div>
       <div className="map-footer">
         <span
@@ -783,11 +800,58 @@ export function TacticalMap({
             ? '[ ] symbols · Enter select'
             : 'PAN · [ ] review symbols'}
         </span>
-        <span className="map-value">
+        {filtered && (
+          <button
+            className="text-control"
+            onClick={() => runtime.resetFilters()}
+            title="Shared filters affect every map and Tracks"
+          >
+            {rows.filter((r) => r.visible).length}/{rows.length} entities ·
+            Reset filters
+          </button>
+        )}
+        <span
+          className="map-value"
+          title="Total mission entities without a recorded position"
+        >
           {scene.unlocatedCount > 0 &&
-            `${scene.unlocatedCount} without position`}
+            `Mission · ${scene.unlocatedCount} unlocated`}
         </span>
       </div>
+      {state.session.overlays.history && (
+        <div className="map-trail-status" role="status">
+          {!selection.id ? (
+            'Select an entity for its observed trail'
+          ) : state.observed.status === 'loading' ? (
+            'Loading recorded trail…'
+          ) : state.observed.status === 'error' ? (
+            <>
+              {state.observed.error}{' '}
+              <button
+                className="text-control"
+                onClick={() => runtime.retryHistory()}
+              >
+                Retry history
+              </button>
+            </>
+          ) : state.observed.status === 'ready' ? (
+            <>
+              <span>{`${countText(scene.paths?.reduce((n, p) => n + p.points.length, 0) ?? 0, 'recorded observation')} · 60 s${state.observed.data?.truncated ? ' · bounded' : ''}${threeD && scene.paths?.some((p) => p.points.some((s) => s.sample.position.altitude.reference === 'MSL')) ? ' · dashed height approximate' : ''}${threeD && scene.paths?.some((p) => p.points.some((s) => !visualHeight(s.sample.position.altitude))) ? ' · unresolved heights omitted' : ''}`}</span>
+              {state.observed.data &&
+                state.observed.data.throughFrameId !== scene.frameId && (
+                  <span>
+                    Refreshing · trail through{' '}
+                    <time className="entity-value">
+                      {state.observed.data.throughAt}
+                    </time>
+                  </span>
+                )}
+            </>
+          ) : (
+            'Trail unavailable'
+          )}
+        </div>
+      )}
       <span className="sr-only" aria-live="polite">
         {announcement}
       </span>

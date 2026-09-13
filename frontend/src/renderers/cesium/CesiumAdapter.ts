@@ -20,6 +20,9 @@ import {
   LabelGraphics,
   PolygonGraphics,
   PolylineGraphics,
+  PointGraphics,
+  PolylineDashMaterialProperty,
+  ArcType,
   HorizontalOrigin,
   LabelStyle,
   HeadingPitchRange,
@@ -127,6 +130,7 @@ export class CesiumAdapter implements MapRenderer {
   private resourceFailed = false;
   private renderDeadline?: ReturnType<typeof setTimeout>;
   private zoneSignatures = new Map<string, string>();
+  private trailSignatures = new Map<string, string>();
   private keyHandler = (event: KeyboardEvent) => this.onKey(event);
   private presentation: MapPresentation = { ...defaultMapPresentation };
   private photorealistic?: Cesium3DTileset;
@@ -494,6 +498,7 @@ export class CesiumAdapter implements MapRenderer {
       this.billboards.removeAll();
       this.markers.clear();
       this.zoneSignatures.clear();
+      this.trailSignatures.clear();
       this.markerSignatures.clear();
       this.labelSignatures.clear();
       this.imageKeys.clear();
@@ -625,6 +630,76 @@ export class CesiumAdapter implements MapRenderer {
           });
         }
       }
+      for (const path of scene.paths ?? []) {
+        // No invented AGL history heights. MSL keeps the existing explicit N=0
+        // approximation, visually distinguished from resolved ellipsoid segments.
+        let positions: Cartesian3[] = [],
+          approximate = false,
+          part = 0;
+        const flush = () => {
+          if (positions.length > 1) {
+            const id = JSON.stringify({
+              kind: 'observed-trail',
+              id: path.id,
+              part: part++,
+            });
+            retained.add(id);
+            const signature = JSON.stringify([positions, approximate]);
+            if (this.trailSignatures.get(id) !== signature) {
+              this.trailSignatures.set(id, signature);
+              const entity = collection.getById(id) ?? collection.add({ id });
+              const color = Color.fromCssColorString('#ccd6df').withAlpha(0.8);
+              const material = approximate
+                ? new PolylineDashMaterialProperty({ color, dashLength: 12 })
+                : color;
+              entity.polyline = new PolylineGraphics({
+                positions,
+                arcType: ArcType.NONE,
+                width: 1.5,
+                material,
+                depthFailMaterial: material,
+                clampToGround: false,
+              });
+            }
+          }
+          positions = [];
+          approximate = false;
+        };
+        for (const point of path.points) {
+          const p = point.sample.position,
+            height = visualHeight(p.altitude);
+          if (!height) {
+            flush();
+            continue;
+          }
+          approximate ||= height.quality === 'approximate-msl';
+          const position = Cartesian3.fromDegrees(
+            p.longitudeDeg,
+            p.latitudeDeg,
+            height.metres,
+          );
+          positions.push(position);
+          const pointId = JSON.stringify({
+            kind: 'observed-point',
+            path: path.id,
+            at: point.sample.timestamp,
+          });
+          retained.add(pointId);
+          const pointSignature = JSON.stringify(position);
+          if (this.trailSignatures.get(pointId) !== pointSignature) {
+            this.trailSignatures.set(pointId, pointSignature);
+            const entity =
+              collection.getById(pointId) ?? collection.add({ id: pointId });
+            entity.position = new ConstantPositionProperty(position);
+            entity.point = new PointGraphics({
+              pixelSize: 3,
+              color: Color.fromCssColorString('#ccd6df'),
+              disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            });
+          }
+        }
+        flush();
+      }
       for (const zone of scene.zones) {
         const id = JSON.stringify(zone.ref);
         retained.add(id);
@@ -679,6 +754,7 @@ export class CesiumAdapter implements MapRenderer {
           if (marker) this.billboards.remove(marker);
           this.markers.delete(entity.id);
           this.zoneSignatures.delete(entity.id);
+          this.trailSignatures.delete(entity.id);
           this.markerSignatures.delete(entity.id);
           this.labelSignatures.delete(entity.id);
           this.imageKeys.delete(entity.id);
@@ -1385,6 +1461,19 @@ export class CesiumAdapter implements MapRenderer {
       sequence: scene?.sequence,
       effectiveAt: scene?.effectiveAt,
       selectionId: scene?.selection.id,
+      trails: (scene?.paths ?? []).map((p) => ({
+        id: p.id,
+        trackId: p.trackId,
+        sourceId: p.source.id,
+        positions: p.points.map((v) => v.sample.position),
+        times: p.points.map((v) => v.sample.timestamp),
+      })),
+      renderedTrailSegments: [...this.trailSignatures.keys()].filter(
+        (id) => this.viewer.entities.getById(id)?.polyline,
+      ).length,
+      renderedTrailPoints: [...this.trailSignatures.keys()].filter(
+        (id) => this.viewer.entities.getById(id)?.point,
+      ).length,
       camera: this.captureCamera(),
       spatial: { ...this.spatial },
       presentation: { ...this.presentation },

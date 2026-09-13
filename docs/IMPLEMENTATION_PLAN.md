@@ -1,17 +1,19 @@
-# Sentinel v3 — proposed implementation plan
+# Sentinel v3 — implementation plan and delivery status
 
-Status: architecture proposal for approval; no application scaffold created.
-Reviewed: 10 September 2026.
+Status: Phase 3B completed and verified within its bounded scope, ready for user review; substantial map/continuity work brought forward from Phase 4. No subsequent phase is authorised by this document.
+Originally reviewed: 10 September 2026. Revised: 13 September 2026.
+
+**Revision note — 2026-09-13:** reconcile the original proposal with the implemented shell, authoritative recording runtime, Phase 3A/3B and approved map-service, regional, attribution and renderer-retention refinements. Current status and evidence are in §10; retained design sketches are explicitly historical. Neither source specification is changed. [Phase 3B review](phase3b/REVIEW.md).
 
 ## 1. Basis and recommendation
 
 Read both source documents completely: `Sentinel_v3.md` (2,115 lines) and `RED_TEAM_DRONE_ATTACK_SIMULATION_SPEC.md` (525 lines). The former governs product and internal architecture; the latter governs the external simulation boundary. Neither document is modified by this proposal.
 
-Repository inspection found only those two files, with empty `frontend/`, `backend/`, and `contracts/` directories. There is no existing application, dependency manifest, test suite, build configuration, or repository AGENTS.md. Initial Git status was clean. Sentinel v2 was not needed for this proposal and no code was copied from it.
+The initial 10 September inspection found only the two specifications. The repository now contains a React workbench, FastAPI/Pydantic mission authority, SQLite recordings, generated contracts, both map adapters and regression suites. The later approved regional refinement adapted compatible v2 cartographic assets and styling through the v3 renderer boundary; provenance and setup are in [the regional review](map-refinement/REVIEW.md). Sentinel v2 remains unchanged.
 
 Use a small monorepo with a React/TypeScript/Vite frontend and a Python/FastAPI/Pydantic backend. Keep one backend mission authority and one frontend session runtime. Every view reads a shared presentation frame derived from that authority. MapLibre and Cesium are disposable projections. Implement the simulation boundary on the backend, including its independent resolver, rather than transporting external drone objects into frontend stores.
 
-Use Zustand vanilla stores, direct MapLibre/Cesium APIs, ECharts, semantic CSS tokens with Tailwind, selected Radix primitives, Lucide for chrome, and TanStack Table when the entity browser arrives. Provisionally prefer FlexLayout, but make a short docking evaluation an approval-gated implementation phase. Do not introduce a custom docking engine, Redux, TanStack Query, deck.gl, a plugin runtime, or a generic event bus initially.
+Use Zustand vanilla stores, direct MapLibre/Cesium APIs, semantic CSS tokens with Tailwind, selected Radix primitives, Lucide and TanStack Table. FlexLayout React 0.10.8 is selected and implemented; its model is the sole docking authority. TanStack Table 8.21.3 supplies the Phase 3B browser. ECharts remains for future analytics (the Phase 0 experiment is isolated). No custom docking engine, Redux, TanStack Query, deck.gl, plugin runtime or generic event bus is needed.
 
 The user's requested scope makes tabs, splits, basic replay, and one pop-out explicit deliverables, even though section 43 of the product specification places some in its optional tier. Implement recording and adapter contracts early; finish their UI later. Deferring the underlying contracts until the end would risk rebuilding all the views.
 
@@ -53,7 +55,9 @@ The user's requested scope makes tabs, splits, basic replay, and one pop-out exp
 
 These gaps need a small compatibility decision record/organiser clarification, not edits to either specification. Core shell and domain work can proceed after architecture approval while the external edge cases are resolved.
 
-## 3. Proposed repository layout
+## 3. Repository boundaries and original layout sketch
+
+The tree below is the original architectural sketch, not a scaffold checklist. Actual wire authority is `backend/app/domain/models.py` plus `world/contracts.py`; storage is `recording/sqlite_repository.py`. Layout belongs to `features/workspace/workspaceBridge.ts` and FlexLayout, not a second Zustand layout store. Phase 3B adds `recording/history.py`, `missions/observation_fixture.py`, `world/{entityRows,observedHistory,observedSegments}.ts` and `features/entities/*`. Replay/commands/analytics paths remain deferred.
 
 ```text
 frontend/
@@ -112,13 +116,15 @@ docs/
 scripts/ export_contracts.py
 ```
 
-Keep modules as a few files until complexity warrants folders. No monorepo build framework or shared npm package is needed. Standard npm plus a Python virtual environment is sufficient. Backend Pydantic models are the internal wire-schema source; export OpenAPI and WebSocket JSON Schema and generate TypeScript using `openapi-typescript`. Ensure stream payload models are included explicitly in generation. CI checks generated output for drift. Stable external JSON Schemas are versioned independently and checked against the Pydantic compatibility models and golden fixtures. JSON Schema alone cannot enforce polygon validity, lifecycle or cross-sample rules.
+Keep modules as a few files until complexity warrants folders. Standard npm plus a Python virtual environment is sufficient. Backend Pydantic models export OpenAPI and explicit JSON Schemas; the established `json-schema-to-typescript` generator creates frontend types, and Ajv plus semantic guards validate ingress. Export and generation checks detect drift. Observed history has its own v1 schema. External simulation contracts remain separate. JSON Schema alone cannot enforce polygon validity, lifecycle or cross-sample rules.
 
 The domain types below describe the proposed generated data shape, not a second handwritten copy of Python API types. Frontend-only session/workspace types remain handwritten. Runtime decoding is separate from TypeScript typing; use generated JSON Schema with Ajv at ingress if needed, with reducers also checking identity/order invariants.
 
 Import direction: features → selectors/session actions → domain/contracts. Renderers → scene contracts only. Simulation code stays in backend simulation/adapter and typed counter-UAS presentation metadata. Domain has no imports from React, Zustand, map engines, docking libraries, or external simulation DTOs.
 
-## 4. Proposed first TypeScript model
+## 4. Original domain sketch and authoritative contracts
+
+**Historical design sketch:** the following types explain the original model, but are not the implemented wire contract. Use [current contract notes](../contracts/sentinel/v1/README.md), backend Pydantic models and `frontend/src/contracts/generated.ts` for exact fields/enums/validation. Do not reintroduce handwritten duplicate domain DTOs or the illustrative dock tree below. Session filters/selection/time remain frontend-owned; FlexLayout owns layout.
 
 Omission means unknown/not supplied; zero is a known measurement. Internal IDs are opaque and backend allocated, with stable source mappings. UTC strings use millisecond precision on the wire; epoch milliseconds are derived for charts. Generic domain classifications are namespaced strings, not external drone-class enums.
 
@@ -263,7 +269,7 @@ interface WorldFrame {
 }
 ```
 
-No duplicate mutable position on Asset or Entity. A selector chooses the track for an entity; simulation initially provides one track per entity/source. Multiple-source arbitration/fusion is deferred. Static entities can have a manually sourced track. A generic Entity may exist without a position and then remains available in tables/details without an invented map point. History/prediction series are timestamped, source-attributed and fetched by range, outside the hot world dictionary.
+No duplicate mutable position on Asset or Entity. The implemented displayed-track selector restricts sources, prefers non-ended tracks, then newest observation and stable Track ID; this is deterministic presentation choice, not sensor fusion. Fusion remains deferred. Static entities can have a manually sourced Track. A generic Entity may exist without position and remains available in tables/details without an invented map point. Bounded observed history is source-attributed and read separately from the hot world dictionary; prediction series remain deferred.
 
 `Track.state` describes observation quality, `Entity.condition` physical/functional condition, `Entity.presence` observed presence, and `Asset.availability` resource availability. These concepts must not collapse into one overloaded status. A disabled but observed vehicle can still have an observed track. A removed entity remains inspectable in recording history.
 
@@ -373,16 +379,16 @@ Build each timestamp frame by joining validated input and output; write all simu
 | Authority | Backend Mission, role records, run state, command journal, events, recordings | Validated commands/source ingestion only; commit then distribute. |
 | Client operational cache | `worldStore`: latest live frame, connection metadata; bounded historical cache | Only decoded backend snapshots/deltas and replay responses write here. |
 | Client session | `sessionStore`: mission context, selection, time cursor, filters, overlays | Explicit user actions; replay seek never writes to live frame. |
-| Workspace/UI | `workspaceStore`: view registry, active module, dock configuration, modal state | Frontend only; domain state contains no layout. |
+| Workspace/UI | WorkspaceBridge plus FlexLayout: view registry, active module, dock layout, ephemeral labels and renderer pool | FlexLayout is the only layout authority; renderer resources never enter serialized operational state. |
 | Renderer runtime | Adapter instances, GPU objects, camera handles, hover hit results | Local disposable handles; emit intents, never mutate world. |
 
-Proposed REST: `GET /api/missions`, `GET /api/missions/{id}/world`, `GET /api/missions/{id}/events?after=...`, `GET /api/recordings/{id}`, `GET /api/recordings/{id}/frame?at=...`, `GET /api/recordings/{id}/series?from=...&to=...`, `GET /api/events/{id}/detail`. Proposed compatibility route: `POST /api/compat/simulation/v1/resolve`; the submitted operation name remains documented because the contract does not prescribe a URL. Domain command routes are added only for supported actions; UI simulation controls assemble/request the external command through the backend's scenario/run service without implementing lifecycle rules locally.
+Implemented REST: `GET /api/missions`, `GET /api/missions/{id}/world`, `GET /api/missions/{id}/events?after=...`, `GET /api/recordings/{id}` and `GET /api/missions/{id}/observed-history?entityId=...&frameId=...&windowSeconds=60`. The last endpoint returns bounded observed samples anchored to an immutable committed frame, not replay playback. Frame-at-time lookup, general replay series, detailed event payloads and `POST /api/compat/simulation/v1/resolve` remain proposed. Domain command routes will be added only for supported backend actions; the frontend will not implement simulation lifecycle rules.
 
-WebSocket `GET /api/missions/{id}/stream`: initial atomic snapshot followed by `{schemaVersion, missionId, streamEpoch, sequence, previousSequence, effectiveAt, changes}`. Changes use explicit typed table upserts/removals and an event append list; each message is an atomic transaction, not individual mutable-object notifications. Removal from a cache is distinct from Entity.presence=removed. Supply lifecycle metadata in the same update. A bounded sequence backlog allows reconnect; otherwise send `resync-required` and a fresh snapshot. The REST snapshot revision plus resumed stream must have no subscribe race; simplest implementation obtains snapshot and registers queued subsequent updates under the same backend lock.
+WebSocket `GET /api/missions/{id}/stream` always starts with a complete atomic snapshot, then typed atomic deltas carrying mission, epoch, sequence and predecessor identity. Snapshot capture and queued subscription registration share the mission lock. Bounded queues request resynchronization on overflow; every reconnect resnapshots. There is no resumable backlog. Heartbeats report the last sequence actually sent on that socket. Cache removal remains distinct from Entity.presence=removed; use the generated stream schema for exact fields.
 
 One WebSocket per session runtime, not per pane. Ignore duplicate sequence numbers; an epoch change or sequence gap triggers resnapshot. Display stale/disconnected status and inhibit new simulation commands until reconnected. An unknown command outcome is reconciled using the same command ID, not a new request that might repeat effects. Cancel requests on mission change and tag replay seeks with generations to discard slow obsolete responses.
 
-`getPresentationFrame(session, liveCache, replayCache)` is the only view-facing world read path. On seek, keep the last complete frame with a visible seeking indicator until the new complete frame arrives; do not show a mixture of moments. All charts/inspectors/maps include the same frame key. Live ingestion continues during historical inspection. “Return to live” selects the latest committed live frame.
+The shared runtime presentation is the only view-facing world read path. Live and historical frame caches remain separate. Future replay must retain the last complete frame during seeking, continue live ingestion separately and provide Return to live; seeking/playback is not implemented. Phase 3B adds one selected-entity history owner and eight immutable cached results shared across panes. At most one read is in flight; newer frames coalesce. An older compatible result is displayed only with its actual through-time, trimmed to the current window and never beyond presented time. Identity/epoch changes cancel obsolete work.
 
 Initially use discrete frame playback for correctness. Later position interpolation may operate in the shared presentation layer using bracketed samples and a common clock; condition, presence, health, events, classifications and assignments always change discretely. No renderer's clock may advance mission time. Do not synthesize predictions from future replay data. Persist initial world state, role metadata, subsequent frames and event references so replay reconstructs more than drone positions. SQLite indexed checkpoints/frames are sufficient; no Kafka or event-sourcing framework.
 
@@ -417,17 +423,19 @@ type RendererIntent =
 
 SceneProjection is a derived read model, not another authoritative store. Share visibility, symbology meaning, selection, history window and relationship IDs; adapt only rendering geometry. MapLibre uses batched GeoJSON sources/layers and stable feature IDs instead of one DOM marker per track. Cesium uses keyed objects initially; measure before moving to lower-level primitives. GeoJSON longitude comes first. UI icons are separate from operational affiliation shapes/labels.
 
-Switch transaction: capture neutral camera intent → preserve session state and view ID → dispose inactive renderer → lazy-load/create requested adapter → reapply current complete scene → restore equivalent area. If initialization fails, retain context and offer Tactical recovery. Async mount/disposal uses a generation token so rapid switches cannot attach a stale viewer. Independent map panes use independent cameras and a shared session; no automatic camera feedback loop.
+Switch transaction: capture neutral camera intent → preserve session state and view ID → suspend/release the previous adapter through the bounded renderer pool → acquire a retained adapter or lazy-create one → apply the latest complete scene/settings before resuming → restore equivalent area. Workspace-tab returns retain their own camera; mode switches transfer geographic intent and preserve private pitch bookmarks. Async generation guards prevent stale attachment. Independent panes have independent cameras. Closed, failed or incomplete viewers are disposed, not retained.
 
 Camera equivalence is operational, not an exact pitch/zoom conversion: preserve focus, ground span, heading, and optionally selected entity. Use a visible-earth intersection for the Cesium focus, falling back to last focus when looking at the sky. Refit span for pane aspect ratio. Retain private per-mode pitch bookmarks where useful; never export Cesium camera objects into domain state. Proposed test tolerance: focus within 5% of viewport ground span and target remains visible for normal demo views.
 
 Altitude conversion: Cesium's geographic conversion expects height above ellipsoid ([official Cartesian3 documentation](https://cesium.com/learn/cesiumjs/ref-doc/Cartesian3.html)). Convert MSL H using a named geoid offset N to ellipsoid h=H+N; AGL needs terrain height plus offset in a known reference. Cache conversions by provider/version and location. Keep unresolved conversions explicitly marked and preserve source MSL values in labels and Vertical Profile. Until a geoid is configured, any h≈H visual fallback must be labeled approximate and is not a completed altitude-fidelity acceptance criterion. Never clamp airborne tracks to terrain. Zone floors/ceilings use the same conversion; missing altitude bands remain surface areas rather than fabricated volumes.
 
-Provider configuration describes imagery/style/terrain/3D Tiles URLs, attribution, token references and vertical model. No provider-specific fields in Entity. Confirm Vite deployment of Cesium Workers/Assets/Widgets/ThirdParty and base URL in Phase 4. Destroy hidden map renderers; explicitly open simultaneous views may run both. Resize from pane lifecycle, not browser resize alone. Clean up listeners, sources, subscriptions and animation loops on every unmount; test React development lifecycle as well as production build.
+Provider configuration describes imagery/style/terrain/3D Tiles URLs, attribution, token references and vertical model; no provider fields enter Entity. Production Workers/Assets/Widgets/ThirdParty deployment is tested. The approved [retention policy](map-responsiveness/REVIEW.md) supersedes unconditional hidden disposal: at most four slots including pending imports, two hidden instances at most one per projection, 120-second TTL and 512 MiB combined accounted tileset-cache budget. This is not a hard process/GPU memory limit. Hidden work is suspended; oldest hidden entries evict first, close/failure disposes immediately and excess visible capacity is explicit. Pane lifecycle owns resizing and cleanup.
+
+Current environmental choices: local Protomaps/ESA WorldCover vector and Mapterhorn DEM archives with local glyphs/sprites for Tactical; optional MapTiler Cloud; Cesium ion standard imagery/terrain/OSM buildings, or direct Google photorealistic tiles as an alternative base without duplicate ground/buildings. Required logos/dynamic credits stay alongside content; full acknowledgements are under Settings → Credits. [Setup](MAP_SERVICES_SETUP.md), [regional review](map-refinement/REVIEW.md), [attribution](map-attribution/REVIEW.md). Singapore/nearby Southeast Asia presentation bounds are 99°E–105.5°E, 1.5°S–7°N, span 150 m–1,100 km, applied only to Synthetic Tactical and Synthetic Observations. They change neither domain coordinates/eligibility nor source resolution and do not guarantee a tile-request boundary. Alpha/Bravo remain unchanged.
 
 ## 8. Workspace library evaluation
 
-Documentation review, not a completed runtime spike. Pin actual compatible package versions only during implementation.
+The original comparison below informed the completed Phase 0 spike. FlexLayout React 0.10.8 was selected; see [Phase 0 acceptance](phase0-review.md). Golden Layout is no longer a pending choice. The isolated workspace harness proved tab/split/pop-out feasibility separately from operational state.
 
 | Criterion | FlexLayout React | Golden Layout v2 |
 | --- | --- | --- |
@@ -442,7 +450,7 @@ FlexLayout documents a same-origin popout host, shared opener JavaScript and lim
 
 Golden Layout recommends virtual component binding for frameworks. Its pop-outs require application-managed state propagation; EventHub broadcasts user messages and does not solve state ownership. [Framework integration](https://golden-layout.github.io/golden-layout/frameworks/), [pop-out documentation](https://golden-layout.github.io/golden-layout/popouts/).
 
-**Recommendation:** evaluate FlexLayout first using identical test views and retain it if it passes. Time-box the comparison to a half day after approval, record package versions and concrete failures. Test tabs, reorder, close, Open to Side, resizing, a mock high-rate counter, an ECharts plot, child close/reopen, popup blocking, and shared selection/time; repeat critical checks with real maps when available. Both candidates must be judged against the installed React version and production serving paths. Documentation alone cannot decide WebGL behavior or accessibility.
+**Implemented decision:** retain FlexLayout and its single model/bridge ownership. Tab ordering, targeted context menus, Open to Side, pointer/keyboard resize and real simultaneous maps are regression-tested. The operational shell has no pop-out entry point; the harness's counter/chart/window checks do not establish operational map or analytic window readiness. Do not replace this architecture with an independent child runtime by following the alternative proposal below.
 
 First pop-out is Command Picture or Vertical Profile, not Cesium. With FlexLayout, use the same session runtime and backend stream; no BroadcastChannel is needed for that portal. Obtain document/window from the host element and point Radix portal containers, chart resize and keyboard listeners there. If opener closes, the POC session ends; independent restart/multi-monitor restoration is deferred. Popup failure leaves the view docked and gives an actionable message.
 
@@ -450,7 +458,7 @@ If Golden Layout wins, independent child runtimes each derive cache from the bac
 
 ## 9. UX and analytic contracts
 
-Default layout: compact mission/time header, Activity Bar, one Map workspace, small connection/count status bar. Tactical/3D switch belongs above the map; activities open or focus views rather than route away from the workbench. Only implemented modules are interactive. Keep map tools to selection, pan and recenter initially.
+Approved layout: compact logo/name plus mission breadcrumb and right-aligned UTC+8 wall clock, narrow Activity Bar, workspace tabs and compact connection status. Wall time remains distinct from mission/replay time. There is no separate mission strip or redundant pane heading. Tab context menus own Split/Open to Side/Close actions; existing tab close buttons remain. Tactical/3D, Select/Pan/Recenter and Layers remain contextual map tools. Monochrome chrome uses neutral selection; saturated color carries domain affiliation. Unimplemented modules remain unavailable. See [chrome refinement](chrome-refinement/REVIEW.md).
 
 Selection opens a compact summary with ID, affiliation, timestamp/staleness, source, altitude and any actually supplied speed/assignment. Open Details creates a tab. Provide keyboard entity browsing and focus-visible controls; affiliation uses shape and text as well as color. Define semantic tokens once for both engines, charts and chrome. Check 1440p/4K scaling and readable density at common display scaling settings.
 
@@ -460,11 +468,13 @@ Vertical Profile consumes the same visible tracks and frame, expresses altitude 
 
 Timeline provides event markers, discrete timestamp selection, play/pause/rate and Return to live. Distinguish playback controls from simulation lifecycle buttons with separate labels and placement. A visible replay banner and pending-command indicator prevent confusion. Avoid a persistent large inspector or a dashboard of individual vehicle cards.
 
-## 10. Phased implementation after approval
+## 10. Phased delivery and remaining work
 
-Dependencies listed below are incremental; previous phase dependencies remain available. Each phase should end in a reviewable slice and its acceptance evidence. No application work in these phases has begun.
+Dependencies below are incremental. Completed work is distinct from remaining acceptance and future proposals. Earlier reports record the scope/date at which they were written; their old statements that later phases are deferred are superseded by this status register, not erased from evidence.
 
 ### Phase 0 — contracts and docking decision
+
+**Complete within bounded acceptance.** [Review and 43 boundary checks](phase0-review.md). FlexLayout selected and isolated window experiment verified. External simulation ambiguities remain explicitly provisional in `contracts/simulation/compatibility-decisions.md`; this was permitted by the phase gate, not full conformance signoff.
 
 - **Files/modules:** `contracts/simulation/compatibility-decisions.md`, initial schemas/fixtures; `docs/demo-runbook.md` prerequisites; temporary `frontend` docking spike; backend domain model draft.
 - **Dependencies:** React, TypeScript, Vite; evaluate `flexlayout-react` and `golden-layout` separately, plus ECharts for the plot probe. Remove the losing candidate before the shell lands.
@@ -475,6 +485,8 @@ Dependencies listed below are incremental; previous phase dependencies remain av
 
 ### Phase 1 — application shell and tabs
 
+**Complete, with approved UI refinements.** [Initial acceptance](phase1-review.md), [operator-console treatment](ui-refinement/REVIEW.md), [compact chrome/breadcrumb/context menus](chrome-refinement/REVIEW.md). The header's mission breadcrumb explicitly supersedes the earlier identity/time-only requirement. Tabs, splits, focus and close/reopen are implemented; operational pop-outs and refresh-persistent layout remain deferred.
+
 - **Files/modules:** frontend manifests/config, `main.tsx`, `app/*`, `styles/*`, `features/workspace/*`, `state/workspaceStore.ts`, placeholder peer views.
 - **Dependencies:** selected docking library, Zustand, Tailwind/Vite integration, selected Radix menus/tooltips/dialog primitives, Lucide; Vitest, Testing Library, ESLint, Prettier.
 - **Interfaces:** view registry, WorkspaceState, open/focus/close commands and pane visibility/resize lifecycle.
@@ -484,23 +496,41 @@ Dependencies listed below are incremental; previous phase dependencies remain av
 
 ### Phase 2 — shared world, backend authority and recording foundation
 
+**Complete within tested local single-process scope.** [Acceptance matrix, restart and stream evidence](phase2-review.md). Recording-before-source, commit-before-publish, immutable frames, domain/aggregate validation, generated schemas, one session subscription and reconnect/mission isolation are implemented. No backend simulation/lifecycle authority is claimed beyond generic mission state.
+
 - **Files/modules:** backend `domain`, `missions`, `world`, `recording`, `api/missions.py`, `api/stream.py`; frontend contracts/services/stores/presentation; contract export script and generated types.
-- **Dependencies:** FastAPI, Pydantic, Uvicorn; standard-library SQLite; pytest/httpx; `openapi-typescript`, Ajv if using generated runtime validation.
+- **Dependencies:** FastAPI, Pydantic, Uvicorn; standard-library SQLite; pytest/httpx; `json-schema-to-typescript`, Ajv and semantic runtime validation.
 - **Interfaces:** WorldFrame, versioned snapshot/delta, stream epoch/sequence, generic events, typed role records, source identities and recording schema.
 - **Acceptance:** deterministic backend fixture feeds all placeholder views; atomic update counts agree; duplicate/gap/reconnect/mission-switch tests pass; persisted state survives backend restart. No pane opens another subscription. Recording starts before source frames are processed.
 - **Depends on:** Phase 1; Phase 0 domain/transport decisions.
 - **Risks:** snapshot-stream race, schema drift, accidental duplicate entity/asset positions, publication before commit.
 
-### Phase 3 — Tactical view and detail on demand
+### Phase 3A — Tactical map foundation
 
-- **Files/modules:** `renderers/contracts.ts`, `scene.ts`, `symbology.ts`, `maplibre/*`, `features/map/*`, `entity-detail/*`, `entity-browser/*`, shared selectors.
-- **Dependencies:** MapLibre GL JS, TanStack Table, provider assets/config; Playwright for first end-to-end flow.
-- **Interfaces:** SceneProjection, stable ObjectRef picking, selection/filter/overlay actions, camera intent, shared history series.
-- **Acceptance:** muted basemap, distinct affiliation shapes, zones, observed trails; selecting a map symbol/table row selects the same Entity and opens a concise summary; Details is a tab. Missing data displays unknown. Counts do not double count Asset roles.
-- **Depends on:** Phase 2.
-- **Risks:** feature IDs lost on updates, basemap labeling clutter, stale tracks shown as current, provider errors.
+**Complete within its bounded acceptance.** [Phase 3A review](phase3a-review.md), followed by [map services](map-services/REVIEW.md), [regional cartography](map-refinement/REVIEW.md), [retention/recovery](map-responsiveness/REVIEW.md) and [attribution](map-attribution/REVIEW.md). Hosted MapTiler authentication remains unverified; local cartography and labelled grid fallback are verified alternatives.
+
+- **Files/modules:** `renderers/{contracts,scene,symbology,regions}.ts`, `renderers/maplibre/*`, `features/map/*`, local provider configuration/setup, browser regressions.
+- **Dependencies:** MapLibre GL JS 6.9.0, PMTiles 4.5.0 and ignored reviewed vector/DEM/glyph/sprite assets; Playwright.
+- **Acceptance met:** Track-derived Entity symbols, affiliation shape/text/color, supplied zones; stable picking and shared selection; mission framing/explicit recenter; no automatic refit on ordinary frames/filters; camera continuity, resize, simultaneous panes, stale/backend/provider recovery; one session subscription and bounded lifecycle. Missing positions remain missing. Narrow and keyboard controls verified.
+- **Depends on:** Phase 2 authority/presentation.
+- **Remaining risks:** authenticated optional hosted style, source coverage/resolution and provider availability. Regional bounds do not constrain domain validity. Heavy mission performance is not established by six-entity fixtures.
+
+### Phase 3B — entity browsing, detail on demand and observed trails
+
+**Complete within bounded acceptance; ready for user review.** [Phase 3B acceptance and evidence](phase3b/REVIEW.md): 91 backend tests, 129 frontend unit tests and 69 complete browser regressions passed; seven workflow checks passed again after the final copy adjustment. Separate critics scored 8.0 then 9.0/10; both blocking history findings were resolved. Final production capture verified local Tactical, ion standard and the configured direct Google base with one stream/one shared history read. This is not full operational production readiness.
+
+- **Files/modules:** backend `recording/history.py`, bounded query in `sqlite_repository.py`, mission history endpoint, `missions/observation_fixture.py`; `contracts/sentinel/v1/observed-history.schema.json` and generated types; frontend `world/{entityRows,observedHistory,observedSegments}.ts`, `features/entities/*`, shared filters, both adapter trail projections and keyed workspace inspectors.
+- **Dependencies:** TanStack Table 8.21.3; existing FastAPI/SQLite/Ajv/Radix/map/test stack. No second operational store or per-pane transport.
+- **Contracts:** one row per Entity, deterministic displayed Track (source filter first, non-ended preferred, newest observation then stable ID); distinguish visible/mission Entity totals from raw Track totals. Shared selection/search/filters/overlays; pinned inspector identity is the encoded mission/Entity tuple. History is immutable committed data anchored by mission/recording/epoch/frame/sequence/effective time, maximum 300-second query window (UI 60), 1,000 canonical frame instants/2,000 observations. Highest committed sequence wins corrections as known through that frame. No interpolated/predicted observations.
+- **Acceptance:** find → select in table/either map → compact summary → pinned Details → observed trail; missing/filtered/unlocated states explicit, supplied zero distinct from unavailable; provenance/units/datum/freshness copyable; role/task associations only when supplied. Shared counts and displayed history agree across renderers/inspector. Trails break at source/series changes, missing/stale observations, datum changes, declared discontinuity, time reversal or gaps over 30 seconds. History is limited to presented time and stale older results disclose their actual through-time. Mission/selection races and slow-read/live-update progress tested; existing cameras/pool/one subscription retained.
+- **Depends on:** Phase 2 recordings and Phase 3A plus brought-forward Cesium adapters.
+- **Remaining risks/limits:** selected displayed-track trail only, no full-history UI or replay; 60-second/point/frame caps disclosed; older AGL or unsupported datum samples have no invented 3D height; MSL h≈H remains explicitly approximate. Large mission/recording throughput requires later benchmarking.
 
 ### Phase 4 — Cesium and Tactical ↔ 3D continuity
+
+**Brought forward and substantially complete; altitude-fidelity and coverage acceptance remain open.** [Foundation](map-services/REVIEW.md), [regional/real-provider verification](map-refinement/REVIEW.md), [warm-switch and failure evidence](map-responsiveness/REVIEW.md). Both adapters consume the same frame/selection/filters/zones and now observed-history subset. Workers/assets production paths, independent pane cameras, mode bookmarks, daylight presentation, local/standard/Google fallback and bounded renderer retention are implemented. No additional Phase 4 library scaffold is required.
+
+**Outstanding:** known-point geoid/datum conversion and vertical accuracy signoff; Mojave/additional regional smoke contexts; authenticated MapTiler and optional Google-through-ion route verification. Direct Google plus ion standard and local Tactical were verified in earlier real-provider reports; this does not establish universal coverage. The reported intermittent five-minute Google failure was not reproduced in the measured twelve-minute sessions and is not claimed fixed. Account-console quota/billing and hard GPU memory remain unverified.
 
 - **Files/modules:** `renderers/cesium/*`, `camera.ts`, `altitude.ts`, `providers.ts`, mode-switch lifecycle, Vite asset deployment configuration.
 - **Dependencies:** CesiumJS and configured terrain/imagery/3D Tiles plus named geoid data/service. No extra renderer wrapper by default.
@@ -511,6 +541,8 @@ Dependencies listed below are incremental; previous phase dependencies remain av
 
 ### Phase 5 — simulation compatibility end to end
 
+**Deferred. Recommended next implementation phase after review**, beginning with a bounded resolver/adapter slice once the compatibility policies below are confirmed; this document does not authorise it.
+
 - **Files/modules:** backend `simulation/*`, `adapters/simulation_v1/*`, compatibility route, complete contract fixtures/tests; frontend `modules/counter-uas/*` controls/details.
 - **Dependencies:** Python stdlib hashing/decimal handling; add a polygon library only if its validated semantics reduce risk. Existing transport and persistence stack suffices.
 - **Interfaces:** exact external request/response, resolver, lifecycle service, idempotency registry, profile registry, adapter mapping and typed module details.
@@ -519,6 +551,8 @@ Dependencies listed below are incremental; previous phase dependencies remain av
 - **Risks:** unresolved error semantics, quadratic result size, duplicate JSON keys, numeric ordering/rounding, transaction/idempotency races. Do not claim full compatibility while ambiguities remain unresolved.
 
 ### Phase 6 — Command Picture and Vertical Engagement Profile
+
+**Deferred.** Current Command Picture/Vertical Profile are clearly labelled placeholders, not working analytics. Requires truthful supplied aggregates, declared profile origin and a reviewed common altitude-reference policy; no decorative metrics or invented readiness.
 
 - **Files/modules:** `command-picture/*`, `vertical-profile/*`, reusable chart host with owner-document lifecycle, domain/module selectors.
 - **Dependencies:** Apache ECharts (reuse spike dependency, no second chart library).
@@ -529,6 +563,8 @@ Dependencies listed below are incremental; previous phase dependencies remain av
 
 ### Phase 7 — Timeline and replay
 
+**Deferred.** Durable recordings and bounded observed-history inspection exist; frame seeking, playback/scrubbing, event navigation and complete seek lifecycle remain unimplemented. Phase 3B is not replay acceptance.
+
 - **Files/modules:** backend `replay/service.py`, `api/replay.py`; frontend `historyCache.ts`, `replayClient.ts`, `timeline/*`, presentation selector replay branch.
 - **Dependencies:** existing SQLite/ECharts/time primitives; no timeline framework.
 - **Interfaces:** recording metadata, effective-time frame lookup with sequence tie-breaker, bounded series/event ranges, TimeState and seek-generation token.
@@ -538,6 +574,8 @@ Dependencies listed below are incremental; previous phase dependencies remain av
 
 ### Phase 8 — split panes and one pop-out proof of concept
 
+**Partial, brought forward:** working tabs/splits/context menus and simultaneous independent maps are complete. Isolated harness pop-out feasibility is complete. Real analytic pop-out with shared operational context, child resize/focus/close, popup failure and opener-lifetime acceptance remains deferred until those views exist. Do not enable operational pop-outs based solely on the harness.
+
 - **Files/modules:** finish `docking.ts`, layout bridge, `windowContext.ts`, `popout.html`, owner-document chart/control integration, workspace e2e tests.
 - **Dependencies:** selected docking library only; browser primitives as required by the selected model.
 - **Interfaces:** open-to-side/move/close/pop-out, pane resize/visibility, shared session runtime; child bootstrap/UI revision protocol only if independent runtimes were chosen.
@@ -546,6 +584,8 @@ Dependencies listed below are incremental; previous phase dependencies remain av
 - **Risks:** wrong document listeners, hidden-opener throttling, browser popup rules, chart sizing and focus loss. A single working analytic pop-out is sufficient; map detachment is optional.
 
 ### Phase 9 — demo hardening and acceptance
+
+**Deferred beyond current regression coverage.** No complete simulation/analytics/replay demo or worst-case throughput certification exists.
 
 - **Files/modules:** Playwright critical-flow tests, backend conformance tests, synthetic scenario/recording fixtures, `docs/demo-runbook.md`, environment/config examples and build checks.
 - **Dependencies:** existing test tools only.
@@ -569,7 +609,11 @@ Explicitly do not build during the hackathon:
 - Sensor fusion, invented confidence/coverage/readiness, terrain line-of-sight or validated collision/clearance analysis.
 - Automatic prediction/assignment engines; use declared scenario data only when needed for continuity demonstrations.
 - Advanced policy/authority UI, enterprise access control, multi-operator collaborative editing, HA/distributed backend infrastructure.
-- Offline/on-premises packaging, mobile/tablet redesign, PMTiles/MBTiles pipelines, a complete Storybook catalogue.
+- Offline/on-premises packaging, mobile/tablet redesign, a new PMTiles/MBTiles generation pipeline, a complete Storybook catalogue. Reproducible setup of the already-reviewed local archives is implemented and does not authorise a new tiling pipeline.
 - Extra visualization engines, microservices, global event buses, unlimited browser history caches, or full worst-case dense simulation processing presented as a proven capability.
 
-Approval of this plan authorizes a subsequent implementation task, beginning with the bounded decisions/spike and shell. This document itself adds no application code, dependencies, or changes to the source specifications.
+## 12. Next-phase prerequisites and unresolved decisions
+
+Stop for user review after Phase 3B. The next recommended implementation is a bounded Phase 5 simulation resolver/adapter slice, using the existing generic authority and recording rather than adding simulation fields to core entities. Before exact compatibility signoff, resolve or explicitly retain provisional policies for the organiser error envelope, aborted RESUME/missing lifecycle transitions, duplicate JSON keys/numeric canonicalisation, timestamp validation order and cross-command correction/run/profile semantics in `contracts/simulation/compatibility-decisions.md`. Preserve golden fixtures and keep dense-output scale distinct from sparse maximum-input validation.
+
+The remaining Phase 4 datum/coverage decisions can be resolved independently; datum fidelity is a prerequisite for a physically meaningful Vertical Profile or terrain-clearance claims, not for generic resolver arithmetic. Analytics, replay UI and operational window work remain separately gated. Heavy 200-Entity/5 Hz/both-maps performance budgets below are targets, not measurements established by Phase 3B. This documentation revision changes no source specification and authorises no further implementation.

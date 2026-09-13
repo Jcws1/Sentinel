@@ -11,6 +11,7 @@ const files = [
   'world.schema.json',
   'stream.schema.json',
   'mission-list.schema.json',
+  'observed-history.schema.json',
 ];
 const schemas = await Promise.all(
   files.map(async (name) =>
@@ -37,6 +38,10 @@ delete world.$schema;
 delete catalog.$schema;
 definitions.WorldFrame = world;
 definitions.MissionList = catalog;
+const observedHistory = structuredClone(schemas[3]);
+delete observedHistory.$defs;
+delete observedHistory.$schema;
+definitions.ObservedHistory = observedHistory;
 const stream = structuredClone(schemas[1]);
 delete stream.$defs;
 delete stream.$schema;

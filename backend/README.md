@@ -1,6 +1,6 @@
-# Sentinel backend — Phase 2
+# Sentinel backend — authority, recording and observed history
 
-The backend owns generic Mission, Entity, Track, Asset, Sensor, Zone, Task and Event records. It serves one committed world frame through REST and WebSocket. No simulation resolver, simulation lifecycle commands, renderer, replay playback or provider integration is implemented.
+The backend owns generic Mission, Entity, Track, Asset, Sensor, Zone, Task and Event records. It serves one committed world frame through REST/WebSocket and bounded observed history from those same durable recordings. No simulation resolver, simulation lifecycle commands, replay playback or provider integration is implemented in the backend.
 
 ## Run locally
 
@@ -25,16 +25,21 @@ The guarded fixture advancement endpoint cycles through three canned spatial sam
 
 ## Read and distribution contracts
 
+Phase 3B adds **Synthetic Observations** (`fixture-observations`) as a separate opt-in fixture. Seeding commits eight frames at five-second effective intervals; F-01 has eight authored positions in three segments, a declared discontinuity and a source change. An ended alternate Track verifies deterministic source filtering without adding an Entity row. Six Entities, six Tracks and one explicitly supplied Asset role include missing speed, known zero speed, no-position and stale cases. The Asset's availability is unknown; its single fixture task is explicitly proposed. None is a simulated operational outcome. An explicit next commit removes F-01's Tracks; the following removes U-01's identity. Subsequent frames restore supplied rows. Existing fixtures remain unchanged.
+
 | Endpoint | Behavior |
 | --- | --- |
 | `GET /api/missions` | Versioned mission catalog and fixture-source capability. |
 | `GET /api/missions/{id}/world` | Latest complete committed WorldFrame; no-store cache policy. |
 | `GET /api/missions/{id}/events?after=-1&limit=100` | Events in independent event-sequence order; limit 1–500. `nextAfter` is the last returned sequence. |
+| `GET /api/missions/{id}/observed-history?entityId=...&frameId=...&windowSeconds=60` | Observed Track samples as known at a committed frame. Window 5–300 seconds; 1,000 canonical frame instants / 2,000 points maximum, explicit truncation. No interpolation or replay playback. |
 | `GET /api/recordings/{id}` | Recording identity, epoch, establishment time and durable frame/event counts. |
 | `WS /api/missions/{id}/stream` | Fresh atomic snapshot on every connection, then atomic deltas and five-second heartbeats. |
 | `POST /api/fixtures/{id}/advance` | Opt-in fixture-only `{ "expectedSequence": 0 }`; returns the committed frame, 409 on conflicting sequence, 404 when disabled. |
 
 Wire `schemaVersion` is `1.0`, explicitly required alongside stream message `type`. OpenAPI and explicit JSON Schemas are generated from `app/domain/models.py` and `app/world/contracts.py` into `contracts/sentinel/v1/`; the Phase 0 draft and exports remain historical references. Omitted optional fields and explicit null are permitted by the reviewed core contract; canonical publication omits nulls. The external simulation schema has independent null/identifier/validation rules and remains outside these modules.
+
+Observed-history response models additionally live in `app/recording/history.py`. Their explicit JSON Schema and runtime checks preserve frame/source/Track/series/time identity, correction precedence and discontinuity boundaries. See [the wire contract](../contracts/sentinel/v1/README.md#observed-history--phase-3b) for exact anchor, ordering and bounded-query semantics. Historical reads run in FastAPI's worker thread with a locked SQLite query and decode bounded checkpoints outside that lock. This reuses the existing journal without a new persistence schema.
 
 URL-encode identifiers as a complete path parameter when constructing requests. Mission and recording read routes preserve encoded slashes through path converters because ASGI decodes `%2F` before routing; IDs remain generic domain values rather than being silently restricted to URL slugs.
 

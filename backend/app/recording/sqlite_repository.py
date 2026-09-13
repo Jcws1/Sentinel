@@ -100,6 +100,25 @@ class RecordingRepository:
                                   WHERE r.mission_id=? AND e.sequence>? ORDER BY e.sequence LIMIT ?""", (mission_id, after, limit)).fetchall()
         return [SentinelEvent.model_validate_json(row[0]) for row in rows]
 
+    def observed_history(self, mission_id: str, entity_id: str, frame_id: str, window_seconds: int):
+        from datetime import timedelta
+        from app.recording.history import MAX_FRAMES, instant, project_history
+        # Immutable anchor + sequence ceiling excludes commits made while this read
+        # is in flight. The connection lock also protects the bounded query.
+        with self._lock:
+            row = self.db.execute("""SELECT f.frame_json FROM frames f JOIN recordings r ON r.id=f.recording_id
+                WHERE f.frame_id=? AND r.mission_id=?""", (frame_id, mission_id)).fetchone()
+            if row is None:
+                raise KeyError("Committed mission frame not found")
+            anchor = WorldFrame.model_validate_json(row[0])
+            start = (instant(anchor.effective_at) - timedelta(seconds=window_seconds)).isoformat(timespec="milliseconds") + "Z"
+            rows = self.db.execute("""WITH revisions AS (
+                SELECT frame_json, effective_at, ROW_NUMBER() OVER (PARTITION BY effective_at ORDER BY sequence DESC) AS revision
+                FROM frames WHERE recording_id=? AND sequence<=? AND effective_at>=? AND effective_at<=?)
+                SELECT frame_json FROM revisions WHERE revision=1 ORDER BY effective_at DESC LIMIT ?""",
+                (anchor.recording_id, anchor.sequence, start, anchor.effective_at, MAX_FRAMES + 1)).fetchall()
+        return project_history(anchor, entity_id, window_seconds, [r[0] for r in rows[:MAX_FRAMES]], len(rows) > MAX_FRAMES)
+
     def commit(self, frame_text: str, appended_events: list[dict]):
         # Revalidate even a caller-provided model copy; model_copy(update=...) can
         # bypass Pydantic validation and frozen nested objects may have mutated.

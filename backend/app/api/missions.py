@@ -2,8 +2,20 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from app.domain.models import MissionList, WorldFrame, EventList, RecordingMetadata, AdvanceFixtureRequest
 from app.missions.fixtures import advance_fixture
 from app.missions.service import SequenceConflict
+from app.recording.history import ObservedHistory
 
 router = APIRouter(prefix="/api")
+
+
+@router.get("/missions/{mission_id:path}/observed-history", response_model=ObservedHistory, response_model_exclude_none=True,
+            description="Bounded observed series as known at one committed frame; no replay playback or prediction.")
+def observed_history(mission_id: str, request: Request, entity_id: str = Query(alias="entityId", min_length=1, max_length=256),
+                     frame_id: str = Query(alias="frameId", min_length=1, max_length=256),
+                     window_seconds: int = Query(60, alias="windowSeconds", ge=5, le=300)):
+    try:
+        return request.app.state.service.repository.observed_history(mission_id, entity_id, frame_id, window_seconds)
+    except KeyError:
+        raise HTTPException(404, "Committed mission frame not found")
 
 
 @router.get("/missions", response_model=MissionList, response_model_exclude_none=True)

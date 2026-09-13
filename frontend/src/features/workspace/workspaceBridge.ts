@@ -10,7 +10,13 @@ import {
   createWorkspaceMetadata,
   type ViewPlacement,
 } from '../../state/workspaceStore';
-import { isViewId, viewKind, viewTitle, type ViewId } from './viewRegistry';
+import {
+  isViewId,
+  viewKind,
+  viewTitle,
+  inspectorId,
+  type ViewId,
+} from './viewRegistry';
 import {
   defaultMapPresentation,
   type CameraIntent,
@@ -25,6 +31,7 @@ export class WorkspaceBridge {
   private readonly metadata = createWorkspaceMetadata();
   private disposed = false;
   private nextMapInstance = 2;
+  private readonly inspectorLabels = new Map<ViewId, string>();
   // Retain a closed view's presentation preference, like its camera bookmark.
   private readonly mapModes = new Map<ViewId, MapMode>();
   private readonly mapPresentations = new Map<ViewId, MapPresentation>();
@@ -235,6 +242,8 @@ export class WorkspaceBridge {
     this.publish();
   }
   getViewTitle(id: ViewId): string {
+    if (this.inspectorLabels.has(id))
+      return `Details · ${this.inspectorLabels.get(id)}`;
     if (!['tactical', 'three-d'].includes(viewKind(id))) return viewTitle(id);
     const suffix = id.startsWith('tactical:') ? ` ${id.split(':')[1]}` : '';
     const noun = id === 'three-d' ? 'View' : 'Map';
@@ -250,6 +259,12 @@ export class WorkspaceBridge {
         name: this.getViewTitle(id),
       }),
     );
+  }
+  openInspector(missionId: string, entityId: string, label: string) {
+    const id = inspectorId(missionId, entityId);
+    this.inspectorLabels.set(id, label);
+    this.open(id);
+    return id;
   }
   setMapCamera(id: ViewId, missionId: string, camera: CameraIntent) {
     if (this.disposed) return;

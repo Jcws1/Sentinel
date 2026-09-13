@@ -47,7 +47,7 @@ test('backend committed frame and selection are shared without pane subscription
   await page
     .getByRole('button', { name: 'Open Command Picture', exact: true })
     .click();
-  await split(page, 'Entity Inspector');
+  await split(page, 'Timeline');
   const panes = page.locator('[data-readout]:visible');
   await expect(panes).toHaveCount(2);
   for (const pane of await panes.all()) {
@@ -85,15 +85,15 @@ test('backend committed frame and selection are shared without pane subscription
     updated.frameId,
     updated.frameId,
   ]);
-  await closeTab(page, 'Entity Inspector');
+  await closeTab(page, 'Timeline');
   await page
     .getByRole('button', {
-      name: 'Open Entity Inspector from Views',
+      name: 'Open Timeline from Views',
       exact: true,
     })
     .click();
   await expect(
-    page.locator('[data-readout="inspector"] [data-field="selection"]'),
+    page.locator('[data-readout="timeline"] [data-field="selection"]'),
   ).toHaveText(entity.id);
   expect(streams).toBe(1);
   await load(page, 'fixture-bravo');
@@ -131,7 +131,7 @@ test('connection failure keeps a visibly stale complete frame; retry obtains a f
   await page
     .getByRole('button', { name: 'Open Command Picture', exact: true })
     .click();
-  await split(page, 'Entity Inspector');
+  await split(page, 'Timeline');
   const before = await page
     .locator('[data-readout="command"]')
     .getAttribute('data-frame-id');
@@ -230,7 +230,7 @@ for (const viewport of [
     await page
       .getByRole('button', { name: 'Open Command Picture', exact: true })
       .click();
-    await split(page, 'Entity Inspector');
+    await split(page, 'Timeline');
     await page.locator('[data-readout="command"] tbody button').first().click();
     await expect(
       page

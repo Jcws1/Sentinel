@@ -3,6 +3,8 @@ import addFormats from 'ajv-formats';
 import worldSchema from '../../../contracts/sentinel/v1/world.schema.json';
 import streamSchema from '../../../contracts/sentinel/v1/stream.schema.json';
 import catalogSchema from '../../../contracts/sentinel/v1/mission-list.schema.json';
+import observedSchema from '../../../contracts/sentinel/v1/observed-history.schema.json';
+import type { ObservedHistory } from './generated';
 import type {
   DeepReadonly,
   MissionList,
@@ -21,6 +23,7 @@ addFormats(ajv);
 const validateWorld = ajv.compile<WorldFrame>(worldSchema);
 const validateStream = ajv.compile<StreamMessage>(streamSchema);
 const validateCatalog = ajv.compile<MissionList>(catalogSchema);
+const validateObserved = ajv.compile<ObservedHistory>(observedSchema);
 
 export class ContractError extends Error {
   constructor(message: string) {
@@ -30,6 +33,74 @@ export class ContractError extends Error {
 }
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new ContractError(message);
+}
+export function decodeObservedHistory(value: unknown): ObservedHistory {
+  assert(validateObserved(value), 'Invalid observed-history contract');
+  calendarInstant(value.fromAt);
+  calendarInstant(value.throughAt);
+  assert(value.fromAt <= value.throughAt, 'History window is reversed');
+  assert(
+    Date.parse(value.throughAt) - Date.parse(value.fromAt) ===
+      value.windowSeconds * 1000,
+    'History window mismatch',
+  );
+  let count = 0;
+  const observations = new Set<string>();
+  for (const segment of value.segments) {
+    let previous: string | undefined;
+    let altitude: string | undefined;
+    for (const point of segment.points) {
+      count++;
+      calendarInstant(point.sample.timestamp);
+      calendarInstant(point.frameEffectiveAt);
+      calendarInstant(point.recordedAt);
+      assert(
+        point.sequence <= value.throughSequence &&
+          point.frameEffectiveAt <= value.throughAt &&
+          point.sample.timestamp <= point.frameEffectiveAt,
+        'History contains a future observation',
+      );
+      assert(
+        point.sample.timestamp >= value.fromAt &&
+          point.sample.timestamp <= value.throughAt,
+        'Observation lies outside history window',
+      );
+      assert(
+        !previous || point.sample.timestamp > previous,
+        'History segment is not ordered',
+      );
+      assert(
+        !previous ||
+          Date.parse(point.sample.timestamp) - Date.parse(previous) <=
+            (value.maxGapSeconds ?? 30) * 1000,
+        'History joins an observation gap',
+      );
+      assert(
+        !previous || !point.sample.discontinuity,
+        'History joins a discontinuity',
+      );
+      const reference = JSON.stringify([
+        point.sample.position.altitude.reference,
+        point.sample.position.altitude.datumId ?? null,
+      ]);
+      assert(
+        !altitude || reference === altitude,
+        'History joins altitude references',
+      );
+      const id = JSON.stringify([
+        segment.trackId,
+        segment.historySeriesId,
+        [segment.source.id, segment.source.kind, segment.source.mode],
+        point.sample.timestamp,
+      ]);
+      assert(!observations.has(id), 'Duplicate recorded observation');
+      observations.add(id);
+      previous = point.sample.timestamp;
+      altitude = reference;
+    }
+  }
+  assert(count <= 2000, 'History exceeds observation bound');
+  return value;
 }
 export function decodeCatalog(value: unknown): MissionList {
   assert(

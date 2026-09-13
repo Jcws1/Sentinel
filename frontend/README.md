@@ -1,6 +1,6 @@
-# Sentinel v3 workbench — map services foundation
+# Sentinel v3 workbench — entity browsing and observed trails
 
-This package provides the approved compact shell, one shared backend runtime, Tactical MapLibre and Cesium views. Load an opt-in synthetic mission to inspect Track-derived symbols and supplied zones, with shared selection across panes. The Tracks browser/full inspector, trails, operational analytics, simulation commands and replay playback remain deferred. This brings forward the renderer/continuity portion of Phase 4, while Phase 3B stays deferred. See the [map services review](../docs/map-services/REVIEW.md) and [account/configuration handoff](../docs/MAP_SERVICES_SETUP.md).
+This package provides the approved compact shell, one shared backend runtime, Tactical MapLibre and Cesium views, Tracks browsing, contextual summaries, pinned entity inspectors and bounded recorded movement trails. Operational analytics, simulation commands and replay playback remain deferred. See the [Phase 3B review](../docs/phase3b/REVIEW.md), [current implementation plan](../docs/IMPLEMENTATION_PLAN.md) and [map account/configuration handoff](../docs/MAP_SERVICES_SETUP.md).
 
 ## Run
 
@@ -22,6 +22,16 @@ Inside Tactical, **Select** picks symbols, **Pan** drags without selecting, and 
 The initial workspace has Tactical Map and Command Picture tabs. Layout and camera bookmarks are in memory; refreshing returns to the initial workspace. This is a desktop shell with a minimum width of 760 CSS pixels, targeting 1440p/4K displays. Browser/OS scaling remains available; mobile layouts are outside this phase.
 
 When an existing split arrangement exceeds the window's space, the workspace scrolls internally while preserving pane minima and arrangement. A compact **Scroll workspace** control appears only in that state. Use its arrows, native scrolling, or focus the Workspace panes region and use arrow keys; focusing a tab or control reveals it. Enlarging the window removes the extra control. This does not refit the map or change mission/camera ownership.
+
+## Entity workflow (Phase 3B)
+
+Load **Synthetic Observations** from the mission breadcrumb, then open **Tracks** from the Activity Bar. It contains six Entity rows, six source Tracks and one explicitly supplied Asset role; roles do not add rows. Search is shared across all views. Use sortable headings and **Shared entity filters** for affiliation, classification, observation, source and supplied zone scope; **Reset filters** clears the shared scope. Unknown measurements are Unavailable; zero is a supplied value.
+
+Arrow/Home/End keys move row focus; Enter/Space selects. Selecting in either map or the table opens a compact summary. **Open Details** pins an inspector to that mission/entity; another selection does not change it. An inactive-mission inspector explains its identity and offers Load this mission. Missing/filtered/no-position selections stay explicit. Right-click the Details tab for Open to Side.
+
+In F-01 Details choose **Show observed trail**, or enable **Observed trail** in either map's Layers menu. The backend seeded eight committed observations in three segments, with an explicit break and source change. Both maps share the same last-60-second displayed-track history. MSL geometry is marked approximate; unsupported historical AGL/datum positions receive no invented Cesium height. While a slower history read catches up, its actual through-time is shown. Retry history recovers a failed read without reloading the application. There are no replay controls or browser-generated movement.
+
+Fixture changes remain behind the guarded developer/test HTTP interface described above. The new fixture's initial sequence is 7; the next explicit commit removes F-01's Tracks, and the following removes U-01's identity. Existing Alpha, Bravo and Tactical fixtures are preserved. Restart an existing backend to seed the new mission; persisted missions are not overwritten.
 
 ## Map providers and 3D
 
