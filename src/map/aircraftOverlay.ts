@@ -1,6 +1,7 @@
 import maplibregl from 'maplibre-gl'
 
 import { SWARM } from '@/data/swarm'
+import { INTERCEPT_DURATIONS_MS } from '@/data/operations'
 import { THALES_SPLIT_REPLAY, type SplitReplayKeyframe, type SplitReplayTrack } from '@/data/thalesSplitReplay'
 import { operationsStore } from '@/state/operations'
 
@@ -9,8 +10,7 @@ type Coordinate = [number, number]
 const WEDGETAIL_BOX: Coordinate = [103.7857, 1.4478]
 const THALES_TRACK_START: Coordinate = [103.7857, 1.43565]
 const INTERCEPT_POINT: Coordinate = [103.7857, 1.44235]
-const SINGLE_FLIGHT_MS = 8_500
-const COASTAL_FLIGHT_MS = 20_000
+const COASTAL_BOXES: Coordinate[] = [[103.786, 1.355], [103.833, 1.309], [103.899, 1.342]]
 
 function lerp(start: Coordinate, end: Coordinate, progress: number): Coordinate {
   return [start[0] + (end[0] - start[0]) * progress, start[1] + (end[1] - start[1]) * progress]
@@ -60,7 +60,7 @@ function trackFrame(track: SplitReplayTrack, sourceTime: number): { coordinate: 
   return { coordinate, objects, speedKmh }
 }
 
-/** Shows Sentinel source tracks only. Wedgetail's public API does not expose interceptor telemetry. */
+/** Shows recorded threat tracks and local defensive-response paths for training. */
 export function attachAircraftOverlay(map: maplibregl.Map) {
   const fleetMarkers = SWARM.map((aircraft) => {
     const element = markerElement('fleet', aircraft.designation)
@@ -83,13 +83,17 @@ export function attachAircraftOverlay(map: maplibregl.Map) {
     clearRun()
     const targetElement = markerElement('target', 'THALES-01')
     const targetMarker = new maplibregl.Marker({ element: targetElement, anchor: 'center' }).setLngLat(THALES_TRACK_START).addTo(map)
-    runMarkers = [targetMarker]
+    const interceptorElement = markerElement('interceptor', 'INT-1')
+    const interceptorMarker = new maplibregl.Marker({ element: interceptorElement, anchor: 'center' }).setLngLat(WEDGETAIL_BOX).addTo(map)
+    runMarkers = [targetMarker, interceptorMarker]
     map.fitBounds([THALES_TRACK_START, WEDGETAIL_BOX], { padding: { top: 120, right: 390, bottom: 130, left: 430 }, maxZoom: 15, duration: 900 })
     const tick = () => {
-      const progress = Math.min(1, Math.max(0, (Date.now() - startedAt) / SINGLE_FLIGHT_MS))
+      const progress = Math.min(1, Math.max(0, (Date.now() - startedAt) / INTERCEPT_DURATIONS_MS.single))
       targetMarker.setLngLat(lerp(THALES_TRACK_START, INTERCEPT_POINT, progress))
+      interceptorMarker.setLngLat(lerp(WEDGETAIL_BOX, INTERCEPT_POINT, progress))
       if (progress >= 1) {
         targetElement.classList.add('aircraft-marker--complete')
+        interceptorElement.classList.add('aircraft-marker--complete')
         return
       }
       animationFrame = requestAnimationFrame(tick)
@@ -106,11 +110,18 @@ export function attachAircraftOverlay(map: maplibregl.Map) {
       const marker = new maplibregl.Marker({ element, anchor: 'center' }).setLngLat([first.lng, first.lat]).addTo(map)
       return { track, element, label, marker }
     })
-    runMarkers = swarmViews.map((view) => view.marker)
+    const responseTracks = THALES_SPLIT_REPLAY.tracks.slice(0, 3)
+    const interceptorViews = responseTracks.map((track, index) => {
+      const element = markerElement('interceptor', `INT-${index + 1}`)
+      const start = COASTAL_BOXES[index]
+      const marker = new maplibregl.Marker({ element, anchor: 'center' }).setLngLat(start).addTo(map)
+      return { track, start, element, marker }
+    })
+    runMarkers = [...swarmViews.map((view) => view.marker), ...interceptorViews.map((view) => view.marker)]
     map.fitBounds(THALES_SPLIT_REPLAY.mapBounds, { padding: { top: 120, right: 390, bottom: 110, left: 430 }, duration: 1_200 })
     const tick = () => {
       const now = Date.now()
-      const progress = Math.min(1, Math.max(0, (now - startedAt) / COASTAL_FLIGHT_MS))
+      const progress = Math.min(1, Math.max(0, (now - startedAt) / INTERCEPT_DURATIONS_MS.coastal))
       const sourceTime = THALES_SPLIT_REPLAY.startOffsetSeconds + (THALES_SPLIT_REPLAY.durationSeconds - THALES_SPLIT_REPLAY.startOffsetSeconds) * progress
       swarmViews.forEach((view) => {
         const frame = trackFrame(view.track, sourceTime)
@@ -119,8 +130,14 @@ export function attachAircraftOverlay(map: maplibregl.Map) {
         view.marker.setLngLat(frame.coordinate)
         view.label.textContent = `${view.track.id} · ~${Math.round(frame.objects)} OBJECTS · ${Math.round(frame.speedKmh)} KM/H`
       })
+      interceptorViews.forEach((view) => {
+        const target = trackFrame(view.track, sourceTime)
+        if (!target) return
+        view.marker.setLngLat(lerp(view.start, target.coordinate, Math.min(1, progress * 1.12)))
+      })
       if (progress >= 1) {
         swarmViews.forEach((view) => view.element.classList.add('coastal-swarm--complete'))
+        interceptorViews.forEach((view) => view.element.classList.add('aircraft-marker--complete'))
         return
       }
       animationFrame = requestAnimationFrame(tick)

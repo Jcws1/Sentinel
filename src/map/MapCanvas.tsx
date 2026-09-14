@@ -383,7 +383,7 @@ export function MapCanvas() {
           data-testid="wedgetail-phase"
           className="pointer-events-none absolute top-14 left-1/2 -translate-x-1/2 rounded-sm border border-border bg-panel px-3 py-2 text-center shadow-panel"
         >
-          <div className="font-mono text-2xs text-signal-nominal">{wedgetailMode === 'coastal' ? 'THALES LITTORAL REPLAY · SOURCE TRACKS ONLY' : 'THALES SOURCE TRACK · NO INTERCEPTOR TELEMETRY'}</div>
+          <div className="font-mono text-2xs text-signal-nominal">{wedgetailMode === 'coastal' ? 'TRAINING DATA · COORDINATED DEFENSIVE RESPONSE' : 'TRAINING DATA · DEFENSIVE INTERCEPT'}</div>
           <div className="mt-0.5 text-xs font-medium text-text">{wedgetailPhase.replace('-', ' ').toUpperCase()}</div>
         </div>
       ) : null}

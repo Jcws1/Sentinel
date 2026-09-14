@@ -68,7 +68,7 @@ export function toWedgetailTarget(track: OperationalTrack, task: MissionTask, bo
 }
 
 export async function listWedgetailLaunchPoints(): Promise<WedgetailLaunchPoint[]> {
-  const response = await fetch(`${API_ROOT}/launchpoints`, { headers: { Accept: 'application/json' } })
+  const response = await fetch(`${API_ROOT}/launchpoints`, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(5_000) })
   const body = await readJson<LaunchPointResponse>(response)
   if (body.status !== 'ok' || !body.launchpoints?.length) throw new Error(body.message || 'No Wedgetail launch points are available')
   return body.launchpoints
@@ -85,6 +85,7 @@ export async function dispatchWedgetailIntercept(task: MissionTask, track: Opera
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(5_000),
   })
   const body = await readJson<Omit<WedgetailDispatchResult, 'launchPoint'>>(response)
   if (body.status !== 'ok') throw new Error('Wedgetail sandbox rejected the target')
@@ -104,6 +105,7 @@ export async function dispatchWedgetailLittoralIntercepts(): Promise<WedgetailDi
       method: 'POST',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(5_000),
     })
     const body = await readJson<Omit<WedgetailDispatchResult, 'launchPoint'>>(response)
     if (body.status !== 'ok') throw new Error(`Wedgetail sandbox rejected ${payload.label}`)

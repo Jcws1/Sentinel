@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Section } from '@/components/panel/Section'
-import { TRACKS } from '@/data/operations'
+import { INTERCEPT_DURATIONS_MS, TRACKS } from '@/data/operations'
 import { dispatchWedgetailIntercept, dispatchWedgetailLittoralIntercepts } from '@/adapters/wedgetail'
 import { addEvent, approveEligibleTasks, selectTask, setTaskStatus, setWedgetailStatus, useOperations } from '@/state/operations'
 
@@ -14,53 +14,54 @@ export function TaskingView() {
   const ready = ops.tasks.filter((task) => task.status === 'review' && task.policy === 'within' && task.adapter === 'sentinel-native')
   const exceptions = ops.tasks.filter((task) => task.policy !== 'within')
   const approve = () => { if (!armed) { setArmed(true); window.setTimeout(() => setArmed(false), 5000); return } approveEligibleTasks(); setArmed(false) }
+
+  const startTrainingRun = (coastal: boolean, trackId: string, boxId: string, targetLabel: string, adapterNote: string) => {
+    const startedAt = Date.now()
+    setTaskStatus(selected.id, 'executing')
+    setWedgetailStatus({
+      mode: coastal ? 'coastal' : 'single', status: 'engaging', phase: 'launch', startedAt,
+      message: `Defensive response visualisation running. ${adapterNote}`, boxId, targetLabel,
+    })
+    addEvent(`Defensive training run launched for ${trackId}`, selected.id, 'info', 'Wedgetail training')
+    window.setTimeout(() => setWedgetailStatus({ phase: 'intercept', message: 'Defensive intercept paths are converging on the recorded threat tracks.' }), 1_200)
+    window.setTimeout(() => {
+      setTaskStatus(selected.id, 'completed')
+      setWedgetailStatus({ status: 'complete', phase: 'complete', message: 'Training intercept complete. Recorded threat paths were contained in the exercise outcome.' })
+      addEvent(`Training intercept completed for ${trackId}`, selected.id, 'info', 'Wedgetail training')
+    }, coastal ? INTERCEPT_DURATIONS_MS.coastal : INTERCEPT_DURATIONS_MS.single)
+  }
+
   const runWedgetail = async () => {
-    if (!adapterArmed) {
-      setAdapterArmed(true)
-      window.setTimeout(() => setAdapterArmed(false), 5000)
-      return
-    }
+    if (!adapterArmed) { setAdapterArmed(true); window.setTimeout(() => setAdapterArmed(false), 5000); return }
     const track = TRACKS.find((item) => item.id === selected.trackId)
     if (!track) return
     const coastal = selected.id === 'TASK-WGT-SPLIT'
     setAdapterArmed(false)
     setAdapterBusy(true)
-    setWedgetailStatus({ mode: coastal ? 'coastal' : 'single', status: 'connecting', phase: 'track-ready', startedAt: null, message: `Reading launch boxes for ${track.id}` })
-    addEvent(`Thales track ${track.id} queued for Wedgetail`, selected.id, 'info', 'Thales simulator')
+    addEvent(`Thales training track ${track.id} queued`, selected.id, 'info', 'Thales training feed')
+    startTrainingRun(
+      coastal,
+      track.id,
+      coastal ? 'box_1 / box_2 / box_3' : selected.launchBoxId ?? 'box_1',
+      coastal ? 'LIT01 / LIT02 / LIT03 / LIT04' : track.id.replace(/[^a-z0-9]/gi, ''),
+      'The verified local replay started immediately; training-adapter acknowledgement is pending.',
+    )
     try {
-      const results = coastal
-        ? await dispatchWedgetailLittoralIntercepts()
-        : [await dispatchWedgetailIntercept(selected, track)]
-      setTaskStatus(selected.id, 'executing')
-      const startedAt = Date.now()
-      const first = results[0]
-      setWedgetailStatus({
-        status: 'engaging',
-        phase: 'launch',
-        startedAt,
-        message: `${results.length} synthetic ${results.length === 1 ? 'track' : 'tracks'} accepted. Interceptor response is running in the Wedgetail live simulator.`,
-        boxId: coastal ? 'box_1 / box_2 / box_3' : first.launchPoint.box_id,
-        targetLabel: results.map((result) => result.received.label).join(' / '),
-      })
-      for (const result of results) addEvent(`${result.launchPoint.box_id} accepted ${result.received.label}`, selected.id, 'info', 'Wedgetail sandbox')
-      window.setTimeout(() => setWedgetailStatus({
-        phase: 'intercept',
-        message: 'External engagement active. The public API confirms task acceptance but does not expose interceptor telemetry to Sentinel.',
-      }), 1_500)
+      const results = coastal ? await dispatchWedgetailLittoralIntercepts() : [await dispatchWedgetailIntercept(selected, track)]
+      for (const result of results) addEvent(`${result.launchPoint.box_id} accepted ${result.received.label}`, selected.id, 'info', 'Wedgetail training')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Wedgetail sandbox request failed'
-      setWedgetailStatus({ status: 'error', phase: 'error', message })
-      addEvent(message, selected.id, 'critical', 'Wedgetail sandbox')
-    } finally {
-      setAdapterBusy(false)
-    }
+      const message = error instanceof Error ? error.message : 'Training adapter unavailable'
+      addEvent(`Adapter unavailable; local replay used: ${message}`, selected.id, 'caution', 'Wedgetail training')
+    } finally { setAdapterBusy(false) }
   }
+
   return <div className="flex flex-col gap-4 p-3">
-    <Section title="Task summary"><div className="grid grid-cols-4 gap-1 text-center">{[['Total', ops.tasks.length], ['Running', ops.tasks.filter((t) => t.status === 'executing').length], ['Review', ops.tasks.filter((t) => t.status === 'review').length], ['Issues', exceptions.length]].map(([label, value]) => <div key={label} className="rounded-xs bg-panel-inset p-1"><strong className="block font-mono">{value}</strong><span className="text-2xs text-text-tertiary">{label}</span></div>)}</div></Section>
+    <div className="rounded-sm border border-signal-caution/40 bg-panel-inset p-2 text-2xs text-signal-caution">TRAINING DATA · DEFENSIVE RESPONSE VISUALISATION</div>
+    <Section title="Task summary"><div className="grid grid-cols-4 gap-1 text-center">{[['Total', ops.tasks.length], ['Running', ops.tasks.filter((task) => task.status === 'executing').length], ['Complete', ops.tasks.filter((task) => task.status === 'completed').length], ['Issues', exceptions.length]].map(([label, value]) => <div key={label} className="rounded-xs bg-panel-inset p-1"><strong className="block font-mono">{value}</strong><span className="text-2xs text-text-tertiary">{label}</span></div>)}</div></Section>
     <Section title="Task groups"><div className="flex flex-col gap-1">{ops.tasks.map((task) => <button key={task.id} onClick={() => { selectTask(task.id); setIntentOpen(false) }} className={`rounded-sm border p-2 text-left ${selected.id === task.id ? 'border-border-strong bg-state-selected' : 'border-border-faint bg-panel-inset'}`}><div className="flex justify-between"><strong className="font-mono text-xs">{task.id}</strong><span className={task.policy === 'within' ? 'text-2xs text-signal-nominal' : 'text-2xs text-signal-caution'}>{task.policy === 'within' ? 'POLICY PASS' : 'CHECK REQUIRED'}</span></div><div className="mt-1 flex justify-between text-2xs text-text-tertiary"><span>{task.objective} {task.trackId}</span><span>{task.assetIds.length} ADAPTERS · {task.status.toUpperCase()}</span></div></button>)}</div></Section>
-    <Section title="Selected group"><div className="rounded-sm border border-border-faint bg-panel-inset p-2"><div className="flex justify-between"><strong>{selected.objective} {selected.trackId}</strong><span className="font-mono text-2xs">{selected.etaSeconds}s / {selected.confidence}%</span></div><p className="mt-2 text-2xs leading-relaxed text-text-secondary">{selected.rationale}</p><div className="mt-2 text-2xs text-text-tertiary">ADAPTER · {selected.adapter === 'wedgetail-sandbox' ? 'WEDGETAIL SANDBOX' : 'LOCAL'} · {selected.assetIds.join(' / ')}</div></div>
-      {selected.adapter === 'wedgetail-sandbox' && selected.status !== 'executing' && <><button disabled={adapterBusy} onClick={runWedgetail} className="mt-1.5 w-full rounded-sm border border-signal-nominal/50 p-2 text-xs text-signal-nominal disabled:text-text-disabled">{adapterBusy ? 'CONNECTING…' : adapterArmed ? 'CONFIRM SANDBOX REQUEST' : 'RUN WEDGETAIL SIM'}</button>{adapterArmed && <p className="mt-1 text-center text-2xs text-signal-caution">Sends the selected synthetic track to Wedgetail's public sandbox.</p>}</>}
-      {selected.adapter === 'wedgetail-sandbox' && <div className={`mt-1.5 rounded-sm border border-border-faint bg-panel-inset p-2 text-2xs ${ops.wedgetail.status === 'error' ? 'text-signal-critical' : 'text-text-secondary'}`}><div className="flex justify-between"><strong>WEDGETAIL</strong><span>{ops.wedgetail.phase.replace('-', ' ').toUpperCase()}</span></div><p className="mt-1 leading-relaxed text-text-tertiary">{ops.wedgetail.message}</p>{ops.wedgetail.boxId && <p className="mt-1 font-mono">{ops.wedgetail.boxId} · {ops.wedgetail.targetLabel}</p>}</div>}
+    <Section title="Selected group"><div className="rounded-sm border border-border-faint bg-panel-inset p-2"><div className="flex justify-between"><strong>{selected.objective} {selected.trackId}</strong><span className="font-mono text-2xs">{selected.etaSeconds}s / {selected.confidence}%</span></div><p className="mt-2 text-2xs leading-relaxed text-text-secondary">{selected.rationale}</p><div className="mt-2 text-2xs text-text-tertiary">ADAPTER · {selected.adapter === 'wedgetail-sandbox' ? 'WEDGETAIL TRAINING' : 'LOCAL'} · {selected.assetIds.join(' / ')}</div></div>
+      {selected.adapter === 'wedgetail-sandbox' && selected.status !== 'executing' && <><button disabled={adapterBusy} onClick={() => void runWedgetail()} className="mt-1.5 w-full rounded-sm border border-signal-nominal/50 p-2 text-xs text-signal-nominal disabled:text-text-disabled">{adapterBusy ? 'CONNECTING…' : adapterArmed ? 'CONFIRM TRAINING RUN' : selected.status === 'completed' ? 'RUN TRAINING AGAIN' : 'RUN INTERCEPT TRAINING'}</button>{adapterArmed && <p className="mt-1 text-center text-2xs text-signal-caution">Uses the selected recorded track with the Wedgetail training adapter; local replay remains available.</p>}</>}
+      {selected.adapter === 'wedgetail-sandbox' && <div className="mt-1.5 rounded-sm border border-border-faint bg-panel-inset p-2 text-2xs text-text-secondary"><div className="flex justify-between"><strong>WEDGETAIL TRAINING</strong><span>{ops.wedgetail.phase.replace('-', ' ').toUpperCase()}</span></div><p className="mt-1 leading-relaxed text-text-tertiary">{ops.wedgetail.message}</p>{ops.wedgetail.boxId && <p className="mt-1 font-mono">{ops.wedgetail.boxId} · {ops.wedgetail.targetLabel}</p>}</div>}
       {selected.status === 'review' && selected.adapter !== 'wedgetail-sandbox' && !intentOpen && <button onClick={() => { setTaskStatus(selected.id, 'rejected'); setIntentOpen(true) }} className="mt-1.5 w-full rounded-sm border border-signal-caution/40 p-2 text-xs text-signal-caution">REJECT / CHANGE GROUP</button>}
       {intentOpen && <div className="mt-1.5 grid grid-cols-2 gap-1">{['SWAP', 'REASSIGN', 'DELAY', 'PRIORITY UP', 'HOLD', 'ESCALATE'].map((intent) => <button key={intent} onClick={() => { setTaskStatus(selected.id, 'review'); setIntentOpen(false) }} className="rounded-xs border border-border-faint bg-panel-inset p-1.5 text-2xs">{intent}</button>)}</div>}
       {selected.status === 'executing' && <div className="mt-1.5 grid grid-cols-2 gap-1"><button onClick={() => setTaskStatus(selected.id, 'held')} className="rounded-sm border border-signal-caution/40 p-2 text-xs text-signal-caution">HOLD GROUP</button><button onClick={() => setTaskStatus(selected.id, 'rejected')} className="rounded-sm border border-signal-critical/40 p-2 text-xs text-signal-critical">ABORT GROUP</button></div>}

@@ -163,7 +163,7 @@ export const SOURCE_PACKS: readonly SourcePack[] = [
     label: 'OpenStreetMap',
     renderer: 'vector',
     offline: false,
-    description: 'Online street map for local development and simulation.',
+    description: 'Online street map for local development and training.',
     basemapStyle: '/basemap/style.osm.json',
     terrain: null,
     needs: ['tile.openstreetmap.org'],

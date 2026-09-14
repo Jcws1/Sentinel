@@ -11,7 +11,7 @@ export interface OperationsState {
   events: OperationalEvent[]
   wedgetail: {
     mode: 'single' | 'coastal'
-    status: 'standby' | 'connecting' | 'tasking' | 'engaging' | 'error'
+    status: 'standby' | 'connecting' | 'tasking' | 'engaging' | 'complete' | 'error'
     phase: 'idle' | 'track-ready' | 'launch' | 'intercept' | 'complete' | 'error'
     startedAt: number | null
     message: string
@@ -28,7 +28,7 @@ export const operationsStore = createStore<OperationsState>({
   tasks: INITIAL_TASKS,
   selectedTaskId: INITIAL_TASKS[0].id,
   events: INITIAL_EVENTS,
-  wedgetail: { mode: 'single', status: 'standby', phase: 'idle', startedAt: null, message: 'Sandbox adapter ready' },
+  wedgetail: { mode: 'single', status: 'standby', phase: 'idle', startedAt: null, message: 'Training adapter ready' },
 })
 
 export const useOperations = () => useStoreValue(operationsStore)
