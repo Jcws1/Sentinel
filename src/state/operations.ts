@@ -63,6 +63,20 @@ export function setTaskStatus(taskId: string, status: MissionTask['status']) {
   addEvent(`Task ${status}`, taskId, status === 'rejected' ? 'caution' : 'info')
 }
 
+export function stageAssistantTask(input: Pick<MissionTask, 'trackId' | 'objective' | 'assetIds' | 'etaSeconds' | 'confidence' | 'rationale' | 'allocationPct'>) {
+  const task: MissionTask = {
+    ...input,
+    id: `AI-${Date.now().toString().slice(-6)}`,
+    status: 'review',
+    policy: 'within',
+    adapter: 'sentinel-native',
+    source: 'assistant',
+  }
+  operationsStore.set((state) => ({ ...state, tasks: [task, ...state.tasks], selectedTaskId: task.id }))
+  addEvent(`Assistant recommendation staged for ${input.assetIds.length} aircraft`, task.id, 'info', 'Assistant')
+  return task.id
+}
+
 export function approveEligibleTasks() {
   operationsStore.set((state) => ({ ...state, tasks: state.tasks.map((task) => task.status === 'review' && task.policy === 'within' && task.adapter === 'sentinel-native' ? { ...task, status: 'executing' } : task) }))
   addEvent('Eligible local tasks approved', 'TASKS')

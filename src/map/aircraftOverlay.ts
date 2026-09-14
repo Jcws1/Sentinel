@@ -4,6 +4,7 @@ import { SWARM } from '@/data/swarm'
 import { INTERCEPT_DURATIONS_MS } from '@/data/operations'
 import { THALES_SPLIT_REPLAY, type SplitReplayKeyframe, type SplitReplayTrack } from '@/data/thalesSplitReplay'
 import { operationsStore } from '@/state/operations'
+import { swarmStore } from '@/state/swarm'
 
 type Coordinate = [number, number]
 
@@ -65,8 +66,16 @@ export function attachAircraftOverlay(map: maplibregl.Map) {
   const fleetMarkers = SWARM.map((aircraft) => {
     const element = markerElement('fleet', aircraft.designation)
     element.dataset.state = aircraft.state
-    return new maplibregl.Marker({ element, anchor: 'center' }).setLngLat([aircraft.position[0], aircraft.position[1]]).addTo(map)
+    const marker = new maplibregl.Marker({ element, anchor: 'center' }).setLngLat([aircraft.position[0], aircraft.position[1]]).addTo(map)
+    return { aircraft, element, marker }
   })
+
+  const syncTaskedAircraft = () => {
+    const taskedIds = swarmStore.get().taskedIds
+    for (const view of fleetMarkers) view.element.classList.toggle('aircraft-marker--tasked', taskedIds.includes(view.aircraft.id))
+  }
+  syncTaskedAircraft()
+  const unsubscribeSwarm = swarmStore.subscribe(syncTaskedAircraft)
 
   let runMarkers: maplibregl.Marker[] = []
   let animationFrame = 0
@@ -156,7 +165,8 @@ export function attachAircraftOverlay(map: maplibregl.Map) {
   const unsubscribe = operationsStore.subscribe(sync)
   return () => {
     unsubscribe()
+    unsubscribeSwarm()
     clearRun()
-    for (const marker of fleetMarkers) marker.remove()
+    for (const view of fleetMarkers) view.marker.remove()
   }
 }

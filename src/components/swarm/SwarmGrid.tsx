@@ -1,5 +1,5 @@
 import { SWARM } from '@/data/swarm'
-import { useSwarmSelectedId, selectDrone } from '@/state/swarm'
+import { useSwarmSelectedId, useTaskedDroneIds, selectDrone } from '@/state/swarm'
 import { DroneTile } from './DroneTile'
 
 /**
@@ -42,6 +42,7 @@ function SwarmSummary() {
  */
 export function SwarmGrid() {
   const selectedId = useSwarmSelectedId()
+  const taskedIds = useTaskedDroneIds()
 
   if (SWARM.length === 0) {
     return (
@@ -61,6 +62,7 @@ export function SwarmGrid() {
             key={drone.id}
             drone={drone}
             selected={drone.id === selectedId}
+            tasked={taskedIds.includes(drone.id)}
             onSelect={() => selectDrone(drone.id)}
           />
         ))}

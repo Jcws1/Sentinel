@@ -161,6 +161,9 @@
   }
 
   .aircraft-marker--fleet .aircraft-marker__dot { background: #82909d; }
+  .aircraft-marker--fleet.aircraft-marker--tasked { z-index: 2; filter: drop-shadow(0 0 9px rgb(30 207 154 / 0.95)); }
+  .aircraft-marker--fleet.aircraft-marker--tasked .aircraft-marker__dot { background: #1ecf9a; }
+  .aircraft-marker--fleet.aircraft-marker--tasked .aircraft-marker__label { border-color: rgb(30 207 154 / 0.9); color: #7fffd4; }
   .aircraft-marker--target .aircraft-marker__dot { background: #ef5350; }
   .aircraft-marker--target .aircraft-marker__label { border-color: rgb(239 83 80 / 0.7); }
   .aircraft-marker--interceptor .aircraft-marker__dot { background: #1ecf9a; }

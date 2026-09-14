@@ -32,6 +32,8 @@ export interface MissionTask {
   rationale: string
   adapter: EffectorAdapter
   launchBoxId?: string
+  source?: 'assistant'
+  allocationPct?: number
 }
 
 export interface OperationalEvent {

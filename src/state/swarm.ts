@@ -18,11 +18,14 @@ export interface SwarmState {
   panelOpen: boolean
   /** null shows the grid; an id shows that drone's detail body. */
   selectedId: string | null
+  /** Aircraft assigned by the most recently staged recommendation. */
+  taskedIds: string[]
 }
 
 export const swarmStore = createStore<SwarmState>({
   panelOpen: true,
   selectedId: null,
+  taskedIds: [],
 })
 
 export function useSwarmPanelOpen() {
@@ -31,6 +34,14 @@ export function useSwarmPanelOpen() {
 
 export function useSwarmSelectedId() {
   return useStoreSelector(swarmStore, (s) => s.selectedId)
+}
+
+export function useTaskedDroneIds() {
+  return useStoreSelector(swarmStore, (s) => s.taskedIds)
+}
+
+export function focusTaskedDrones(ids: string[]) {
+  swarmStore.set((state) => ({ ...state, panelOpen: true, selectedId: null, taskedIds: ids }))
 }
 
 export function setSwarmPanelOpen(open: boolean) {
@@ -53,7 +64,7 @@ export function toggleSwarmPanel() {
 export function selectDrone(id: string) {
   const { panelOpen, selectedId } = swarmStore.get()
   if (selectedId === id && panelOpen) return
-  swarmStore.set({ panelOpen: true, selectedId: id })
+  swarmStore.set((state) => ({ ...state, panelOpen: true, selectedId: id }))
 }
 
 /**

@@ -2,15 +2,47 @@ import { useState } from 'react'
 import { Section } from '@/components/panel/Section'
 import { SENSOR_SOURCES, TRACKS } from '@/data/operations'
 import { SWARM } from '@/data/swarm'
-import { useOperations } from '@/state/operations'
+import { stageAssistantTask, useOperations } from '@/state/operations'
+import { focusTaskedDrones } from '@/state/swarm'
+import { selectView } from '@/state/ui'
 
 interface Recommendation {
+  category: 'surveillance' | 'coordinated-screening' | 'counter-uas' | 'reposition-reserve'
   title: string
   allocationPct: number
   action: string
   rationale: string
   evidence: string[]
   constraint: string
+  priorityTrackIds: string[]
+}
+
+const TASKABLE_AIRCRAFT = SWARM
+  .filter((aircraft) => aircraft.state !== 'offline' && aircraft.state !== 'rtb')
+  .slice()
+  .sort((left, right) => (right.battery * right.linkQuality) - (left.battery * left.linkQuality))
+
+function recommendationAssignments(recommendations: Recommendation[]) {
+  const exact = recommendations.map((item) => item.allocationPct * TASKABLE_AIRCRAFT.length / 100)
+  const counts = exact.map(Math.floor)
+  let remaining = TASKABLE_AIRCRAFT.length - counts.reduce((sum, count) => sum + count, 0)
+  const remainderOrder = exact.map((value, index) => ({ index, remainder: value - counts[index] })).sort((left, right) => right.remainder - left.remainder)
+  for (let cursor = 0; remaining > 0; cursor += 1, remaining -= 1) counts[remainderOrder[cursor % remainderOrder.length].index] += 1
+  const remainingAircraft = [...TASKABLE_AIRCRAFT]
+  const statePreference: Record<Recommendation['category'], string[]> = {
+    'counter-uas': ['engaged', 'orbit', 'transit', 'ready'],
+    'coordinated-screening': ['ready', 'orbit', 'transit', 'engaged'],
+    surveillance: ['orbit', 'transit', 'ready', 'engaged'],
+    'reposition-reserve': ['ready', 'transit', 'orbit', 'engaged'],
+  }
+  return counts.map((count, index) => {
+    const preference = statePreference[recommendations[index].category]
+    remainingAircraft.sort((left, right) => {
+      const stateRank = preference.indexOf(left.state) - preference.indexOf(right.state)
+      return stateRank || (right.battery * right.linkQuality) - (left.battery * left.linkQuality)
+    })
+    return remainingAircraft.splice(0, count)
+  })
 }
 
 interface AssistantReply {
@@ -33,6 +65,24 @@ export function AssistantView() {
     role: 'assistant',
     text: 'I analyse the current training-state snapshot and return three defensive recommendations. Recommendations never execute actions.',
   }])
+
+  const stageRecommendation = (reply: AssistantReply, index: number) => {
+    const recommendation = reply.recommendations[index]
+    const aircraft = recommendationAssignments(reply.recommendations)[index]
+    const priorityTracks = TRACKS.filter((track) => recommendation.priorityTrackIds.includes(track.id))
+    const primaryTrack = priorityTracks[0] ?? TRACKS.slice().sort((left, right) => left.etaSeconds - right.etaSeconds)[0]
+    stageAssistantTask({
+      trackId: primaryTrack.id,
+      objective: recommendation.title,
+      assetIds: aircraft.map((item) => item.designation),
+      etaSeconds: primaryTrack.etaSeconds,
+      confidence: primaryTrack.confidence,
+      rationale: `${recommendation.action} ${recommendation.rationale}`,
+      allocationPct: recommendation.allocationPct,
+    })
+    focusTaskedDrones(aircraft.map((item) => item.id))
+    selectView('tasking')
+  }
 
   const send = async () => {
     const question = input.trim()
@@ -80,13 +130,14 @@ export function AssistantView() {
     <Section title="Assistant"><div className="flex flex-col gap-1.5">{messages.map((message, index) => <div key={index} className={`rounded-sm border p-2 text-xs leading-relaxed ${message.role === 'assistant' ? 'border-border-faint bg-panel-inset text-text-secondary' : 'border-border-strong bg-state-selected text-text'}`}>
       <span className="mb-1 block text-2xs uppercase text-text-tertiary">{message.role}</span>
       <p>{message.text}</p>
-      {message.reply && <div className="mt-2 flex flex-col gap-2">{message.reply.recommendations.map((recommendation, recommendationIndex) => <div key={`${recommendation.title}-${recommendationIndex}`} className="rounded-sm border border-border-faint bg-panel p-2">
+      {message.reply && <div className="mt-2 flex flex-col gap-2">{message.reply.recommendations.map((recommendation, recommendationIndex) => { const assigned = recommendationAssignments(message.reply!.recommendations)[recommendationIndex]; return <button type="button" onClick={() => stageRecommendation(message.reply!, recommendationIndex)} key={`${recommendation.title}-${recommendationIndex}`} className="rounded-sm border border-border-faint bg-panel p-2 text-left transition-colors hover:border-signal-nominal/60 hover:bg-state-hover">
         <div className="flex items-start justify-between gap-2"><strong className="text-text">{recommendationIndex + 1}. {recommendation.title}</strong><span className="shrink-0 font-mono text-sm text-signal-nominal">{recommendation.allocationPct}%</span></div>
         <p className="mt-1 text-text">{recommendation.action}</p>
         <p className="mt-1 text-2xs text-text-tertiary">WHY · {recommendation.rationale}</p>
         <ul className="mt-1 list-disc pl-4 text-2xs text-text-secondary">{recommendation.evidence.map((item) => <li key={item}>{item}</li>)}</ul>
         <p className="mt-1 text-2xs text-signal-caution">CONSTRAINT · {recommendation.constraint}</p>
-      </div>)}</div>}
+        <div className="mt-2 flex flex-wrap items-center gap-1"><span className="mr-1 text-2xs text-signal-nominal">CLICK TO STAGE</span>{assigned.map((aircraft) => <span key={aircraft.id} className="rounded-xs border border-signal-nominal/30 px-1 py-0.5 font-mono text-2xs text-text">{aircraft.designation}</span>)}</div>
+      </button> })}</div>}
     </div>)}</div></Section>
     {error && <div role="alert" className="rounded-sm border border-signal-critical/40 bg-panel-inset p-2 text-2xs text-signal-critical">{error}</div>}
     <form onSubmit={(event) => { event.preventDefault(); void send() }} className="flex gap-1"><input aria-label="Ask assistant" value={input} onChange={(event) => setInput(event.target.value)} placeholder="Request three defensive recommendations…" className="min-w-0 flex-1 rounded-sm border border-border bg-panel-inset px-2 py-1.5 text-xs"/><button disabled={busy || !input.trim()} className="rounded-sm border border-border px-2 text-2xs disabled:text-text-disabled">{busy ? 'ANALYSING…' : 'SEND'}</button></form>

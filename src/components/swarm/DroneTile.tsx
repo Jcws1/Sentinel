@@ -33,6 +33,7 @@ function BatteryMeter({ level, dimmed }: { level: number; dimmed: boolean }) {
 interface DroneTileProps {
   drone: Drone
   selected: boolean
+  tasked: boolean
   onSelect: () => void
 }
 
@@ -44,7 +45,7 @@ interface DroneTileProps {
  * tile's outline — a dashed border says "this is not reporting" without
  * spending colour that is reserved for the mission.
  */
-export function DroneTile({ drone, selected, onSelect }: DroneTileProps) {
+export function DroneTile({ drone, selected, tasked, onSelect }: DroneTileProps) {
   const offline = drone.state === 'offline'
 
   return (
@@ -57,12 +58,12 @@ export function DroneTile({ drone, selected, onSelect }: DroneTileProps) {
         type="button"
         onClick={onSelect}
         aria-pressed={selected}
-        aria-label={`${drone.callsign}, ${STATE_CODE[drone.state]}`}
+        aria-label={`${drone.callsign}, ${STATE_CODE[drone.state]}${tasked ? ', tasked by assistant' : ''}`}
         className={cn(
           'relative flex aspect-square cursor-pointer flex-col items-center justify-center gap-0.5',
           'overflow-hidden rounded-sm border',
           'transition-colors duration-(--duration-fast) ease-out',
-          selected
+          selected || tasked
             ? 'border-border-strong bg-state-selected text-text'
             : offline
               ? 'border-dashed border-border-faint text-text-disabled hover:bg-state-hover'
@@ -73,7 +74,7 @@ export function DroneTile({ drone, selected, onSelect }: DroneTileProps) {
         <span
           className={cn(
             'font-mono text-2xs tabular',
-            selected ? 'text-text-secondary' : 'text-text-tertiary',
+            selected || tasked ? 'text-signal-nominal' : 'text-text-tertiary',
             offline && 'text-text-disabled',
           )}
         >
