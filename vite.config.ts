@@ -1,9 +1,11 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { fileURLToPath, URL } from 'node:url'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  return {
   // NOTE: vite-plugin-cesium is deliberately NOT used. It injects a blocking
   // <script src="/cesium/Cesium.js"> into index.html, which loads Cesium's
   // multi-MB runtime on EVERY page load — including the offline edge path
@@ -26,6 +28,18 @@ export default defineConfig({
     // misleading error rather than an obvious one.
     strictPort: true,
     host: true,
+    proxy: {
+      '/wedgetail-sandbox': {
+        target: 'https://wedgetail-dynamics.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/wedgetail-sandbox/, '/sandbox'),
+        headers: {
+          // The default is Wedgetail's published, sandbox-only integration key.
+          'X-API-Key': env.WEDGETAIL_SANDBOX_API_KEY || 'wgtl_sandbox_1a2b3c4d5e6f7g8h9i0j',
+        },
+      },
+    },
   },
   build: {
     // Edge nodes may be bandwidth-constrained on update; split the heavy
@@ -39,4 +53,5 @@ export default defineConfig({
       },
     },
   },
+  }
 })

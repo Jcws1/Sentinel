@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel.local/schemas/sentinel-sim-telemetry-frame-1.0.json",
+  "title": "Sentinel simulator telemetry frame",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "protocolVersion",
+    "messageId",
+    "sequence",
+    "timestamp",
+    "scenarioId",
+    "type",
+    "data"
+  ],
+  "properties": {
+    "protocol": {
+      "const": "sentinel-sim"
+    },
+    "protocolVersion": {
+      "const": "1.0"
+    },
+    "messageId": {
+      "type": "string"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "scenarioId": {
+      "type": "string"
+    },
+    "type": {
+      "const": "telemetry.frame"
+    },
+    "data": {
+      "type": "object",
+      "required": [
+        "vehicleId",
+        "lifecycle",
+        "pose",
+        "navigationSource",
+        "updatedAt"
+      ],
+      "properties": {
+        "vehicleId": {
+          "type": "string"
+        },
+        "lifecycle": {
+          "const": "ACTIVE"
+        },
+        "navigationSource": {
+          "enum": [
+            "GNSS",
+            "SIMULATED_VIO"
+          ]
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "pose": {
+          "type": "object",
+          "required": [
+            "frame",
+            "eastM",
+            "northM",
+            "upM",
+            "rollRad",
+            "pitchRad",
+            "yawRad"
+          ],
+          "properties": {
+            "frame": {
+              "const": "LOCAL_ENU"
+            },
+            "eastM": {
+              "type": "number"
+            },
+            "northM": {
+              "type": "number"
+            },
+            "upM": {
+              "type": "number"
+            },
+            "rollRad": {
+              "type": "number"
+            },
+            "pitchRad": {
+              "type": "number"
+            },
+            "yawRad": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    }
+  }
+}

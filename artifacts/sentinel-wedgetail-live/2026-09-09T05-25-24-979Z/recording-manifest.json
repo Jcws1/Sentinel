@@ -1,0 +1,77 @@
+{
+  "recordedAt": "2026-09-09T05:27:03.148Z",
+  "scenario": "Thales littoral source tracks to Wedgetail public sandbox",
+  "sentinelVideo": "sentinel-tasking-and-api-evidence.webm",
+  "simulatorVideo": "wedgetail-live-engagement.webm",
+  "apiResponses": [
+    {
+      "status": 200,
+      "body": {
+        "message": "Target accepted and broadcast to every live viewer of /sim/?livesandbox=true — a Shahed just spawned near Sandbox Site East (Changi Point) (box_3) and our interceptor is engaging it now.",
+        "status": "ok",
+        "received": {
+          "altitude_d": 7,
+          "azimuth_d": 20,
+          "box_id": "box_3",
+          "direction_d": 205,
+          "distance_m": 1500,
+          "label": "LIT01",
+          "speed_m_s": 28,
+          "unix_timestamp": 1788931542
+        }
+      }
+    },
+    {
+      "status": 200,
+      "body": {
+        "message": "Target accepted and broadcast to every live viewer of /sim/?livesandbox=true — a Shahed just spawned near Sandbox Site East (Changi Point) (box_3) and our interceptor is engaging it now.",
+        "status": "ok",
+        "received": {
+          "altitude_d": 6,
+          "azimuth_d": 335,
+          "box_id": "box_3",
+          "direction_d": 155,
+          "distance_m": 1350,
+          "label": "LIT02",
+          "speed_m_s": 25,
+          "unix_timestamp": 1788931543
+        }
+      }
+    },
+    {
+      "status": 200,
+      "body": {
+        "message": "Target accepted and broadcast to every live viewer of /sim/?livesandbox=true — a Shahed just spawned near Sandbox Site Central (Katong) (box_2) and our interceptor is engaging it now.",
+        "status": "ok",
+        "received": {
+          "altitude_d": 8,
+          "azimuth_d": 95,
+          "box_id": "box_2",
+          "direction_d": 275,
+          "distance_m": 1450,
+          "label": "LIT03",
+          "speed_m_s": 31,
+          "unix_timestamp": 1788931543
+        }
+      }
+    },
+    {
+      "status": 200,
+      "body": {
+        "message": "Target accepted and broadcast to every live viewer of /sim/?livesandbox=true — a Shahed just spawned near Sandbox Site North (Woodlands) (box_1) and our interceptor is engaging it now.",
+        "status": "ok",
+        "received": {
+          "altitude_d": 5,
+          "azimuth_d": 175,
+          "box_id": "box_1",
+          "direction_d": 355,
+          "distance_m": 1250,
+          "label": "LIT04",
+          "speed_m_s": 23,
+          "unix_timestamp": 1788931544
+        }
+      }
+    }
+  ],
+  "integrityNote": "Sentinel displays source-track replay and API acknowledgements only. Interceptor behavior is shown only in the Wedgetail live simulator because the public API exposes no interceptor telemetry."
+}

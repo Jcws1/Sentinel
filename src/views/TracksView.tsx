@@ -10,7 +10,7 @@ export function TracksView() {
   const active = TRACKS.find((track) => track.id === selected) ?? TRACKS[0]
   return <div className="flex flex-col gap-4 p-3">
     <input aria-label="Filter tracks" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter tracks…" className="rounded-sm border border-border bg-panel-inset px-2 py-1.5 text-xs text-text placeholder:text-text-disabled" />
-    <Section title={`Air picture · ${tracks.length}`}><div className="flex flex-col gap-1">{tracks.map((track) => <button key={track.id} type="button" onClick={() => setSelected(track.id)} className={`rounded-sm border p-2 text-left ${selected === track.id ? 'border-border-strong bg-state-selected' : 'border-border-faint bg-panel-inset hover:bg-state-hover'}`}>
+    <Section title={`Tracks · ${tracks.length}`}><div className="flex flex-col gap-1">{tracks.map((track) => <button key={track.id} type="button" onClick={() => setSelected(track.id)} className={`rounded-sm border p-2 text-left ${selected === track.id ? 'border-border-strong bg-state-selected' : 'border-border-faint bg-panel-inset hover:bg-state-hover'}`}>
       <span className="flex items-center justify-between"><strong className="font-mono text-xs">{track.id}</strong><span className={track.affiliation === 'hostile' ? 'text-2xs text-signal-hostile' : 'text-2xs text-signal-caution'}>{track.affiliation.toUpperCase()} · C{track.threatClass}</span></span>
       <span className="mt-1 flex justify-between text-2xs text-text-tertiary"><span>{track.action}</span><span>{track.confidence}% · {track.ageSeconds}s old</span></span>
     </button>)}</div></Section>

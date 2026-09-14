@@ -19,6 +19,9 @@ import { getCursorMode } from './cursorModes'
 import { cursorModeStore } from '@/state/cursorMode'
 import { subscribeSelector } from '@/state/createStore'
 import { registerRecenter } from './cameraControl'
+import { attachAircraftOverlay } from './aircraftOverlay'
+import { useStoreSelector } from '@/state/createStore'
+import { operationsStore } from '@/state/operations'
 import {
   installAnnotationLayers,
   attachAnnotationInput,
@@ -52,6 +55,8 @@ function registerPmtilesProtocol() {
  * through a render.
  */
 export function MapCanvas() {
+  const wedgetailPhase = useStoreSelector(operationsStore, (state) => state.wedgetail.phase)
+  const wedgetailMode = useStoreSelector(operationsStore, (state) => state.wedgetail.mode)
   const containerRef = useRef<HTMLDivElement>(null)
   const cesiumContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
@@ -126,9 +131,11 @@ export function MapCanvas() {
     // handlers gate on the active cursor mode internally, so there is no
     // listener churn as the operator switches tools.
     const detachAnnotations = attachAnnotationInput(map)
+    const detachAircraft = attachAircraftOverlay(map)
 
     return () => {
       detachAnnotations()
+      detachAircraft()
       overlayRef.current?.finalize()
       overlayRef.current = null
       map.remove()
@@ -371,6 +378,15 @@ export function MapCanvas() {
   return (
     <>
       <div ref={containerRef} className="size-full" />
+      {wedgetailPhase !== 'idle' && wedgetailPhase !== 'error' ? (
+        <div
+          data-testid="wedgetail-phase"
+          className="pointer-events-none absolute top-14 left-1/2 -translate-x-1/2 rounded-sm border border-border bg-panel px-3 py-2 text-center shadow-panel"
+        >
+          <div className="font-mono text-2xs text-signal-nominal">{wedgetailMode === 'coastal' ? 'THALES LITTORAL REPLAY · SOURCE TRACKS ONLY' : 'THALES SOURCE TRACK · NO INTERCEPTOR TELEMETRY'}</div>
+          <div className="mt-0.5 text-xs font-medium text-text">{wedgetailPhase.replace('-', ' ').toUpperCase()}</div>
+        </div>
+      ) : null}
       {/* Cesium's own canvas. Hidden until the photoreal pack is selected,
           and never created until then — the viewer is constructed inside the
           dynamic import. */}

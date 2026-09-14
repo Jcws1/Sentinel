@@ -1,8 +1,7 @@
 import { createStore, useStoreSelector, useStoreValue } from './createStore'
-import { INITIAL_EVENTS, INITIAL_TASKS, type MissionMode, type MissionTask, type OperationalEvent } from '@/data/operations'
+import { INITIAL_EVENTS, INITIAL_TASKS, type MissionTask, type OperationalEvent } from '@/data/operations'
 
 export interface OperationsState {
-  mode: MissionMode
   missionState: 'ACTIVE' | 'HOLD' | 'RECALL'
   autoMode: 'OFF' | 'SUPERVISED' | 'LOCKED'
   connected: boolean
@@ -10,10 +9,18 @@ export interface OperationsState {
   tasks: MissionTask[]
   selectedTaskId: string
   events: OperationalEvent[]
+  wedgetail: {
+    mode: 'single' | 'coastal'
+    status: 'standby' | 'connecting' | 'tasking' | 'engaging' | 'error'
+    phase: 'idle' | 'track-ready' | 'launch' | 'intercept' | 'complete' | 'error'
+    startedAt: number | null
+    message: string
+    boxId?: string
+    targetLabel?: string
+  }
 }
 
 export const operationsStore = createStore<OperationsState>({
-  mode: 'defense',
   missionState: 'ACTIVE',
   autoMode: 'OFF',
   connected: true,
@@ -21,22 +28,21 @@ export const operationsStore = createStore<OperationsState>({
   tasks: INITIAL_TASKS,
   selectedTaskId: INITIAL_TASKS[0].id,
   events: INITIAL_EVENTS,
+  wedgetail: { mode: 'single', status: 'standby', phase: 'idle', startedAt: null, message: 'Sandbox adapter ready' },
 })
 
 export const useOperations = () => useStoreValue(operationsStore)
-export const useMode = () => useStoreSelector(operationsStore, (state) => state.mode)
 export const useMissionState = () => useStoreSelector(operationsStore, (state) => state.missionState)
 
-function addEvent(action: string, entity: string, severity: OperationalEvent['severity'] = 'info') {
+export function addEvent(action: string, entity: string, severity: OperationalEvent['severity'] = 'info', source = 'Operator') {
   operationsStore.set((state) => ({
     ...state,
-    events: [{ id: `EV-${Date.now()}`, time: new Date().toLocaleTimeString('en-GB', { hour12: false }), severity, source: 'Operator', entity, action, actor: 'Local operator' }, ...state.events],
+    events: [{ id: `EV-${Date.now()}`, time: new Date().toLocaleTimeString('en-GB', { hour12: false }), severity, source, entity, action, actor: source === 'Operator' ? 'Local operator' : 'Adapter' }, ...state.events],
   }))
 }
 
-export function setMissionMode(mode: MissionMode) {
-  operationsStore.set((state) => ({ ...state, mode }))
-  addEvent(`Mission mode changed to ${mode}`, 'MISSION')
+export function setWedgetailStatus(patch: Partial<OperationsState['wedgetail']>) {
+  operationsStore.set((state) => ({ ...state, wedgetail: { ...state.wedgetail, ...patch } }))
 }
 
 export function cycleAutoMode() {
@@ -58,6 +64,6 @@ export function setTaskStatus(taskId: string, status: MissionTask['status']) {
 }
 
 export function approveEligibleTasks() {
-  operationsStore.set((state) => ({ ...state, tasks: state.tasks.map((task) => task.status === 'review' && task.policy === 'within' ? { ...task, status: 'executing' } : task) }))
-  addEvent('Eligible plan groups confirmed for execution', 'MISSION')
+  operationsStore.set((state) => ({ ...state, tasks: state.tasks.map((task) => task.status === 'review' && task.policy === 'within' && task.adapter === 'sentinel-native' ? { ...task, status: 'executing' } : task) }))
+  addEvent('Eligible local tasks approved', 'TASKS')
 }

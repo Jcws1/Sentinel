@@ -1,0 +1,47 @@
+{
+  "format": "sentinel-anchor-handoff/1.1",
+  "source": {
+    "dataset": "MUN-FRL",
+    "sequence": "quarry1",
+    "platform": "DJI M600 hexacopter",
+    "licence": "CC BY 4.0",
+    "officialPage": "https://mun-frl-vil-dataset.readthedocs.io/en/latest/"
+  },
+  "files": [
+    {
+      "file": "sentinel-normalized-normal.ndjson",
+      "sha256": "8de66478ef492b3db8caa0ce6942a725af6b76d03f406ec2703288e91c78a179",
+      "bytes": 624196
+    },
+    {
+      "file": "sentinel-normalized-degraded.ndjson",
+      "sha256": "5274ffbc0bd2a407682ae57a03ad8e5d62dd156d8a85221893b313880c6ca263",
+      "bytes": 627626
+    },
+    {
+      "file": "evaluation-sidecar-normal.ndjson",
+      "sha256": "359d06d63fcce8722f7288f04e984b46f751a3c23b498f4d550615a10a93fd87",
+      "bytes": 566735
+    },
+    {
+      "file": "evaluation-sidecar-degraded.ndjson",
+      "sha256": "01f72dacce3fa1a0ddfb97eb8bdbfecc5868364dfb456626c8ca6370c07aee96",
+      "bytes": 606546
+    },
+    {
+      "file": "ACCURACY_RESULTS.json",
+      "sha256": "8c16ad6e5aa87de505172b76ad3807479fc3ba2cca1126fa09dcbc44115c9a6f",
+      "bytes": 12888
+    },
+    {
+      "file": "INTERNAL_ACCURACY_REPORT.md",
+      "sha256": "145911a13a97afca0ff4c071eb71bf25844ef2b130d26c522166062361d1d674",
+      "bytes": 1768
+    },
+    {
+      "file": "DEGRADATION_TIMELINE.private.md",
+      "sha256": "c7eb8f5db1bd05e7f2c6dd28c326b4f13aca0e31f78217c41e26e2bbbd5759f2",
+      "bytes": 546
+    }
+  ]
+}

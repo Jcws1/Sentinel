@@ -130,6 +130,73 @@
   }
 }
 
+@layer components {
+  .aircraft-marker {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.85));
+  }
+
+  .aircraft-marker__dot {
+    display: block;
+    width: 10px;
+    height: 10px;
+    border: 2px solid rgb(255 255 255 / 0.95);
+    background: #5f6b78;
+    transform: rotate(45deg);
+  }
+
+  .aircraft-marker__label {
+    padding: 2px 5px;
+    border: 1px solid rgb(255 255 255 / 0.24);
+    border-radius: 2px;
+    background: rgb(8 10 13 / 0.88);
+    color: white;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .aircraft-marker--fleet .aircraft-marker__dot { background: #82909d; }
+  .aircraft-marker--target .aircraft-marker__dot { background: #ef5350; }
+  .aircraft-marker--target .aircraft-marker__label { border-color: rgb(239 83 80 / 0.7); }
+  .aircraft-marker--interceptor .aircraft-marker__dot { background: #1ecf9a; }
+  .aircraft-marker--interceptor .aircraft-marker__label { border-color: rgb(30 207 154 / 0.7); }
+  .aircraft-marker--interceptor { animation: aircraft-launch-pulse 900ms ease-out 2; }
+  .aircraft-marker--complete .aircraft-marker__dot { animation: aircraft-intercept 900ms ease-out forwards; }
+
+  .coastal-swarm { position: relative; width: 92px; height: 62px; filter: drop-shadow(0 0 8px rgb(239 83 80 / 0.45)); }
+  .coastal-swarm > i {
+    position: absolute; left: 46px; top: 31px; width: 4px; height: 4px; border-radius: 50%;
+    background: #ef5350; transform: translate(var(--swarm-x), var(--swarm-y));
+    animation: coastal-swarm-pulse 900ms ease-in-out infinite alternate;
+  }
+  .coastal-swarm__label {
+    position: absolute; left: 54px; top: -2px; padding: 3px 6px;
+    border: 1px solid rgb(239 83 80 / 0.7); border-radius: 2px;
+    background: rgb(8 10 13 / 0.92); color: white; font-family: var(--font-mono);
+    font-size: 10px; line-height: 1; white-space: nowrap;
+  }
+  .coastal-swarm--complete > i { animation: aircraft-intercept 900ms ease-out forwards; }
+}
+
+@keyframes coastal-swarm-pulse {
+  from { opacity: 0.45; }
+  to { opacity: 1; box-shadow: 0 0 5px rgb(239 83 80 / 0.9); }
+}
+
+@keyframes aircraft-launch-pulse {
+  50% { filter: drop-shadow(0 0 10px rgb(30 207 154 / 0.95)); }
+}
+
+@keyframes aircraft-intercept {
+  50% { transform: rotate(45deg) scale(2.8); background: white; }
+  100% { transform: rotate(45deg) scale(0.75); opacity: 0.75; }
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;

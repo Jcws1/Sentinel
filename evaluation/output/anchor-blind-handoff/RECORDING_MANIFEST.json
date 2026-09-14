@@ -1,0 +1,37 @@
+{
+  "format": "sentinel-anchor-handoff/1.1",
+  "source": {
+    "dataset": "MUN-FRL",
+    "sequence": "quarry1",
+    "platform": "DJI M600 hexacopter",
+    "licence": "CC BY 4.0",
+    "officialPage": "https://mun-frl-vil-dataset.readthedocs.io/en/latest/"
+  },
+  "files": [
+    {
+      "file": "gateway-normal.telemetry.ndjson",
+      "sha256": "697aaabda9d0da4748b803bf90b641eb2fde86a08ef57f22939834e9ac42921b",
+      "bytes": 721105
+    },
+    {
+      "file": "gateway-gnss-degraded.telemetry.ndjson",
+      "sha256": "6046d83fc3a2e3f87fdad1eef730e47c82de944a305515a144d7bbf2b2366ebe",
+      "bytes": 724629
+    },
+    {
+      "file": "gateway-handshake.json",
+      "sha256": "4d568f6eaea4f4ae2abab9b52d68bc97e70b8755fe6d0bdc04047d45d84082d9",
+      "bytes": 344
+    },
+    {
+      "file": "README.md",
+      "sha256": "cd474288c56971ef44316cd3782366fee814bc681a74cb0680305eb18cdd4580",
+      "bytes": 1988
+    },
+    {
+      "file": "FIELD_DICTIONARY.md",
+      "sha256": "fefbca8407474e5d254c7e660e3314e0d79969d2b03acbc12059f988eff9b231",
+      "bytes": 1386
+    }
+  ]
+}

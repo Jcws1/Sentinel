@@ -494,6 +494,18 @@ This is a simulator administration capability, not a live physical-sensor provis
 
 The current `OPTIMIZE + DISPATCH` label overstates the first transition because it initially creates a proposal; this is recorded in the UX audit.
 
+### 10.4 Wedgetail interceptor sandbox adapter
+
+- Accept a synthetic Thales GM200 track through the normal task review workspace.
+- Show the selected adapter and launch-box assignment before dispatch.
+- Require a second confirmation before sending the synthetic target outside Sentinel.
+- Convert bearing, altitude, range, speed, heading, timestamp, launch box, and track ID to Wedgetail's sandbox API contract.
+- Fetch active sandbox launch points and submit the target through a server-side development proxy.
+- Show a short accepted/error result and write the adapter response to the event log.
+- Keep the integration visibly identified as a public simulator with no real systems connected.
+- Stage a coastal split briefing demo from Thales SwarmBreakers scenario 04 (`perp_dive_split_180_20_100`): a roughly 300-object cluster separating into main, ~100-object, and ~20-object radar tracks.
+- Visualize a three-interceptor response that continuously pursues the main track, then retasks two interceptors to the child tracks as they appear. Because the Wedgetail sandbox exposes acceptance but no live interceptor telemetry, the UI labels this response as a local visualization rather than observed flight truth.
+
 ## 11. Operational scenarios
 
 The Scenarios workspace supports six Singapore-context rehearsals spanning aviation, infrastructure, urban, maritime, saturation, radar-replay, and GNSS-constrained situations.

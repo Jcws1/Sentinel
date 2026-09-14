@@ -21,6 +21,7 @@ import type { Bounds } from '@/lib/format'
 =========================================================================== */
 
 export type SourcePackId =
+  | 'osm'
   | 'seasia'
   | 'photoreal'
   | 'void'
@@ -158,6 +159,17 @@ export const EDGE = {
 
 export const SOURCE_PACKS: readonly SourcePack[] = [
   {
+    id: 'osm',
+    label: 'OpenStreetMap',
+    renderer: 'vector',
+    offline: false,
+    description: 'Online street map for local development and simulation.',
+    basemapStyle: '/basemap/style.osm.json',
+    terrain: null,
+    needs: ['tile.openstreetmap.org'],
+    attribution: '© OpenStreetMap contributors',
+  },
+  {
     id: 'seasia',
     label: 'SE Asia 3D',
     renderer: 'vector',
@@ -246,10 +258,10 @@ export const HOME_CAMERA = {
  */
 export function defaultPack(): SourcePackId {
   const configured = import.meta.env.VITE_MAP_PACK
-  if (!configured) return 'seasia'
+  if (!configured) return 'osm'
 
   const pack = BY_ID.get(configured as SourcePackId)
-  if (!pack) return 'seasia'
-  if (!hasKey(pack)) return 'seasia'
+  if (!pack) return 'osm'
+  if (!hasKey(pack)) return 'osm'
   return pack.id
 }

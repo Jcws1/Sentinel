@@ -1,0 +1,427 @@
+{
+  "classification": "REAL_UAV_MEASURED_CANDIDATE_VS_PPK_REFERENCE",
+  "limitations": [
+    "The candidate DJI CSV was recovered from Google Drive public preview pages because the raw file was quota-blocked.",
+    "Clock offset was calibrated only on the first 30 seconds, then frozen before scoring the temporal holdout.",
+    "DJI height is relative to takeoff; one constant vertical datum was estimated from the first five seconds of the calibration partition.",
+    "The holdout is later data from the same flight, not an independently collected flight.",
+    "The PPK reference and onboard GNSS are related GNSS sources, so this is not fully independent of common-mode GNSS errors."
+  ],
+  "dataset": {
+    "name": "MUN-FRL",
+    "sequence": "quarry1",
+    "officialPage": "https://mun-frl-vil-dataset.readthedocs.io/en/latest/",
+    "licence": "CC BY 4.0",
+    "flightLogRows": 1096,
+    "ppkRows": 862,
+    "ppkQualityCounts": {
+      "1": 862
+    },
+    "hashes": {
+      "ppkPosSha256": "b08cdc85a440a64c33a6b28dcae47da4d3aaaab491377100ac258aa5128110f0",
+      "drivePreviewPdfSha256": "acec9f9aa73361c26c3c4c6e21a8993eecd6472bde727d6688efcdf36cec7016",
+      "extractedFlightLogSha256": "e78661774250c24071baa189fa52302621acb19d9f7c8b3cffe2e710fa92e4e2"
+    }
+  },
+  "alignment": {
+    "gpsToUtcOffsetSeconds": 18,
+    "calibratedCandidateClockOffsetMs": 1060,
+    "clockSearchHorizontalRmseM": 0.600948881027345,
+    "verticalDatumM": -0.7303662836903788,
+    "calibrationDurationSeconds": 30,
+    "calibrationSamples": 290,
+    "holdoutSamples": 806,
+    "alignedSamples": 1096
+  },
+  "accuracy": {
+    "scoringPartition": "TEMPORAL_HOLDOUT_AFTER_FIRST_30_SECONDS",
+    "holdout": {
+      "inputEstimates": 806,
+      "truthSamples": 862,
+      "alignedSamples": 806,
+      "unmatchedEstimates": 0,
+      "outOfOrderEstimates": 0,
+      "duplicateSequences": 0,
+      "horizontal": {
+        "median": 0.24033780349917755,
+        "rmse": 0.3889130258261211,
+        "p95": 0.7813281868948241,
+        "p99": 1.1458733367826075,
+        "max": 1.2357932426151865
+      },
+      "vertical": {
+        "median": 3.8489821210506623,
+        "rmse": 4.067179086080899,
+        "p95": 5.726073110935909,
+        "p99": 5.8087363456202965,
+        "max": 5.9482777648356375
+      },
+      "error3d": {
+        "median": 3.9200231544691104,
+        "rmse": 4.085731153650603,
+        "p95": 5.737422581506886,
+        "p99": 5.856163585267137,
+        "max": 5.9755469608974785
+      },
+      "thresholdPassRate": {
+        "5m": 0.6662531017369727,
+        "10m": 1,
+        "25m": 1
+      },
+      "reportedUncertaintyCoverage": null,
+      "overconfidentSamples": 0
+    },
+    "fullSequenceDiagnosticOnly": {
+      "inputEstimates": 1096,
+      "truthSamples": 862,
+      "alignedSamples": 1096,
+      "unmatchedEstimates": 0,
+      "outOfOrderEstimates": 0,
+      "duplicateSequences": 0,
+      "horizontal": {
+        "median": 0.2577678425928588,
+        "rmse": 0.45474050621708684,
+        "p95": 1.0378090932575705,
+        "p99": 1.0967824735299763,
+        "max": 1.2357932426151865
+      },
+      "vertical": {
+        "median": 2.9831633312485657,
+        "rmse": 3.5812923468665954,
+        "p95": 5.697692183684223,
+        "p99": 5.799360442738989,
+        "max": 5.9482777648356375
+      },
+      "error3d": {
+        "median": 3.0019433701407783,
+        "rmse": 3.6100476176526834,
+        "p95": 5.721840792689083,
+        "p99": 5.835459442476093,
+        "max": 5.9755469608974785
+      },
+      "thresholdPassRate": {
+        "5m": 0.7545620437956204,
+        "10m": 1,
+        "25m": 1
+      },
+      "reportedUncertaintyCoverage": null,
+      "overconfidentSamples": 0
+    }
+  },
+  "sentinelNormalization": {
+    "missingNativeFields": [
+      "sourceTimestamp",
+      "gatewayTimestamp",
+      "perVehicleSequence",
+      "3-axis velocity",
+      "GNSS fix type",
+      "satellite count",
+      "position covariance"
+    ],
+    "transportFidelity": {
+      "horizontalRmseM": 0.0012571388656562974,
+      "horizontalMaxM": 0.002953267169882144,
+      "verticalRmseM": 0.0007158161038733736,
+      "verticalMaxM": 0.0018481081957233414
+    },
+    "normalAccuracy": {
+      "inputEstimates": 806,
+      "truthSamples": 862,
+      "alignedSamples": 806,
+      "unmatchedEstimates": 0,
+      "outOfOrderEstimates": 0,
+      "duplicateSequences": 0,
+      "horizontal": {
+        "median": 0.24074935041039347,
+        "rmse": 0.3889679789903276,
+        "p95": 0.7825361164146898,
+        "p99": 1.147453759904531,
+        "max": 1.2373305328915647
+      },
+      "vertical": {
+        "median": 3.8489333076594825,
+        "rmse": 4.06653865858332,
+        "p95": 5.725331693930196,
+        "p99": 5.808254475558535,
+        "max": 5.9478205920687515
+      },
+      "error3d": {
+        "median": 3.919997007490208,
+        "rmse": 4.085098866665587,
+        "p95": 5.736266608532278,
+        "p99": 5.855678000015322,
+        "max": 5.974978964365126
+      },
+      "thresholdPassRate": {
+        "5m": 0.6662531017369727,
+        "10m": 1,
+        "25m": 1
+      },
+      "reportedUncertaintyCoverage": 0.09181141439205956,
+      "overconfidentSamples": 732
+    }
+  },
+  "controlledDegradation": {
+    "classification": "MODELLED_FAULT_OVER_REAL_MEASURED_UAV_TRAJECTORY",
+    "timelineSeconds": {
+      "degradedStartSeconds": 30,
+      "deniedStartSeconds": 45,
+      "recoveryStartSeconds": 85,
+      "recoveredSeconds": 100
+    },
+    "accuracyByPhase": {
+      "BASELINE": {
+        "inputEstimates": 290,
+        "truthSamples": 862,
+        "alignedSamples": 290,
+        "unmatchedEstimates": 0,
+        "outOfOrderEstimates": 0,
+        "duplicateSequences": 0,
+        "horizontal": {
+          "median": 0.3611701713167702,
+          "rmse": 0.600948881027345,
+          "p95": 1.0714464250745748,
+          "p99": 1.0945912260624182,
+          "max": 1.0992110726678928
+        },
+        "vertical": {
+          "median": 0.9102468466638944,
+          "rmse": 1.5801674864199768,
+          "p95": 2.8744961611034325,
+          "p99": 2.9434434078978144,
+          "max": 2.9616050805494254
+        },
+        "error3d": {
+          "median": 1.0822083195422476,
+          "rmse": 1.6905823975029566,
+          "p95": 2.9007317233154866,
+          "p99": 2.967937863290534,
+          "max": 2.9840564377821135
+        },
+        "thresholdPassRate": {
+          "5m": 1,
+          "10m": 1,
+          "25m": 1
+        },
+        "reportedUncertaintyCoverage": null,
+        "overconfidentSamples": 0
+      },
+      "DEGRADED": {
+        "inputEstimates": 144,
+        "truthSamples": 862,
+        "alignedSamples": 144,
+        "unmatchedEstimates": 0,
+        "outOfOrderEstimates": 0,
+        "duplicateSequences": 0,
+        "horizontal": {
+          "median": 2.047731213198719,
+          "rmse": 2.4174776637429995,
+          "p95": 4.419189454376518,
+          "p99": 4.898065126430433,
+          "max": 5.038920398425275
+        },
+        "vertical": {
+          "median": 3.295135422419932,
+          "rmse": 3.5315035155483385,
+          "p95": 5.170277260665815,
+          "p99": 5.462336082088159,
+          "max": 5.620799287351943
+        },
+        "error3d": {
+          "median": 3.942889546158403,
+          "rmse": 4.27968635942245,
+          "p95": 6.476524455270393,
+          "p99": 6.876193352411567,
+          "max": 6.97056646250885
+        },
+        "thresholdPassRate": {
+          "5m": 0.7986111111111112,
+          "10m": 1,
+          "25m": 1
+        },
+        "reportedUncertaintyCoverage": 0.3958333333333333,
+        "overconfidentSamples": 87
+      },
+      "DENIED": {
+        "inputEstimates": 384,
+        "truthSamples": 862,
+        "alignedSamples": 384,
+        "unmatchedEstimates": 0,
+        "outOfOrderEstimates": 0,
+        "duplicateSequences": 0,
+        "horizontal": {
+          "median": 2.862938803236592,
+          "rmse": 3.2963389963298084,
+          "p95": 5.555135862382277,
+          "p99": 6.115839350264597,
+          "max": 6.1598617499637704
+        },
+        "vertical": {
+          "median": 6.116317072228185,
+          "rmse": 5.92134108482105,
+          "p95": 6.57667717599918,
+          "p99": 6.691929858727121,
+          "max": 6.742777764835637
+        },
+        "error3d": {
+          "median": 7.027957181705852,
+          "rmse": 6.77702966066361,
+          "p95": 8.051809106996547,
+          "p99": 8.170419147151781,
+          "max": 8.241080583604315
+        },
+        "thresholdPassRate": {
+          "5m": 0.10416666666666667,
+          "10m": 1,
+          "25m": 1
+        },
+        "reportedUncertaintyCoverage": 0.4244791666666667,
+        "overconfidentSamples": 221
+      },
+      "RECOVERING": {
+        "inputEstimates": 143,
+        "truthSamples": 862,
+        "alignedSamples": 143,
+        "unmatchedEstimates": 0,
+        "outOfOrderEstimates": 0,
+        "duplicateSequences": 0,
+        "horizontal": {
+          "median": 1.1416495379253566,
+          "rmse": 1.2824161271134897,
+          "p95": 2.3388324627359323,
+          "p99": 2.4476937491615676,
+          "max": 2.501541017242585
+        },
+        "vertical": {
+          "median": 2.954002590914204,
+          "rmse": 3.070070309982179,
+          "p95": 4.276569001801815,
+          "p99": 4.609183928234973,
+          "max": 4.67540881556495
+        },
+        "error3d": {
+          "median": 3.201997995548771,
+          "rmse": 3.327149355125923,
+          "p95": 4.863132706616154,
+          "p99": 5.229691609897733,
+          "max": 5.283984166483226
+        },
+        "thresholdPassRate": {
+          "5m": 0.965034965034965,
+          "10m": 1,
+          "25m": 1
+        },
+        "reportedUncertaintyCoverage": 1,
+        "overconfidentSamples": 0
+      },
+      "RECOVERED": {
+        "inputEstimates": 135,
+        "truthSamples": 862,
+        "alignedSamples": 135,
+        "unmatchedEstimates": 0,
+        "outOfOrderEstimates": 0,
+        "duplicateSequences": 0,
+        "horizontal": {
+          "median": 0.12336738585398832,
+          "rmse": 0.15423003638102065,
+          "p95": 0.2997271724083452,
+          "p99": 0.3150623537071574,
+          "max": 0.3182936685120223
+        },
+        "vertical": {
+          "median": 1.1543353211767222,
+          "rmse": 1.057319467299563,
+          "p95": 1.5377070269933384,
+          "p99": 1.6027534379632078,
+          "max": 1.636606962689346
+        },
+        "error3d": {
+          "median": 1.1865810756046289,
+          "rmse": 1.068508942429928,
+          "p95": 1.5461780885541363,
+          "p99": 1.6110259474830095,
+          "max": 1.6451139698178052
+        },
+        "thresholdPassRate": {
+          "5m": 1,
+          "10m": 1,
+          "25m": 1
+        },
+        "reportedUncertaintyCoverage": null,
+        "overconfidentSamples": 0
+      }
+    },
+    "accuracy": {
+      "inputEstimates": 806,
+      "truthSamples": 862,
+      "alignedSamples": 806,
+      "unmatchedEstimates": 0,
+      "outOfOrderEstimates": 0,
+      "duplicateSequences": 0,
+      "horizontal": {
+        "median": 1.426273570326531,
+        "rmse": 2.5527776460413625,
+        "p95": 5.331059372264752,
+        "p99": 5.943922404286268,
+        "max": 6.1598617499637704
+      },
+      "vertical": {
+        "median": 4.438842285477275,
+        "rmse": 4.559852353382596,
+        "p95": 6.460135350641888,
+        "p99": 6.647143110141828,
+        "max": 6.742777764835637
+      },
+      "error3d": {
+        "median": 4.78348640891565,
+        "rmse": 5.225794408008916,
+        "p95": 7.842300504363562,
+        "p99": 8.116584171775274,
+        "max": 8.241080583604315
+      },
+      "thresholdPassRate": {
+        "5m": 0.5310173697270472,
+        "10m": 1,
+        "25m": 1
+      },
+      "reportedUncertaintyCoverage": 0.5409836065573771,
+      "overconfidentSamples": 308
+    },
+    "sentinelNormalizedAccuracy": {
+      "inputEstimates": 806,
+      "truthSamples": 862,
+      "alignedSamples": 806,
+      "unmatchedEstimates": 0,
+      "outOfOrderEstimates": 0,
+      "duplicateSequences": 0,
+      "horizontal": {
+        "median": 1.4265477627397325,
+        "rmse": 2.553130816619317,
+        "p95": 5.331413403756394,
+        "p99": 5.944221813413505,
+        "max": 6.160162521810055
+      },
+      "vertical": {
+        "median": 4.437217855146567,
+        "rmse": 4.559230258780296,
+        "p95": 6.459771196381071,
+        "p99": 6.646778403373952,
+        "max": 6.742284384442698
+      },
+      "error3d": {
+        "median": 4.78273746672743,
+        "rmse": 5.225424147315608,
+        "p95": 7.842480642817812,
+        "p99": 8.116764058908633,
+        "max": 8.241281326803055
+      },
+      "thresholdPassRate": {
+        "5m": 0.5310173697270472,
+        "10m": 1,
+        "25m": 1
+      },
+      "reportedUncertaintyCoverage": 0.09181141439205956,
+      "overconfidentSamples": 732
+    }
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Sentinel PPK ground-truth position frame",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "vehicleId",
+    "timestampNs",
+    "frameId",
+    "position",
+    "provenance"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "sentinel-position-truth/1.0"
+    },
+    "vehicleId": {
+      "type": "string"
+    },
+    "timestampNs": {
+      "type": "string",
+      "pattern": "^[0-9]+$"
+    },
+    "frameId": {
+      "const": "MUN_FRL_QUARRY1_ENU"
+    },
+    "position": {
+      "type": "object",
+      "required": [
+        "eastM",
+        "northM",
+        "upM"
+      ],
+      "properties": {
+        "eastM": {
+          "type": "number"
+        },
+        "northM": {
+          "type": "number"
+        },
+        "upM": {
+          "type": "number"
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "sourceKind",
+        "instrument"
+      ],
+      "properties": {
+        "sourceKind": {
+          "const": "MEASURED"
+        },
+        "instrument": {
+          "type": "string"
+        },
+        "statedAccuracyM": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

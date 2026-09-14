@@ -1,0 +1,116 @@
+{
+  "scenario": "Pulau Ubin littoral perimeter · four low-level tracks",
+  "recordedAt": "2026-09-09T05:04:27.817Z",
+  "responses": [
+    {
+      "kind": "launchpoints",
+      "status": 200,
+      "body": {
+        "message": "These are sandbox launch points for integration testing only — not real sites. Each one corresponds to an interceptor battery shown live at /sim/?livesandbox=true — pass its `box_id` in POST /sandbox/addtarget to route a detection there.",
+        "status": "ok",
+        "launchpoints": [
+          {
+            "active": true,
+            "description": "Sandbox Site North (Woodlands)",
+            "long": 103.7857,
+            "box_id": "box_1",
+            "lat": 1.4478,
+            "elevation_m": 5
+          },
+          {
+            "active": true,
+            "description": "Sandbox Site Central (Katong)",
+            "long": 103.8686,
+            "box_id": "box_2",
+            "lat": 1.3157,
+            "elevation_m": 8
+          },
+          {
+            "active": true,
+            "description": "Sandbox Site East (Changi Point)",
+            "long": 103.95,
+            "box_id": "box_3",
+            "lat": 1.265,
+            "elevation_m": 4
+          }
+        ]
+      }
+    },
+    {
+      "kind": "target",
+      "label": "LIT01",
+      "status": 200,
+      "body": {
+        "message": "Target accepted and broadcast to every live viewer of /sim/?livesandbox=true — a Shahed just spawned near Sandbox Site East (Changi Point) (box_3) and our interceptor is engaging it now.",
+        "status": "ok",
+        "received": {
+          "altitude_d": 7,
+          "azimuth_d": 20,
+          "box_id": "box_3",
+          "direction_d": 205,
+          "distance_m": 1500,
+          "label": "LIT01",
+          "speed_m_s": 28,
+          "unix_timestamp": 1788930184
+        }
+      }
+    },
+    {
+      "kind": "target",
+      "label": "LIT02",
+      "status": 200,
+      "body": {
+        "message": "Target accepted and broadcast to every live viewer of /sim/?livesandbox=true — a Shahed just spawned near Sandbox Site East (Changi Point) (box_3) and our interceptor is engaging it now.",
+        "status": "ok",
+        "received": {
+          "altitude_d": 6,
+          "azimuth_d": 335,
+          "box_id": "box_3",
+          "direction_d": 155,
+          "distance_m": 1350,
+          "label": "LIT02",
+          "speed_m_s": 25,
+          "unix_timestamp": 1788930189
+        }
+      }
+    },
+    {
+      "kind": "target",
+      "label": "LIT03",
+      "status": 200,
+      "body": {
+        "message": "Target accepted and broadcast to every live viewer of /sim/?livesandbox=true — a Shahed just spawned near Sandbox Site Central (Katong) (box_2) and our interceptor is engaging it now.",
+        "status": "ok",
+        "received": {
+          "altitude_d": 8,
+          "azimuth_d": 95,
+          "box_id": "box_2",
+          "direction_d": 275,
+          "distance_m": 1450,
+          "label": "LIT03",
+          "speed_m_s": 31,
+          "unix_timestamp": 1788930193
+        }
+      }
+    },
+    {
+      "kind": "target",
+      "label": "LIT04",
+      "status": 200,
+      "body": {
+        "message": "Target accepted and broadcast to every live viewer of /sim/?livesandbox=true — a Shahed just spawned near Sandbox Site North (Woodlands) (box_1) and our interceptor is engaging it now.",
+        "status": "ok",
+        "received": {
+          "altitude_d": 5,
+          "azimuth_d": 175,
+          "box_id": "box_1",
+          "direction_d": 355,
+          "distance_m": 1250,
+          "label": "LIT04",
+          "speed_m_s": 23,
+          "unix_timestamp": 1788930196
+        }
+      }
+    }
+  ]
+}

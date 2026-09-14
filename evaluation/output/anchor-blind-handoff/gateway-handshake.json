@@ -1,0 +1,13 @@
+{
+  "protocol": "sentinel-sim",
+  "version": "1.0",
+  "scenarioId": "accuracy-evaluation",
+  "worldName": "real-uav-replay",
+  "coordinateFrame": "ENU",
+  "origin": {
+    "latDeg": 47.480313667,
+    "lngDeg": -53.009514108,
+    "elevationM": 36.7569
+  },
+  "note": "Origin is the reference position declared in the MUN-FRL quarry1 PPK file."
+}

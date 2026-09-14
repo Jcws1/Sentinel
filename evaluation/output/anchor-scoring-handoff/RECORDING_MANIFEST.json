@@ -1,0 +1,52 @@
+{
+  "format": "sentinel-anchor-handoff/1.1",
+  "source": {
+    "dataset": "MUN-FRL",
+    "sequence": "quarry1",
+    "platform": "DJI M600 hexacopter",
+    "licence": "CC BY 4.0",
+    "officialPage": "https://mun-frl-vil-dataset.readthedocs.io/en/latest/"
+  },
+  "files": [
+    {
+      "file": "uav-gps-cycle.gateway.ndjson",
+      "sha256": "6046d83fc3a2e3f87fdad1eef730e47c82de944a305515a144d7bbf2b2366ebe",
+      "bytes": 724629
+    },
+    {
+      "file": "uav-position-health.sidecar.ndjson",
+      "sha256": "01f72dacce3fa1a0ddfb97eb8bdbfecc5868364dfb456626c8ca6370c07aee96",
+      "bytes": 606546
+    },
+    {
+      "file": "uav-ground-truth.ppk.ndjson",
+      "sha256": "2a560b1d47825d28b4301cf652a7dcd9174f552af2ed52766a27df0c3bcc35a7",
+      "bytes": 377424
+    },
+    {
+      "file": "gateway-handshake.json",
+      "sha256": "4d568f6eaea4f4ae2abab9b52d68bc97e70b8755fe6d0bdc04047d45d84082d9",
+      "bytes": 344
+    },
+    {
+      "file": "README.md",
+      "sha256": "4878a5c101c4a8d322fd7acd477fcbbb5b91e841675b94697b09de95345a17bf",
+      "bytes": 2779
+    },
+    {
+      "file": "gateway-event.schema.json",
+      "sha256": "a3980d975e3f61a15fa49134309c601e46be5a95a1eee51a5fc62db9a8e40173",
+      "bytes": 2149
+    },
+    {
+      "file": "position-health-sidecar.schema.json",
+      "sha256": "c5202dde0b4d651665d05d9a232ecf47b12fd94063ed8033a7b60449c52e3af1",
+      "bytes": 1602
+    },
+    {
+      "file": "ground-truth.schema.json",
+      "sha256": "29bc253ae1718ec3003fa48a1f30d33b086d1871be1df6742c1649a7aaf62c1e",
+      "bytes": 1248
+    }
+  ]
+}

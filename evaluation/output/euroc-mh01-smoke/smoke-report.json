@@ -1,0 +1,84 @@
+{
+  "warning": "Pipeline smoke test only: the trajectory is measured real UAV motion, but candidate errors and GNSS degradation are modelled.",
+  "dataset": {
+    "name": "EuRoC MAV",
+    "sequence": "MH_01_easy",
+    "officialLandingPage": "https://doi.org/10.3929/ethz-b-000690084",
+    "acquiredFrom": "https://sourceforge.net/projects/kimera-vio/files/dataset/MH_01_easy/mav0/state_groundtruth_estimate0/data.csv/",
+    "sha256": "aae2d7c5684724c8afe364d2fd8499a6ed77a9169adf03736531f67d8e7b2117",
+    "originalRows": 36382,
+    "evaluatedRows": 1820
+  },
+  "nominal": {
+    "inputEstimates": 1820,
+    "truthSamples": 1820,
+    "alignedSamples": 1820,
+    "unmatchedEstimates": 0,
+    "outOfOrderEstimates": 0,
+    "duplicateSequences": 0,
+    "horizontal": {
+      "median": 0.4796368052326532,
+      "rmse": 0.4800381097880136,
+      "p95": 0.6540920075050543,
+      "p99": 0.6751889809480278,
+      "max": 0.6799676215769247
+    },
+    "vertical": {
+      "median": 0.17829410226274756,
+      "rmse": 0.1773437154108045,
+      "p95": 0.24921796485081177,
+      "p99": 0.2499626263625463,
+      "max": 0.24999957923196003
+    },
+    "error3d": {
+      "median": 0.5121742725698426,
+      "rmse": 0.5117493334090017,
+      "p95": 0.6775810612561716,
+      "p99": 0.7089867897097684,
+      "max": 0.7190916363775076
+    },
+    "thresholdPassRate": {
+      "5m": 1,
+      "10m": 1,
+      "25m": 1
+    },
+    "reportedUncertaintyCoverage": 1,
+    "overconfidentSamples": 0
+  },
+  "degraded": {
+    "inputEstimates": 1820,
+    "truthSamples": 1820,
+    "alignedSamples": 1820,
+    "unmatchedEstimates": 0,
+    "outOfOrderEstimates": 0,
+    "duplicateSequences": 0,
+    "horizontal": {
+      "median": 1.7246640147147783,
+      "rmse": 4.300593447696251,
+      "p95": 10.234714893612566,
+      "p99": 12.880996001741083,
+      "max": 13.095861066554196
+    },
+    "vertical": {
+      "median": 0.2992401926970705,
+      "rmse": 1.5276531701370468,
+      "p95": 3.5265078,
+      "p99": 3.9769828162207985,
+      "max": 4.119175
+    },
+    "error3d": {
+      "median": 1.8786163423244377,
+      "rmse": 4.563861107724214,
+      "p95": 10.848790569100558,
+      "p99": 13.476790810419086,
+      "max": 13.709328139459032
+    },
+    "thresholdPassRate": {
+      "5m": 0.7538461538461538,
+      "10m": 0.945054945054945,
+      "25m": 1
+    },
+    "reportedUncertaintyCoverage": 0.9296703296703297,
+    "overconfidentSamples": 128
+  }
+}

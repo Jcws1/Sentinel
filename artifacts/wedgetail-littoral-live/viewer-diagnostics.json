@@ -1,0 +1,106 @@
+[
+  {
+    "kind": "requestfailed",
+    "url": "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js",
+    "error": "net::ERR_CERT_AUTHORITY_INVALID"
+  },
+  {
+    "kind": "console",
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+  },
+  {
+    "kind": "requestfailed",
+    "url": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js",
+    "error": "net::ERR_CERT_AUTHORITY_INVALID"
+  },
+  {
+    "kind": "console",
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+  },
+  {
+    "kind": "requestfailed",
+    "url": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js",
+    "error": "net::ERR_CERT_AUTHORITY_INVALID"
+  },
+  {
+    "kind": "console",
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+  },
+  {
+    "kind": "requestfailed",
+    "url": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js",
+    "error": "net::ERR_CERT_AUTHORITY_INVALID"
+  },
+  {
+    "kind": "console",
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+  },
+  {
+    "kind": "requestfailed",
+    "url": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/Pass.js",
+    "error": "net::ERR_CERT_AUTHORITY_INVALID"
+  },
+  {
+    "kind": "console",
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+  },
+  {
+    "kind": "requestfailed",
+    "url": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js",
+    "error": "net::ERR_CERT_AUTHORITY_INVALID"
+  },
+  {
+    "kind": "console",
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+  },
+  {
+    "kind": "requestfailed",
+    "url": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js",
+    "error": "net::ERR_CERT_AUTHORITY_INVALID"
+  },
+  {
+    "kind": "console",
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+  },
+  {
+    "kind": "requestfailed",
+    "url": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/MaskPass.js",
+    "error": "net::ERR_CERT_AUTHORITY_INVALID"
+  },
+  {
+    "kind": "console",
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+  },
+  {
+    "kind": "requestfailed",
+    "url": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js",
+    "error": "net::ERR_CERT_AUTHORITY_INVALID"
+  },
+  {
+    "kind": "console",
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+  },
+  {
+    "kind": "requestfailed",
+    "url": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js",
+    "error": "net::ERR_CERT_AUTHORITY_INVALID"
+  },
+  {
+    "kind": "console",
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_CERT_AUTHORITY_INVALID"
+  },
+  {
+    "kind": "pageerror",
+    "text": "THREE is not defined"
+  }
+]

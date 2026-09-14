@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Sentinel evaluation position-health sidecar",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "vehicleId",
+    "sequence",
+    "sourceTimestampNs",
+    "frame",
+    "position",
+    "navigationSource",
+    "fixStatus",
+    "quality",
+    "provenance"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "sentinel-position-evaluation/1.0"
+    },
+    "vehicleId": {
+      "type": "string"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "sourceTimestampNs": {
+      "type": "string",
+      "pattern": "^[0-9]+$"
+    },
+    "navigationSource": {
+      "enum": [
+        "GNSS",
+        "DEAD_RECKONING"
+      ]
+    },
+    "fixStatus": {
+      "enum": [
+        "VALID",
+        "DEGRADED",
+        "UNAVAILABLE"
+      ]
+    },
+    "position": {
+      "$ref": "#/$defs/enu"
+    },
+    "quality": {
+      "type": "object"
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "dataset",
+        "sequence",
+        "sourceRecord",
+        "sourceKind"
+      ],
+      "properties": {
+        "sourceKind": {
+          "enum": [
+            "MEASURED",
+            "MODELLED"
+          ]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "enu": {
+      "type": "object",
+      "required": [
+        "eastM",
+        "northM",
+        "upM"
+      ],
+      "properties": {
+        "eastM": {
+          "type": "number"
+        },
+        "northM": {
+          "type": "number"
+        },
+        "upM": {
+          "type": "number"
+        }
+      }
+    }
+  }
+}

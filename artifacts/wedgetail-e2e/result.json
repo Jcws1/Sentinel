@@ -1,0 +1,8 @@
+{
+  "completedAt": "2026-09-09T04:03:51.227Z",
+  "flow": "Thales simulator -> Sentinel tasking -> Wedgetail sandbox",
+  "taskId": "TASK-WGT-01",
+  "trackId": "THALES-01",
+  "statusPanel": "WEDGETAIL\nCOMPLETE",
+  "eventText": "box_1 accepted THALES01"
+}
