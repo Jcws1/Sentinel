@@ -34,7 +34,11 @@ class TaskChanges(Model):
     removes: list[Id]
 
 
+from app.commands.contracts import InteractiveRun
+
+
 class WorldChanges(Model):
+    interactive: InteractiveRun | None = None
     mission: Mission
     entities: EntityChanges
     tracks: TrackChanges
@@ -47,7 +51,7 @@ class WorldChanges(Model):
 
 class SnapshotMessage(Model):
     type: Literal["snapshot"]
-    schema_version: Literal["1.0"]
+    schema_version: Literal["1.1"]
     mission_id: Id
     stream_epoch: Id
     sequence: Sequence
@@ -56,7 +60,7 @@ class SnapshotMessage(Model):
 
 class DeltaMessage(Model):
     type: Literal["delta"]
-    schema_version: Literal["1.0"]
+    schema_version: Literal["1.1"]
     mission_id: Id
     stream_epoch: Id
     sequence: Sequence
@@ -70,7 +74,7 @@ class DeltaMessage(Model):
 
 class HeartbeatMessage(Model):
     type: Literal["heartbeat"]
-    schema_version: Literal["1.0"]
+    schema_version: Literal["1.1"]
     mission_id: Id
     stream_epoch: Id
     sequence: Sequence
@@ -79,7 +83,7 @@ class HeartbeatMessage(Model):
 
 class ResyncRequiredMessage(Model):
     type: Literal["resync-required"]
-    schema_version: Literal["1.0"]
+    schema_version: Literal["1.1"]
     mission_id: Id
     reason: str
 

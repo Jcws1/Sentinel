@@ -284,7 +284,13 @@ export function App({
         </button>
         <span className="activity-tooltip" role="tooltip">
           {item.label}
-          <span>{view ? 'View only' : 'Not implemented'}</span>
+          <span>
+            {view
+              ? item.id === 'tracks'
+                ? 'Entities and demo controls'
+                : 'View only'
+              : 'Not implemented'}
+          </span>
         </span>
       </div>
     );
@@ -329,7 +335,7 @@ export function App({
           <aside className="views-sidebar" aria-label="Workspace views">
             <div className="sidebar-heading">
               <span>Views</span>
-              <span className="constraint-tag">VIEW ONLY</span>
+              <span className="constraint-tag">WORKBENCH</span>
             </div>
             <div className="view-list">
               {viewIds

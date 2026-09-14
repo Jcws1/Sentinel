@@ -95,7 +95,36 @@ export function EntitySummary({
           </div>
         </>
       )}
+      {row && frame?.interactive && (
+        <details className="control-binding">
+          <summary>Demo control binding</summary>
+          {frame.interactive.controls
+            .filter((c) => c.entityId === id)
+            .map((c) => (
+              <div key={c.assetId}>
+                <p>{c.reason}</p>
+                <p>Control source: {c.sourceId}</p>
+                <p>Control Track: {c.controlTrackId ?? 'Unavailable'}</p>
+                <p>Reference: {c.positionReference}</p>
+              </div>
+            ))}
+          {!frame.interactive.controls.some((c) => c.entityId === id) && (
+            <p>
+              No Asset control grant. Affiliation does not confer authority.
+            </p>
+          )}
+        </details>
+      )}
       <div className="entity-summary-actions">
+        <button
+          className="text-control"
+          onClick={() => {
+            runtime.setBrowserMode('fleet');
+            bridge.open('tracks');
+          }}
+        >
+          Open Fleet
+        </button>
         <button
           className="text-control"
           onClick={() =>

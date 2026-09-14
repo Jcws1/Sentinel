@@ -25,6 +25,7 @@ const child = spawn(
     env: {
       ...process.env,
       SENTINEL_FIXTURES: '1',
+      SENTINEL_DEMO: '1',
       SENTINEL_DB_PATH: database,
     },
   },

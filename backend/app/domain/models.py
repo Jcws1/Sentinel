@@ -11,30 +11,8 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, JsonValue, fi
 from pydantic.alias_generators import to_camel
 
 
-def calendar_instant(value: str) -> str:
-    datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%fZ")
-    return value
-
-
-Id = Annotated[str, Field(min_length=1, max_length=256, pattern=r"^[^\s\x00-\x1f\x7f](?:[^\x00-\x1f\x7f]*[^\s\x00-\x1f\x7f])?$")]
-UtcInstant = Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$"), AfterValidator(calendar_instant)]
-Finite = Annotated[float, Field(allow_inf_nan=False)]
-Sequence = Annotated[int, Field(ge=0, le=9007199254740991)]
-Longitude = Annotated[float, Field(ge=-180, le=180, allow_inf_nan=False)]
-Latitude = Annotated[float, Field(ge=-90, le=90, allow_inf_nan=False)]
-
-
-class Model(BaseModel):
-    model_config = ConfigDict(extra="forbid", alias_generator=to_camel, populate_by_name=True,
-                              frozen=True, strict=True, allow_inf_nan=False, revalidate_instances="always")
-
-    @field_validator("extensions", check_fields=False)
-    @classmethod
-    def finite_json_extensions(cls, value):
-        # Pydantic's recursive JsonValue accepts non-finite floats independently
-        # of the outer model's allow_inf_nan setting.
-        json.dumps(value, allow_nan=False)
-        return value
+from app.domain.base import Model, Id, UtcInstant, Finite, Sequence, Longitude, Latitude
+from app.commands.contracts import InteractiveRun
 
 
 class Altitude(Model):
@@ -264,7 +242,7 @@ class SentinelEvent(Model):
     extensions: dict[str, JsonValue] = Field(default_factory=dict)
 
 
-class WorldFrame(Model):
+class LegacyWorldFrame(Model):
     schema_version: Literal["1.0"]
     mission: Mission
     frame_id: Id
@@ -325,6 +303,33 @@ class WorldFrame(Model):
             refs(event.task_ids, self.tasks, "event task")
         if any(a >= b for a, b in zip(sequences, sequences[1:])):
             raise ValueError("event sequences must be strictly increasing")
+        return self
+
+
+class WorldFrame(LegacyWorldFrame):
+    schema_version: Literal["1.1"]
+    interactive: InteractiveRun | None = None
+
+    @model_validator(mode="after")
+    def interactive_integrity(self):
+        run = self.interactive
+        if run is None:
+            return self
+        if run.mission_id != self.mission.id:
+            raise ValueError("interactive mission mismatch")
+        seen = set()
+        for control in run.controls:
+            asset = self.assets.get(control.asset_id)
+            track = self.tracks.get(control.control_track_id) if control.control_track_id else None
+            if control.asset_id in seen or asset is None or asset.entity_id != control.entity_id:
+                raise ValueError("invalid or duplicate control Asset binding")
+            seen.add(control.asset_id)
+            if (control.mission_id, control.executor_id, control.source_id, control.grant_id) != (run.mission_id, run.executor_id, run.source_id, run.grant_id):
+                raise ValueError("control authority mismatch")
+            if control.control_track_id and (track is None or track.entity_id != control.entity_id or track.source.id != run.source_id or track.source.kind != "simulation" or track.source.mode != "simulated"):
+                raise ValueError("control Track/source binding mismatch")
+        if run.last_report_at and run.last_report_at > self.recorded_at:
+            raise ValueError("source report is newer than the frame")
         return self
 
 

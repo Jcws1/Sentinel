@@ -5,6 +5,7 @@ one frame-effective instant use highest commit sequence. Revisions of the same
 track/source/series/sample instant also use highest sequence, without removing
 missing-observation boundaries. A 30 s sample gap is a presentation break only.
 """
+from app.world.serialization import read_frame
 import json
 from datetime import datetime, timedelta
 from typing import Literal
@@ -66,7 +67,7 @@ def project_history(anchor: WorldFrame, entity_id: str, window_seconds: int, fra
     # revisions retain deletion/staleness as well as positions.
     revisions = {}
     for text in frame_texts:
-        frame = WorldFrame.model_validate_json(text)
+        frame = read_frame(text)
         previous = revisions.get(frame.effective_at)
         if previous is None or previous.sequence < frame.sequence:
             revisions[frame.effective_at] = frame

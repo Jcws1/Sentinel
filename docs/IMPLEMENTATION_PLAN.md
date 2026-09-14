@@ -1,7 +1,9 @@
 # Sentinel v3 — implementation plan and delivery status
 
-Status: Phase 3B completed and verified within its bounded scope, ready for user review; substantial map/continuity work brought forward from Phase 4. No subsequent phase is authorised by this document.
-Originally reviewed: 10 September 2026. Revised: 13 September 2026.
+Status: Phase 3B remains complete within its bounded scope. M1.1 authority/contracts/repeatable run entry is complete under the specific 14 September user implementation request; operator acceptance and required checks pass, and the final independent implementation review scores 9.14/10 with no unresolved material findings. Stop for user review after M1.1. M1.2–M1.4 and the retained Phase 5 compatibility work remain deferred. [M1.1 implementation evidence](m1.1/REVIEW.md).
+Originally reviewed: 10 September 2026. Revised: 14 September 2026.
+
+**Revision note — 2026-09-14:** incorporate the reviewed software-only Fleet, movement and operator-declared notional encounter proposal as M1 in §10. Reconcile command/source authority, run creation, paused-clock expiry, atomic outcomes and UI acceptance with the existing architecture. Retain completed-phase evidence and outstanding Phase 4–9 obligations; keep the external Phase 5 contract separate. Neither source specification is changed. Proposal review scored 8.64 then 9.16/10 after correcting paused-run expiry, accepted-work lease semantics and repeatable run creation; those scores assess the proposal, not implemented software or simulation validity.
 
 **Revision note — 2026-09-13:** reconcile the original proposal with the implemented shell, authoritative recording runtime, Phase 3A/3B and approved map-service, regional, attribution and renderer-retention refinements. Current status and evidence are in §10; retained design sketches are explicitly historical. Neither source specification is changed. [Phase 3B review](phase3b/REVIEW.md).
 
@@ -16,6 +18,10 @@ Use a small monorepo with a React/TypeScript/Vite frontend and a Python/FastAPI/
 Use Zustand vanilla stores, direct MapLibre/Cesium APIs, semantic CSS tokens with Tailwind, selected Radix primitives, Lucide and TanStack Table. FlexLayout React 0.10.8 is selected and implemented; its model is the sole docking authority. TanStack Table 8.21.3 supplies the Phase 3B browser. ECharts remains for future analytics (the Phase 0 experiment is isolated). No custom docking engine, Redux, TanStack Query, deck.gl, plugin runtime or generic event bus is needed.
 
 The user's requested scope makes tabs, splits, basic replay, and one pop-out explicit deliverables, even though section 43 of the product specification places some in its optional tier. Implement recording and adapter contracts early; finish their UI later. Deferring the underlying contracts until the end would risk rebuilding all the views.
+
+**Next recommendation:** deliver **M1 — Interactive synthetic fleet demonstration** before the retained Phase 5 compatibility slice. M1 provides the complete operator workflow: create a synthetic run → inspect friendly/opposing entities → select controllable assets → request movement → observe execution → explicitly initiate a notional encounter → inspect its outcome. M1 is planned, not implemented. It is compatible with product §2.1's macro-level command intent and does not introduce detailed aircraft controls, automatic pursuit, pathfinding or physical dispatch.
+
+The existing Phase 5 describes the external batch resolver, compatibility adapter, lifecycle acknowledgements and counter-UAS controls/details. It does not specify the movement executor, destination authoring or complete Fleet control UI needed here. The external specification's §2.1 claim of existing movement is historical context, not current v3 delivery evidence; [Phase 3B](phase3b/REVIEW.md) and the current mission API establish the present boundary. M1's one-pair **Notional mutual loss v1** is an explicit software state-transition rule, not external conformance: external §7's golden `MUTUAL_EFFECT` leaves both drones `ACTIVE` at health 60. Preserve that fixture and the submitted contract unchanged.
 
 ## 2. Contradictions, gaps, and decisions
 
@@ -37,6 +43,11 @@ The user's requested scope makes tabs, splits, basic replay, and one pop-out exp
 | Map/imagery/terrain/building sources unspecified | Configured providers with attribution and a tested failure fallback. Primary urban demo plus Mojave and tropical smoke fixtures. | Accounts, coverage, licenses, network access and vertical data must be checked early. |
 | Scheduling semantics of `execute_at` unspecified | Treat as earliest allowed sample time; evaluate submitted batches synchronously under the published operation. | Do not create a wall-clock scenario scheduler by implication. |
 | Delivery time, team capacity, target hardware unspecified | Use ordered, acceptance-gated phases rather than invented date estimates. | Adopt provisional UI performance budgets below and validate on the demo laptop. |
+| Fleet membership, friendly affiliation and command authority differ | Fleet is a browser mode over explicitly managed Entity/Asset roles. A separate backend grant binds each commandable Asset to an executor and control telemetry Track/source. | The displayed-track selector and affiliation never choose a command destination or establish permission. |
+| Interactive movement versus external simulation lifecycle | M1 owns explicit movement/encounter intents and its interactive run controls; Phase 5 retains the submitted batch and lifecycle contract. | No repeated START or hidden HOLD/RESUME loop to impersonate a streaming movement API. Initial integrations use separate missions/runs and one writer per mission. |
+| Mutual effect versus non-operational outcome | Preserve the external golden result; use a separately versioned, visibly notional M1 rule for operator-declared pair loss. | No probability, physical-effect or intercept-fidelity claim; current positions are inputs, not proof of proximity or clearance. |
+| Paused effective time versus command expiry | Move/Encounter use reviewed running-frame expiry; lifecycle, control and cancellation use fresh backend-issued intent evidence independent of the paused frame's age. | Start/Resume/Cancel/End must remain usable after a long pause; delayed obsolete requests still reject. |
+| Lost browser lease versus accepted execution | Current lease gates new admission. Expiry alone does not revoke an already accepted execution; explicit cancellation/revocation, run state, epoch and applicable deadlines remain authoritative. | Navigation, pane disposal or a lost socket cannot silently cancel accepted work. |
 
 ### Submitted simulation contract: preserve text, document interpretation
 
@@ -57,7 +68,7 @@ These gaps need a small compatibility decision record/organiser clarification, n
 
 ## 3. Repository boundaries and original layout sketch
 
-The tree below is the original architectural sketch, not a scaffold checklist. Actual wire authority is `backend/app/domain/models.py` plus `world/contracts.py`; storage is `recording/sqlite_repository.py`. Layout belongs to `features/workspace/workspaceBridge.ts` and FlexLayout, not a second Zustand layout store. Phase 3B adds `recording/history.py`, `missions/observation_fixture.py`, `world/{entityRows,observedHistory,observedSegments}.ts` and `features/entities/*`. Replay/commands/analytics paths remain deferred.
+The tree below is the original architectural sketch, not a scaffold checklist. Actual wire authority is `backend/app/domain/models.py` plus `world/contracts.py`; storage is `recording/sqlite_repository.py`. Layout belongs to `features/workspace/workspaceBridge.ts` and FlexLayout, not a second Zustand layout store. Phase 3B adds `recording/history.py`, `missions/observation_fixture.py`, `world/{entityRows,observedHistory,observedSegments}.ts` and `features/entities/*`. Commands are planned in M1; replay and analytics remain later work. M1's proposed modules and contract migration are listed in §10 rather than represented as existing files in this historical tree.
 
 ```text
 frontend/
@@ -273,6 +284,8 @@ No duplicate mutable position on Asset or Entity. The implemented displayed-trac
 
 `Track.state` describes observation quality, `Entity.condition` physical/functional condition, `Entity.presence` observed presence, and `Asset.availability` resource availability. These concepts must not collapse into one overloaded status. A disabled but observed vehicle can still have an observed track. A removed entity remains inspectable in recording history.
 
+**M1 addition, not implemented:** add explicit Asset control/source bindings and capabilities, correlated command/execution records and typed interactive-run/encounter details. Keep these outside the historical type sketch. Backend models, generated schemas and runtime validators must evolve together; an Asset's availability or friendly affiliation alone is never authorization. A single Entity may have role records, but the Fleet row and group member represent that Entity once; ambiguous control bindings must be resolved explicitly, not arbitrated by the display selector. Current `SelectionState.items` does not establish implemented multi-selection: current picking replaces the primary selection. Group actions, all-member highlighting and condition filtering are new M1 work.
+
 ```ts
 type ObjectRef = { kind: 'entity' | 'track' | 'asset' | 'zone' | 'event' | 'task'; id: Id };
 interface SelectionState {
@@ -332,11 +345,13 @@ interface WorkspaceState {
 }
 ```
 
-Workspace types are a minimal view registry plus an isolated library layout payload, not another competing layout tree. Docking runtime objects remain outside serializable stores. Selection resolves Track/Asset references to the same Entity for highlighting. An inspector pins entity identity; selection may subsequently change without repurposing its tab. Missing or filtered selections are reported, not silently cleared. A mission switch atomically resets mission-scoped selection, playback, cached frames and old subscriptions; mission-specific inspectors close or show explicit context loss.
+Workspace types are a minimal view registry plus an isolated library layout payload, not another competing layout tree. Docking runtime objects remain outside serializable stores. Selection resolves Track/Asset references to the same Entity for highlighting. An inspector pins entity identity; selection may subsequently change without repurposing its tab. Missing or filtered selections are reported, not silently cleared. A mission switch atomically resets mission-scoped selection, playback, cached frames and old subscriptions; implemented pinned inspectors retain their old identity and show explicit inactive-mission/unavailable context. In M1, switching also discards unsubmitted drafts and stops renewal of the old mission's control lease, but does not cancel accepted backend execution.
 
 Typed counter-UAS metadata lives in `modules/counter-uas`, with backend equivalents owned by the adapter: e.g. namespace `sentinel.simulation.v1` holds class, reported health/status, run ID and audit reference. Core treats it as an opaque extension. Health is neither a universal field nor a readiness formula.
 
 ## 5. Exact adapter responsibility
+
+This section governs the **external Phase 5 compatibility adapter**, not M1's interactive executor. Preserve the submitted batch semantics, MSL inputs, profiles and golden results. M1's operator-declared encounter rule does not reuse external health math or redefine `MUTUAL_EFFECT` as loss. Any later bridge needs an explicit source/run coordinator and reviewed sample, altitude and continuation semantics before the external resolver can feed an interactive run.
 
 ### Processing path
 
@@ -379,20 +394,25 @@ Build each timestamp frame by joining validated input and output; write all simu
 | Authority | Backend Mission, role records, run state, command journal, events, recordings | Validated commands/source ingestion only; commit then distribute. |
 | Client operational cache | `worldStore`: latest live frame, connection metadata; bounded historical cache | Only decoded backend snapshots/deltas and replay responses write here. |
 | Client session | `sessionStore`: mission context, selection, time cursor, filters, overlays | Explicit user actions; replay seek never writes to live frame. |
+| Shared action runtime (M1, planned) | One session-owned command draft, pending request identities and reconciliation; authority credentials remain private runtime/session data | UI drafts cannot alter world state. Receipts give request feedback; committed frame projections supply execution/outcome state. No per-pane command owner or lease-renewal timer. |
 | Workspace/UI | WorkspaceBridge plus FlexLayout: view registry, active module, dock layout, ephemeral labels and renderer pool | FlexLayout is the only layout authority; renderer resources never enter serialized operational state. |
 | Renderer runtime | Adapter instances, GPU objects, camera handles, hover hit results | Local disposable handles; emit intents, never mutate world. |
 
-Implemented REST: `GET /api/missions`, `GET /api/missions/{id}/world`, `GET /api/missions/{id}/events?after=...`, `GET /api/recordings/{id}` and `GET /api/missions/{id}/observed-history?entityId=...&frameId=...&windowSeconds=60`. The last endpoint returns bounded observed samples anchored to an immutable committed frame, not replay playback. Frame-at-time lookup, general replay series, detailed event payloads and `POST /api/compat/simulation/v1/resolve` remain proposed. Domain command routes will be added only for supported backend actions; the frontend will not implement simulation lifecycle rules.
+Implemented REST: `GET /api/missions`, `GET /api/missions/{id}/world`, `GET /api/missions/{id}/events?after=...`, `GET /api/recordings/{id}` and `GET /api/missions/{id}/observed-history?entityId=...&frameId=...&windowSeconds=60`. The last endpoint returns bounded observed samples anchored to an immutable committed frame, not replay playback. The opt-in `POST /api/fixtures/{id}/advance` is a deterministic test interface, not a simulation run or movement command. M1 adds supported command/run/outcome routes with generated contracts. Frame-at-time lookup, general replay series and `POST /api/compat/simulation/v1/resolve` remain later proposals. The frontend requests actions but does not implement simulation lifecycle rules.
 
 WebSocket `GET /api/missions/{id}/stream` always starts with a complete atomic snapshot, then typed atomic deltas carrying mission, epoch, sequence and predecessor identity. Snapshot capture and queued subscription registration share the mission lock. Bounded queues request resynchronization on overflow; every reconnect resnapshots. There is no resumable backlog. Heartbeats report the last sequence actually sent on that socket. Cache removal remains distinct from Entity.presence=removed; use the generated stream schema for exact fields.
 
-One WebSocket per session runtime, not per pane. Ignore duplicate sequence numbers; an epoch change or sequence gap triggers resnapshot. Display stale/disconnected status and inhibit new simulation commands until reconnected. An unknown command outcome is reconciled using the same command ID, not a new request that might repeat effects. Cancel requests on mission change and tag replay seeks with generations to discard slow obsolete responses.
+One WebSocket per session runtime, not per pane. Ignore duplicate sequence numbers; an epoch change or sequence gap triggers resnapshot. Display stale/disconnected status and inhibit new Move/Encounter admission until a current verified frame and source are available. Control/lifecycle/cancellation require fresh authoritative intent evidence rather than trusting an old displayed frame. An unknown command outcome is reconciled using the same command ID, not a new request that might repeat effects. On mission change, abort obsolete client reads, discard drafts and guard callbacks by generation; cancelling an HTTP wait is not cancelling an accepted backend command. Tag replay seeks with generations to discard slow obsolete responses.
 
 The shared runtime presentation is the only view-facing world read path. Live and historical frame caches remain separate. Future replay must retain the last complete frame during seeking, continue live ingestion separately and provide Return to live; seeking/playback is not implemented. Phase 3B adds one selected-entity history owner and eight immutable cached results shared across panes. At most one read is in flight; newer frames coalesce. An older compatible result is displayed only with its actual through-time, trimmed to the current window and never beyond presented time. Identity/epoch changes cancel obsolete work.
+
+M1 preserves that presentation boundary: a newer HTTP execution result cannot silently overwrite conditions or positions in an older presented frame. It can report receipt or “awaiting world sync”; frame-keyed projections and frame-anchored detail reads supply operational state. Group selection retains the one primary-entity history owner. Run/command journal events recorded while paused may share effective time but have distinct recorded time/sequence; playback must retain their order. UTC+8 wall time, source simulation time, report-receipt age and replay cursor are separate clocks.
 
 Initially use discrete frame playback for correctness. Later position interpolation may operate in the shared presentation layer using bracketed samples and a common clock; condition, presence, health, events, classifications and assignments always change discretely. No renderer's clock may advance mission time. Do not synthesize predictions from future replay data. Persist initial world state, role metadata, subsequent frames and event references so replay reconstructs more than drone positions. SQLite indexed checkpoints/frames are sufficient; no Kafka or event-sourcing framework.
 
 ## 7. Renderer adapters and continuity
+
+The interface sketch below expresses the boundary, not the exact implemented renderer API. M1 will add only the group-pick, destination-pick, condition, requested-target and outcome-annotation contracts needed for its working slice; no command execution or canonical state enters either renderer.
 
 ```text
 backend → cache → presentation frame + session filters/overlays
@@ -433,6 +453,8 @@ Provider configuration describes imagery/style/terrain/3D Tiles URLs, attributio
 
 Current environmental choices: local Protomaps/ESA WorldCover vector and Mapterhorn DEM archives with local glyphs/sprites for Tactical; optional MapTiler Cloud; Cesium ion standard imagery/terrain/OSM buildings, or direct Google photorealistic tiles as an alternative base without duplicate ground/buildings. Required logos/dynamic credits stay alongside content; full acknowledgements are under Settings → Credits. [Setup](MAP_SERVICES_SETUP.md), [regional review](map-refinement/REVIEW.md), [attribution](map-attribution/REVIEW.md). Singapore/nearby Southeast Asia presentation bounds are 99°E–105.5°E, 1.5°S–7°N, span 150 m–1,100 km, applied only to Synthetic Tactical and Synthetic Observations. They change neither domain coordinates/eligibility nor source resolution and do not guarantee a tile-request boundary. Alpha/Bravo remain unchanged.
 
+M1 will give its new Singapore synthetic template a replaceable regional presentation profile using the existing configuration boundary. Existing fixture definitions remain intact. Any small movement-model extent is separately declared and validated; map navigation bounds do not become movement or encounter eligibility rules. Explicit ellipsoid source coordinates avoid an undisclosed MSL conversion in M1, but do not complete Phase 4 geoid/AGL acceptance or make basemap geometry suitable for route clearance.
+
 ## 8. Workspace library evaluation
 
 The original comparison below informed the completed Phase 0 spike. FlexLayout React 0.10.8 was selected; see [Phase 0 acceptance](phase0-review.md). Golden Layout is no longer a pending choice. The isolated workspace harness proved tab/split/pop-out feasibility separately from operational state.
@@ -461,6 +483,8 @@ If Golden Layout wins, independent child runtimes each derive cache from the bac
 Approved layout: compact logo/name plus mission breadcrumb and right-aligned UTC+8 wall clock, narrow Activity Bar, workspace tabs and compact connection status. Wall time remains distinct from mission/replay time. There is no separate mission strip or redundant pane heading. Tab context menus own Split/Open to Side/Close actions; existing tab close buttons remain. Tactical/3D, Select/Pan/Recenter and Layers remain contextual map tools. Monochrome chrome uses neutral selection; saturated color carries domain affiliation. Unimplemented modules remain unavailable. See [chrome refinement](chrome-refinement/REVIEW.md).
 
 Selection opens a compact summary with ID, affiliation, timestamp/staleness, source, altitude and any actually supplied speed/assignment. Open Details creates a tab. Provide keyboard entity browsing and focus-visible controls; affiliation uses shape and text as well as color. Define semantic tokens once for both engines, charts and chrome. Check 1440p/4K scaling and readable density at common display scaling settings.
+
+M1 adds an identifiable **Fleet mode in the existing Tracks workspace**, a compact shared command composer and bounded execution/outcome readouts. Fleet membership is a local browser scope over managed entities, not a shared affiliation filter that hides opponents on maps. Shared selection, search/filters and the new condition filter retain explicit scope and reset. Preserve compact summaries and pinned inspectors; do not add a permanent large Fleet panel or redesign navigation. Concrete workflow and condition/observation treatments are specified in §10/M1.
 
 Command Picture initial widgets: (1) present tracks by affiliation/classification, (2) managed resources by explicit availability including unknown, (3) recorded events over a selected time range. Titles state mission/time and whether filtering is applied. Do not label simulation health as fleet readiness or input presence as sensor detection confidence. Global mission totals and filtered counts must be visibly distinguished.
 
@@ -539,9 +563,194 @@ Dependencies below are incremental. Completed work is distinct from remaining ac
 - **Depends on:** Phase 3; provider decision from Phase 0.
 - **Risks:** WebGL memory, bad base URLs, height-reference mismatch, stale async mounts, missing urban geometry. Unqualified approximate height is not fidelity signoff.
 
+### M1 — Interactive synthetic fleet demonstration
+
+**Partially implemented: M1.1 complete and independently reviewed at 9.14/10. M1.2–M1.4 remain planned and are not authorised by the M1.1 request.** This extends the reviewed simulated-movement proposal into the smallest complete operator workflow, before the retained Phase 5 compatibility work. It uses existing Phase 3B and brought-forward map functionality; completing all outstanding Phase 4 fidelity/coverage requirements is not a prerequisite for the explicitly limited model below.
+
+**Operator acceptance:** create a synthetic run → inspect friendly/opposing entities → select one/group of controllable assets → request movement → observe execution → initiate a notional encounter → inspect its outcome. Backend-only completion does not pass this milestone.
+
+#### M1 scope and baseline capability gap
+
+The following table retains the reviewed planning baseline before M1.1. Delivered M1.1 status and evidence are recorded in its slice below; the remaining M1 additions are still planned.
+
+| Capability | Evidence before M1.1 | M1 addition |
+| --- | --- | --- |
+| Tactical/Cesium, affiliation symbols and independent cameras | Implemented in Phase 3A/3B and map refinements | Preserve resources, shared context, retention, recovery and attribution; supply an explicitly interactive synthetic source. |
+| Tracks browser, summaries and pinned inspectors | Implemented; one row per Entity and one selected displayed-track history | Fleet mode, group actions, control/execution information and inspectable outcome detail. |
+| Selection collection and Asset roles | Modeled, but picking currently replaces the primary selection and no command grant/executor binding exists | All-member highlighting and explicit Asset-to-executor/control-source binding. Friendly affiliation is not authority. |
+| Movement and interactive run UI/API | Absent; fixture advancement is a test interface | Destination authoring, admission, execution, cancellation and repeatable run creation/control. |
+| Encounter requests and resolution | Absent; external Phase 5 is deferred | One-pair operator-declared notional handler, request composer and correlated outcome. |
+| Non-operational condition | Generic Entity field exists; current scene carries staleness rather than condition | Both-renderer condition treatment and a new shared condition filter. |
+| Recording and generic events | Implemented; no interactive execution journal/checkpoint semantics | Durable receipts, execution/model identity and atomic recorded outcomes. Playback and analytics remain later work. |
+
+Use a **new, explicitly synthetic Singapore template**; do not rename or alter Alpha, Bravo, Tactical or Observations fixtures. Include enough authored cases to verify group movement, an opposing virtual entity, a friendly observation without a movement grant, and missing/stale input handling. These are test cases, not a fleet-size commitment. Initial opposition can remain stationary. Initial positions are authored, but losses and later positions arise from operator requests and current execution state, not a timed loss script or preauthored encounter sequence.
+
+The first encounter is **one friendly participant plus one opposing virtual entity**. Group movement is included; group encounter allocation/pairing, automatic approach and proximity-triggered resolution are not. The versioned rule **Notional mutual loss v1** explicitly declares both participants non-operational. No probability/health calibration, physical effect, collision or real-world prediction is implied. If automatic geographic convergence is required later, review a distinct eligibility/execution model rather than presenting this rule as one.
+
+#### M1 workbench and selection
+
+- **Entry:** Tracks Activity Bar → **All entities / Fleet** modes. An **Open Fleet** action from the selection summary opens/focuses the existing workbench item. Reuse TanStack Table, Entity rows and selectors; no second operational store or duplicated fleet table implementation.
+- **Fleet scope:** list explicitly managed Entities once, including unavailable assets. Label visible managed-Entity counts versus total managed Entities; Track/role counts are different. Fleet membership is table-local UI state, not a shared filter that hides opposing map symbols. Empty Fleet explains the absence of managed resources.
+- **Shared filters:** existing search/source/affiliation/classification/observation/presence/zone filters remain explicitly shared. Condition filtering is new and defaults to all conditions, retaining newly non-operational entities. Show filtered selection reasons and a reset; never recenter because of filters.
+- **Controls:** Fleet toolbar offers Move, Simulated encounter and execution-specific Cancel. Its Simulation menu offers New demo run, Acquire control, Start, Pause, Resume and End. Eligibility, pending requests and failures are visible, keyboard-accessible text; not only disabled-hover tooltips. Run controls do not move into the wall-clock header.
+- **Composer:** one shared draft, displayed in a compact normal workbench pane that can open to the side. Switching maps keeps that draft; starting/replacing one is explicit. Ordinary frames cannot silently change draft participants or destination coordinates. Pending requests and bounded execution rows remain accessible when summaries close.
+- **Group selection:** table checkboxes/keyboard and modifier symbol picking update one shared Entity collection. Primary selection drives individual summary/details and the existing single observed trail; other members get neutral outlines. Pinned inspectors remain bound to their mission/entity. Do not open one inspector automatically per group member.
+- **Exceptions:** hidden, stale, unlocated, unauthorized and missing selected identities remain explicit. Show selected/eligible counts and reasons; an operator must remove exceptions rather than silently dispatching an eligible subset. Resolve ambiguous Asset/control-source bindings explicitly. A displayed Track is a presentation choice, never a command-routing decision.
+- **Opponent selection:** a dedicated encounter pick mode or searchable same-run list fills the opposing-participant field. It does not convert that Entity into a controlled Fleet selection. Picking works from either map; source/condition eligibility is checked by the backend. A filtered candidate is labelled as such rather than silently changing shared filters.
+- **Detail on demand:** summary and inspector add only supplied eligibility, bound control source, target/reference, execution state/reason and recent outcome references. Preserve copyable identifiers, values and timestamps; technical audit stays behind disclosure. No invented battery, confidence, readiness, assignments or ETA.
+
+#### M1 run entry, movement and encounter interaction
+
+**Repeatable entry.** Simulation → New demo run is enabled only for the explicitly configured synthetic template. An idempotent backend operation creates fresh mission/run/recording IDs and commits an initial paused frame before the frontend loads it. Completed recordings are never reset in place. Initially permit one nonterminal interactive run per local backend: reopen the existing run, or explicitly End it before creating another. Loading another fixture mission does not End the run. The limit bounds background executors without restricting existing read-only fixtures or later compatibility input limits.
+
+Acquire demo control explicitly. One local session holds a mission lease; public holder identity is distinct from its opaque authority credential. The template provides Asset movement grants and a separate scenario-action capability for modifying virtual opponent state. A friendly Asset grant alone cannot authorize an encounter; the same demo operator may hold both permissions.
+
+| Interactive control | Proposed meaning |
+| --- | --- |
+| Start | Activate the seeded executor and its source clock. |
+| Pause | Freeze simulation time and suspend active movement; reject new Move/Encounter admission. |
+| Resume | Continue suspended movement. Accepted, unevaluated encounters remain subject to their original expiry and current eligibility. |
+| End | Terminalize unfinished execution, finalize the recording and retain inspectable outcomes; do not mark every Entity non-operational. |
+| New demo run | Create a new identity/recording from the template after the previous run is terminal; never revive losses by rewriting the old run. |
+
+Cancellation and lifecycle/expiry processing remain possible while simulation time is paused; they do not fabricate source observations or advance movement. Their journal changes may share effective time and are ordered by committed sequence. The exact transition matrix and rejection codes are an M1.1 contract gate. These are **interactive executor controls**, not external START/HOLD/RESUME/ABORT aliases or replay playback controls.
+
+**Move.** Select eligible assets → Move → author longitude/latitude in Tactical top-down or by numeric keyboard input → review exact per-member endpoints and references → Submit. Cesium displays selection, targets, movement and outcomes; its Move entry opens/focuses Tactical destination authoring initially. Use each supplied **WGS84 ellipsoid height**, held constant. No MSL/AGL reinterpretation, 3D roof picking, takeoff or landing. Temporary top-down authoring is an explicit tool action and restores the pane's prior perspective on exit; other pane cameras are untouched.
+
+For group movement, translate captured horizontal offsets from the selected group's centroid to the requested anchor in a declared local metric frame. Show every endpoint before submission. Invalid/coincident endpoints require explicit revision. This is geometric convenience, not formation control, task allocation or separation assurance. The template starts already positioned; a constant-speed fixed-step kinematic model moves horizontally within its declared small model extent. Proposed cadence is 5 Hz, subject to measurement. No planner, wind/dynamics, obstacle avoidance or clearance model is included.
+
+Neutral draft/requested/accepted destination marks differ from affiliation symbols at reported positions and the bounded observed trail. No “planned route” layer exists without a planner. Busy assets initially reject a new Move; use execution-specific Cancel, confirmed termination, then a fresh Move. Group admission is all-or-none, but accepted members have individual completion/failure outcomes. Keep one primary history request owner, not a request per selected member.
+
+**Encounter.** Choose a friendly managed participant → Simulated encounter → explicitly pick one opposing virtual Entity → review participants, input state and profile → Initiate simulated encounter → inspect receipt/execution/outcome. The preview says **“Operator-declared; no approach, proximity or clearance model. Both participants become non-operational.”** It freezes participant/profile identities and review references, and explains that execution uses their current backend positions when processed.
+
+Require the same interactive run/source authority, operational condition, supplied positions in supported frames and fresh reports; require movement authority for the friendly participant and separate scenario-action authority for the pair. Live/import/replay or unrelated simulation identities cannot be mutated. Do not infer eligibility from affiliation, visible proximity, basemap geometry or a display filter.
+
+Evaluate at the next eligible simulation tick. Expose actual Received, Executor accepted, Evaluating and Completed/Failed/Expired/Cancelled states; a cheap handler can finish immediately, without a fake countdown or progress percentage. Within the mission-serialized command/tick path, drain requests in server order and recheck run, executor epoch, participant state/source, cancellation and deadline. Reserve the pair for that tick, apply the outcome and terminate its movement **before** advancing that tick's movement. Other assets continue. Overlapping encounters cannot consume the same participant twice. Record preview anchor and actual evaluation frame/tick separately.
+
+A cancellation processed before evaluation prevents it; cancellation after committed completion reports the terminal outcome and does not undo it. A new request against a non-operational participant is ineligible; a duplicate request returns the original receipt and outcome references. Merely waiting, navigating or passing through an opponent does not trigger this operator-declared rule.
+
+#### M1 condition and outcome presentation
+
+**Grey alone is insufficient.** Condition, observation state, presence and UI visibility must remain independently interpretable and composable; a non-operational entity can later become stale.
+
+| State | Map treatment | Browser/inspector treatment |
+| --- | --- | --- |
+| Non-operational simulated Entity | Neutral slashed/shaded condition variant with persistent NON-OP label; retain affiliation shape/outline/text and readable hit target. | Condition, notional cause, outcome time and execution consequences. |
+| Stale/disconnected source | Existing stale observation treatment, age and connection indication; not a loss symbol. | Last actual report and source/connection state. Heartbeats do not make observations fresh. |
+| Unlocated Entity | No invented position. | Discoverable row/details with position unavailable. |
+| Hidden by filters | Hidden in normal projection, without mutating domain state. | Retained selection explanation and reset. |
+| Ended Track | LAST OBSERVED/ENDED with timestamp, not evidence of loss. | Ended observation and independent Entity condition. |
+| Missing identity | No substitute selected. | Pinned identity with explicit unavailable/inactive-mission context. |
+
+For this synthetic model, set `Entity.condition=non-operational`, preserve affiliation and `presence=present`, and continue authoritative stationary observations while the source runs. A virtual object still exists at its computed position; loss does not automatically set `Track.state=ended` or `presence=removed`. In Cesium, disclose a **frozen simulation position**, not ground wreckage. Do not add falling motion or terrain snapping. Report zero speed only because the executor supplies it; missing speed remains unavailable.
+
+In **one authoritative transaction**, commit both participants' conditions, affected Asset availability/control eligibility, movement termination, checkpoint and outcome events. Active movement terminates as Cancelled with an explicit simulation-loss reason; already completed movement stays completed, and surviving group members continue. Reject pending new movement for lost participants. The initial template has no assignment engine: no automatic Task per click, invented Task status or rewrite of unrelated supplied Tasks. Any executor-owned Task integration requires an explicit lifecycle policy.
+
+Use a brief neutral acknowledgement, honoring reduced motion, and bounded dismissible annotations tied to each participant's actual recorded position with a shared event reference. Do not invent a physical encounter midpoint for distant participants. Keep NON-OP labels and outcome details after temporary cues disappear. Fleet retains unavailable rows and distinguishes managed, controllable and non-operational counts. Marker visibility is a shared overlay setting; dismissing an annotation does not remove the recording. No explosion/glow/radius effect or celebratory counter is required.
+
+#### M1 authority, contracts and recording
+
+```text
+Fleet / summary / composer / map picks
+              ↓
+shared session draft + command reconciliation
+              ↓ REST intent
+backend mission authority: identity, grants, revisions, expiry, idempotency
+              ↓
+SQLite durable receipt / pending execution journal BEFORE execution
+              ↓
+in-process kinematic executor / notional encounter handler → candidate changes
+              ↓
+ONE atomic checkpoint + execution transitions + world + event commit
+              ↓ adopt executor state, then publish via existing WebSocket
+shared complete presentation frame → Tactical / Cesium / Fleet / inspectors
+
+future Phase 5 resolver + adapter → same authority through a separate boundary
+```
+
+The browser authors intent; renderers only pick and project. The backend owns accepted intent and state transitions. Pure handlers cannot publish or advance canonical in-memory state before successful recording. Reuse the single-process mission service and SQLite writer; no microservice, broker or event-sourcing framework. Persist pending work for the mission service to drain; do not introduce a second world writer or a per-pane executor. Keep the isolated workspace harness separate from operational command state.
+
+| Proposed contract | Minimum responsibility |
+| --- | --- |
+| AssetControl | Mission/Asset/Entity, explicit executor and control Track/source, capabilities and accepted position references, eligibility/reason, public holder/control revision and report-health timing. |
+| Move request / per-member Execution | Stable request identity, mission/run, reviewed frame, binding/executor revisions, exact member targets; durable receipt, executor acceptance/start and confirmed terminal evidence. |
+| Interactive RunStatus | Typed module-owned executor lifecycle/source-clock state; independent of external simulation lifecycle and generic Mission lifecycle. |
+| Encounter request / Execution | Exact pair, profile/model identity, reviewed input references, source/control revisions and expiry evidence; actual evaluation tick/frame and outcome correlation. |
+| Outcome detail | Requester public identity, notional assumptions/model version, pre/post state, affected entities and execution consequences; committed frame/event references. |
+| CommandReceipt | Original immutable receipt/admission result. Current execution status is a separate read, not an overwritten retry response. |
+
+Record canonical request/hash, exact participants and control sources, review/evaluation frame/tick, receipt/accept/start/terminal transitions and reasons, source/effective and recorded times, ordering, executor epoch and checkpoint. A movement completion references a committed sample, not just command acceptance. Simulation-specific details stay in typed module contracts; core retains condition, availability and generic events rather than health/RED/BLUE or weapon-specific fields.
+
+Plan a coordinated internal world/stream update (proposed **1.1**), OpenAPI/explicit WebSocket schemas, generated frontend types and runtime semantic validation. Existing strict 1.0 clients cannot silently accept added fields. Define export paths/version compatibility at M1.1; add a small SQLite journal/checkpoint migration and legacy recording readers without rewriting original stored JSON, identities, timestamps or receipts. Retain one complete frame containing a bounded execution/module projection with atomic outcome changes; use bounded, frame-anchored detail reads for the journal. A newer HTTP result may say “received / awaiting world sync” but cannot change an older frame's map condition or position.
+
+Credentials remain private runtime/session data, outside WorldFrame, recording journal, URLs, logs and screenshots; public holder identity is not the credential. Persist pending request identity/content before sending so reload/reconciliation can use the same command. Preserve normal read-access checks when looking up stored receipts. The current source/Entity/Asset mapping, not presentation-track arbitration, selects the executor. Group selection keeps the existing one-primary-entity history cache/read owner.
+
+#### M1 failure and clock policies
+
+These are proposed local-demo defaults, not measurements or requirements for physical vehicles.
+
+| Case | Required policy and verification |
+| --- | --- |
+| New Move/Encounter expiry | From a reviewed running source frame, deadline is that committed frame's backend `recordedAt + 30 seconds`. Resolve the anchor in storage and check at admission and before initial execution/evaluation. Retries cannot renew it; a new preview is explicit. It is a start/evaluation deadline, not a maximum movement duration. |
+| Long pause / lifecycle intent | Start/Resume/End, control acquisition/renewal and execution cancellation use fresh backend-issued short-lived intent evidence plus relevant run/execution revision, independent of the paused frame's age. Delayed obsolete intents reject; newly authored Start/Resume/Cancel/End remain possible after a long pause. |
+| Duplicate / lost response | Same mission-scoped command ID plus same canonical payload returns the original receipt; changed payload conflicts. Receipt lookup precedes new-admission lease/freshness checks. Query current outcome separately. Persist pending identity; no new ID on timeout. New-run creation is separately idempotent by creation request ID. |
+| Local ownership | Atomic explicit mission lease acquisition, proposed 30-second lease and renewal every 10 seconds by the shared runtime. An unexpired holder cannot be silently displaced; reclaim is explicit. Public holder/revisions are separate from the credential. |
+| Accepted-work continuation | Current lease gates new admission. Once executor acceptance is committed, lease expiry alone does not cancel work. Continue checking run, executor epoch, participant/source state, cancellation and applicable deadline. Explicit capability revocation is separate and recorded; do not recheck the browser's current lease on every execution tick. |
+| Optimistic concurrency | Validate per-Asset binding/control/busy revisions and executor epoch; do not require equality with a global frame sequence changing at 5 Hz. Validate the operation's own accepted state, not reject it merely because admission marked its asset busy. |
+| Pause / expiry race | Pause suspends movement and unevaluated encounters. Service cancellation/lifecycle/deadline processing independently of frozen simulation time; an expired pending encounter cannot apply on Resume. End terminalizes unfinished work. |
+| Freshness | Observation lag uses the source simulation clock; delivery/executor-health age uses elapsed time since a real report. Healthy WebSocket heartbeats never reset that timer. Proposed running-source stall threshold is 2 seconds at 5 Hz. Intentional Pause is labelled/ineligible, not destruction; unknown clock relationships remain unknown. |
+| Connection loss | Preserve the last complete frame as visibly stale; block new Move/Encounter until current verified state/source. HTTP timeout is outcome unknown, not failure. Accepted backend execution may continue; reconnect resnapshots and reconciles original request IDs. |
+| Mission / pane lifecycle | Discard draft and obsolete client work on mission switch; stop renewing the old lease. Keep accepted backend work independent of navigation/close/eviction. Generation guards reject obsolete replies; retained renderers resume the latest complete frame with their own cameras. |
+| Cancellation / overlap | Target a specific execution ID. Server order determines whether cancellation or completion/evaluation wins. Terminal outcomes cannot be undone; late cancellation cannot affect a replacement. Reserve encounter participants within the tick so overlapping requests cannot duplicate loss. |
+| Backend restart | Restore last checkpoint; issue a new executor epoch distinct from the persisted transport epoch. Record unfinished synthetic execution Interrupted, start source paused, and break observed history through source/series/discontinuity metadata. Preserve committed losses exactly once; no auto-resend, catch-up or resurrection. |
+| Persistence failure | Adopt/publish no candidate movement, success or outcome before the complete transaction commits. A failed receipt commit cannot reach the executor. |
+| Replay | Read committed records; never re-execute encounters, dispatch commands or overwrite live cache. Record paused equal-effective-time events with sequence ordering. |
+
+#### M1.1 — authority, contracts and repeatable run entry
+
+**Complete; final independent review 9.14/10 after three rounds, with no unresolved material finding.** New → Acquire → Start → Pause for more than 30 real seconds → Resume → End → New works through the operator UI. Verification: 136 backend and 145 frontend unit tests pass; the full 73-case browser suite passes, followed by all four affected M1 cases on the final receipt-lookup correction. Type, lint, formatting, contract drift and production-build checks pass. Immutable receipts/reconciliation, explicit ownership/reclaim, coordinated world/stream 1.1 and SQLite schema 2 with unchanged legacy reading are exercised. [Contract decisions, screenshots and review evidence](m1.1/REVIEW.md). Movement and encounters remain unavailable; this does not complete M1. Stop here for user review.
+
+- **Files/modules:** proposed `backend/app/commands/{contracts,service}.py`, `simulation/interactive/{template,run}.py`, API command/run routes, recording journal/checkpoint migration and tests; existing contract export/generation/runtime decoder; minimal Fleet mode entry and Simulation menu in `frontend/src/features/entities/*` plus `features/fleet/*`.
+- **Dependencies:** Phase 2 mission authority/recording and Phase 3B workspace/read models. Existing FastAPI/Pydantic/SQLite/Ajv/Zustand/Radix/TanStack stack; no new infrastructure dependency.
+- **Interfaces:** AssetControl, immutable receipt, explicit local grant/lease and intent evidence, run identity/lifecycle, internal version migration. Freeze the precise transition matrix, rejection codes, module projection and lifecycle-intent wire shape before executor/UI work depends on them.
+- **Acceptance:** New demo run → Acquire control → Start → Pause over 30 seconds → Resume → End → New demo run works through UI, with prior recording intact and one nonterminal interactive run. Existing fixtures remain unchanged. Duplicate creation/command identity, conflicting payload, lease reclaim, obsolete lifecycle intent, and wrong mission/source/grant/epoch/reference all have deterministic tests. Legacy records remain readable without mutation.
+- **Risks:** paused-frame expiry deadlock, ownership confused with affiliation, silent takeover, contract drift, non-idempotent run creation and unintended changes to historical recordings.
+
+#### M1.2 — complete movement workflow
+
+- **Files/modules:** `simulation/interactive/kinematics.py` and checkpoint integration; Fleet browser mode, group selection, Move composer/execution list and summary/inspector additions; shared runtime command client and proposed scene/renderer target-pick contracts in existing adapters.
+- **Dependencies:** M1.1. Reuse current map SDKs, shared primary history and test tools; no route-planning library or additional state system.
+- **Interfaces:** frozen per-member Move intents, displayed-versus-control source disclosure, authoritative per-member execution, neutral requested-target projection, one shared draft.
+- **Acceptance:** find → select one/group → preview exact endpoints → submit → observe committed movement/progress/completion and trail in both maps. Friendly-but-uncontrolled cases reject; no silent subset, fabricated altitude, ordinary-frame refit or renderer recreation. Cancellation and partial execution failures remain truthful. Keyboard/narrow panes work and one primary history owner remains.
+- **Risks:** mistaking acceptance for arrival, sending to the display source, group selection losing exceptions, expired first delivery, unsupported altitude conversion and browser arrival-time motion.
+
+#### M1.3 — complete notional encounter workflow
+
+- **Files/modules:** `simulation/interactive/encounters.py` with versioned notional profile, typed module details/journal and atomic outcome integration; pair composer, condition filter, shared scene/symbology and both renderer annotations/inspector detail.
+- **Dependencies:** M1.2, so effects can be verified against actual active movement. No external Phase 5 resolver or probability-model dependency.
+- **Interfaces:** exact-pair Encounter request/execution, scenario-action grant, preview/evaluation anchors, generic condition/availability/event updates and execution termination.
+- **Acceptance:** time/proximity alone never produces loss; the requested encounter evaluates current state. While F-01/F-02 move, an F-01/O-01 encounter changes both participants to non-operational and cancels F-01 in one committed frame; F-02 continues and unrelated entities/tasks remain unchanged. Both maps, Fleet and pinned inspectors agree. Duplicate/overlapping requests, pause/expiry/cancel races, restart and failed storage are covered. Non-operational/stale/ended/unlocated/filtered states are distinct and inspectable after transient markers disappear. No fake countdown or physical-effect presentation.
+- **Risks:** double application, movement overwriting loss, completed tasks incorrectly cancelled, state dimming confused with disconnect, and UI suggesting proximity/intercept fidelity the model lacks.
+
+#### M1.4 — integrated verification and review
+
+- **Files/modules:** backend/frontend regression suites and deterministic fixtures, actual browser workflows, contract/build checks, future M1 review evidence and `docs/demo-runbook.md` additions.
+- **Dependencies:** M1.1–M1.3. Existing test stack; preserve source hashes and completed evidence.
+- **Interfaces:** full operator workflow, source/command/frame correlation, provider and renderer lifecycle, failure diagnostics and reproducible run setup.
+- **Acceptance:** backend/frontend tests, generated-contract drift, lint/type checks and production builds pass. Exercise both maps with lost HTTP response, socket gap/outage, stalled executor with healthy socket, obsolete mission callbacks, storage rollback/restart, lease expiry/reclaim and lifecycle requests after a long pause. Test 20 tab/mode switches plus resize/close/reopen, independent cameras, no ordinary-frame recreation, one backend subscription, one primary history owner, existing renderer limits/provider recovery/attribution. Measure a proposed ten-minute small-demo 5 Hz workload against matching existing visual quality; report update lag, request/resource evidence and limitations rather than asserting unmeasured gains. Capture desktop/narrow/focus/outcome/stale states and obtain independent implementation critique. Backend-only completion fails the UI gate. Stop for review before another milestone.
+- **Risks:** replacing working retention/provider behaviour, hidden duplicate command owners, confusing callback timing with GPU performance, and treating a small synthetic workflow as full production or simulation-validity acceptance.
+
+#### M1 walkthrough and decision boundary
+
+Create/start the demo; select F-01/F-02, preview Move and submit. Fleet shows the durable receipt, executor acceptance and reported movement in both maps. Choose F-01 and O-01 in the encounter composer, review the notional rule and submit; lose the HTTP reply. The UI shows outcome unknown, not immediate loss. Backend commits the pair outcome and F-01 cancellation while F-02 continues. If the socket also drops, retain the last frame as STALE and block new Move/Encounter. On reconnect, resnapshot and reconcile the original ID; show real outcomes without another execution. F-01/O-01 remain selectable and their inspectors explain model/evaluation time/termination. F-02 completes only on committed evidence. If the request never arrived, same-ID retry is valid only within its original deadline; otherwise require a fresh preview without inventing an outcome.
+
+The decisive product assumption is **operator-declared notional pair loss, not automatic geographic encounter detection**. Group movement, a stationary authored opponent, one local interactive executor and explicit ellipsoid coordinates keep the workflow bounded. Automatic approach/proximity, group encounter allocation, physical vehicles, pathfinding and swarm behaviour require separately reviewed scope. The exact lifecycle-intent format and state/error matrix remain bounded M1.1 decisions, not reasons to add a broader fleet-management system.
+
 ### Phase 5 — simulation compatibility end to end
 
-**Deferred. Recommended next implementation phase after review**, beginning with a bounded resolver/adapter slice once the compatibility policies below are confirmed; this document does not authorise it.
+**Deferred. Recommended after M1 in the revised delivery order**, beginning with the retained bounded resolver/adapter slice and explicitly reviewed compatibility policies; this document does not authorise its implementation. M1 changes the delivery order, not this phase's external contract or acceptance obligations. There is no technical requirement to depend on the interactive executor when validating the pure compatibility resolver.
+
+This phase supplies external run controls and outcome integration, not per-drone Move/destination authoring by implication. M1's notional pair result is not conformance evidence. The submitted batch contract has no streaming append/tick command or selected-pair mask and requires MSL inputs. Do not emulate interaction streaming with repeated START or hidden HOLD/RESUME loops. Initially evaluate compatibility in separate missions/runs so its adapter cannot overwrite an interactive executor. A later bridge requires an explicit single-writer/source coordinator, run/sample continuation policy, selected-input scope, altitude mapping, profile governance and next-input-state/correction rules. Preserve §7's golden health-60 ACTIVE result and all organiser ambiguities.
 
 - **Files/modules:** backend `simulation/*`, `adapters/simulation_v1/*`, compatibility route, complete contract fixtures/tests; frontend `modules/counter-uas/*` controls/details.
 - **Dependencies:** Python stdlib hashing/decimal handling; add a polygon library only if its validated semantics reduce risk. Existing transport and persistence stack suffices.
@@ -554,27 +763,33 @@ Dependencies below are incremental. Completed work is distinct from remaining ac
 
 **Deferred.** Current Command Picture/Vertical Profile are clearly labelled placeholders, not working analytics. Requires truthful supplied aggregates, declared profile origin and a reviewed common altitude-reference policy; no decorative metrics or invented readiness.
 
+M1's Fleet mode is an individual-resource control surface, not Command Picture completion. Later aggregates may use supplied condition, availability and execution/outcome records, with managed/controllable/non-operational denominators kept distinct. A notional loss count is not a real-world effectiveness or readiness metric. M1's ellipsoid-only fixture does not replace common-reference acceptance for mixed external MSL/AGL data.
+
 - **Files/modules:** `command-picture/*`, `vertical-profile/*`, reusable chart host with owner-document lifecycle, domain/module selectors.
 - **Dependencies:** Apache ECharts (reuse spike dependency, no second chart library).
 - **Interfaces:** frame-keyed aggregates, profile origin and altitude transform, chart click→ObjectRef selection, bounded history query.
 - **Acceptance:** three meaningful widgets and the profile read the same frame as maps; chart selection highlights the correct entity everywhere; unknown resource data stays unknown; profile has labeled distance origin, altitude reference and discontinuities. Opens as card, tab and supported side view.
-- **Depends on:** Phases 3–5; can develop against Phase 2 fixtures while adapter is completed.
+- **Depends on:** Phases 3–5 for the original counter-UAS acceptance; include M1 projections only after their contracts are delivered. Can develop selectors against Phase 2 fixtures while the external adapter is completed. Vertical Profile still requires the reviewed common-altitude policy.
 - **Risks:** misleading counts, radial distance mistaken for cross-section, charts recomputing on every camera movement.
 
 ### Phase 7 — Timeline and replay
 
 **Deferred.** Durable recordings and bounded observed-history inspection exist; frame seeking, playback/scrubbing, event navigation and complete seek lifecycle remain unimplemented. Phase 3B is not replay acceptance.
 
+Extend future replay acceptance with M1 requests, execution transitions, interactive run lifecycle and notional outcomes. Reconstruct from committed frames/journals and preserved model identity; never rerun the executor or encounter handler, dispatch a Move, renew a control lease or feed replay results into the live cache. Interactive Pause freezes source time; playback pause only freezes viewing. Preserve equal-effective-time journal ordering and disclose corrections separately from the external v1 lifecycle.
+
 - **Files/modules:** backend `replay/service.py`, `api/replay.py`; frontend `historyCache.ts`, `replayClient.ts`, `timeline/*`, presentation selector replay branch.
 - **Dependencies:** existing SQLite/ECharts/time primitives; no timeline framework.
 - **Interfaces:** recording metadata, effective-time frame lookup with sequence tie-breaker, bounded series/event ranges, TimeState and seek-generation token.
-- **Acceptance:** scrub and play through the defensive synthetic scenario; all views resolve the same frame; health/status change at exact timestamps; replay retains interaction IDs/draws and corrections. Live updates continue in their own cache; Return to live reaches latest state. Repeated/rapid seeks cannot show stale responses. HOLD is visibly distinct from playback pause; finalized ABORT record reopens after restart.
-- **Depends on:** Phase 2 recording, Phase 5 simulation records, Phase 6 shared analytic projections.
+- **Acceptance:** scrub and play through the defensive synthetic scenario; all views resolve the same frame; external simulation health/status change at exact timestamps and retain interaction IDs/draws/corrections. Also reconstruct an M1 movement/encounter run, including request/acceptance/termination and atomic non-operational changes, without replay dispatch. Live updates continue in their own cache; Return to live reaches latest state. Repeated/rapid seeks cannot show stale responses. External HOLD, interactive Pause and playback pause are visibly distinct; finalized ABORT and M1 End recordings reopen after restart.
+- **Depends on:** Phase 2 recording, Phase 5 simulation records and Phase 6 shared analytic projections for original acceptance; M1 journals for the added interactive scenario. Recording these events in M1 does not implement this replay UI.
 - **Risks:** incomplete initial metadata, live/replay contamination, mixed moments, history memory growth, future-data leakage through prediction.
 
 ### Phase 8 — split panes and one pop-out proof of concept
 
 **Partial, brought forward:** working tabs/splits/context menus and simultaneous independent maps are complete. Isolated harness pop-out feasibility is complete. Real analytic pop-out with shared operational context, child resize/focus/close, popup failure and opener-lifetime acceptance remains deferred until those views exist. Do not enable operational pop-outs based solely on the harness.
+
+M1 uses the existing workbench host and does not bring operational pop-outs forward. Any later child view shares the session's command reconciliation and lease owner as well as its world subscription; opening/closing a window cannot acquire another controller or cancel accepted execution.
 
 - **Files/modules:** finish `docking.ts`, layout bridge, `windowContext.ts`, `popout.html`, owner-document chart/control integration, workspace e2e tests.
 - **Dependencies:** selected docking library only; browser primitives as required by the selected model.
@@ -587,10 +802,12 @@ Dependencies below are incremental. Completed work is distinct from remaining ac
 
 **Deferred beyond current regression coverage.** No complete simulation/analytics/replay demo or worst-case throughput certification exists.
 
+Retain the original canonical counter-UAS demonstration and add M1's interactive creation/movement/encounter/loss-recovery workflow. Neither substitutes for the other. In particular, notional pair loss does not discharge external compatibility, replay, map-fidelity or physical-operations obligations.
+
 - **Files/modules:** Playwright critical-flow tests, backend conformance tests, synthetic scenario/recording fixtures, `docs/demo-runbook.md`, environment/config examples and build checks.
 - **Dependencies:** existing test tools only.
-- **Interfaces:** canonical demo from product §42, defensive scenario from simulation §9, provider failure/reconnect recovery.
-- **Acceptance:** clean install/build and complete rehearsed demo: load → Tactical → select/details → 3D → profile → command aggregates → HOLD acknowledgement → replay → split/pop-out. Check 1440p/4K, keyboard access, production paths, one lost connection and one failed provider. Publish measured performance and explicit remaining limitations.
+- **Interfaces:** canonical demo from product §42, defensive scenario from simulation §9, M1 interactive run/request/outcome contracts and provider failure/reconnect recovery.
+- **Acceptance:** clean install/build and complete rehearsed original demo: load → Tactical → select/details → 3D → profile → command aggregates → HOLD acknowledgement → replay → split/pop-out. Also create/run/end/recreate M1 through UI and verify movement plus an encounter across a lost response/reconnect, retaining inspectable outcomes. Check 1440p/4K, keyboard access, production paths, one lost connection and one failed provider. Publish measured performance and explicit remaining limitations.
 - **Depends on:** all deliverable phases.
 - **Risks:** network-dependent demo, last-minute scope growth, machine-specific GPU/browser behavior. Keep a deterministic recorded demo and clearly labeled fallback basemap.
 
@@ -598,22 +815,40 @@ Dependencies below are incremental. Completed work is distinct from remaining ac
 
 Provisional interactive target: 200 entities at 5 authoritative updates/second, 60 seconds of visible history, both maps plus two analytic panes. Aim for at least 30 FPS on the selected demo machine and local selection feedback within 150 ms; record actual numbers rather than asserting them in advance. Cold 3D tile loading is measured separately from warm renderer switching. UI counters need not update at animation frequency, but all display the same committed frame/cursor. Performance failure first triggers batching, bounded history and less expensive symbols, not deck.gl by default.
 
+M1 first verifies a small explicitly authored demo, proposed 5 Hz execution and a ten-minute workflow/recovery session. Measure command receipt latency, committed update lag, frame intervals, network requests and available resource accounting at matching camera/viewport/quality settings. This is neither a measurement already obtained nor proof of the 200-Entity/both-maps/two-analytics budget. Keep the existing selected-history limits and bounded renderer retention; do not improve numbers by silently reducing settled geographic detail.
+
 Compatibility tests include every required case in simulation §10, with special attention to exact radius/boundaries, canonical ordering, duplicate parsed timestamps, health/status invariants, immutable profiles, and lifecycle/idempotency. UI tests cover continuity after switches and reconnect, filter/overlay agreement, stale/missing selections, replay isolation, schema drift and window lifecycle. Use deterministic shared read-model assertions plus focused screenshots; do not rely solely on unstable network tile pixels. Test the final chosen versions and production build on the demo browser.
+
+**Narrow scope revision:** permit M1's virtual movement intents, minimal local demo authority/run controls and explicit notional pair resolution, including the required operator UI and recording. These are planned deliverables, not implementation authorization from this document. They do not authorize the excluded capabilities below. Basic macro-level intent is consistent with product §2.1; no source-specification rewrite is needed.
 
 Explicitly do not build during the hackathon:
 
 - HADR functionality, generalized plugin/module loading, arbitrary dashboard builders.
 - Full desktop window management, independent-window survival, multi-monitor restoration or saved workspace migration.
-- Real aircraft dispatch, live-source simulation input, route planning, target optimization or detailed vehicle-control interfaces.
+- Real aircraft dispatch, live-source simulation input, route/path planning, automatic approach/pursuit, target optimization or detailed vehicle-control interfaces. M1 destination authoring is horizontal Tactical intent only; Cesium destination authoring remains outside the first milestone.
+- Additional M1 interactive group encounter allocation/pairing, automatic runtime proximity-triggered encounters or swarm coordination. This exclusion does **not** remove Phase 5's required batch eligibility, opposing-pair formation and resolution over submitted samples.
+- Physical weapon/effect models, falling/debris/terrain-impact animation or claims of clearance, physical destruction or real-world encounter prediction.
 - New probability/calibration research or claims of empirical validity; fixtures remain NOTIONAL.
 - Sensor fusion, invented confidence/coverage/readiness, terrain line-of-sight or validated collision/clearance analysis.
 - Automatic prediction/assignment engines; use declared scenario data only when needed for continuity demonstrations.
-- Advanced policy/authority UI, enterprise access control, multi-operator collaborative editing, HA/distributed backend infrastructure.
+- Advanced policy/authority UI, enterprise access control, multi-operator collaborative editing, HA/distributed backend infrastructure. M1 still requires the explicitly bounded local capability/lease/revision checks; excluding advanced authority UI is not permission to omit command admission checks.
 - Offline/on-premises packaging, mobile/tablet redesign, a new PMTiles/MBTiles generation pipeline, a complete Storybook catalogue. Reproducible setup of the already-reviewed local archives is implemented and does not authorise a new tiling pipeline.
 - Extra visualization engines, microservices, global event buses, unlimited browser history caches, or full worst-case dense simulation processing presented as a proven capability.
 
 ## 12. Next-phase prerequisites and unresolved decisions
 
-Stop for user review after Phase 3B. The next recommended implementation is a bounded Phase 5 simulation resolver/adapter slice, using the existing generic authority and recording rather than adding simulation fields to core entities. Before exact compatibility signoff, resolve or explicitly retain provisional policies for the organiser error envelope, aborted RESUME/missing lifecycle transitions, duplicate JSON keys/numeric canonicalisation, timestamp validation order and cross-command correction/run/profile semantics in `contracts/simulation/compatibility-decisions.md`. Preserve golden fixtures and keep dense-output scale distinct from sparse maximum-input validation.
+**Next recommended order:** Phase 3B review checkpoint → M1.1 authority/run entry → M1.2 complete movement workflow → M1.3 complete notional encounter workflow → M1.4 integration review → retained Phase 5 compatibility slice → remaining analytics, replay, workspace and hardening acceptance. Outstanding map work can proceed under separate scope where needed; do not treat this order as completion of Phase 4. This documentation approval does not start M1 or any other implementation phase.
 
-The remaining Phase 4 datum/coverage decisions can be resolved independently; datum fidelity is a prerequisite for a physically meaningful Vertical Profile or terrain-clearance claims, not for generic resolver arithmetic. Analytics, replay UI and operational window work remain separately gated. Heavy 200-Entity/5 Hz/both-maps performance budgets below are targets, not measurements established by Phase 3B. This documentation revision changes no source specification and authorises no further implementation.
+Before M1 implementation, preserve these reviewed boundaries: Fleet is a mode of the existing entity browser; only explicitly granted synthetic Assets are commandable; movement is group-capable, horizontal Tactical authoring at supplied ellipsoid heights; encounters are explicit one-pair notional loss without proximity/approach modelling; one local interactive executor/run and one session command/transport owner. A request for automatic geographic encounters or a broader authority model would materially change the milestone and needs a deliberate scope decision.
+
+At the M1.1 contract gate, freeze the exact run-state transition/error matrix, fresh lifecycle-intent representation/expiry, Asset/control-source bindings, internal world/module schema version/export path and backward-reading migration. The accepted-work lease policy and long-paused Start/Resume/Cancel/End tests are required. Broader physical platforms, navigation, group encounter allocation and swarm algorithms are not prerequisites. No user question or organiser answer is silently inferred from these defaults.
+
+**M1.1 implementation result:** this contract gate is now resolved in [the contract decisions](m1.1/CONTRACT_DECISIONS.md). Actual long-pause lifecycle UI, immutable reconciliation, explicit control and restart/migration behavior are verified; future accepted-work/cancellation semantics use bounded test doubles. No movement or execution-Cancel UI was added. This completes only M1.1; the order and later prerequisites above remain a plan, not permission to begin M1.2.
+
+For the retained Phase 5 exact-conformance signoff, resolve or explicitly retain provisional policies for the organiser error envelope, aborted RESUME/missing lifecycle transitions, duplicate JSON keys/numeric canonicalisation, timestamp validation order and cross-command correction/run/profile semantics in [the compatibility decision register](../contracts/simulation/compatibility-decisions.md). Preserve golden fixtures and keep dense-output scale distinct from sparse maximum-input validation. M1 does not resolve these questions or turn the external batch contract into a streaming interactive API. A future bridge additionally needs reviewed sample continuation/selection, MSL mapping and one source coordinator before it can affect an interactive mission.
+
+The remaining Phase 4 datum/coverage decisions can be resolved independently; datum fidelity is a prerequisite for a physically meaningful common-reference Vertical Profile or any future terrain-clearance claim, not for generic resolver arithmetic or the limited explicit-ellipsoid M1 fixture. Current MSL h≈H remains a disclosed visual approximation. Analytics, replay UI and operational window work remain separately gated. The 200-Entity/5 Hz/both-maps budgets in §11 are targets, not measurements established by Phase 3B or this proposal.
+
+**Proposal review record (conversation, not implementation evidence):** independent round 1 scored 8.64/10 and identified a high-severity paused-frame expiry flaw plus ambiguous accepted-work lease checks and missing repeatable creation. Round 2 scored 9.16/10 after all were corrected, with no unresolved high/critical finding. The same five criteria were used: evidence fidelity; architecture/authority; maps/altitude/uncertainty; proportionality/sequence; trade-offs/failure/acceptance. Exact lifecycle intent encoding and transition codes remain bounded contract decisions. No new application tests or screenshots were produced for that planning review, and the scores do not establish operational readiness or simulation fidelity.
+
+Both source specifications and completed-phase evidence remain unchanged. Stop for review after M1 verification before starting another milestone.

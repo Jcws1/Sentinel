@@ -1,3 +1,8 @@
+import {
+  createInteractiveClient,
+  type InteractiveState,
+} from '../services/interactiveClient';
+import type { Action } from '../services/interactiveClient';
 import { decodeStream } from '../contracts/decode';
 import type { DeepReadonly, ImmutableFrame, Mission } from '../contracts/types';
 import { createApi, type Fetcher } from '../services/api';
@@ -41,6 +46,8 @@ export interface RuntimeSnapshot {
   advancing: boolean;
   advanceError?: string;
   observed: ObservedState;
+  interactive: DeepReadonly<InteractiveState>;
+  browserMode: 'all' | 'fleet';
 }
 export interface RuntimeDependencies {
   apiBase?: string;
@@ -93,12 +100,23 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
   let catalogAbort: AbortController | undefined;
   let advanceAbort: AbortController | undefined;
   let reconnectAttempts = 0;
+  let browserMode: 'all' | 'fleet' = 'all';
   const observed = createObservedHistory(
     api.observedHistory,
     publish,
     requestTimeout,
   );
 
+  const interactive = createInteractiveClient({
+    base: apiBase,
+    fetcher: dependencies.fetcher ?? ((input, init) => fetch(input, init)),
+    publish,
+    loadMission: (id) => {
+      owner.loadMission(id);
+      void owner.loadMissions();
+    },
+    timeoutMs: requestTimeout,
+  });
   function publish() {
     const cache = world.getState();
     const operational = session.getState();
@@ -118,6 +136,8 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       missionId: operational.missionId,
       presentation: Object.freeze(presentation),
       observed: observed.get(),
+      interactive: interactive.get(),
+      browserMode,
       session: immutableCopy(operational),
       advancing,
       advanceError,
@@ -187,6 +207,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
     world.setState({ live: frame, connection: 'connected', error: undefined });
     reconnectAttempts = 0;
     publish();
+    interactive.setMission(frame.interactive ? frame.mission.id : undefined);
   }
   function connect() {
     const missionId = session.getState().missionId;
@@ -301,7 +322,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
   }
 
   publish();
-  return {
+  const owner = {
     getSnapshot: () => snapshot,
     getPresentationFrame: () => snapshot.presentation,
     subscribe(listener: () => void) {
@@ -357,6 +378,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       if (disposed || !missionId || missionId === session.getState().missionId)
         return;
       missionGeneration++;
+      interactive.setMission(undefined);
       cancelCatalog();
       cancelAdvance();
       cancelTransport();
@@ -370,6 +392,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
     unloadMission() {
       if (disposed) return;
       missionGeneration++;
+      interactive.setMission(undefined);
       cancelCatalog();
       cancelAdvance();
       cancelTransport();
@@ -435,6 +458,14 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       });
       publish();
     },
+    setBrowserMode(mode: 'all' | 'fleet') {
+      browserMode = mode;
+      publish();
+    },
+    refreshInteractive: () => interactive.refresh(),
+    interactiveAction: (action: Action | 'create') =>
+      interactive.perform(action),
+    reconcileInteractive: (resend = false) => interactive.reconcile(resend),
     retryHistory() {
       if (!disposed) {
         observed.retry();
@@ -502,7 +533,9 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
     dispose() {
       if (disposed) return;
       disposed = true;
+      interactive.dispose();
       missionGeneration++;
+      interactive.setMission(undefined);
       cancelCatalog();
       cancelAdvance();
       cancelTransport();
@@ -511,6 +544,8 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       observed.clear();
     },
   };
+  interactive.start();
+  return owner;
 }
 
 export type ApplicationRuntime = ReturnType<typeof createRuntime>;

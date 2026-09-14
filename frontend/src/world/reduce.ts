@@ -49,8 +49,9 @@ export function applyDelta(
     );
   }
   const next = {
-    schemaVersion: '1.0',
+    schemaVersion: '1.1',
     mission: delta.changes.mission,
+    interactive: delta.changes.interactive,
     frameId: delta.frameId,
     recordingId: delta.recordingId,
     streamEpoch: delta.streamEpoch,

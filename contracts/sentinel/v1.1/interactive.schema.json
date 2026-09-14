@@ -1,0 +1,751 @@
+{
+  "$defs": {
+    "AssetControl": {
+      "additionalProperties": false,
+      "properties": {
+        "assetId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Assetid",
+          "type": "string"
+        },
+        "bindingRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Bindingrevision",
+          "type": "integer"
+        },
+        "capabilities": {
+          "items": {
+            "const": "move-horizontal",
+            "type": "string"
+          },
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "controlTrackId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Controltrackid"
+        },
+        "eligible": {
+          "const": false,
+          "default": false,
+          "title": "Eligible",
+          "type": "boolean"
+        },
+        "entityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "executorId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorid",
+          "type": "string"
+        },
+        "grantId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Grantid",
+          "type": "string"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "positionReference": {
+          "const": "ELLIPSOID/WGS84",
+          "title": "Positionreference",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "sourceId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Sourceid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "missionId",
+        "assetId",
+        "entityId",
+        "executorId",
+        "sourceId",
+        "grantId",
+        "bindingRevision",
+        "capabilities",
+        "positionReference",
+        "reason"
+      ],
+      "title": "AssetControl",
+      "type": "object"
+    },
+    "CommandRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "commandId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Commandid",
+          "type": "string"
+        },
+        "holderId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Holderid",
+          "type": "string"
+        },
+        "intent": {
+          "$ref": "#/$defs/Intent"
+        }
+      },
+      "required": [
+        "commandId",
+        "holderId",
+        "intent"
+      ],
+      "title": "CommandRequest",
+      "type": "object"
+    },
+    "CreateRunRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "creationId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Creationid",
+          "type": "string"
+        },
+        "templateId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Templateid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "creationId",
+        "templateId"
+      ],
+      "title": "CreateRunRequest",
+      "type": "object"
+    },
+    "DemoEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "activeMissionId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Activemissionid"
+        },
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "schemaVersion": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "templateId": {
+          "const": "singapore-local-v1",
+          "default": "singapore-local-v1",
+          "title": "Templateid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "enabled"
+      ],
+      "title": "DemoEntry",
+      "type": "object"
+    },
+    "Intent": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "acquire",
+            "renew",
+            "reclaim",
+            "revoke",
+            "start",
+            "pause",
+            "resume",
+            "end"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "executorEpoch": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorepoch",
+          "type": "string"
+        },
+        "expiresAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Expiresat",
+          "type": "string"
+        },
+        "grantId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Grantid",
+          "type": "string"
+        },
+        "grantRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Grantrevision",
+          "type": "integer"
+        },
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Id",
+          "type": "string"
+        },
+        "issuedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Issuedat",
+          "type": "string"
+        },
+        "leaseRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Leaserevision",
+          "type": "integer"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "runId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Runid",
+          "type": "string"
+        },
+        "runRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Runrevision",
+          "type": "integer"
+        },
+        "sourceId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Sourceid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "missionId",
+        "runId",
+        "executorEpoch",
+        "sourceId",
+        "grantId",
+        "grantRevision",
+        "runRevision",
+        "leaseRevision",
+        "action",
+        "issuedAt",
+        "expiresAt"
+      ],
+      "title": "Intent",
+      "type": "object"
+    },
+    "InteractiveRun": {
+      "additionalProperties": false,
+      "properties": {
+        "capabilities": {
+          "items": {
+            "enum": [
+              "run-control",
+              "scenario-pair"
+            ],
+            "type": "string"
+          },
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "controls": {
+          "items": {
+            "$ref": "#/$defs/AssetControl"
+          },
+          "maxItems": 32,
+          "title": "Controls",
+          "type": "array"
+        },
+        "executorEpoch": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorepoch",
+          "type": "string"
+        },
+        "executorId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorid",
+          "type": "string"
+        },
+        "grantId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Grantid",
+          "type": "string"
+        },
+        "grantRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Grantrevision",
+          "type": "integer"
+        },
+        "lastReportAt": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lastreportat"
+        },
+        "lease": {
+          "$ref": "#/$defs/Lease"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "runId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Runid",
+          "type": "string"
+        },
+        "runRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Runrevision",
+          "type": "integer"
+        },
+        "schemaVersion": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "sourceId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Sourceid",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "ready",
+            "running",
+            "paused",
+            "ended"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "supportedActions": {
+          "items": {
+            "enum": [
+              "acquire",
+              "renew",
+              "reclaim",
+              "revoke",
+              "start",
+              "pause",
+              "resume",
+              "end"
+            ],
+            "type": "string"
+          },
+          "title": "Supportedactions",
+          "type": "array"
+        },
+        "templateId": {
+          "const": "singapore-local-v1",
+          "default": "singapore-local-v1",
+          "title": "Templateid",
+          "type": "string"
+        },
+        "tick": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Tick",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "missionId",
+        "runId",
+        "executorId",
+        "executorEpoch",
+        "sourceId",
+        "state",
+        "runRevision",
+        "grantId",
+        "grantRevision",
+        "capabilities",
+        "supportedActions",
+        "lease",
+        "tick",
+        "controls"
+      ],
+      "title": "InteractiveRun",
+      "type": "object"
+    },
+    "Lease": {
+      "additionalProperties": false,
+      "properties": {
+        "expiresAt": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expiresat"
+        },
+        "holderId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Holderid"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "revision"
+      ],
+      "title": "Lease",
+      "type": "object"
+    },
+    "Receipt": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted": {
+          "title": "Accepted",
+          "type": "boolean"
+        },
+        "code": {
+          "enum": [
+            "OK",
+            "NOT_INTERACTIVE",
+            "DEMO_DISABLED",
+            "ACTIVE_RUN_EXISTS",
+            "IDENTITY_CONFLICT",
+            "INTENT_INVALID",
+            "INTENT_EXPIRED",
+            "OBSOLETE_INTENT",
+            "REFERENCE_MISMATCH",
+            "CONTROL_HELD",
+            "CONTROL_REQUIRED",
+            "LEASE_EXPIRED",
+            "RECLAIM_REQUIRED",
+            "INVALID_TRANSITION",
+            "RUN_TERMINAL",
+            "INVALID_REQUEST",
+            "NOT_FOUND"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "frameId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frameid"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "missionId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Missionid"
+        },
+        "operation": {
+          "enum": [
+            "create",
+            "acquire",
+            "renew",
+            "reclaim",
+            "revoke",
+            "start",
+            "pause",
+            "resume",
+            "end"
+          ],
+          "title": "Operation",
+          "type": "string"
+        },
+        "recordedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Recordedat",
+          "type": "string"
+        },
+        "recordingId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recordingid"
+        },
+        "requestId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Requestid",
+          "type": "string"
+        },
+        "runId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Runid"
+        },
+        "schemaVersion": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "sequence": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sequence"
+        }
+      },
+      "required": [
+        "requestId",
+        "operation",
+        "accepted",
+        "code",
+        "message",
+        "recordedAt"
+      ],
+      "title": "Receipt",
+      "type": "object"
+    },
+    "RunRead": {
+      "additionalProperties": false,
+      "properties": {
+        "frameId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Frameid",
+          "type": "string"
+        },
+        "leaseState": {
+          "enum": [
+            "unclaimed",
+            "held",
+            "expired"
+          ],
+          "title": "Leasestate",
+          "type": "string"
+        },
+        "ownsControl": {
+          "title": "Ownscontrol",
+          "type": "boolean"
+        },
+        "run": {
+          "$ref": "#/$defs/InteractiveRun"
+        },
+        "schemaVersion": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "serverTime": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Servertime",
+          "type": "string"
+        }
+      },
+      "required": [
+        "serverTime",
+        "frameId",
+        "sequence",
+        "run",
+        "ownsControl",
+        "leaseState"
+      ],
+      "title": "RunRead",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Export root; no route accepts this aggregate.",
+  "properties": {
+    "command": {
+      "$ref": "#/$defs/CommandRequest"
+    },
+    "creation": {
+      "$ref": "#/$defs/CreateRunRequest"
+    },
+    "entry": {
+      "$ref": "#/$defs/DemoEntry"
+    },
+    "intent": {
+      "$ref": "#/$defs/Intent"
+    },
+    "receipt": {
+      "$ref": "#/$defs/Receipt"
+    },
+    "status": {
+      "$ref": "#/$defs/RunRead"
+    }
+  },
+  "required": [
+    "intent",
+    "command",
+    "creation",
+    "receipt",
+    "status",
+    "entry"
+  ],
+  "title": "CommandContracts",
+  "type": "object"
+}

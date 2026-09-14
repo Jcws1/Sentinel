@@ -15,6 +15,7 @@ import { EntityFilters, filtersActive } from './EntityFilters';
 import { EntitySummary } from './EntitySummary';
 import { altitudeText, observationText, speedText } from './values';
 import './entities.css';
+import { SimulationControls } from './SimulationControls';
 
 const columns: ColumnDef<EntityRow>[] = [
   {
@@ -87,7 +88,16 @@ export function TracksBrowser({ bridge }: { bridge: WorkspaceBridge }) {
     () => (frame ? entityRows(frame, state.session.filters) : []),
     [frame, state.session.filters],
   );
-  const data = useMemo(() => rows.filter((r) => r.visible), [rows]);
+  const managed = useMemo(
+    () => new Set(Object.values(frame?.assets ?? {}).map((a) => a.entityId)),
+    [frame],
+  );
+  const fleet = state.browserMode === 'fleet';
+  const scoped = useMemo(
+    () => (fleet ? rows.filter((r) => managed.has(r.entity.id)) : rows),
+    [rows, fleet, managed],
+  );
+  const data = useMemo(() => scoped.filter((r) => r.visible), [scoped]);
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'identifier', desc: false },
   ]);
@@ -115,7 +125,26 @@ export function TracksBrowser({ bridge }: { bridge: WorkspaceBridge }) {
       data-frame-id={frame?.frameId}
       data-selection={selected}
     >
+      <SimulationControls state={state} runtime={runtime} />
       <div className="entity-toolbar">
+        <div
+          className="browser-mode"
+          role="group"
+          aria-label="Entity browser mode"
+        >
+          <button
+            aria-pressed={!fleet}
+            onClick={() => runtime.setBrowserMode('all')}
+          >
+            All entities
+          </button>
+          <button
+            aria-pressed={fleet}
+            onClick={() => runtime.setBrowserMode('fleet')}
+          >
+            Fleet
+          </button>
+        </div>
         <label className="entity-search">
           <Search size={14} />
           <input
@@ -141,7 +170,8 @@ export function TracksBrowser({ bridge }: { bridge: WorkspaceBridge }) {
       <div className="entity-scope" role="status">
         <span>
           <b data-field="filtered-entities">{data.length}</b> /{' '}
-          <b data-field="total-entities">{rows.length}</b> entities
+          <b data-field="total-entities">{scoped.length}</b>{' '}
+          {fleet ? 'managed entities' : 'entities'}
           {filtered ? ' · filtered' : ''}
         </span>
         <span>
@@ -282,9 +312,11 @@ export function TracksBrowser({ bridge }: { bridge: WorkspaceBridge }) {
             </table>
             {!ordered.length && (
               <div className="entity-empty">
-                {rows.length
+                {scoped.length
                   ? 'No entities match the shared filters.'
-                  : 'No entities in this frame.'}
+                  : fleet
+                    ? 'This mission has no explicitly managed resources.'
+                    : 'No entities in this frame.'}
               </div>
             )}
           </div>

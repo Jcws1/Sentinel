@@ -1,4 +1,21 @@
-# Sentinel backend — authority, recording and observed history
+# M1.1 local synthetic control
+
+Enable the separate interactive template with `SENTINEL_DEMO=1`; `SENTINEL_FIXTURES=1` independently enables the unchanged read-only fixture catalogue and test advancement endpoint. Run one Uvicorn process/worker per SQLite database. The new source is stationary at 5 Hz while running; movement and encounters are deferred.
+
+From the repository root:
+
+```powershell
+$env:SENTINEL_FIXTURES = '1'
+$env:SENTINEL_DEMO = '1'
+Set-Location backend
+.venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+Open the frontend, then Tracks → Simulation → New demo run → Acquire control → Start → Pause → Resume → End. Wait more than 30 seconds while paused to verify lease renewal and a fresh Resume intent. New demo run creates new mission/run/recording identities. Reopen an existing active run from Simulation; navigating to a fixture does not end it. A lease lost through navigation requires explicit Reclaim control after expiry. Release control records revocation. Restart restores the checkpoint paused with a new executor epoch and requires acquisition again.
+
+Current world/stream contracts are [1.1](../contracts/sentinel/v1.1/README.md). SQLite migrates to user_version 2 without modifying legacy stored frames; original 1.0 contract artifacts remain frozen. See [contract decisions](../docs/m1.1/CONTRACT_DECISIONS.md) and [implementation review](../docs/m1.1/REVIEW.md). The earlier foundation notes below describe their original phase; the M1.1 policies supersede their no-controls/no-migration statements for interactive missions only.
+
+# Sentinel backend â€” authority, recording and observed history
 
 The backend owns generic Mission, Entity, Track, Asset, Sensor, Zone, Task and Event records. It serves one committed world frame through REST/WebSocket and bounded observed history from those same durable recordings. No simulation resolver, simulation lifecycle commands, replay playback or provider integration is implemented in the backend.
 
@@ -19,7 +36,7 @@ Use **one worker and one authority process per database**. Development frontend 
 
 The original foundation fixtures are `fixture-alpha` and `fixture-bravo`, labelled Synthetic Alpha and Synthetic Bravo. Their effective timestamps, observations, counts and source events are deterministic for a given sample index. Backend-generated recording/frame/event UUIDs and recorded wall times deliberately vary across clean runs. The fixture makes no claims about confidence, readiness, assignments, detection or real operational conditions. One managed resource is explicitly authored with availability `unknown`. Advance is a demo source control, guarded by `expectedSequence`, rather than an operational command.
 
-Phase 3A adds `fixture-tactical`, labelled **Synthetic Tactical**, without changing Alpha/Bravo. It supplies arbitrary non-operational Singapore-area test points near 103.85° E, 1.35° N; four current affiliations; an entity with no Track; an explicitly stale Track associated with an unobserved entity; and a neutral `test-area` polygon. The polygon makes no defended-area, sensor-coverage or altitude-band claim. No class, confidence, readiness, assignment or simulation outcome is supplied. All positions remain Track-owned.
+Phase 3A adds `fixture-tactical`, labelled **Synthetic Tactical**, without changing Alpha/Bravo. It supplies arbitrary non-operational Singapore-area test points near 103.85Â° E, 1.35Â° N; four current affiliations; an entity with no Track; an explicitly stale Track associated with an unobserved entity; and a neutral `test-area` polygon. The polygon makes no defended-area, sensor-coverage or altitude-band claim. No class, confidence, readiness, assignment or simulation outcome is supplied. All positions remain Track-owned.
 
 The guarded fixture advancement endpoint cycles through three canned spatial samples, selected by committed sequence modulo three. The former **Next fixture frame** button has been removed from the normal UI; developer and automated checks use the existing POST endpoint below. Stage 0 has six entities and five Tracks (`F-01`, `H-01`, `N-01`, `U-01`, `No position`, `Last observed`). Stage 1 moves F-01, adds F-02 and expands the test-area polygon: seven entities and six Tracks. Stage 2 removes U-01, retains F-01's identity while removing its Track, and retains F-02: six entities and four Tracks. The next stage restores the baseline sample. Effective timestamps still increase by five seconds per committed frame; the deliberately stale observation stays at its original earlier time. Source events carry sample index/stage with no object references. This fixture is a map data/lifecycle test, not a route, simulation or sensor interpretation. Stored stages survive restart, and mutation remains unavailable when `SENTINEL_FIXTURES` is disabled.
 
@@ -31,8 +48,8 @@ Phase 3B adds **Synthetic Observations** (`fixture-observations`) as a separate 
 | --- | --- |
 | `GET /api/missions` | Versioned mission catalog and fixture-source capability. |
 | `GET /api/missions/{id}/world` | Latest complete committed WorldFrame; no-store cache policy. |
-| `GET /api/missions/{id}/events?after=-1&limit=100` | Events in independent event-sequence order; limit 1–500. `nextAfter` is the last returned sequence. |
-| `GET /api/missions/{id}/observed-history?entityId=...&frameId=...&windowSeconds=60` | Observed Track samples as known at a committed frame. Window 5–300 seconds; 1,000 canonical frame instants / 2,000 points maximum, explicit truncation. No interpolation or replay playback. |
+| `GET /api/missions/{id}/events?after=-1&limit=100` | Events in independent event-sequence order; limit 1â€“500. `nextAfter` is the last returned sequence. |
+| `GET /api/missions/{id}/observed-history?entityId=...&frameId=...&windowSeconds=60` | Observed Track samples as known at a committed frame. Window 5â€“300 seconds; 1,000 canonical frame instants / 2,000 points maximum, explicit truncation. No interpolation or replay playback. |
 | `GET /api/recordings/{id}` | Recording identity, epoch, establishment time and durable frame/event counts. |
 | `WS /api/missions/{id}/stream` | Fresh atomic snapshot on every connection, then atomic deltas and five-second heartbeats. |
 | `POST /api/fixtures/{id}/advance` | Opt-in fixture-only `{ "expectedSequence": 0 }`; returns the committed frame, 409 on conflicting sequence, 404 when disabled. |

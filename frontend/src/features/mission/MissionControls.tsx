@@ -18,7 +18,9 @@ function Controls({ runtime }: { runtime: ApplicationRuntime }) {
     state.catalog.missions.find((item) => item.id === state.missionId);
   const name =
     mission?.name ?? (state.missionId ? 'Loading mission' : 'No mission');
-  const fixture = mission?.extensions?.['sentinel.fixture'] != null;
+  const fixture =
+    mission?.extensions?.['sentinel.fixture'] != null ||
+    mission?.extensions?.['sentinel.interactive'] != null;
   const error = state.error || state.advanceError || state.catalog.error;
   const descriptionId = useId();
   const loading = Boolean(state.missionId && !frame && !state.error);

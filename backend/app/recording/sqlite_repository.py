@@ -1,3 +1,5 @@
+from app.world.serialization import read_frame
+from contextlib import contextmanager
 import json
 import sqlite3
 from pathlib import Path
@@ -21,13 +23,14 @@ class RecordingRepository:
         self.db.row_factory = sqlite3.Row
         self._lock = RLock()
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1):
+        if version not in (0, 1, 2):
             self.db.close()
             raise RuntimeError(f"Unsupported recording schema version: {version}")
         self.db.execute("PRAGMA foreign_keys = ON")
         self.db.execute("PRAGMA journal_mode = WAL")
         self.db.execute("PRAGMA synchronous = FULL")
         self.db.executescript("""
+            BEGIN IMMEDIATE;
             CREATE TABLE IF NOT EXISTS recordings (
                 id TEXT PRIMARY KEY, mission_id TEXT NOT NULL UNIQUE,
                 stream_epoch TEXT NOT NULL, established_at TEXT NOT NULL,
@@ -47,7 +50,22 @@ class RecordingRepository:
                 PRIMARY KEY(recording_id, event_id), UNIQUE(recording_id, sequence)
             );
             CREATE INDEX IF NOT EXISTS events_effective ON events(recording_id, effective_at, sequence);
-            PRAGMA user_version = 1;
+            CREATE TABLE IF NOT EXISTS interactive_checkpoints (
+                mission_id TEXT PRIMARY KEY REFERENCES recordings(mission_id),
+                run_id TEXT NOT NULL UNIQUE, terminal INTEGER NOT NULL,
+                checkpoint_json TEXT NOT NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS one_interactive_run ON interactive_checkpoints(terminal) WHERE terminal=0;
+            CREATE TABLE IF NOT EXISTS command_receipts (
+                mission_id TEXT NOT NULL REFERENCES recordings(mission_id), command_id TEXT NOT NULL,
+                payload_json TEXT NOT NULL, receipt_json TEXT NOT NULL,
+                PRIMARY KEY(mission_id, command_id)
+            );
+            CREATE TABLE IF NOT EXISTS creation_receipts (
+                creation_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL, receipt_json TEXT NOT NULL
+            );
+            PRAGMA user_version = 2;
+            COMMIT;
         """)
 
     def close(self):
@@ -110,7 +128,7 @@ class RecordingRepository:
                 WHERE f.frame_id=? AND r.mission_id=?""", (frame_id, mission_id)).fetchone()
             if row is None:
                 raise KeyError("Committed mission frame not found")
-            anchor = WorldFrame.model_validate_json(row[0])
+            anchor = read_frame(row[0])
             start = (instant(anchor.effective_at) - timedelta(seconds=window_seconds)).isoformat(timespec="milliseconds") + "Z"
             rows = self.db.execute("""WITH revisions AS (
                 SELECT frame_json, effective_at, ROW_NUMBER() OVER (PARTITION BY effective_at ORDER BY sequence DESC) AS revision
@@ -126,7 +144,9 @@ class RecordingRepository:
         frame = WorldFrame.model_validate_json(frame_text)
         events = [SentinelEvent.model_validate_json(canonical(event)) for event in appended_events]
         with self._lock:
-            self.db.execute("BEGIN IMMEDIATE")
+            own_transaction = not self.db.in_transaction
+            if own_transaction:
+                self.db.execute("BEGIN IMMEDIATE")
             try:
                 recording = self.recording_for(frame.mission.id)
                 expected = 0 if recording.latest_sequence is None else recording.latest_sequence + 1
@@ -151,7 +171,49 @@ class RecordingRepository:
                     self.db.execute("INSERT INTO events VALUES (?, ?, ?, ?, ?, ?, ?)",
                                     (event.id, frame.recording_id, event.sequence, frame.frame_id, event.effective_at, event.recorded_at, canonical(event)))
                 self.db.execute("UPDATE recordings SET mission_json=? WHERE id=?", (canonical(frame.mission), frame.recording_id))
+                if own_transaction:
+                    self.db.execute("COMMIT")
+            except BaseException:
+                if own_transaction:
+                    self.db.execute("ROLLBACK")
+                raise
+
+    @contextmanager
+    def transaction(self):
+        """Compose receipt, frame, events and checkpoint under the single writer."""
+        with self._lock:
+            self.db.execute("BEGIN IMMEDIATE")
+            try:
+                yield
                 self.db.execute("COMMIT")
             except BaseException:
                 self.db.execute("ROLLBACK")
                 raise
+
+    def active_interactive(self):
+        row = self.db.execute("SELECT mission_id FROM interactive_checkpoints WHERE terminal=0").fetchone()
+        return row[0] if row else None
+
+    def checkpoint(self, mission_id: str):
+        row = self.db.execute("SELECT checkpoint_json FROM interactive_checkpoints WHERE mission_id=?", (mission_id,)).fetchone()
+        if row is None:
+            raise KeyError(mission_id)
+        return json.loads(row[0])
+
+    def save_checkpoint(self, mission_id: str, checkpoint: dict):
+        run = checkpoint["run"]
+        self.db.execute("INSERT INTO interactive_checkpoints VALUES (?,?,?,?) ON CONFLICT(mission_id) DO UPDATE SET terminal=excluded.terminal, checkpoint_json=excluded.checkpoint_json",
+                        (mission_id, run["runId"], int(run["state"] == "ended"), canonical(checkpoint)))
+
+    def receipt(self, request_id: str, mission_id: str | None = None):
+        if mission_id is None:
+            row = self.db.execute("SELECT payload_json, receipt_json FROM creation_receipts WHERE creation_id=?", (request_id,)).fetchone()
+        else:
+            row = self.db.execute("SELECT payload_json, receipt_json FROM command_receipts WHERE mission_id=? AND command_id=?", (mission_id, request_id)).fetchone()
+        return tuple(row) if row else None
+
+    def save_receipt(self, request_id: str, payload: str, receipt: str, mission_id: str | None = None):
+        if mission_id is None:
+            self.db.execute("INSERT INTO creation_receipts VALUES (?,?,?)", (request_id, payload, receipt))
+        else:
+            self.db.execute("INSERT INTO command_receipts VALUES (?,?,?,?)", (mission_id, request_id, payload, receipt))

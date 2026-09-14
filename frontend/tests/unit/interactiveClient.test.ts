@@ -1,0 +1,280 @@
+import { afterEach, expect, it, vi } from 'vitest';
+import { createInteractiveClient } from '../../src/services/interactiveClient';
+import {
+  decodeIntent,
+  decodeReceipt,
+  decodeRunRead,
+} from '../../src/contracts/interactive';
+import { validateFrame } from '../../src/contracts/decode';
+import rawFrame from '../../../contracts/sentinel/v1.1/fixture.world.json';
+import type { CommandRequest } from '../../src/contracts/generated';
+
+const cleanup: (() => void)[] = [];
+afterEach(() => {
+  cleanup.splice(0).forEach((fn) => fn());
+  sessionStorage.clear();
+  vi.useRealTimers();
+});
+const received = (id: string, operation = 'create') => ({
+  schemaVersion: '1.0',
+  requestId: id,
+  operation,
+  accepted: true,
+  code: 'OK',
+  message: 'Committed',
+  recordedAt: '2026-09-14T00:00:00.000Z',
+  missionId: 'mid',
+  runId: 'run',
+  recordingId: 'rec',
+  frameId: 'frame',
+  sequence: 0,
+});
+const evidence = {
+  id: 'intent',
+  missionId: 'mid',
+  runId: 'run',
+  executorEpoch: 'epoch',
+  sourceId: 'source',
+  grantId: 'grant',
+  grantRevision: 1,
+  runRevision: 0,
+  leaseRevision: 1,
+  action: 'start',
+  issuedAt: '2026-09-14T00:00:00.000Z',
+  expiresAt: '2026-09-14T00:00:30.000Z',
+};
+const entry = {
+  schemaVersion: '1.0',
+  enabled: true,
+  templateId: 'singapore-local-v1',
+};
+
+it('saves creation identity before send, reconciles lost reply after reload, never recreates', async () => {
+  let creation = '',
+    sent = 0;
+  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.endsWith('/runs')) {
+      sent++;
+      creation = JSON.parse(init!.body as string).creationId;
+      expect(
+        sessionStorage.getItem('sentinel.interactive.pending.v1'),
+      ).toContain(creation);
+      throw new Error('Lost response after commit');
+    }
+    if (url.includes('/creations?identity='))
+      return Response.json(received(creation));
+    return Response.json(entry);
+  });
+  const load = vi.fn();
+  const first = createInteractiveClient({
+    base: '/api',
+    fetcher,
+    publish: () => {},
+    loadMission: load,
+    storage: sessionStorage,
+  });
+  cleanup.push(first.dispose);
+  await first.perform('create');
+  expect(first.get().pending).toBeDefined();
+  expect(first.get().error).toContain('Outcome unknown');
+  await first.perform('create');
+  expect(sent).toBe(1);
+  first.dispose();
+  const second = createInteractiveClient({
+    base: '/api',
+    fetcher,
+    publish: () => {},
+    loadMission: load,
+    storage: sessionStorage,
+  });
+  cleanup.push(second.dispose);
+  expect(second.get().pending).toBeDefined();
+  await second.reconcile();
+  expect(second.get().pending).toBeUndefined();
+  expect(load).toHaveBeenCalledWith('mid');
+  expect(sent).toBe(1);
+});
+
+it('an actual request timeout retains its identity and only explicit retry resends', async () => {
+  vi.useFakeTimers();
+  const bodies: string[] = [];
+  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (!url.endsWith('/runs')) return Response.json(entry);
+    bodies.push(init!.body as string);
+    if (bodies.length > 1)
+      return Response.json(received(JSON.parse(bodies[0]).creationId));
+    return await new Promise<Response>((_, reject) => {
+      init!.signal!.addEventListener('abort', () =>
+        reject(new Error('Timed out')),
+      );
+    });
+  });
+  const client = createInteractiveClient({
+    base: '/api',
+    fetcher,
+    publish: () => {},
+    loadMission: () => {},
+    storage: sessionStorage,
+    timeoutMs: 1000,
+  });
+  cleanup.push(client.dispose);
+  const sending = client.perform('create');
+  await vi.advanceTimersByTimeAsync(1001);
+  await sending;
+  expect(client.get().pending).toBeDefined();
+  expect(client.get().error).toContain('Outcome unknown');
+  await vi.advanceTimersByTimeAsync(60_000);
+  await client.perform('create');
+  expect(bodies).toHaveLength(1);
+  await client.reconcile(true);
+  expect(bodies[1]).toBe(bodies[0]);
+  expect(client.get().pending).toBeUndefined();
+});
+
+it('retries the same command body and keeps credential outside snapshots and pending content', async () => {
+  const bodies: string[] = [],
+    headers: Headers[] = [];
+  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.endsWith('/intents')) return Response.json(evidence);
+    if (url.endsWith('/commands')) {
+      bodies.push(init!.body as string);
+      headers.push(new Headers(init?.headers));
+      if (bodies.length === 1) throw new Error('HTTP reply lost');
+      return Response.json(received(JSON.parse(bodies[0]).commandId, 'start'));
+    }
+    return Response.json(entry);
+  });
+  const client = createInteractiveClient({
+    base: '/api',
+    fetcher,
+    publish: () => {},
+    loadMission: () => {},
+    storage: sessionStorage,
+  });
+  cleanup.push(client.dispose);
+  client.setMission('mid');
+  await client.perform('start');
+  const credential = headers[0].get('X-Sentinel-Control')!;
+  expect(credential.length).toBe(64);
+  expect(JSON.stringify(client.get())).not.toContain(credential);
+  expect(
+    sessionStorage.getItem('sentinel.interactive.pending.v1'),
+  ).not.toContain(credential);
+  await client.reconcile(true);
+  expect(bodies[1]).toBe(bodies[0]);
+  expect(headers[1].get('X-Sentinel-Control')).toBe(credential);
+});
+
+it('blocks sends if durable session storage cannot retain request identity', async () => {
+  const fetcher = vi.fn();
+  const storage = {
+    getItem: () => null,
+    setItem: () => {
+      throw new Error('Storage full');
+    },
+  } as unknown as Storage;
+  const client = createInteractiveClient({
+    base: '/api',
+    fetcher,
+    publish: () => {},
+    loadMission: () => {},
+    storage,
+  });
+  cleanup.push(client.dispose);
+  await client.perform('create');
+  expect(fetcher).not.toHaveBeenCalled();
+  expect(client.get().error).toContain('Storage full');
+});
+
+it('does not adopt obsolete mission replies and preserves pending identity for explicit reconciliation', async () => {
+  let reply!: (response: Response) => void;
+  let sent: CommandRequest | undefined;
+  const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.endsWith('/intents')) return Response.json(evidence);
+    if (url.endsWith('/commands')) {
+      sent = JSON.parse(init!.body as string);
+      return await new Promise<Response>((resolve) => {
+        reply = resolve;
+      });
+    }
+    return Response.json(entry);
+  });
+  const client = createInteractiveClient({
+    base: '/api',
+    fetcher,
+    publish: () => {},
+    loadMission: () => {},
+    storage: sessionStorage,
+  });
+  cleanup.push(client.dispose);
+  client.setMission('mid');
+  const running = client.perform('start');
+  await vi.waitFor(() => expect(sent).toBeDefined());
+  client.setMission('another');
+  reply(Response.json(received(sent!.commandId, 'start')));
+  await running;
+  expect(client.get().receipt).toBeUndefined();
+  expect(client.get().pending?.missionId).toBe('mid');
+});
+
+it('rejects malformed time, receipt success/reference mismatch and strict old-version ingress', () => {
+  expect(() =>
+    decodeIntent({ ...evidence, expiresAt: '2026-09-14T00:00:40.000Z' }),
+  ).toThrow(/lifetime/);
+  expect(() =>
+    decodeReceipt({ ...received('a'), code: 'INTENT_EXPIRED' }),
+  ).toThrow(/mismatch/);
+  expect(() => decodeReceipt({ ...received('a'), frameId: undefined })).toThrow(
+    /references/,
+  );
+  expect(() => decodeRunRead({})).toThrow(/contract/);
+  expect(() => validateFrame({ ...rawFrame, schemaVersion: '1.0' })).toThrow(
+    /world frame/,
+  );
+});
+
+it.each(
+  (['create', 'start'] as const).flatMap((operation) =>
+    ['opaque/ ?#% /id', '.', '..', 'a/../b', 'unicode-é/+ &= %2E'].map(
+      (id) => ({ operation, id }),
+    ),
+  ),
+)(
+  'reconciles opaque $operation identity $id through query lookup without URL normalization',
+  async ({ operation, id }) => {
+    const pending =
+      operation === 'create'
+        ? { body: { creationId: id, templateId: 'singapore-local-v1' } }
+        : {
+            missionId: 'mid',
+            body: { commandId: id, holderId: 'operator', intent: evidence },
+          };
+    sessionStorage.setItem(
+      'sentinel.interactive.pending.v1',
+      JSON.stringify(pending),
+    );
+    const paths: string[] = [];
+    const fetcher = vi.fn(async (url: string) => {
+      paths.push(url);
+      return Response.json(
+        url.endsWith('/entry') ? entry : received(id, operation),
+      );
+    });
+    const client = createInteractiveClient({
+      base: '/api',
+      fetcher,
+      publish: () => {},
+      loadMission: () => {},
+      storage: sessionStorage,
+    });
+    cleanup.push(client.dispose);
+    await client.reconcile();
+    expect(paths[0]).toBe(
+      `/api/interactive/${operation === 'create' ? 'creations' : 'mid/receipts'}?identity=${encodeURIComponent(id)}`,
+    );
+    expect(
+      new URL(paths[0], 'http://localhost').searchParams.get('identity'),
+    ).toBe(id);
+    expect(client.get().pending).toBeUndefined();
+  },
+);

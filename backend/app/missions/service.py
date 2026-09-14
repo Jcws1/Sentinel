@@ -7,7 +7,7 @@ from uuid import uuid4
 from app.domain.models import Mission, WorldFrame
 from app.recording.sqlite_repository import RecordingRepository
 from app.world.contracts import DeltaMessage, ResyncRequiredMessage, SnapshotMessage
-from app.world.serialization import canonical, utc_now, validated_frame
+from app.world.serialization import canonical, utc_now, validated_frame, read_frame
 
 
 class SequenceConflict(Exception):
@@ -41,7 +41,7 @@ class MissionService:
         frame = self.repository.latest_text(mission_id)
         if frame is None:
             raise KeyError(mission_id)
-        return WorldFrame.model_validate_json(frame)
+        return read_frame(frame)
 
     async def subscribe(self, mission_id: str) -> tuple[str, Subscription]:
         # Snapshot and membership in subsequent publication are one critical section.
@@ -49,7 +49,7 @@ class MissionService:
             frame = self.read(mission_id)
             subscription = Subscription(asyncio.Queue(maxsize=self.queue_size))
             self._subscribers.setdefault(mission_id, set()).add(subscription)
-            snapshot = SnapshotMessage(type="snapshot", schema_version="1.0", mission_id=mission_id, stream_epoch=frame.stream_epoch,
+            snapshot = SnapshotMessage(type="snapshot", schema_version="1.1", mission_id=mission_id, stream_epoch=frame.stream_epoch,
                                        sequence=frame.sequence, frame=frame)
             return canonical(snapshot), subscription
 
@@ -67,42 +67,53 @@ class MissionService:
         allocated here. HTTP exposes this only for the opt-in deterministic fixture.
         """
         async with self._lock(mission_id):
-            recording = self.repository.recording_for(mission_id)  # Must precede build.
-            previous_text = self.repository.latest_text(mission_id)
-            previous = json.loads(previous_text) if previous_text else None
-            previous_sequence = previous["sequence"] if previous else None
-            if expected_sequence is not None and expected_sequence != previous_sequence:
-                raise SequenceConflict("Fixture changed; reload the latest frame before advancing")
-            proposed, events = build(json.loads(previous_text) if previous_text else None)
-            # Clamp wall-clock regressions without altering the effective source time.
-            recorded_at = max(self.clock(), previous["recordedAt"] if previous else recording.established_at)
-            event_tail = self.repository.event_tail(mission_id)
-            event_sequence = event_tail[-1]["sequence"] + 1 if event_tail else 0
-            events = json.loads(canonical({"events": events}))["events"]
-            for index, event in enumerate(events):
-                event.update(id=str(uuid4()), missionId=mission_id, sequence=event_sequence + index, recordedAt=recorded_at)
-            proposed = json.loads(canonical(proposed))
-            proposed.update(schemaVersion="1.0", recordingId=recording.id, streamEpoch=recording.stream_epoch,
-                            sequence=0 if previous is None else previous_sequence + 1,
-                            frameId=str(uuid4()), recordedAt=recorded_at,
-                            recentEvents=(event_tail + events)[-100:])
-            if proposed.get("mission", {}).get("id") != mission_id:
-                raise ValueError("source frame mission differs from authority context")
-            committed_text = validated_frame(proposed)
-            frame = WorldFrame.model_validate_json(committed_text)
-            # Build/validate transport before commit, but distribute only AFTER it.
-            message = self._delta(previous, json.loads(committed_text), events) if previous else canonical(
-                SnapshotMessage(type="snapshot", schema_version="1.0", mission_id=mission_id, stream_epoch=frame.stream_epoch, sequence=frame.sequence, frame=frame))
+            return self.commit_locked(mission_id, build, expected_sequence)
+
+    def commit_locked(self, mission_id: str, build: Callable, expected_sequence: int | None = None,
+                      effects: Callable | None = None, publish: bool = True) -> WorldFrame:
+        """Internal port: caller owns the mission lock; outer transactions publish later."""
+        recording = self.repository.recording_for(mission_id)  # Must precede build.
+        previous_text = self.repository.latest_text(mission_id)
+        previous = json.loads(previous_text) if previous_text else None
+        previous_sequence = previous["sequence"] if previous else None
+        if expected_sequence is not None and expected_sequence != previous_sequence:
+            raise SequenceConflict("Fixture changed; reload the latest frame before advancing")
+        proposed, events = build(json.loads(previous_text) if previous_text else None)
+        # Clamp wall-clock regressions without altering the effective source time.
+        recorded_at = max(self.clock(), previous["recordedAt"] if previous else recording.established_at)
+        event_tail = self.repository.event_tail(mission_id)
+        event_sequence = event_tail[-1]["sequence"] + 1 if event_tail else 0
+        events = json.loads(canonical({"events": events}))["events"]
+        for index, event in enumerate(events):
+            event.update(id=str(uuid4()), missionId=mission_id, sequence=event_sequence + index, recordedAt=recorded_at)
+        proposed = json.loads(canonical(proposed))
+        proposed.update(schemaVersion="1.1", recordingId=recording.id, streamEpoch=recording.stream_epoch,
+                        sequence=0 if previous is None else previous_sequence + 1,
+                        frameId=str(uuid4()), recordedAt=recorded_at,
+                        recentEvents=(event_tail + events)[-100:])
+        if proposed.get("mission", {}).get("id") != mission_id:
+            raise ValueError("source frame mission differs from authority context")
+        committed_text = validated_frame(proposed)
+        frame = WorldFrame.model_validate_json(committed_text)
+        # Build/validate transport before commit, but distribute only AFTER it.
+        message = self._delta(previous, json.loads(committed_text), events) if previous else canonical(
+            SnapshotMessage(type="snapshot", schema_version="1.1", mission_id=mission_id, stream_epoch=frame.stream_epoch, sequence=frame.sequence, frame=frame))
+        if effects:
+            # The caller already owns the encompassing repository transaction.
             self.repository.commit(committed_text, events)
+            effects(frame)
+        else:
+            self.repository.commit(committed_text, events)
+        if publish:
             self._publish(mission_id, message)
-            return WorldFrame.model_validate_json(committed_text)
+        return WorldFrame.model_validate_json(committed_text)
 
     def _delta(self, previous: dict, current: dict, events: list[dict]) -> str:
-        changes = {"mission": current["mission"], "events": events}
+        changes = {"mission": current["mission"], "events": events, "interactive": current.get("interactive")}
         for table in ("entities", "tracks", "assets", "sensors", "zones", "tasks"):
             changes[table] = {"upserts": {key: item for key, item in current[table].items() if previous[table].get(key) != item},
                               "removes": sorted(set(previous[table]) - set(current[table]))}
-        payload = {"type": "delta", "schemaVersion": "1.0", "missionId": current["mission"]["id"],
+        payload = {"type": "delta", "schemaVersion": "1.1", "missionId": current["mission"]["id"],
                    "previousSequence": previous["sequence"], "changes": changes}
         for key in ("streamEpoch", "sequence", "frameId", "recordingId", "effectiveAt", "recordedAt"):
             payload[key] = current[key]
@@ -114,6 +125,6 @@ class MissionService:
                 self.unsubscribe(mission_id, subscription)
                 while not subscription.queue.empty():
                     subscription.queue.get_nowait()
-                subscription.queue.put_nowait(canonical(ResyncRequiredMessage(type="resync-required", schema_version="1.0", mission_id=mission_id, reason="slow-consumer")))
+                subscription.queue.put_nowait(canonical(ResyncRequiredMessage(type="resync-required", schema_version="1.1", mission_id=mission_id, reason="slow-consumer")))
             else:
                 subscription.queue.put_nowait(message)

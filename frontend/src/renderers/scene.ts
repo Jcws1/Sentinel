@@ -103,6 +103,10 @@ export function createScene(
     }),
     unlocatedCount: rows.filter((r) => !r.tracks.length).length,
     referencePoint: frame.mission.referencePoint ?? undefined,
-    region: regionalMissions[frame.mission.id],
+    region:
+      regionalMissions[frame.mission.id] ??
+      (frame.interactive?.templateId === 'singapore-local-v1'
+        ? regionalMissions['fixture-tactical']
+        : undefined),
   });
 }

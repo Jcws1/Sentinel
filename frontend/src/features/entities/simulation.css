@@ -1,0 +1,84 @@
+.simulation-controls {
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 7px 10px;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.simulation-heading,
+.simulation-reconciliation {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px 12px;
+}
+.simulation-run-state {
+  color: var(--text-primary);
+}
+.simulation-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 5px;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.simulation-status > span {
+  max-width: 100%;
+}
+.simulation-error {
+  color: var(--status-warning, #e7bd7b);
+}
+.simulation-menu {
+  width: min(320px, calc(100vw - 24px));
+  max-height: var(--radix-dropdown-menu-content-available-height);
+  overflow-y: auto;
+}
+.simulation-menu .simulation-action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+.simulation-menu .simulation-action small {
+  font-size: 11px;
+  white-space: normal;
+  line-height: 1.4;
+}
+.simulation-menu .simulation-action[data-disabled] {
+  opacity: 1;
+  color: var(--text-secondary);
+}
+.simulation-menu .simulation-action[data-disabled] > span {
+  color: var(--text-muted);
+}
+.browser-mode {
+  display: flex;
+  gap: 3px;
+}
+.browser-mode button {
+  padding: 5px 9px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  border: 1px solid transparent;
+}
+.browser-mode button[aria-pressed='true'] {
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  border-color: var(--border-subtle);
+}
+.control-binding {
+  margin: 7px 0;
+  font-size: 11px;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.control-binding p {
+  margin: 5px 0;
+}
+
+.simulation-heading .simulation-trigger {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 24px;
+}

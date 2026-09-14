@@ -1,5 +1,5 @@
-/* Generated from backend v1 JSON Schemas; do not edit.
- * Source SHA-256: b2b172043755a5e07c1730faab7690e93abcccfc53999a818769740911329ff7
+/* Generated from backend v1.1 JSON Schemas; do not edit.
+ * Source SHA-256: cca5bb4cb31afdaede9885ba3c2a42cb97035e682252e86d98ccf12493fba3b4
  */
 
 /**
@@ -21,7 +21,7 @@ export interface BackendContracts {
 export interface SnapshotMessage {
   frame: WorldFrame;
   missionId: string;
-  schemaVersion: '1.0';
+  schemaVersion: '1.1';
   sequence: number;
   streamEpoch: string;
   type: 'snapshot';
@@ -35,6 +35,7 @@ export interface WorldFrame {
   effectiveAt: string;
   entities: Entities;
   frameId: string;
+  interactive?: InteractiveRun | null;
   mission: Mission;
   /**
    * @maxItems 100
@@ -42,7 +43,7 @@ export interface WorldFrame {
   recentEvents: SentinelEvent[];
   recordedAt: string;
   recordingId: string;
-  schemaVersion: '1.0';
+  schemaVersion: '1.1';
   sensors: Sensors;
   sequence: number;
   streamEpoch: string;
@@ -128,6 +129,68 @@ export interface Classification {
 }
 export interface Extensions {
   [k: string]: JsonValue;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "InteractiveRun".
+ */
+export interface InteractiveRun {
+  capabilities: ('run-control' | 'scenario-pair')[];
+  /**
+   * @maxItems 32
+   */
+  controls: AssetControl[];
+  executorEpoch: string;
+  executorId: string;
+  grantId: string;
+  grantRevision: number;
+  lastReportAt?: string | null;
+  lease: Lease;
+  missionId: string;
+  runId: string;
+  runRevision: number;
+  schemaVersion?: '1.0';
+  sourceId: string;
+  state: 'ready' | 'running' | 'paused' | 'ended';
+  supportedActions: (
+    | 'acquire'
+    | 'renew'
+    | 'reclaim'
+    | 'revoke'
+    | 'start'
+    | 'pause'
+    | 'resume'
+    | 'end'
+  )[];
+  templateId?: 'singapore-local-v1';
+  tick: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "AssetControl".
+ */
+export interface AssetControl {
+  assetId: string;
+  bindingRevision: number;
+  capabilities: 'move-horizontal'[];
+  controlTrackId?: string | null;
+  eligible?: false;
+  entityId: string;
+  executorId: string;
+  grantId: string;
+  missionId: string;
+  positionReference: 'ELLIPSOID/WGS84';
+  reason: string;
+  sourceId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "Lease".
+ */
+export interface Lease {
+  expiresAt?: string | null;
+  holderId?: string | null;
+  revision: number;
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
@@ -331,7 +394,7 @@ export interface DeltaMessage {
   previousSequence: number;
   recordedAt: string;
   recordingId: string;
-  schemaVersion: '1.0';
+  schemaVersion: '1.1';
   sequence: number;
   streamEpoch: string;
   type: 'delta';
@@ -344,6 +407,7 @@ export interface WorldChanges {
   assets: AssetChanges;
   entities: EntityChanges;
   events: SentinelEvent[];
+  interactive?: InteractiveRun | null;
   mission: Mission;
   sensors: SensorChanges;
   tasks: TaskChanges;
@@ -422,7 +486,7 @@ export interface Upserts5 {
  */
 export interface HeartbeatMessage {
   missionId: string;
-  schemaVersion: '1.0';
+  schemaVersion: '1.1';
   sequence: number;
   serverTime: string;
   streamEpoch: string;
@@ -435,7 +499,7 @@ export interface HeartbeatMessage {
 export interface ResyncRequiredMessage {
   missionId: string;
   reason: string;
-  schemaVersion: '1.0';
+  schemaVersion: '1.1';
   type: 'resync-required';
 }
 /**
@@ -479,6 +543,116 @@ export interface RecordedObservation {
   recordedAt: string;
   sample: TrackSample;
   sequence: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "CommandRequest".
+ */
+export interface CommandRequest {
+  commandId: string;
+  holderId: string;
+  intent: Intent;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "Intent".
+ */
+export interface Intent {
+  action:
+    | 'acquire'
+    | 'renew'
+    | 'reclaim'
+    | 'revoke'
+    | 'start'
+    | 'pause'
+    | 'resume'
+    | 'end';
+  executorEpoch: string;
+  expiresAt: string;
+  grantId: string;
+  grantRevision: number;
+  id: string;
+  issuedAt: string;
+  leaseRevision: number;
+  missionId: string;
+  runId: string;
+  runRevision: number;
+  sourceId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "CreateRunRequest".
+ */
+export interface CreateRunRequest {
+  creationId: string;
+  templateId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "DemoEntry".
+ */
+export interface DemoEntry {
+  activeMissionId?: string | null;
+  enabled: boolean;
+  schemaVersion?: '1.0';
+  templateId?: 'singapore-local-v1';
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "Receipt".
+ */
+export interface Receipt {
+  accepted: boolean;
+  code:
+    | 'OK'
+    | 'NOT_INTERACTIVE'
+    | 'DEMO_DISABLED'
+    | 'ACTIVE_RUN_EXISTS'
+    | 'IDENTITY_CONFLICT'
+    | 'INTENT_INVALID'
+    | 'INTENT_EXPIRED'
+    | 'OBSOLETE_INTENT'
+    | 'REFERENCE_MISMATCH'
+    | 'CONTROL_HELD'
+    | 'CONTROL_REQUIRED'
+    | 'LEASE_EXPIRED'
+    | 'RECLAIM_REQUIRED'
+    | 'INVALID_TRANSITION'
+    | 'RUN_TERMINAL'
+    | 'INVALID_REQUEST'
+    | 'NOT_FOUND';
+  frameId?: string | null;
+  message: string;
+  missionId?: string | null;
+  operation:
+    | 'create'
+    | 'acquire'
+    | 'renew'
+    | 'reclaim'
+    | 'revoke'
+    | 'start'
+    | 'pause'
+    | 'resume'
+    | 'end';
+  recordedAt: string;
+  recordingId?: string | null;
+  requestId: string;
+  runId?: string | null;
+  schemaVersion?: '1.0';
+  sequence?: number | null;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "RunRead".
+ */
+export interface RunRead {
+  frameId: string;
+  leaseState: 'unclaimed' | 'held' | 'expired';
+  ownsControl: boolean;
+  run: InteractiveRun;
+  schemaVersion?: '1.0';
+  sequence: number;
+  serverTime: string;
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema

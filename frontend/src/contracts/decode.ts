@@ -1,9 +1,9 @@
 import Ajv2020 from 'ajv/dist/2020';
 import addFormats from 'ajv-formats';
-import worldSchema from '../../../contracts/sentinel/v1/world.schema.json';
-import streamSchema from '../../../contracts/sentinel/v1/stream.schema.json';
-import catalogSchema from '../../../contracts/sentinel/v1/mission-list.schema.json';
-import observedSchema from '../../../contracts/sentinel/v1/observed-history.schema.json';
+import worldSchema from '../../../contracts/sentinel/v1.1/world.schema.json';
+import streamSchema from '../../../contracts/sentinel/v1.1/stream.schema.json';
+import catalogSchema from '../../../contracts/sentinel/v1.1/mission-list.schema.json';
+import observedSchema from '../../../contracts/sentinel/v1.1/observed-history.schema.json';
 import type { ObservedHistory } from './generated';
 import type {
   DeepReadonly,
@@ -131,7 +131,7 @@ export function validateFrame(value: unknown): WorldFrame {
     `Invalid world frame: ${ajv.errorsText(validateWorld.errors)}`,
   );
   const frame = value;
-  assert(frame.schemaVersion === '1.0', 'Missing world schema version');
+  assert(frame.schemaVersion === '1.1', 'Missing world schema version');
   calendarInstant(frame.effectiveAt);
   calendarInstant(frame.recordedAt);
   calendarInstant(frame.mission.createdAt);
@@ -223,6 +223,49 @@ export function validateFrame(value: unknown): WorldFrame {
     }
   }
   validateEvents(frame.recentEvents, frame);
+  const run = frame.interactive;
+  if (run) {
+    assert(run.missionId === frame.mission.id, 'Interactive mission mismatch');
+    const seen = new Set<string>();
+    assert(
+      !!run.lease.holderId === !!run.lease.expiresAt,
+      'Incomplete control lease',
+    );
+    if (run.lease.expiresAt) calendarInstant(run.lease.expiresAt);
+    if (run.lastReportAt) {
+      calendarInstant(run.lastReportAt);
+      assert(run.lastReportAt <= frame.recordedAt, 'Future source report');
+    }
+    for (const control of run.controls) {
+      const asset = frame.assets[control.assetId];
+      const track = control.controlTrackId
+        ? frame.tracks[control.controlTrackId]
+        : undefined;
+      assert(
+        !seen.has(control.assetId) &&
+          asset &&
+          asset.entityId === control.entityId,
+        'Invalid control Asset binding',
+      );
+      seen.add(control.assetId);
+      assert(
+        control.missionId === run.missionId &&
+          control.executorId === run.executorId &&
+          control.sourceId === run.sourceId &&
+          control.grantId === run.grantId,
+        'Control authority mismatch',
+      );
+      if (control.controlTrackId)
+        assert(
+          track &&
+            track.entityId === control.entityId &&
+            track.source.id === run.sourceId &&
+            track.source.kind === 'simulation' &&
+            track.source.mode === 'simulated',
+          'Invalid control Track/source binding',
+        );
+    }
+  }
   return frame;
 }
 
@@ -275,7 +318,7 @@ export function decodeStream(text: string): StreamMessage {
     validateStream(value),
     `Invalid stream message: ${ajv.errorsText(validateStream.errors)}`,
   );
-  assert(value.schemaVersion === '1.0', 'Missing stream schema version');
+  assert(value.schemaVersion === '1.1', 'Missing stream schema version');
   if (value.type === 'snapshot') {
     const frame = validateFrame(value.frame);
     assert(value.missionId === frame.mission.id, 'Snapshot mission mismatch');
