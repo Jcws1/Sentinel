@@ -6,6 +6,7 @@ import {
   Map,
   ScanSearch,
   Info,
+  MessageSquare,
 } from 'lucide-react';
 
 // View kinds describe capabilities, never domain objects or individual pane instances.
@@ -24,6 +25,14 @@ export const viewRegistry = {
     category: 'Settings',
     icon: Info,
     description: 'Map sources and licences.',
+    future: '',
+  },
+  voice: {
+    unavailable: '',
+    title: 'Voice Thread',
+    category: 'Voice collaboration',
+    icon: MessageSquare,
+    description: 'Dictate an editable message or review a voice command.',
     future: '',
   },
   tactical: {

@@ -17,6 +17,7 @@ import {
   Info,
 } from 'lucide-react';
 import { WorkspaceHost } from '../features/workspace/WorkspaceHost';
+import { VoiceController } from '../features/voice/VoiceController';
 import {
   viewIds,
   viewRegistry,
@@ -170,6 +171,14 @@ function Shortcuts() {
             <div>
               <dt>Resize a focused divider</dt>
               <dd>Arrow keys</dd>
+            </div>
+            <div>
+              <dt>Dictate into Voice Thread</dt>
+              <dd>Hold Ctrl + Shift</dd>
+            </div>
+            <div>
+              <dt>Review a voice command</dt>
+              <dd>Hold Ctrl + Shift + Q</dd>
             </div>
           </dl>
           <p className="dialog-note">
@@ -400,6 +409,7 @@ export function App({
           </div>
         </main>
       </div>
+      <VoiceController bridge={bridge} />
       <footer className="status-bar">
         <MissionStatus />
         <Shortcuts />

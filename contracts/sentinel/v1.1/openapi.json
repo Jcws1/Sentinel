@@ -277,6 +277,20 @@
         "title": "AssetControl",
         "type": "object"
       },
+      "Body_transcribe_api_voice_transcribe_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_transcribe_api_voice_transcribe_post",
+        "type": "object"
+      },
       "Classification": {
         "additionalProperties": false,
         "properties": {
@@ -308,35 +322,6 @@
           "code"
         ],
         "title": "Classification",
-        "type": "object"
-      },
-      "CommandRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "commandId": {
-            "maxLength": 256,
-            "minLength": 1,
-            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
-            "title": "Commandid",
-            "type": "string"
-          },
-          "holderId": {
-            "maxLength": 256,
-            "minLength": 1,
-            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
-            "title": "Holderid",
-            "type": "string"
-          },
-          "intent": {
-            "$ref": "#/components/schemas/Intent"
-          }
-        },
-        "required": [
-          "commandId",
-          "holderId",
-          "intent"
-        ],
-        "title": "CommandRequest",
         "type": "object"
       },
       "CreateRunRequest": {
@@ -2778,6 +2763,51 @@
         ],
         "title": "ZoneChanges",
         "type": "object"
+      },
+      "app__api__voice__CommandRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "transcript": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Transcript",
+            "type": "string"
+          }
+        },
+        "required": [
+          "transcript"
+        ],
+        "title": "CommandRequest",
+        "type": "object"
+      },
+      "app__commands__contracts__CommandRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "commandId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Commandid",
+            "type": "string"
+          },
+          "holderId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Holderid",
+            "type": "string"
+          },
+          "intent": {
+            "$ref": "#/components/schemas/Intent"
+          }
+        },
+        "required": [
+          "commandId",
+          "holderId",
+          "intent"
+        ],
+        "title": "CommandRequest",
+        "type": "object"
       }
     }
   },
@@ -3002,7 +3032,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CommandRequest"
+                "$ref": "#/components/schemas/app__commands__contracts__CommandRequest"
               }
             }
           },
@@ -3464,6 +3494,84 @@
           }
         },
         "summary": "Recording"
+      }
+    },
+    "/api/voice/command": {
+      "post": {
+        "operationId": "command_api_voice_command_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/app__api__voice__CommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Command",
+        "tags": [
+          "voice"
+        ]
+      }
+    },
+    "/api/voice/transcribe": {
+      "post": {
+        "operationId": "transcribe_api_voice_transcribe_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_transcribe_api_voice_transcribe_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Transcribe",
+        "tags": [
+          "voice"
+        ]
       }
     }
   },

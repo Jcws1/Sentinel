@@ -8,6 +8,7 @@ import { TacticalMap } from '../map/TacticalMap';
 import { Credits } from '../credits/Credits';
 import { TracksBrowser } from '../entities/TracksBrowser';
 import { EntityInspector } from '../entities/EntityInspector';
+import { VoiceThread } from '../voice/VoiceThread';
 
 export type PaneLifecycleEvent =
   | { type: 'mount' | 'dispose'; viewId: ViewId }
@@ -102,6 +103,8 @@ export function PaneHost({
         <Credits />
       ) : kind === 'tracks' && runtime ? (
         <TracksBrowser bridge={bridge} />
+      ) : kind === 'voice' ? (
+        <VoiceThread />
       ) : kind === 'inspector' && runtime ? (
         <EntityInspector id={id} bridge={bridge} />
       ) : tactical ? (

@@ -59,6 +59,7 @@ export function TacticalMap({
   const projection = bridge.getMapMode(viewId);
   const threeD = projection === 'three-d';
   const presentation = bridge.getMapPresentation(viewId);
+  const recenterRevision = bridge.getMapRecenterRevision(viewId);
   const latestPresentation = useRef(presentation);
   latestPresentation.current = presentation;
   const scene = useMemo(
@@ -69,6 +70,7 @@ export function TacticalMap({
   const adapter = useRef<MapRenderer | undefined>(undefined);
   const activeLease = useRef<RendererLease | undefined>(undefined);
   const previousProjection = useRef(projection);
+  const handledRecenter = useRef(0);
   const latest = useRef(scene);
   latest.current = scene;
   const [provider, setProvider] = useState<ProviderStatus>({
@@ -136,6 +138,10 @@ export function TacticalMap({
         renderer.setScene(current, camera);
         if (changedProjection && camera) renderer.restoreCamera(camera);
         renderer.setActive(true);
+        if (recenterRevision > handledRecenter.current) {
+          renderer.recenter();
+          handledRecenter.current = recenterRevision;
+        }
         publish();
       } catch {
         adapter.current = undefined;

@@ -36,6 +36,8 @@ export class WorkspaceBridge {
   private readonly mapModes = new Map<ViewId, MapMode>();
   private readonly mapPresentations = new Map<ViewId, MapPresentation>();
   private readonly mapPitches = new Map<string, number>();
+  /** Monotonic UI-only request observed by the currently mounted map pane. */
+  private readonly mapRecenterRequests = new Map<ViewId, number>();
   /** Per-view bookmarks only. No engine objects or domain state enter layout metadata. */
   private readonly mapCameras = new Map<
     ViewId,
@@ -241,6 +243,14 @@ export class WorkspaceBridge {
     });
     this.publish();
   }
+  getMapRecenterRevision(id: ViewId) {
+    return this.mapRecenterRequests.get(id) ?? 0;
+  }
+  recenterMap(id: ViewId) {
+    if (this.disposed) return;
+    this.mapRecenterRequests.set(id, this.getMapRecenterRevision(id) + 1);
+    this.publish();
+  }
   getViewTitle(id: ViewId): string {
     if (this.inspectorLabels.has(id))
       return `Details · ${this.inspectorLabels.get(id)}`;
@@ -303,6 +313,7 @@ export class WorkspaceBridge {
     this.mapModes.clear();
     this.mapPresentations.clear();
     this.mapPitches.clear();
+    this.mapRecenterRequests.clear();
     this.layoutModel.removeChangeListener(this.publish);
   }
 }

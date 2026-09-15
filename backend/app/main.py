@@ -7,10 +7,10 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import TypeAdapter
 
-from app.api import missions, stream, interactive
+from app.api import missions, stream, interactive, voice
 from app.commands.service import InteractiveService, CommandError
 from fastapi.exceptions import RequestValidationError
 from app.missions.fixtures import seed_fixtures
@@ -18,9 +18,11 @@ from app.missions.service import MissionService
 from app.recording.sqlite_repository import RecordingRepository
 from app.world.contracts import StreamMessage
 from app.world.serialization import elapsed_utc_clock
+from app.voice import load_local_voice_environment
 
 
 def create_app(db_path: str | None = None, fixtures_enabled: bool | None = None, heartbeat_seconds: float = 5, demo_enabled: bool | None = None) -> FastAPI:
+    load_local_voice_environment()
     path = db_path or os.environ.get("SENTINEL_DB_PATH", str(Path(__file__).resolve().parents[1] / "data" / "sentinel.sqlite3"))
     fixtures = os.environ.get("SENTINEL_FIXTURES") == "1" if fixtures_enabled is None else fixtures_enabled
 
@@ -59,6 +61,7 @@ def create_app(db_path: str | None = None, fixtures_enabled: bool | None = None,
     application.include_router(missions.router)
     application.include_router(stream.router)
     application.include_router(interactive.router)
+    application.include_router(voice.router)
 
     @application.middleware("http")
     async def prevent_cached_authority(request: Request, call_next):
@@ -91,6 +94,17 @@ def create_app(db_path: str | None = None, fixtures_enabled: bool | None = None,
         return application.openapi_schema
 
     application.openapi = openapi
+    frontend_dist = Path(__file__).resolve().parents[2] / 'frontend' / 'dist'
+
+    @application.get('/{path:path}', include_in_schema=False)
+    async def frontend(path: str):
+        target = (frontend_dist / path).resolve()
+        if frontend_dist.is_dir() and target.is_relative_to(frontend_dist) and target.is_file():
+            return FileResponse(target)
+        index = frontend_dist / 'index.html'
+        if index.is_file():
+            return FileResponse(index)
+        return JSONResponse(status_code=404, content={'detail': 'Frontend build unavailable.'})
     return application
 
 

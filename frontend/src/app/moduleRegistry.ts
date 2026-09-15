@@ -8,6 +8,7 @@ import {
   Files,
   ListFilter,
   Settings2,
+  MessageSquare,
 } from 'lucide-react';
 import { viewKind, type ViewId } from '../features/workspace/viewRegistry';
 
@@ -21,6 +22,7 @@ export const modules = [
   { id: 'timeline', label: 'Timeline', icon: Clock3, view: 'timeline' },
   { id: 'reports', label: 'Reports', icon: Files },
   { id: 'events', label: 'Events', icon: ListFilter },
+  { id: 'voice', label: 'Voice Thread', icon: MessageSquare, view: 'voice' },
   { id: 'settings', label: 'Settings', icon: Settings2, view: 'credits' },
 ] satisfies { id: string; label: string; icon: typeof House; view?: ViewId }[];
 
