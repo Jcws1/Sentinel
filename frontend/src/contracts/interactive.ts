@@ -1,5 +1,5 @@
 import Ajv2020 from 'ajv/dist/2020';
-import schema from '../../../contracts/sentinel/v1.4/interactive.schema.json';
+import schema from '../../../contracts/sentinel/v1.5/interactive.schema.json';
 import type {
   DemoEntry,
   Intent,

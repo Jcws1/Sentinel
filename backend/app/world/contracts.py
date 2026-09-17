@@ -37,7 +37,13 @@ class TaskChanges(Model):
 from app.commands.contracts import InteractiveRun
 
 
+from app.scenarios.contracts import ScenarioBinding
+from app.scenarios.boundaries import BoundaryRules
+
+
 class WorldChanges(Model):
+    scenario: ScenarioBinding | None = None
+    boundary_rules: BoundaryRules | None = None
     interactive: InteractiveRun | None = None
     mission: Mission
     entities: EntityChanges
@@ -51,7 +57,7 @@ class WorldChanges(Model):
 
 class SnapshotMessage(Model):
     type: Literal["snapshot"]
-    schema_version: Literal["1.4"]
+    schema_version: Literal["1.6"]
     mission_id: Id
     stream_epoch: Id
     sequence: Sequence
@@ -60,7 +66,7 @@ class SnapshotMessage(Model):
 
 class DeltaMessage(Model):
     type: Literal["delta"]
-    schema_version: Literal["1.4"]
+    schema_version: Literal["1.6"]
     mission_id: Id
     stream_epoch: Id
     sequence: Sequence
@@ -74,7 +80,7 @@ class DeltaMessage(Model):
 
 class HeartbeatMessage(Model):
     type: Literal["heartbeat"]
-    schema_version: Literal["1.4"]
+    schema_version: Literal["1.6"]
     mission_id: Id
     stream_epoch: Id
     sequence: Sequence
@@ -83,7 +89,7 @@ class HeartbeatMessage(Model):
 
 class ResyncRequiredMessage(Model):
     type: Literal["resync-required"]
-    schema_version: Literal["1.4"]
+    schema_version: Literal["1.6"]
     mission_id: Id
     reason: str
 

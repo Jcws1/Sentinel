@@ -19,6 +19,8 @@ import { useOperationalRuntime } from '../../app/OperationalContext';
 import type { WorkspaceBridge } from '../workspace/workspaceBridge';
 import type { ViewId } from '../workspace/viewRegistry';
 import { createScene } from '../../renderers/scene';
+import { BoundaryMapMenu } from '../units/BoundaryMapMenu';
+import { scenarioScene } from '../../world/scenarioDraft';
 import {
   configuredProvider,
   hasTacticalCredentials,
@@ -63,23 +65,32 @@ export function TacticalMap({
   const latestPresentation = useRef(presentation);
   latestPresentation.current = presentation;
   const scene = useMemo(
-    () => ({
-      ...createScene(
-        state.presentation,
-        state.session,
-        state.observed,
-        state.interactive,
-      ),
-      acknowledgement: state.interactive.directFeedback && {
-        id: state.interactive.directFeedback.id,
-        longitudeDeg: state.interactive.directFeedback.longitudeDeg,
-        latitudeDeg: state.interactive.directFeedback.latitudeDeg,
-        state: state.interactive.directFeedback.stage,
-        expiresAtMs:
-          (state.interactive.directFeedback.acknowledgedAt ?? 0) + 900,
-      },
-    }),
-    [state.presentation, state.session, state.observed, state.interactive],
+    () =>
+      state.scenario.active
+        ? scenarioScene(state.scenario, state.session)
+        : {
+            ...createScene(
+              state.presentation,
+              state.session,
+              state.observed,
+              state.interactive,
+            ),
+            acknowledgement: state.interactive.directFeedback && {
+              id: state.interactive.directFeedback.id,
+              longitudeDeg: state.interactive.directFeedback.longitudeDeg,
+              latitudeDeg: state.interactive.directFeedback.latitudeDeg,
+              state: state.interactive.directFeedback.stage,
+              expiresAtMs:
+                (state.interactive.directFeedback.acknowledgedAt ?? 0) + 900,
+            },
+          },
+    [
+      state.presentation,
+      state.session,
+      state.observed,
+      state.interactive,
+      state.scenario,
+    ],
   );
   const canvas = useRef<HTMLDivElement>(null);
   const adapter = useRef<MapRenderer | undefined>(undefined);
@@ -92,10 +103,29 @@ export function TacticalMap({
   });
   const [spatial, setSpatial] = useState<SpatialStatus>();
   const [mode, setMode] = useState<'select' | 'pan'>('select');
+  const [placementPointer, setPlacementPointer] = useState<{
+    x: number;
+    y: number;
+  }>();
   const picking = state.session.destinationPickView === viewId;
   const directPicking = state.session.directDestinationView === viewId;
-  const effectiveMode = picking || directPicking ? 'destination' : mode;
-  const latestMode = useRef<'select' | 'pan' | 'destination'>(effectiveMode);
+  const placing =
+    state.scenario.active &&
+    !!state.scenario.placement &&
+    state.scenario.placement.viewId === viewId;
+  const boundaryEditing =
+    state.scenario.active && state.scenario.boundaryEdit?.viewId === viewId;
+  const drawing = boundaryEditing && !state.scenario.boundaryEdit?.originalId;
+  const effectiveMode = boundaryEditing
+    ? drawing
+      ? 'draw'
+      : 'vertex'
+    : picking || directPicking || placing
+      ? 'destination'
+      : mode;
+  const latestMode = useRef<
+    'select' | 'pan' | 'destination' | 'draw' | 'vertex'
+  >(effectiveMode);
   useEffect(() => {
     const missionId = state.missionId;
     if (picking && missionId) {
@@ -114,13 +144,54 @@ export function TacticalMap({
   useEffect(
     () => () => {
       bridge.endDestinationAuthoring(viewId);
+      runtime.disarmBoundary(viewId);
       if (runtime.getSnapshot().session.destinationPickView === viewId)
         runtime.pickDestination();
       if (runtime.getSnapshot().session.directDestinationView === viewId)
         runtime.armDirectMove();
+      if (runtime.getSnapshot().scenario.placement?.viewId === viewId)
+        runtime.armPlacement();
     },
     [bridge, viewId, runtime],
   );
+  useEffect(() => {
+    if (!visible && runtime.getSnapshot().scenario.placement?.viewId === viewId)
+      runtime.armPlacement();
+    if (!visible) runtime.disarmBoundary(viewId);
+  }, [visible, runtime, viewId]);
+  useEffect(() => {
+    const locate = state.scenario.locate;
+    if (
+      !visible ||
+      !state.scenario.active ||
+      locate?.viewId !== viewId ||
+      runtime.getSnapshot().scenario.locate?.serial !== locate.serial ||
+      !adapter.current
+    )
+      return;
+    const unit = state.scenario.draft.units.find((u) => u.id === locate.id);
+    if (!unit) return;
+    const current = adapter.current.captureCamera() ?? scene.localHome!;
+    adapter.current.restoreCamera({
+      ...current,
+      center: {
+        longitudeDeg: unit.position.longitudeDeg,
+        latitudeDeg: unit.position.latitudeDeg,
+      },
+      groundSpanM: Math.min(current.groundSpanM, 1200),
+      focusHeightM: unit.position.altitude.metres,
+    });
+    runtime.completeScenarioLocate(locate.serial);
+  }, [
+    state.scenario.locate,
+    state.scenario.active,
+    state.scenario.draft.units,
+    visible,
+    viewId,
+    provider,
+    scene.localHome,
+    runtime,
+  ]);
   const [announcement, setAnnouncement] = useState('');
   useEffect(() => {
     if (!announcement) return;
@@ -215,28 +286,86 @@ export function TacticalMap({
     }, 12000);
     const callbacks: RendererCallbacks = {
       pick: (id, additive) => {
-        if (pool.owns(lease) && lease.active)
-          selectForDetails(runtime, bridge, id, additive);
+        if (!pool.owns(lease) || !lease.active) return;
+        if (runtime.getSnapshot().scenario.active) {
+          runtime.selectScenarioUnit(id);
+          if (id) bridge.open('units');
+        } else selectForDetails(runtime, bridge, id, additive);
       },
       selection: (ids, additive) => {
         if (!pool.owns(lease) || !lease.active) return;
         runtime.selectEntities(ids, additive);
-        if (runtime.getSnapshot().session.selection.items.length)
+        if (
+          !runtime.getSnapshot().scenario.active &&
+          runtime.getSnapshot().session.selection.items.length
+        )
           bridge.revealDetails();
       },
       clearSelection: () => {
-        if (pool.owns(lease) && lease.active) runtime.selectEntity();
+        if (pool.owns(lease) && lease.active) {
+          if (runtime.getSnapshot().scenario.boundaryEdit) return;
+          runtime.selectEntity();
+        }
+      },
+      boundaryFinish: () => {
+        if (pool.owns(lease) && lease.active) runtime.applyBoundary();
+      },
+      boundaryDeleteVertex: () => {
+        if (
+          pool.owns(lease) &&
+          lease.active &&
+          runtime.getSnapshot().scenario.boundaryEdit?.viewId === viewId
+        )
+          runtime.removeBoundaryVertex();
+      },
+      boundaryVertex: (index, position) => {
+        if (
+          !pool.owns(lease) ||
+          !lease.active ||
+          runtime.getSnapshot().scenario.boundaryEdit?.viewId !== viewId
+        )
+          return;
+        runtime.editBoundary({ selectedVertex: index });
+        if (position)
+          runtime.boundaryPoint(position.longitude, position.latitude, index);
+      },
+      boundaryContext: (longitude, latitude, point) => {
+        if (pool.owns(lease) && lease.active)
+          runtime.boundaryContext(
+            longitude,
+            latitude,
+            viewId,
+            point.x,
+            point.y,
+          );
       },
       cancelDestination: () => {
         if (!pool.owns(lease) || !lease.active) return;
         runtime.armDirectMove();
         runtime.pickDestination();
+        runtime.armPlacement();
+        if (runtime.getSnapshot().scenario.boundaryEdit?.viewId === viewId)
+          runtime.cancelBoundary();
       },
       directMove: (longitude, latitude) => {
-        if (pool.owns(lease) && lease.active)
-          void runtime.directMove(longitude, latitude);
+        if (!pool.owns(lease) || !lease.active) return;
+        if (runtime.getSnapshot().scenario.active) runtime.armPlacement();
+        else void runtime.directMove(longitude, latitude);
       },
       destination: (longitude, latitude) => {
+        if (!pool.owns(lease) || !lease.active) return;
+        const draft = runtime.getSnapshot().scenario;
+        if (draft.active) {
+          if (
+            draft.boundaryEdit?.viewId === viewId &&
+            !draft.boundaryEdit.originalId
+          ) {
+            return runtime.boundaryPoint(longitude, latitude);
+          }
+          if (draft.placement?.viewId === viewId)
+            runtime.placeScenarioUnit(longitude, latitude);
+          return;
+        }
         if (
           pool.owns(lease) &&
           lease.active &&
@@ -336,6 +465,26 @@ export function TacticalMap({
       data-mission-id={scene.missionId}
       data-selection={selection.id}
       data-projection={projection}
+      data-context={state.scenario.active ? 'authoring' : 'operational'}
+      onKeyDownCapture={(event) => {
+        if (
+          state.scenario.active &&
+          state.scenario.boundaryEdit &&
+          event.key === 'Escape'
+        ) {
+          runtime.cancelBoundary();
+          event.preventDefault();
+          event.stopPropagation();
+        } else if (
+          state.scenario.active &&
+          state.scenario.placement &&
+          event.key === 'Escape'
+        ) {
+          runtime.armPlacement();
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }}
     >
       <div className="map-tools" role="toolbar" aria-label="Map controls">
         <div
@@ -347,7 +496,11 @@ export function TacticalMap({
             className="map-tool"
             aria-pressed={!threeD}
             disabled={picking}
-            onClick={() => bridge.setMapMode(viewId, 'tactical')}
+            onClick={() => {
+              if (placing) runtime.armPlacement();
+              runtime.disarmBoundary(viewId);
+              bridge.setMapMode(viewId, 'tactical');
+            }}
           >
             Tactical
           </button>
@@ -355,7 +508,11 @@ export function TacticalMap({
             className="map-tool"
             aria-pressed={threeD}
             disabled={picking}
-            onClick={() => bridge.setMapMode(viewId, 'three-d')}
+            onClick={() => {
+              if (placing) runtime.armPlacement();
+              runtime.disarmBoundary(viewId);
+              bridge.setMapMode(viewId, 'three-d');
+            }}
           >
             3D
           </button>
@@ -368,6 +525,8 @@ export function TacticalMap({
           onClick={() => {
             runtime.pickDestination();
             runtime.armDirectMove();
+            runtime.armPlacement();
+            runtime.disarmBoundary(viewId);
             setMode('select');
           }}
         >
@@ -382,12 +541,34 @@ export function TacticalMap({
           onClick={() => {
             runtime.pickDestination();
             runtime.armDirectMove();
+            runtime.armPlacement();
+            runtime.disarmBoundary(viewId);
             setMode('pan');
           }}
         >
           <Hand size={15} />
           <span>Pan</span>
         </button>
+        {state.scenario.active && (
+          <button
+            className="map-tool"
+            aria-label="Draw zone/boundary"
+            aria-pressed={!!boundaryEditing}
+            disabled={
+              !!state.scenario.edit ||
+              !!state.scenario.pending ||
+              state.scenario.busy ||
+              !!state.scenario.blocked
+            }
+            onClick={() => {
+              if (state.scenario.boundaryEdit) runtime.editBoundary({ viewId });
+              else runtime.beginBoundary(viewId);
+              bridge.open('units');
+            }}
+          >
+            Draw boundary
+          </button>
+        )}
         {state.presentation.frame?.interactive && (
           <button
             className="map-tool"
@@ -408,7 +589,7 @@ export function TacticalMap({
           aria-label="Recenter"
           title="Return to the local operating area"
           disabled={
-            !scene.frameId ||
+            (!scene.frameId && !state.scenario.active) ||
             (!scene.objects.length &&
               !scene.zones.length &&
               !scene.referencePoint)
@@ -702,12 +883,89 @@ export function TacticalMap({
           </Menu.Portal>
         </Menu.Root>
       </div>
+      {state.scenario.active ? (
+        <div className="scenario-map-context" role="status">
+          <strong>AUTHORING</strong>
+          <span>
+            {state.scenario.draft.name} · {state.scenario.draft.units.length}/32
+            units
+          </span>
+          <span>
+            {placing
+              ? 'Click to place · Esc or right-click cancels'
+              : state.scenario.placement
+                ? 'Placement belongs to another map'
+                : 'Select a category in Units to place'}
+          </span>
+        </div>
+      ) : state.presentation.frame?.scenario ? (
+        <div className="scenario-map-context scenario-map-running">
+          <strong>SIMULATION</strong>
+          <span>
+            {state.presentation.frame.scenario.name} · revision{' '}
+            {state.presentation.frame.scenario.revision}
+          </span>
+          <span>{state.presentation.frame.interactive?.state}</span>
+        </div>
+      ) : null}
       <div className="map-surface">
         <div
           ref={canvas}
           className="map-canvas"
           data-renderer-failed={provider.kind === 'renderer-error'}
+          onPointerMoveCapture={(event) => {
+            if ((!placing && !boundaryEditing) || event.buttons) {
+              setPlacementPointer(undefined);
+              return;
+            }
+            const bounds = event.currentTarget.getBoundingClientRect();
+            setPlacementPointer({
+              x: event.clientX - bounds.left,
+              y: event.clientY - bounds.top,
+            });
+          }}
+          onPointerDownCapture={() => setPlacementPointer(undefined)}
+          onPointerLeave={() => setPlacementPointer(undefined)}
+          onBlurCapture={() => setPlacementPointer(undefined)}
         />
+        {drawing &&
+          placementPointer &&
+          (() => {
+            const count = scene.boundaryEdit?.vertices.length ?? 0,
+              last = adapter.current?.projectBoundaryVertex?.(count - 1);
+            return last ? (
+              <svg
+                aria-hidden="true"
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  pointerEvents: 'none',
+                  zIndex: 4,
+                }}
+              >
+                <line
+                  x1={last.x}
+                  y1={last.y}
+                  x2={placementPointer.x}
+                  y2={placementPointer.y}
+                  stroke="#d4e2e6"
+                  strokeDasharray="5 4"
+                />
+              </svg>
+            ) : null;
+          })()}
+        {placing && placementPointer && (
+          <div
+            className="scenario-placement-preview"
+            aria-hidden="true"
+            style={{ left: placementPointer.x, top: placementPointer.y }}
+          >
+            <span>+</span>
+            <small>PREVIEW · {state.scenario.placement?.category}</small>
+          </div>
+        )}
         <div className="map-notices">
           <div className="map-status" role="status">
             {provider.kind === 'local' && (
@@ -898,7 +1156,7 @@ export function TacticalMap({
               </div>
             )}
         </div>
-        {!scene.frameId && (
+        {!scene.frameId && !state.scenario.active && (
           <div className="map-empty">
             {state.missionId
               ? 'Waiting for a complete mission frame'
@@ -929,6 +1187,21 @@ export function TacticalMap({
             </a>
           )}
       </div>
+      <BoundaryMapMenu
+        viewId={viewId}
+        width={canvas.current?.clientWidth ?? 600}
+        height={canvas.current?.clientHeight ?? 600}
+      />
+      {boundaryEditing && (
+        <div className="boundary-map-help" role="status">
+          {drawing ? 'DRAW' : 'EDIT'} ·{' '}
+          {state.scenario.boundaryEdit?.vertices.length} vertices ·{' '}
+          {drawing
+            ? 'Double-click final vertex / Enter to finish'
+            : 'Drag a handle or use numeric coordinates'}{' '}
+          · Esc cancels
+        </div>
+      )}
       {(picking || directPicking) && (
         <div className="map-destination-help" role="status">
           {directPicking ? (

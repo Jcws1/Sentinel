@@ -10,7 +10,7 @@ import type { CameraIntent } from '../../src/renderers/contracts';
 const product = 'http://127.0.0.1:5181';
 const verification = 'http://127.0.0.1:5182';
 const evidence = resolve(
-  '../docs/compact-demo/evidence/regressions/regressions/chrome',
+  '../docs/d2/regressions/evidence/regressions/regressions/regressions/chrome',
 );
 const fixture = 'fixture-tactical';
 const failures = new WeakMap<Page, string[]>();

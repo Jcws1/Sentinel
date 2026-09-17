@@ -162,6 +162,7 @@ export function EntityDetails({
     frame?.interactive?.controls.filter((b) => b.entityId === entityId) ?? [];
   const label = row?.entity.label || 'Entity';
   const profile =
+    !frame?.scenario &&
     frame?.interactive?.templateId === 'singapore-local-v2' &&
     bindings.length > 0;
   const heading = sample?.velocity?.headingTrueDeg;

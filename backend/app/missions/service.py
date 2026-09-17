@@ -49,7 +49,7 @@ class MissionService:
             frame = self.read(mission_id)
             subscription = Subscription(asyncio.Queue(maxsize=self.queue_size))
             self._subscribers.setdefault(mission_id, set()).add(subscription)
-            snapshot = SnapshotMessage(type="snapshot", schema_version="1.4", mission_id=mission_id, stream_epoch=frame.stream_epoch,
+            snapshot = SnapshotMessage(type="snapshot", schema_version="1.6", mission_id=mission_id, stream_epoch=frame.stream_epoch,
                                        sequence=frame.sequence, frame=frame)
             return canonical(snapshot), subscription
 
@@ -87,7 +87,7 @@ class MissionService:
         for index, event in enumerate(events):
             event.update(id=str(uuid4()), missionId=mission_id, sequence=event_sequence + index, recordedAt=recorded_at)
         proposed = json.loads(canonical(proposed))
-        proposed.update(schemaVersion="1.4", recordingId=recording.id, streamEpoch=recording.stream_epoch,
+        proposed.update(schemaVersion="1.6", recordingId=recording.id, streamEpoch=recording.stream_epoch,
                         sequence=0 if previous is None else previous_sequence + 1,
                         frameId=str(uuid4()), recordedAt=recorded_at,
                         recentEvents=(event_tail + events)[-100:])
@@ -97,7 +97,7 @@ class MissionService:
         frame = WorldFrame.model_validate_json(committed_text)
         # Build/validate transport before commit, but distribute only AFTER it.
         message = self._delta(previous, json.loads(committed_text), events) if previous else canonical(
-            SnapshotMessage(type="snapshot", schema_version="1.4", mission_id=mission_id, stream_epoch=frame.stream_epoch, sequence=frame.sequence, frame=frame))
+            SnapshotMessage(type="snapshot", schema_version="1.6", mission_id=mission_id, stream_epoch=frame.stream_epoch, sequence=frame.sequence, frame=frame))
         if effects:
             # The caller already owns the encompassing repository transaction.
             self.repository.commit(committed_text, events)
@@ -109,11 +109,11 @@ class MissionService:
         return WorldFrame.model_validate_json(committed_text)
 
     def _delta(self, previous: dict, current: dict, events: list[dict]) -> str:
-        changes = {"mission": current["mission"], "events": events, "interactive": current.get("interactive")}
+        changes = {"mission": current["mission"], "events": events, "interactive": current.get("interactive"), "scenario": current.get("scenario"), "boundaryRules": current.get("boundaryRules")}
         for table in ("entities", "tracks", "assets", "sensors", "zones", "tasks"):
             changes[table] = {"upserts": {key: item for key, item in current[table].items() if previous[table].get(key) != item},
                               "removes": sorted(set(previous[table]) - set(current[table]))}
-        payload = {"type": "delta", "schemaVersion": "1.4", "missionId": current["mission"]["id"],
+        payload = {"type": "delta", "schemaVersion": "1.6", "missionId": current["mission"]["id"],
                    "previousSequence": previous["sequence"], "changes": changes}
         for key in ("streamEpoch", "sequence", "frameId", "recordingId", "effectiveAt", "recordedAt"):
             payload[key] = current[key]
@@ -125,6 +125,6 @@ class MissionService:
                 self.unsubscribe(mission_id, subscription)
                 while not subscription.queue.empty():
                     subscription.queue.get_nowait()
-                subscription.queue.put_nowait(canonical(ResyncRequiredMessage(type="resync-required", schema_version="1.4", mission_id=mission_id, reason="slow-consumer")))
+                subscription.queue.put_nowait(canonical(ResyncRequiredMessage(type="resync-required", schema_version="1.6", mission_id=mission_id, reason="slow-consumer")))
             else:
                 subscription.queue.put_nowait(message)

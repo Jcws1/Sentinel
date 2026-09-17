@@ -135,7 +135,7 @@ class InteractiveService:
             if prior:
                 return prior
             self._enabled()
-            if request.template_id not in (TEMPLATE, LEGACY_TEMPLATE):
+            if request.scenario is None and request.template_id not in (TEMPLATE, LEGACY_TEMPLATE):
                 receipt = self._receipt(request.creation_id, "create", error=CommandError("INVALID_REQUEST", "Only the configured local synthetic template is available."))
                 self.repository.save_receipt(request.creation_id, payload, canonical(receipt))
                 return receipt
@@ -145,7 +145,18 @@ class InteractiveService:
                     "ACTIVE_RUN_EXISTS", "Reopen the active run and End it before creating another."), mid=active)
                 self.repository.save_receipt(request.creation_id, payload, canonical(receipt))
                 return receipt
-            mission, proposed = new_template(self.authority.clock(), request.template_id)
+            revision = None
+            if request.scenario:
+                from app.scenarios.service import ScenarioService, instantiate
+                try:
+                    revision = ScenarioService(self.authority, self.enabled).resolve(request.scenario)
+                    mission, proposed = instantiate(revision, self.authority.clock())
+                except CommandError as error:
+                    receipt = self._receipt(request.creation_id, "create", error=error)
+                    self.repository.save_receipt(request.creation_id, payload, canonical(receipt))
+                    return receipt
+            else:
+                mission, proposed = new_template(self.authority.clock(), request.template_id)
             async with self.authority._lock(mission.id):
                 with self.repository.transaction():
                     self.repository.establish(mission, str(uuid4()), str(uuid4()), self.authority.clock())
@@ -154,6 +165,8 @@ class InteractiveService:
                     self.repository.save_checkpoint(mission.id, {"schemaVersion": "1.3", "run": json.loads(canonical(frame.interactive)), "executions": [], "directOrders": {}})
                     receipt = self._receipt(request.creation_id, "create", frame)
                     self.repository.save_receipt(request.creation_id, payload, canonical(receipt))
+                    if revision:
+                        self.repository.db.execute("INSERT INTO scenario_runs VALUES (?,?)", (mission.id, canonical(revision)))
                 return receipt
 
     def _validate(self, mid, request, credential, run, now):
@@ -362,6 +375,10 @@ class InteractiveService:
             actual_origin = anchor["tracks"][member.control_track_id]["latest"]["position"]
             if canonical(member.origin) != canonical(actual_origin) or canonical(proposed["tracks"][member.control_track_id]["latest"]["position"]) != canonical(actual_origin):
                 raise CommandError("POSITION_UNAVAILABLE", "Control position differs from the frozen review; make a fresh draft.")
+            from app.commands.zone_rules import blocked
+            zone_reason = blocked(proposed, actual_origin, target)
+            if zone_reason:
+                raise CommandError("ENDPOINT_INVALID", f"{proposed['entities'][member.entity_id]['label']}: {zone_reason}")
             supplied = json.loads(canonical(member.destination))
             if not in_extent(supplied):
                 raise CommandError("OUTSIDE_EXTENT", "Every supplied endpoint must be inside the local metric extent.")
@@ -454,6 +471,11 @@ class InteractiveService:
                 accepted.append((member, control, current["tracks"][member.control_track_id]["latest"]["position"]))
         # Geometry validation is deliberately before any supersession or reservation.
         targets = endpoints([origin for _, _, origin in accepted], anchor) if accepted else []
+        from app.commands.zone_rules import blocked
+        for (member, _, origin), target in zip(accepted, targets):
+            zone_reason = blocked(current, origin, target)
+            if zone_reason:
+                raise CommandError("ENDPOINT_INVALID", f"{current['entities'][member.entity_id]['label']}: {zone_reason}")
         members = [MoveMember(**member.model_dump(), busy_revision=control["busyRevision"], origin=origin, destination=target)
                    for (member, control, origin), target in zip(accepted, targets)]
         return members, skipped, {**context, "order": intent.order}

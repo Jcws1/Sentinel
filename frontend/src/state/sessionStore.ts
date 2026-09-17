@@ -3,7 +3,16 @@ import type { Entity } from '../contracts/types';
 import type { MovementDraft } from '../world/movement';
 
 export type ObjectRef = {
-  kind: 'entity' | 'track' | 'asset' | 'sensor' | 'zone' | 'task' | 'event';
+  kind:
+    | 'entity'
+    | 'track'
+    | 'asset'
+    | 'sensor'
+    | 'zone'
+    | 'task'
+    | 'event'
+    | 'scenario-unit'
+    | 'scenario-boundary';
   id: string;
 };
 export type TimeState =

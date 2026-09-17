@@ -1,5 +1,5 @@
-/* Generated from backend v1.4 JSON Schemas; do not edit.
- * Source SHA-256: 8838ea1861a372c972a04f2808bf2890b80fdbfd416d930c2a939ceb9ca6ef71
+/* Generated from backend contract package v1.7 JSON Schemas; do not edit.
+ * Source SHA-256: ef0dfeabc1a8ad4dd3f5ba725b35efdbcd35bbdff316161ad631a691fb5d2c08
  */
 
 /**
@@ -21,7 +21,7 @@ export interface BackendContracts {
 export interface SnapshotMessage {
   frame: WorldFrame;
   missionId: string;
-  schemaVersion: '1.4';
+  schemaVersion: '1.6';
   sequence: number;
   streamEpoch: string;
   type: 'snapshot';
@@ -32,6 +32,7 @@ export interface SnapshotMessage {
  */
 export interface WorldFrame {
   assets: Assets;
+  boundaryRules?: BoundaryRules | null;
   effectiveAt: string;
   entities: Entities;
   frameId: string;
@@ -43,13 +44,14 @@ export interface WorldFrame {
   recentEvents: SentinelEvent[];
   recordedAt: string;
   recordingId: string;
-  schemaVersion: '1.4';
+  scenario?: ScenarioBinding | null;
+  schemaVersion: '1.6';
   sensors: Sensors;
   sequence: number;
   streamEpoch: string;
   tasks: Tasks;
   tracks: Tracks;
-  zones: Zones;
+  zones: Zones1;
 }
 export interface Assets {
   [k: string]: Asset;
@@ -92,6 +94,21 @@ export interface SourceRef {
   kind: 'simulation' | 'sensor' | 'manual' | 'import';
   mode: 'simulated' | 'live' | 'replay';
   recordingId?: string | null;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "BoundaryRules".
+ */
+export interface BoundaryRules {
+  ruleVersion?: 'local-boundary-v1';
+  zones: Zones;
+}
+export interface Zones {
+  /**
+   * This interface was referenced by `Zones`'s JSON-Schema definition
+   * via the `patternProperty` "^[^\s\x00-\x1f\x7f](?:[^\x00-\x1f\x7f]*[^\s\x00-\x1f\x7f])?$".
+   */
+  [k: string]: 'annotation' | 'friendly' | 'patrol' | 'restricted';
 }
 export interface Entities {
   [k: string]: Entity;
@@ -344,6 +361,24 @@ export interface SentinelEvent {
 export interface Extensions2 {
   [k: string]: JsonValue;
 }
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "ScenarioBinding".
+ */
+export interface ScenarioBinding {
+  contentHash: string;
+  definitionId: string;
+  entityIds: Entityids;
+  name: string;
+  revision: number;
+}
+export interface Entityids {
+  /**
+   * This interface was referenced by `Entityids`'s JSON-Schema definition
+   * via the `patternProperty` "^[^\s\x00-\x1f\x7f](?:[^\x00-\x1f\x7f]*[^\s\x00-\x1f\x7f])?$".
+   */
+  [k: string]: string;
+}
 export interface Sensors {
   [k: string]: Sensor;
 }
@@ -432,11 +467,11 @@ export interface Velocity {
   speedMps: number;
   verticalSpeedMps?: number | null;
 }
-export interface Zones {
+export interface Zones1 {
   [k: string]: Zone;
 }
 /**
- * This interface was referenced by `Zones`'s JSON-Schema definition
+ * This interface was referenced by `Zones1`'s JSON-Schema definition
  * via the `patternProperty` "^[^\s\x00-\x1f\x7f](?:[^\x00-\x1f\x7f]*[^\s\x00-\x1f\x7f])?$".
  *
  * This interface was referenced by `Upserts5`'s JSON-Schema definition
@@ -487,7 +522,7 @@ export interface DeltaMessage {
   previousSequence: number;
   recordedAt: string;
   recordingId: string;
-  schemaVersion: '1.4';
+  schemaVersion: '1.6';
   sequence: number;
   streamEpoch: string;
   type: 'delta';
@@ -498,10 +533,12 @@ export interface DeltaMessage {
  */
 export interface WorldChanges {
   assets: AssetChanges;
+  boundaryRules?: BoundaryRules | null;
   entities: EntityChanges;
   events: SentinelEvent[];
   interactive?: InteractiveRun | null;
   mission: Mission;
+  scenario?: ScenarioBinding | null;
   sensors: SensorChanges;
   tasks: TaskChanges;
   tracks: TrackChanges;
@@ -579,7 +616,7 @@ export interface Upserts5 {
  */
 export interface HeartbeatMessage {
   missionId: string;
-  schemaVersion: '1.4';
+  schemaVersion: '1.6';
   sequence: number;
   serverTime: string;
   streamEpoch: string;
@@ -592,7 +629,7 @@ export interface HeartbeatMessage {
 export interface ResyncRequiredMessage {
   missionId: string;
   reason: string;
-  schemaVersion: '1.4';
+  schemaVersion: '1.6';
   type: 'resync-required';
 }
 /**
@@ -681,7 +718,17 @@ export interface Intent {
  */
 export interface CreateRunRequest {
   creationId: string;
-  templateId: string;
+  scenario?: ScenarioRef | null;
+  templateId?: string | null;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "ScenarioRef".
+ */
+export interface ScenarioRef {
+  contentHash: string;
+  definitionId: string;
+  revision: number;
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
@@ -1009,6 +1056,322 @@ export interface RunRead {
   schemaVersion?: '1.3';
   sequence: number;
   serverTime: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "BoundaryDefinition".
+ */
+export interface BoundaryDefinition {
+  id: string;
+  name: string;
+  type: 'untyped' | 'annotation' | 'friendly' | 'patrol' | 'restricted';
+  /**
+   * @minItems 3
+   * @maxItems 32
+   */
+  vertices: [
+    [number, number],
+    [number, number],
+    [number, number],
+    ...[number, number][],
+  ];
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "ScenarioAltitude".
+ */
+export interface ScenarioAltitude {
+  datumId?: 'WGS84';
+  metres: number;
+  reference?: 'ELLIPSOID';
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "ScenarioContent".
+ */
+export interface ScenarioContent {
+  boundaries?:
+    | []
+    | [BoundaryDefinition]
+    | [BoundaryDefinition, BoundaryDefinition]
+    | [BoundaryDefinition, BoundaryDefinition, BoundaryDefinition]
+    | [
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+      ]
+    | [
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+      ]
+    | [
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+      ]
+    | [
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+      ]
+    | [
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+      ]
+    | [
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+      ]
+    | [
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+      ]
+    | [
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+      ]
+    | [
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+      ]
+    | [
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+      ]
+    | [
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+      ]
+    | [
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+      ]
+    | [
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+        BoundaryDefinition,
+      ]
+    | null;
+  boundaryRuleVersion?: 'local-boundary-v1' | null;
+  name: string;
+  /**
+   * @maxItems 32
+   */
+  units: UnitPlacement[];
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "UnitPlacement".
+ */
+export interface UnitPlacement {
+  category: 'friendly' | 'hostile' | 'unknown';
+  commandRole: 'sentinel' | 'observation';
+  headingTrueDeg: number;
+  id: string;
+  label: string;
+  position: ScenarioPosition;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "ScenarioPosition".
+ */
+export interface ScenarioPosition {
+  altitude: ScenarioAltitude;
+  latitudeDeg: number;
+  longitudeDeg: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "ScenarioList".
+ */
+export interface ScenarioList {
+  scenarios: ScenarioRevision[];
+  schemaVersion?: '1.0' | '1.1';
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "ScenarioRevision".
+ */
+export interface ScenarioRevision {
+  content: ScenarioContent;
+  contentHash: string;
+  createdAt: string;
+  definitionId: string;
+  revision: number;
+  schemaVersion?: '1.0' | '1.1';
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "ScenarioReceipt".
+ */
+export interface ScenarioReceipt {
+  accepted: boolean;
+  code: 'OK' | 'REVISION_CONFLICT' | 'NOT_FOUND';
+  message: string;
+  requestId: string;
+  result?: ScenarioRevision | null;
+  schemaVersion?: '1.0' | '1.1';
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "ScenarioWrite".
+ */
+export interface ScenarioWrite {
+  content: ScenarioContent;
+  expectedRevision: number;
+  requestId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "ScenarioCounts".
+ */
+export interface ScenarioCounts {
+  controlled: number;
+  friendly: number;
+  hostile: number;
+  observationOnly: number;
+  total: number;
+  unknown: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "ScenarioMotionPreset".
+ */
+export interface ScenarioMotionPreset {
+  modelId: 'local-horizontal-v1';
+  speedMps: number;
+  templateId: 'singapore-local-v2';
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "ScenarioReview".
+ */
+export interface ScenarioReview {
+  activeMissionId?: string | null;
+  boundaryCount: number;
+  canRun: boolean;
+  checkedAt: string;
+  counts: ScenarioCounts;
+  issues: ScenarioReviewIssue[];
+  motionPreset: ScenarioMotionPreset;
+  name: string;
+  reference: ScenarioRef;
+  schemaVersion?: '1.1';
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "ScenarioReviewIssue".
+ */
+export interface ScenarioReviewIssue {
+  boundaryId?: string | null;
+  code:
+    | 'EMPTY_ARRANGEMENT'
+    | 'DEMO_DISABLED'
+    | 'ACTIVE_RUN_EXISTS'
+    | 'UNTYPED_BOUNDARY'
+    | 'RESTRICTED_OCCUPANT';
+  message: string;
+  unitId?: string | null;
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema

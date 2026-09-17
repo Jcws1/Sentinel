@@ -1,4 +1,5 @@
 import type {
+  ScenarioRef,
   CommandRequest,
   CreateRunRequest,
   DemoEntry,
@@ -315,7 +316,11 @@ export function createInteractiveClient(options: {
       gen,
     );
   }
-  async function perform(action: Action | 'create', executionId?: string) {
+  async function perform(
+    action: Action | 'create',
+    executionId?: string,
+    scenario?: ScenarioRef,
+  ) {
     if (disposed || state.busy || pending) return;
     const gen = generation,
       mid = missionId;
@@ -326,7 +331,9 @@ export function createInteractiveClient(options: {
         remember({
           body: {
             creationId: crypto.randomUUID(),
-            templateId: 'singapore-local-v2',
+            ...(scenario
+              ? { scenario }
+              : { templateId: 'singapore-local-v2' as const }),
           },
         });
       } else {
@@ -659,9 +666,15 @@ export function createInteractiveClient(options: {
       managing = false;
     }
   }
-  async function newDemo() {
+  async function newDemo(scenario?: ScenarioRef) {
     if (disposed || state.startingDemo || state.busy || pending) return;
     if (state.entry?.activeMissionId) {
+      if (scenario) {
+        emit({
+          error: 'End the active demo before running a saved arrangement.',
+        });
+        return;
+      }
       options.loadMission(state.entry.activeMissionId);
       return;
     }
@@ -671,7 +684,7 @@ export function createInteractiveClient(options: {
       storage!.setItem(startupKey, 'creating');
       startup = 'creating';
       emit({ startingDemo: true });
-      await perform('create');
+      await perform('create', undefined, scenario);
       if (!pending && state.receipt?.accepted === false) {
         storage!.removeItem(startupKey);
         startup = undefined;

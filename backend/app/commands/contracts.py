@@ -1,3 +1,4 @@
+from app.scenarios.contracts import ScenarioRef
 """Local synthetic control contracts, independent of the Phase 5 boundary."""
 from typing import Literal
 from pydantic import Field, model_validator
@@ -264,7 +265,14 @@ class CommandRequest(Model):
 
 class CreateRunRequest(Model):
     creation_id: Id
-    template_id: Id
+    template_id: Id | None = None
+    scenario: ScenarioRef | None = None
+
+    @model_validator(mode="after")
+    def exactly_one_source(self):
+        if (self.template_id is None) == (self.scenario is None):
+            raise ValueError("Choose exactly one template or saved scenario revision")
+        return self
 
 
 class Receipt(Model):

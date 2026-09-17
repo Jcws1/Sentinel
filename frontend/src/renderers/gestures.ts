@@ -3,7 +3,7 @@ export interface ScreenPoint {
   x: number;
   y: number;
 }
-export type CursorMode = 'select' | 'pan' | 'destination';
+export type CursorMode = 'select' | 'pan' | 'destination' | 'draw' | 'vertex';
 export const DRAG_THRESHOLD = 5;
 export function isDrag(start: ScreenPoint, end: ScreenPoint) {
   return Math.hypot(end.x - start.x, end.y - start.y) > DRAG_THRESHOLD;
@@ -23,11 +23,15 @@ export function insideRectangle(
 interface GestureCallbacks {
   mode(): CursorMode;
   pan(temporary: boolean): void;
-  click(point: ScreenPoint, additive: boolean): void;
+  click(point: ScreenPoint, additive: boolean): boolean | void;
   rectangle(start: ScreenPoint, end: ScreenPoint, additive: boolean): void;
   move(point: ScreenPoint): void;
   clear(): void;
   cancelDestination(): void;
+  finishBoundary?(): void;
+  deleteBoundaryVertex?(): void;
+  doubleClick?(point: ScreenPoint, reverse: boolean): void;
+  vertexDrag?(start: ScreenPoint, end: ScreenPoint): void;
 }
 interface Gesture {
   pointerId: number;
@@ -36,11 +40,15 @@ interface Gesture {
   end: ScreenPoint;
   drag: boolean;
   rectangle: boolean;
+  temporaryPan: boolean;
   additive: boolean;
 }
 export class MapGestures {
   private gesture?: Gesture;
   private space = false;
+  private lastReleaseClick = false;
+  private lastDrawPick = false;
+  private pendingDrawClick?: { point: ScreenPoint; additive: boolean };
   private readonly box: HTMLDivElement;
   private readonly removers: (() => void)[] = [];
   constructor(
@@ -83,6 +91,7 @@ export class MapGestures {
         start: point,
         end: point,
         drag: false,
+        temporaryPan: this.space,
         additive: event.shiftKey || event.ctrlKey || event.metaKey,
         rectangle:
           event.button === 0 && callbacks.mode() === 'select' && !this.space,
@@ -112,14 +121,59 @@ export class MapGestures {
       gesture.end = this.point(event);
       gesture.drag ||= isDrag(gesture.start, gesture.end);
       this.cancel(false);
-      if (gesture.drag) {
-        if (gesture.rectangle)
+      this.pendingDrawClick = undefined;
+      const cameraOwned = gesture.temporaryPan || this.space;
+      this.lastReleaseClick = !gesture.drag && !cameraOwned;
+      if (gesture.drag || cameraOwned) {
+        this.lastDrawPick = false;
+        if (
+          callbacks.mode() === 'vertex' &&
+          gesture.button === 0 &&
+          !cameraOwned
+        )
+          callbacks.vertexDrag?.(gesture.start, gesture.end);
+        if (gesture.rectangle && !cameraOwned)
           callbacks.rectangle(gesture.start, gesture.end, gesture.additive);
       } else if (gesture.button === 2) callbacks.move(gesture.end);
-      else if (!this.space) callbacks.click(gesture.end, gesture.additive);
+      else if (callbacks.mode() === 'draw')
+        this.pendingDrawClick = {
+          point: gesture.end,
+          additive: gesture.additive,
+        };
+      else callbacks.click(gesture.end, gesture.additive);
+    });
+    // Native click detail owns the double-click transaction. Its second click
+    // must never insert another vertex, even when the pointer drifts by metres
+    // on the map. A refused final surface pick must also veto completion.
+    listen('click', (event) => {
+      if (callbacks.mode() !== 'draw') return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const pending = this.pendingDrawClick;
+      this.pendingDrawClick = undefined;
+      if (pending && event.detail < 2)
+        this.lastDrawPick =
+          callbacks.click(pending.point, pending.additive) !== false;
     });
     listen('pointercancel', () => this.cancel());
-    listen('lostpointercapture', () => this.cancel());
+    listen('lostpointercapture', () => {
+      // Normal release is followed by click/dblclick. Only unexpected capture
+      // loss cancels a still-active gesture and its pending completion.
+      if (this.gesture) this.cancel();
+    });
+    listen('dblclick', (event) => {
+      if (callbacks.mode() === 'draw') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (this.lastReleaseClick && this.lastDrawPick)
+          callbacks.finishBoundary?.();
+        this.lastDrawPick = false;
+      } else if (this.lastReleaseClick && callbacks.doubleClick) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        callbacks.doubleClick(this.point(event), event.shiftKey);
+      }
+    });
     listen('contextmenu', (event) => event.preventDefault());
     // MapLibre also recognizes Ctrl-left-drag as rotation. Select owns every
     // left drag, so do not let its compatibility mouse event start a camera drag.
@@ -131,12 +185,25 @@ export class MapGestures {
       if (event.code === 'Space') {
         event.preventDefault();
         this.space = true;
+        if (this.gesture) {
+          this.gesture.temporaryPan = true;
+          this.gesture.rectangle = false;
+          this.box.style.display = 'none';
+        }
         callbacks.pan(true);
+      } else if (event.key === 'Delete' && callbacks.mode() === 'vertex') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        callbacks.deleteBoundaryVertex?.();
+      } else if (event.key === 'Enter' && callbacks.mode() === 'draw') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        callbacks.finishBoundary?.();
       } else if (event.key === 'Escape') {
         event.preventDefault();
         event.stopImmediatePropagation();
         if (this.gesture) this.cancel();
-        else if (callbacks.mode() === 'destination')
+        else if (['destination', 'draw', 'vertex'].includes(callbacks.mode()))
           callbacks.cancelDestination();
         else callbacks.clear();
       }
@@ -152,7 +219,7 @@ export class MapGestures {
       this.releaseSpace();
     });
   }
-  private point(event: PointerEvent): ScreenPoint {
+  private point(event: MouseEvent): ScreenPoint {
     const rect = this.canvas.getBoundingClientRect();
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
   }
@@ -162,6 +229,11 @@ export class MapGestures {
     this.callbacks.pan(false);
   }
   cancel(cancelNative = true) {
+    if (cancelNative) {
+      this.pendingDrawClick = undefined;
+      this.lastReleaseClick = false;
+      this.lastDrawPick = false;
+    }
     const gesture = this.gesture;
     this.gesture = undefined;
     this.box.style.display = 'none';

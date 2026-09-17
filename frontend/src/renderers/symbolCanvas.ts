@@ -1,6 +1,25 @@
 import { affiliationSymbols } from './symbology';
 import type { SceneObject, SceneDestination } from './contracts';
 
+export function boundaryCaption(text: string, color: string) {
+  const canvas = document.createElement('canvas'),
+    context = canvas.getContext('2d')!;
+  const lines = text.split('\n');
+  context.font = '20px Inter, sans-serif';
+  canvas.width =
+    Math.ceil(
+      Math.max(...lines.map((line) => context.measureText(line).width)),
+    ) + 20;
+  canvas.height = lines.length * 26 + 14;
+  context.font = '20px Inter, sans-serif';
+  context.fillStyle = '#10191eeb';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = color;
+  context.textBaseline = 'middle';
+  lines.forEach((line, index) => context.fillText(line, 10, 20 + index * 26));
+  return canvas;
+}
+
 /** Neutral endpoint cross and stage ring, spatially distinct from reported symbols. */
 export function destinationCanvas(destination: SceneDestination) {
   const canvas = document.createElement('canvas'),

@@ -10,6 +10,7 @@ import { TracksBrowser } from '../entities/TracksBrowser';
 import { EntityInspector } from '../entities/EntityInspector';
 import { EntityDetails } from '../entities/EntityDetails';
 import { MovementPane } from '../movement/MovementPane';
+import { UnitsPane } from '../units/UnitsPane';
 
 export type PaneLifecycleEvent =
   | { type: 'mount' | 'dispose'; viewId: ViewId }
@@ -103,6 +104,8 @@ export function PaneHost({
     >
       {kind === 'credits' ? (
         <Credits />
+      ) : kind === 'units' && runtime ? (
+        <UnitsPane bridge={bridge} />
       ) : kind === 'movement' && runtime ? (
         <MovementPane bridge={bridge} />
       ) : kind === 'tracks' && runtime ? (

@@ -10,7 +10,7 @@ import { advanceFixture, closeTab, tabAction, unloadMission } from './actions';
 
 const origin = 'http://127.0.0.1:5182';
 const dir = resolve(
-  '../docs/compact-demo/evidence/regressions/regressions/map-services',
+  '../docs/d2/regressions/evidence/regressions/regressions/regressions/map-services',
 );
 const pane = (page: Page, id = 'tactical') =>
   page.locator(`.tactical-view[data-view-id="${id}"]`);

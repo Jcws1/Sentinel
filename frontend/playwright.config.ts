@@ -6,10 +6,7 @@ export default defineConfig({
   timeout: 30000,
   reporter: [
     ['list'],
-    [
-      'json',
-      { outputFile: '../docs/compact-demo/evidence/browser-results.json' },
-    ],
+    ['json', { outputFile: '../docs/d2/evidence/browser-results.json' }],
   ],
   use: {
     channel: 'msedge',

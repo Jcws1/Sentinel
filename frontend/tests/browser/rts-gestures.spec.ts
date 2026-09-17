@@ -6,7 +6,9 @@ import { closeTab, tabAction } from './actions';
 import type { CameraIntent } from '../../src/renderers/contracts';
 
 test.use({ trace: 'off' });
-const evidence = resolve('../docs/compact-demo/evidence/regressions');
+const evidence = resolve(
+  '../docs/d2/regressions/evidence/regressions/regressions',
+);
 type Mode = 'tactical' | 'three-d';
 type Probe = {
   ready: boolean;
@@ -190,6 +192,32 @@ test('both projections share click/rectangle gestures, direct picking and indepe
     await pane(page)
       .getByRole('button', { name: 'Move selected members', exact: true })
       .click();
+    // Temporary camera ownership survives releasing Space before the mouse.
+    // A sub-threshold gesture must not send the armed live move.
+    const moveBox = (await canvas(page).boundingBox())!;
+    await canvas(page).focus();
+    await page.keyboard.down('Space');
+    await page.mouse.move(
+      moveBox.x + moveBox.width * 0.5,
+      moveBox.y + moveBox.height * 0.5,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      moveBox.x + moveBox.width * 0.5 + 3,
+      moveBox.y + moveBox.height * 0.5,
+    );
+    await page.keyboard.up('Space');
+    await page.mouse.up();
+    expect([
+      ...new Set(
+        (await readWorld(page)).interactive!.executions!.map(
+          (e) => e.commandId,
+        ),
+      ),
+    ]).toEqual(beforeOrbit);
+    await expect(
+      pane(page).getByRole('button', { name: 'Cancel picking', exact: true }),
+    ).toBeVisible();
     await page.keyboard.press('ArrowRight');
     await page.keyboard.press('Enter');
     await expect

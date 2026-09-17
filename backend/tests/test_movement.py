@@ -331,7 +331,7 @@ def test_v11_record_and_v10_receipt_are_read_without_rewriting():
         original = json.dumps(value, indent=2)
         h.repo.db.execute('UPDATE frames SET frame_json=? WHERE frame_id=?', (original, value['frameId']))
         projected = h.authority.read(mid)
-        assert projected.schema_version == '1.4' and projected.interactive.schema_version == '1.3'
+        assert projected.schema_version == '1.6' and projected.interactive.schema_version == '1.3'
         assert h.repo.latest_text(mid) == original
         payload, receipt = h.repo.receipt('old-creation')
         legacy = json.loads(receipt)
@@ -342,7 +342,7 @@ def test_v11_record_and_v10_receipt_are_read_without_rewriting():
         h.repo.db.execute('UPDATE creation_receipts SET receipt_json=? WHERE creation_id=?', (old_receipt, 'old-creation'))
         assert json.loads(canonical(h.service.lookup('old-creation'))) == legacy
         assert h.repo.receipt('old-creation')[1] == old_receipt
-        assert h.repo.db.execute('PRAGMA user_version').fetchone()[0] == 3
+        assert h.repo.db.execute('PRAGMA user_version').fetchone()[0] == 4
     asyncio.run(run())
 
 

@@ -376,9 +376,46 @@ class LegacyRtsWorldFrame(LegacyMovementWorldFrame):
     interactive: LegacyRtsInteractiveRun | None = None
 
 
-class WorldFrame(LegacyRtsWorldFrame):
+class LegacyCompactWorldFrame(LegacyRtsWorldFrame):
     schema_version: Literal["1.4"]
     interactive: InteractiveRun | None = None
+
+
+from app.scenarios.contracts import ScenarioBinding
+
+class LegacyScenarioWorldFrame(LegacyCompactWorldFrame):
+    schema_version: Literal["1.5"]
+    scenario: ScenarioBinding | None = None
+
+    @model_validator(mode="after")
+    def scenario_integrity(self):
+        if self.scenario:
+            ids = list(self.scenario.entity_ids.values())
+            if not self.interactive or len(ids) != len(set(ids)) or set(ids) != set(self.entities):
+                raise ValueError("Invalid scenario/run entity mapping")
+        return self
+
+
+from app.scenarios.boundaries import BoundaryRules
+
+class WorldFrame(LegacyScenarioWorldFrame):
+    schema_version: Literal["1.6"]
+    boundary_rules: BoundaryRules | None = None
+
+    @model_validator(mode="after")
+    def boundary_integrity(self):
+        from app.scenarios.geometry import validate
+        if self.boundary_rules is not None:
+            if not self.scenario or not self.interactive:
+                raise ValueError("Boundary rules require a custom simulation run")
+            if set(self.boundary_rules.zones) != set(self.zones):
+                raise ValueError("Boundary rules must cover exactly the frozen run zones")
+            for zid, kind in self.boundary_rules.zones.items():
+                z = self.zones[zid]
+                if z.purpose != kind or z.altitude_band or len(z.geometry.coordinates) != 1 or z.provenance.source.id != self.interactive.source_id:
+                    raise ValueError("Invalid boundary footprint or source")
+                validate(z.geometry.coordinates[0][:-1], kind)
+        return self
 
 
 def canonical_position(position):

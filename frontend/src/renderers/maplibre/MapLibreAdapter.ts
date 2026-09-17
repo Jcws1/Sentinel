@@ -19,7 +19,12 @@ import {
   extrusionLayer,
   buildingFootprints,
 } from './regionalStyle';
-import { symbolCanvas, destinationCanvas } from '../symbolCanvas';
+import { boundaryColors, boundaryLabels } from '../../world/boundaryGeometry';
+import {
+  symbolCanvas,
+  destinationCanvas,
+  boundaryCaption,
+} from '../symbolCanvas';
 import {
   groundSpan,
   sceneBounds,
@@ -43,6 +48,40 @@ const prefix = '__sentinel-';
 maplibregl.setWorkerUrl(workerUrl);
 const sourceId = `${prefix}world`;
 const symbols = `${prefix}symbols`;
+const zoneFilter: maplibregl.FilterSpecification = [
+  '==',
+  ['get', 'kind'],
+  'zone',
+];
+const boundaryFilters: Record<string, maplibregl.FilterSpecification> = {
+  'zone-line': [
+    'all',
+    zoneFilter,
+    [
+      '!',
+      [
+        'in',
+        ['get', 'boundaryType'],
+        ['literal', ['friendly', 'patrol', 'restricted']],
+      ],
+    ],
+  ],
+  'zone-friendly': [
+    'all',
+    zoneFilter,
+    ['==', ['get', 'boundaryType'], 'friendly'],
+  ],
+  'zone-patrol': ['all', zoneFilter, ['==', ['get', 'boundaryType'], 'patrol']],
+  'zone-restricted': [
+    'all',
+    zoneFilter,
+    ['==', ['get', 'boundaryType'], 'restricted'],
+  ],
+  'boundary-labels': ['==', ['get', 'kind'], 'boundary-label'],
+  'boundary-edit-line': ['==', ['get', 'kind'], 'boundary-edit-line'],
+  'boundary-handles': ['==', ['get', 'kind'], 'boundary-handle'],
+  'boundary-numbers': ['==', ['get', 'kind'], 'boundary-number'],
+};
 const empty: FeatureCollection = { type: 'FeatureCollection', features: [] };
 export type { ProviderStatus } from '../contracts';
 const counts = { created: 0, disposed: 0, active: 0 };
@@ -72,7 +111,7 @@ export class MapLibreAdapter {
   private framed = false;
   private initialCamera?: CameraIntent;
   private imageIds = new Set<string>();
-  private mode: 'select' | 'pan' | 'destination' = 'select';
+  private mode: 'select' | 'pan' | 'destination' | 'draw' | 'vertex' = 'select';
   private keyboardId?: string;
   private provider: TacticalProvider;
   private providerGeneration = 0;
@@ -171,6 +210,10 @@ export class MapLibreAdapter {
     this.acknowledgement = new DestinationAcknowledgement(container);
     this.gestures = new MapGestures(canvas, container, {
       mode: () => this.mode,
+      finishBoundary: () => this.callbacks.boundaryFinish?.(),
+      deleteBoundaryVertex: () => this.callbacks.boundaryDeleteVertex?.(),
+      doubleClick: (point, reverse) => this.zoomAt(point, reverse ? 2 : 0.5),
+      vertexDrag: (start, end) => this.dragVertex(start, end),
       pan: (temporary) => {
         this.temporaryPan = temporary;
         this.updateGestures();
@@ -197,6 +240,10 @@ export class MapLibreAdapter {
       const current = new Set(
         (this.scene?.objects ?? []).map((object) => this.labelId(object)),
       );
+      for (const z of this.scene?.zones ?? [])
+        current.add(
+          `${prefix}label-boundary-${JSON.stringify([z.label, z.boundaryType])}`,
+        );
       for (const d of this.scene?.destinations ?? [])
         current.add(
           `${prefix}label-destination-${JSON.stringify([d.label, d.stage])}`,
@@ -268,7 +315,7 @@ export class MapLibreAdapter {
     this.setProvider(provider);
   }
 
-  setMode(mode: 'select' | 'pan' | 'destination') {
+  setMode(mode: 'select' | 'pan' | 'destination' | 'draw' | 'vertex') {
     this.gestures.cancel();
     this.mode = mode;
     this.updateGestures();
@@ -287,11 +334,17 @@ export class MapLibreAdapter {
     else this.map.dragPan.disable();
   }
   private pick(point: ScreenPoint, additive: boolean) {
-    if (!this.installed || this.disposed || !this.active) return;
-    if (this.mode === 'destination') {
-      const position = this.map.unproject([point.x, point.y]);
-      this.callbacks.destination?.(position.lng, position.lat);
+    if (!this.installed || this.disposed || !this.active) return false;
+    if (this.mode === 'vertex') {
+      const index = this.vertexAt(point);
+      if (index >= 0) this.callbacks.boundaryVertex?.(index);
       return;
+    }
+    if (this.mode === 'destination' || this.mode === 'draw') {
+      const position = this.map.unproject([point.x, point.y]);
+      return this.callbacks.destination
+        ? this.callbacks.destination(position.lng, position.lat) !== false
+        : false;
     }
     const picked = this.map.queryRenderedFeatures(
       [
@@ -334,10 +387,33 @@ export class MapLibreAdapter {
       .map((object) => object.ref.id);
     this.callbacks.selection?.(ids, additive);
   }
+  projectBoundaryVertex(index: number) {
+    const v = this.scene?.boundaryEdit?.vertices[index];
+    return v ? this.map.project([v[0], v[1]]) : undefined;
+  }
+  private vertexAt(point: ScreenPoint) {
+    return (
+      this.scene?.boundaryEdit?.vertices.findIndex((_, i) => {
+        const p = this.projectBoundaryVertex(i);
+        return p && Math.hypot(point.x - p.x, point.y - p.y) <= 12;
+      }) ?? -1
+    );
+  }
+  private dragVertex(start: ScreenPoint, end: ScreenPoint) {
+    const index = this.vertexAt(start);
+    if (index < 0) return;
+    const v = this.map.unproject([end.x, end.y]);
+    this.callbacks.boundaryVertex?.(index, {
+      longitude: v.lng,
+      latitude: v.lat,
+    });
+  }
   private move(point: ScreenPoint) {
     if (!this.installed || !this.active) return;
     const position = this.map.unproject([point.x, point.y]);
-    this.callbacks.directMove?.(position.lng, position.lat);
+    if (this.scene?.context === 'authoring')
+      this.callbacks.boundaryContext?.(position.lng, position.lat, point);
+    else this.callbacks.directMove?.(position.lng, position.lat);
   }
   private positionAcknowledgement() {
     this.acknowledgement.position((longitude, latitude) =>
@@ -349,18 +425,17 @@ export class MapLibreAdapter {
     event.preventDefault();
     event.stopImmediatePropagation();
     const rect = this.map.getCanvas().getBoundingClientRect();
-    const around = this.map.unproject([
-      event.clientX - rect.left,
-      event.clientY - rect.top,
-    ]);
+    this.zoomAt(
+      { x: event.clientX - rect.left, y: event.clientY - rect.top },
+      wheelSpanFactor(event.deltaY, event.deltaMode, this.camera().groundSpanM),
+    );
+  }
+  private zoomAt(point: ScreenPoint, factor: number) {
+    if (!this.active || this.disposed) return;
+    const around = this.map.unproject([point.x, point.y]);
     const camera = this.camera();
     const limited = constrainCamera(
-      {
-        ...camera,
-        groundSpanM:
-          camera.groundSpanM *
-          wheelSpanFactor(event.deltaY, event.deltaMode, camera.groundSpanM),
-      },
+      { ...camera, groundSpanM: camera.groundSpanM * factor },
       this.scene?.region,
     );
     // No residual animation: small trackpad events compose exactly, including reduced motion.
@@ -539,11 +614,12 @@ export class MapLibreAdapter {
           ['get', 'kind'],
           'none',
         ]);
-        this.map.setFilter(`${prefix}zone-line`, [
-          '==',
-          ['get', 'kind'],
-          'none',
-        ]);
+        for (const layer of Object.keys(boundaryFilters))
+          this.map.setFilter(`${prefix}${layer}`, [
+            '==',
+            ['get', 'kind'],
+            'none',
+          ]);
         this.map.setFilter(`${prefix}labels`, ['==', ['get', 'kind'], 'none']);
         this.map.setFilter(`${prefix}selection`, [
           '==',
@@ -598,28 +674,91 @@ export class MapLibreAdapter {
       },
     });
     this.map.addSource(sourceId, { type: 'geojson', data: empty });
-    const zoneFilter: maplibregl.FilterSpecification = [
-      '==',
-      ['get', 'kind'],
-      'zone',
-    ];
     this.map.addLayer({
       id: `${prefix}zone-fill`,
       type: 'fill',
       source: sourceId,
       filter: zoneFilter,
-      paint: { 'fill-color': '#d3d9df', 'fill-opacity': 0.025 },
+      paint: {
+        'fill-color': ['coalesce', ['get', 'color'], '#d3d9df'],
+        'fill-opacity': 0.06,
+      },
     });
     this.map.addLayer({
       id: `${prefix}zone-line`,
       type: 'line',
       source: sourceId,
-      filter: zoneFilter,
+      filter: boundaryFilters['zone-line'],
       paint: {
         'line-color': '#a4adb6',
         'line-width': 1,
         'line-opacity': 0.5,
         'line-dasharray': [4, 3],
+      },
+    });
+    for (const kind of ['friendly', 'patrol', 'restricted'])
+      this.map.addLayer({
+        id: `${prefix}zone-${kind}`,
+        type: 'line',
+        source: sourceId,
+        filter: boundaryFilters[`zone-${kind}`],
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': kind === 'restricted' ? 1.5 : 2,
+          'line-opacity': 0.9,
+          ...(kind === 'restricted'
+            ? { 'line-gap-width': 2 }
+            : kind === 'patrol'
+              ? { 'line-dasharray': [4, 3] }
+              : {}),
+        },
+      });
+    this.map.addLayer({
+      id: `${prefix}boundary-labels`,
+      type: 'symbol',
+      source: sourceId,
+      filter: ['==', ['get', 'kind'], 'boundary-label'],
+      layout: {
+        'icon-image': ['get', 'image'],
+        'icon-anchor': 'bottom-left',
+        'icon-offset': [4, -6],
+        'icon-allow-overlap': false,
+      },
+    });
+    this.map.addLayer({
+      id: `${prefix}boundary-edit-line`,
+      type: 'line',
+      source: sourceId,
+      filter: ['==', ['get', 'kind'], 'boundary-edit-line'],
+      paint: {
+        'line-color': '#d4e2e6',
+        'line-width': 2,
+        'line-dasharray': [3, 2],
+      },
+    });
+    this.map.addLayer({
+      id: `${prefix}boundary-handles`,
+      type: 'circle',
+      source: sourceId,
+      filter: ['==', ['get', 'kind'], 'boundary-handle'],
+      paint: {
+        'circle-radius': 6,
+        'circle-color': '#142630',
+        'circle-stroke-color': '#d4e2e6',
+        'circle-stroke-width': 2,
+      },
+    });
+    this.map.addLayer({
+      id: `${prefix}boundary-numbers`,
+      type: 'symbol',
+      source: sourceId,
+      filter: ['==', ['get', 'kind'], 'boundary-number'],
+      layout: {
+        'icon-image': ['get', 'image'],
+        'icon-anchor': 'bottom-left',
+        'icon-offset': [4, -6],
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
       },
     });
     this.map.addLayer({
@@ -781,7 +920,12 @@ export class MapLibreAdapter {
     const features: Feature<Geometry>[] = scene.zones.map((zone) => ({
       type: 'Feature',
       id: JSON.stringify(zone.ref),
-      properties: { kind: 'zone', zoneId: zone.ref.id },
+      properties: {
+        kind: 'zone',
+        zoneId: zone.ref.id,
+        boundaryType: zone.boundaryType ?? '',
+        color: boundaryColors[zone.boundaryType ?? 'untyped'],
+      },
       geometry: {
         type: 'Polygon',
         coordinates: zone.geometry.coordinates.map((ring) =>
@@ -789,6 +933,68 @@ export class MapLibreAdapter {
         ),
       },
     }));
+    for (const z of scene.zones) {
+      if (!z.boundaryType) continue;
+      const id = `${prefix}label-boundary-${JSON.stringify([z.label, z.boundaryType])}`;
+      if (!this.map.hasImage(id)) {
+        const caption = boundaryCaption(
+          `${z.label.length > 32 ? `${z.label.slice(0, 31)}…` : z.label}\n${boundaryLabels[z.boundaryType]}`,
+          boundaryColors[z.boundaryType],
+        );
+        this.map.addImage(
+          id,
+          caption
+            .getContext('2d')!
+            .getImageData(0, 0, caption.width, caption.height),
+          { pixelRatio: 2 },
+        );
+        this.imageIds.add(id);
+      }
+      features.push({
+        type: 'Feature',
+        properties: { kind: 'boundary-label', image: id },
+        geometry: {
+          type: 'Point',
+          coordinates: [...z.geometry.coordinates[0][0]],
+        },
+      });
+    }
+    const vertices = scene.boundaryEdit?.vertices ?? [];
+    if (vertices.length > 1)
+      features.push({
+        type: 'Feature',
+        properties: { kind: 'boundary-edit-line' },
+        geometry: {
+          type: 'LineString',
+          coordinates: vertices.map((v) => [...v]),
+        },
+      });
+    vertices.forEach((v, index) =>
+      features.push({
+        type: 'Feature',
+        properties: { kind: 'boundary-handle', index },
+        geometry: { type: 'Point', coordinates: [...v] },
+      }),
+    );
+    vertices.forEach((v, index) => {
+      const id = `${prefix}boundary-handle-number-${index}`;
+      if (!this.map.hasImage(id)) {
+        const caption = boundaryCaption(String(index + 1), '#d4e2e6');
+        this.map.addImage(
+          id,
+          caption
+            .getContext('2d')!
+            .getImageData(0, 0, caption.width, caption.height),
+          { pixelRatio: 2 },
+        );
+        this.imageIds.add(id);
+      }
+      features.push({
+        type: 'Feature',
+        properties: { kind: 'boundary-number', image: id },
+        geometry: { type: 'Point', coordinates: [...v] },
+      });
+    });
     for (const path of scene.paths ?? []) {
       // Never bridge across unsupported Mercator latitudes.
       let segment: number[][] = [];
@@ -918,13 +1124,14 @@ export class MapLibreAdapter {
         ['==', ['get', 'keyboard'], true],
       ]);
       this.map.setFilter(`${prefix}zone-fill`, ['==', ['get', 'kind'], 'zone']);
-      this.map.setFilter(`${prefix}zone-line`, ['==', ['get', 'kind'], 'zone']);
+      for (const [layer, filter] of Object.entries(boundaryFilters))
+        this.map.setFilter(`${prefix}${layer}`, filter);
     };
     if (this.filtersHidden && !this.filterRestoreQueued) {
       this.filterRestoreQueued = true;
       this.map.once('idle', restoreFilters);
     }
-    if (!this.framed && scene.frameId) {
+    if (!this.framed && (scene.frameId || scene.context === 'authoring')) {
       if (this.initialCamera) {
         this.focusHeightM = this.initialCamera.focusHeightM;
         this.map.jumpTo({

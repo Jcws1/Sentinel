@@ -23,7 +23,7 @@ class RecordingRepository:
         self.db.row_factory = sqlite3.Row
         self._lock = RLock()
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, 2, 3):
+        if version not in (0, 1, 2, 3, 4):
             self.db.close()
             raise RuntimeError(f"Unsupported recording schema version: {version}")
         self.db.execute("PRAGMA foreign_keys = ON")
@@ -73,7 +73,18 @@ class RecordingRepository:
                     + ROW_NUMBER() OVER (ORDER BY established_at, mission_id)
                 FROM recordings WHERE json_extract(mission_json, '$.domain')='synthetic-interactive'
                     AND mission_id NOT IN (SELECT mission_id FROM demo_aliases);
-            PRAGMA user_version = 3;
+            CREATE TABLE IF NOT EXISTS scenario_revisions (
+                definition_id TEXT NOT NULL, revision INTEGER NOT NULL, revision_json TEXT NOT NULL,
+                PRIMARY KEY(definition_id, revision)
+            );
+            CREATE TABLE IF NOT EXISTS scenario_receipts (
+                scope TEXT NOT NULL, request_id TEXT NOT NULL, payload_json TEXT NOT NULL, receipt_json TEXT NOT NULL,
+                PRIMARY KEY(scope, request_id)
+            );
+            CREATE TABLE IF NOT EXISTS scenario_runs (
+                mission_id TEXT PRIMARY KEY REFERENCES recordings(mission_id), revision_json TEXT NOT NULL
+            );
+            PRAGMA user_version = 4;
             COMMIT;
         """)
 

@@ -1,9 +1,9 @@
 import Ajv2020 from 'ajv/dist/2020';
 import addFormats from 'ajv-formats';
-import worldSchema from '../../../contracts/sentinel/v1.4/world.schema.json';
-import streamSchema from '../../../contracts/sentinel/v1.4/stream.schema.json';
-import catalogSchema from '../../../contracts/sentinel/v1.4/mission-list.schema.json';
-import observedSchema from '../../../contracts/sentinel/v1.4/observed-history.schema.json';
+import worldSchema from '../../../contracts/sentinel/v1.7/world.schema.json';
+import streamSchema from '../../../contracts/sentinel/v1.7/stream.schema.json';
+import catalogSchema from '../../../contracts/sentinel/v1.7/mission-list.schema.json';
+import observedSchema from '../../../contracts/sentinel/v1.7/observed-history.schema.json';
 import type { ObservedHistory } from './generated';
 import type {
   DeepReadonly,
@@ -12,6 +12,8 @@ import type {
   WorldFrame,
 } from './types';
 import { calendarInstant, polygonIntegrity } from './integrity';
+import { validateBoundary } from '../world/boundaryGeometry';
+import type { BoundaryDefinition } from './generated';
 import { validateMovementRun } from './interactive';
 
 const ajv = new Ajv2020({
@@ -132,7 +134,35 @@ export function validateFrame(value: unknown): WorldFrame {
     `Invalid world frame: ${ajv.errorsText(validateWorld.errors)}`,
   );
   const frame = value;
-  assert(frame.schemaVersion === '1.4', 'Missing world schema version');
+  if (frame.boundaryRules) {
+    assert(
+      frame.scenario && frame.interactive,
+      'Boundary rules require a custom simulation',
+    );
+    assert(
+      Object.keys(frame.boundaryRules.zones).length ===
+        Object.keys(frame.zones).length,
+      'Boundary rule/zone mapping mismatch',
+    );
+    for (const [id, type] of Object.entries(frame.boundaryRules.zones)) {
+      const z = frame.zones[id];
+      assert(
+        z &&
+          z.purpose === type &&
+          !z.altitudeBand &&
+          z.geometry.coordinates.length === 1 &&
+          z.provenance.source.id === frame.interactive!.sourceId,
+        'Invalid frozen boundary/source',
+      );
+      validateBoundary({
+        id: 'world-boundary',
+        name: z.label,
+        type,
+        vertices: z.geometry.coordinates[0].slice(0, -1),
+      } as BoundaryDefinition);
+    }
+  }
+  assert(frame.schemaVersion === '1.6', 'Missing world schema version');
   calendarInstant(frame.effectiveAt);
   calendarInstant(frame.recordedAt);
   calendarInstant(frame.mission.createdAt);
@@ -225,6 +255,16 @@ export function validateFrame(value: unknown): WorldFrame {
   }
   validateEvents(frame.recentEvents, frame);
   const run = frame.interactive;
+  if (frame.scenario) {
+    const ids = Object.values(frame.scenario.entityIds);
+    assert(
+      run &&
+        ids.length === new Set(ids).size &&
+        ids.length === Object.keys(frame.entities).length &&
+        ids.every((id) => Object.hasOwn(frame.entities, id)),
+      'Invalid scenario/run entity mapping',
+    );
+  }
   if (run) {
     validateMovementRun(run, frame.sequence, frame);
     assert(run.missionId === frame.mission.id, 'Interactive mission mismatch');
@@ -320,7 +360,7 @@ export function decodeStream(text: string): StreamMessage {
     validateStream(value),
     `Invalid stream message: ${ajv.errorsText(validateStream.errors)}`,
   );
-  assert(value.schemaVersion === '1.4', 'Missing stream schema version');
+  assert(value.schemaVersion === '1.6', 'Missing stream schema version');
   if (value.type === 'snapshot') {
     const frame = validateFrame(value.frame);
     assert(value.missionId === frame.mission.id, 'Snapshot mission mismatch');

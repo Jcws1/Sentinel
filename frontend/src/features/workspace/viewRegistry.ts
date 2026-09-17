@@ -10,6 +10,14 @@ import {
 
 // View kinds describe capabilities, never domain objects or individual pane instances.
 export const viewRegistry = {
+  units: {
+    unavailable: '',
+    title: 'Units',
+    category: 'Scenario authoring',
+    icon: Box,
+    description: 'Compose and save a local simulation arrangement.',
+    future: '',
+  },
   details: {
     unavailable: '',
     title: 'Details',

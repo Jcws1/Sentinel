@@ -27,7 +27,7 @@ async def stream(websocket: WebSocket, mission_id: str):
             except asyncio.TimeoutError:
                 if not subscription.queue.empty():
                     continue
-                heartbeat = HeartbeatMessage(type="heartbeat", schema_version="1.4", mission_id=mission_id, stream_epoch=cursor["streamEpoch"],
+                heartbeat = HeartbeatMessage(type="heartbeat", schema_version="1.6", mission_id=mission_id, stream_epoch=cursor["streamEpoch"],
                                              sequence=cursor["sequence"], server_time=utc_now())
                 await asyncio.wait_for(websocket.send_text(canonical(heartbeat)), timeout=5)
                 continue

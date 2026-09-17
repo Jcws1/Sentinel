@@ -1,0 +1,2546 @@
+{
+  "$defs": {
+    "Altitude": {
+      "additionalProperties": false,
+      "properties": {
+        "datumId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Datumid"
+        },
+        "metres": {
+          "title": "Metres",
+          "type": "number"
+        },
+        "reference": {
+          "enum": [
+            "MSL",
+            "ELLIPSOID",
+            "AGL"
+          ],
+          "title": "Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "metres",
+        "reference"
+      ],
+      "title": "Altitude",
+      "type": "object"
+    },
+    "AltitudeBand": {
+      "additionalProperties": false,
+      "properties": {
+        "lower": {
+          "$ref": "#/$defs/Altitude"
+        },
+        "upper": {
+          "$ref": "#/$defs/Altitude"
+        }
+      },
+      "required": [
+        "lower",
+        "upper"
+      ],
+      "title": "AltitudeBand",
+      "type": "object"
+    },
+    "Asset": {
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "enum": [
+            "available",
+            "assigned",
+            "unavailable",
+            "unknown"
+          ],
+          "title": "Availability",
+          "type": "string"
+        },
+        "capabilityCodes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Capabilitycodes",
+          "type": "array"
+        },
+        "entityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Id",
+          "type": "string"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "taskIds": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "title": "Taskids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "missionId",
+        "entityId",
+        "availability",
+        "provenance"
+      ],
+      "title": "Asset",
+      "type": "object"
+    },
+    "AssetChanges": {
+      "additionalProperties": false,
+      "properties": {
+        "removes": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "title": "Removes",
+          "type": "array"
+        },
+        "upserts": {
+          "patternProperties": {
+            "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+              "$ref": "#/$defs/Asset"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 256,
+            "minLength": 1
+          },
+          "title": "Upserts",
+          "type": "object"
+        }
+      },
+      "required": [
+        "upserts",
+        "removes"
+      ],
+      "title": "AssetChanges",
+      "type": "object"
+    },
+    "AssetControl": {
+      "additionalProperties": false,
+      "properties": {
+        "assetId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Assetid",
+          "type": "string"
+        },
+        "bindingRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Bindingrevision",
+          "type": "integer"
+        },
+        "busyRevision": {
+          "default": 0,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Busyrevision",
+          "type": "integer"
+        },
+        "capabilities": {
+          "items": {
+            "const": "move-horizontal",
+            "type": "string"
+          },
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "controlTrackId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Controltrackid"
+        },
+        "eligible": {
+          "default": false,
+          "title": "Eligible",
+          "type": "boolean"
+        },
+        "entityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "executorId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorid",
+          "type": "string"
+        },
+        "grantId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Grantid",
+          "type": "string"
+        },
+        "lastDirectOrder": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DirectOrderContext"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "positionReference": {
+          "const": "ELLIPSOID/WGS84",
+          "title": "Positionreference",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "sourceId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Sourceid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "missionId",
+        "assetId",
+        "entityId",
+        "executorId",
+        "sourceId",
+        "grantId",
+        "bindingRevision",
+        "capabilities",
+        "positionReference",
+        "reason"
+      ],
+      "title": "AssetControl",
+      "type": "object"
+    },
+    "BoundaryRules": {
+      "additionalProperties": false,
+      "properties": {
+        "ruleVersion": {
+          "const": "local-boundary-v1",
+          "default": "local-boundary-v1",
+          "title": "Ruleversion",
+          "type": "string"
+        },
+        "zones": {
+          "maxProperties": 16,
+          "patternProperties": {
+            "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+              "enum": [
+                "annotation",
+                "friendly",
+                "patrol",
+                "restricted"
+              ],
+              "type": "string"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 256,
+            "minLength": 1
+          },
+          "title": "Zones",
+          "type": "object"
+        }
+      },
+      "required": [
+        "zones"
+      ],
+      "title": "BoundaryRules",
+      "type": "object"
+    },
+    "Classification": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "minLength": 1,
+          "title": "Code",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "scheme": {
+          "minLength": 1,
+          "title": "Scheme",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scheme",
+        "code"
+      ],
+      "title": "Classification",
+      "type": "object"
+    },
+    "CompletionSample": {
+      "additionalProperties": false,
+      "properties": {
+        "position": {
+          "$ref": "#/$defs/MovePosition"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "timestamp": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "trackId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Trackid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sequence",
+        "trackId",
+        "timestamp",
+        "position"
+      ],
+      "title": "CompletionSample",
+      "type": "object"
+    },
+    "DeltaMessage": {
+      "additionalProperties": false,
+      "properties": {
+        "changes": {
+          "$ref": "#/$defs/WorldChanges"
+        },
+        "effectiveAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Effectiveat",
+          "type": "string"
+        },
+        "frameId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Frameid",
+          "type": "string"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "previousSequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Previoussequence",
+          "type": "integer"
+        },
+        "recordedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Recordedat",
+          "type": "string"
+        },
+        "recordingId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Recordingid",
+          "type": "string"
+        },
+        "schemaVersion": {
+          "const": "1.6",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "streamEpoch": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Streamepoch",
+          "type": "string"
+        },
+        "type": {
+          "const": "delta",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "schemaVersion",
+        "missionId",
+        "streamEpoch",
+        "sequence",
+        "previousSequence",
+        "frameId",
+        "recordingId",
+        "effectiveAt",
+        "recordedAt",
+        "changes"
+      ],
+      "title": "DeltaMessage",
+      "type": "object"
+    },
+    "DirectOrderContext": {
+      "additionalProperties": false,
+      "properties": {
+        "executorEpoch": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorepoch",
+          "type": "string"
+        },
+        "grantId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Grantid",
+          "type": "string"
+        },
+        "grantRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Grantrevision",
+          "type": "integer"
+        },
+        "holderId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Holderid",
+          "type": "string"
+        },
+        "order": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Order",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "holderId",
+        "executorEpoch",
+        "grantId",
+        "grantRevision",
+        "order"
+      ],
+      "title": "DirectOrderContext",
+      "type": "object"
+    },
+    "Entity": {
+      "additionalProperties": false,
+      "properties": {
+        "affiliation": {
+          "enum": [
+            "friendly",
+            "hostile",
+            "neutral",
+            "unknown"
+          ],
+          "title": "Affiliation",
+          "type": "string"
+        },
+        "classification": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Classification"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "condition": {
+          "enum": [
+            "operational",
+            "degraded",
+            "non-operational",
+            "unknown"
+          ],
+          "title": "Condition",
+          "type": "string"
+        },
+        "extensions": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Extensions",
+          "type": "object"
+        },
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "minLength": 1,
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "presence": {
+          "enum": [
+            "present",
+            "unobserved",
+            "removed"
+          ],
+          "title": "Presence",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        }
+      },
+      "required": [
+        "id",
+        "missionId",
+        "label",
+        "kind",
+        "affiliation",
+        "condition",
+        "presence",
+        "provenance"
+      ],
+      "title": "Entity",
+      "type": "object"
+    },
+    "EntityChanges": {
+      "additionalProperties": false,
+      "properties": {
+        "removes": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "title": "Removes",
+          "type": "array"
+        },
+        "upserts": {
+          "patternProperties": {
+            "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+              "$ref": "#/$defs/Entity"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 256,
+            "minLength": 1
+          },
+          "title": "Upserts",
+          "type": "object"
+        }
+      },
+      "required": [
+        "upserts",
+        "removes"
+      ],
+      "title": "EntityChanges",
+      "type": "object"
+    },
+    "HeartbeatMessage": {
+      "additionalProperties": false,
+      "properties": {
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "schemaVersion": {
+          "const": "1.6",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "serverTime": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Servertime",
+          "type": "string"
+        },
+        "streamEpoch": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Streamepoch",
+          "type": "string"
+        },
+        "type": {
+          "const": "heartbeat",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "schemaVersion",
+        "missionId",
+        "streamEpoch",
+        "sequence",
+        "serverTime"
+      ],
+      "title": "HeartbeatMessage",
+      "type": "object"
+    },
+    "InteractiveRun": {
+      "additionalProperties": false,
+      "properties": {
+        "capabilities": {
+          "items": {
+            "enum": [
+              "run-control",
+              "scenario-pair"
+            ],
+            "type": "string"
+          },
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "controls": {
+          "items": {
+            "$ref": "#/$defs/AssetControl"
+          },
+          "maxItems": 32,
+          "title": "Controls",
+          "type": "array"
+        },
+        "executions": {
+          "items": {
+            "$ref": "#/$defs/MovementExecution"
+          },
+          "maxItems": 64,
+          "title": "Executions",
+          "type": "array"
+        },
+        "executorEpoch": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorepoch",
+          "type": "string"
+        },
+        "executorId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorid",
+          "type": "string"
+        },
+        "grantId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Grantid",
+          "type": "string"
+        },
+        "grantRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Grantrevision",
+          "type": "integer"
+        },
+        "lastReportAt": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lastreportat"
+        },
+        "lease": {
+          "$ref": "#/$defs/Lease"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "movementModel": {
+          "const": "local-horizontal-v1",
+          "default": "local-horizontal-v1",
+          "title": "Movementmodel",
+          "type": "string"
+        },
+        "runId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Runid",
+          "type": "string"
+        },
+        "runRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Runrevision",
+          "type": "integer"
+        },
+        "schemaVersion": {
+          "const": "1.3",
+          "default": "1.3",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "sourceId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Sourceid",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "ready",
+            "running",
+            "paused",
+            "ended"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "supportedActions": {
+          "items": {
+            "enum": [
+              "acquire",
+              "renew",
+              "reclaim",
+              "revoke",
+              "start",
+              "pause",
+              "resume",
+              "end",
+              "cancel"
+            ],
+            "type": "string"
+          },
+          "title": "Supportedactions",
+          "type": "array"
+        },
+        "templateId": {
+          "default": "singapore-local-v2",
+          "enum": [
+            "singapore-local-v1",
+            "singapore-local-v2"
+          ],
+          "title": "Templateid",
+          "type": "string"
+        },
+        "tick": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Tick",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "missionId",
+        "runId",
+        "executorId",
+        "executorEpoch",
+        "sourceId",
+        "state",
+        "runRevision",
+        "grantId",
+        "grantRevision",
+        "capabilities",
+        "supportedActions",
+        "lease",
+        "tick",
+        "controls"
+      ],
+      "title": "InteractiveRun",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "Lease": {
+      "additionalProperties": false,
+      "properties": {
+        "expiresAt": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expiresat"
+        },
+        "holderId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Holderid"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "revision"
+      ],
+      "title": "Lease",
+      "type": "object"
+    },
+    "Mission": {
+      "additionalProperties": false,
+      "properties": {
+        "createdAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Createdat",
+          "type": "string"
+        },
+        "domain": {
+          "minLength": 1,
+          "title": "Domain",
+          "type": "string"
+        },
+        "extensions": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Extensions",
+          "type": "object"
+        },
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Id",
+          "type": "string"
+        },
+        "lifecycle": {
+          "enum": [
+            "draft",
+            "active",
+            "completed",
+            "cancelled"
+          ],
+          "title": "Lifecycle",
+          "type": "string"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "referencePoint": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Position3D"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "updatedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Updatedat",
+          "type": "string"
+        },
+        "zoneIds": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "title": "Zoneids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "domain",
+        "lifecycle",
+        "createdAt",
+        "updatedAt"
+      ],
+      "title": "Mission",
+      "type": "object"
+    },
+    "MoveAltitude": {
+      "additionalProperties": false,
+      "properties": {
+        "datumId": {
+          "const": "WGS84",
+          "default": "WGS84",
+          "title": "Datumid",
+          "type": "string"
+        },
+        "metres": {
+          "title": "Metres",
+          "type": "number"
+        },
+        "reference": {
+          "const": "ELLIPSOID",
+          "default": "ELLIPSOID",
+          "title": "Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "metres"
+      ],
+      "title": "MoveAltitude",
+      "type": "object"
+    },
+    "MovePosition": {
+      "additionalProperties": false,
+      "properties": {
+        "altitude": {
+          "$ref": "#/$defs/MoveAltitude"
+        },
+        "latitudeDeg": {
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Latitudedeg",
+          "type": "number"
+        },
+        "longitudeDeg": {
+          "maximum": 180,
+          "minimum": -180,
+          "title": "Longitudedeg",
+          "type": "number"
+        }
+      },
+      "required": [
+        "longitudeDeg",
+        "latitudeDeg",
+        "altitude"
+      ],
+      "title": "MovePosition",
+      "type": "object"
+    },
+    "MovementExecution": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Acceptedat",
+          "type": "string"
+        },
+        "acceptedSequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Acceptedsequence",
+          "type": "integer"
+        },
+        "assetId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Assetid",
+          "type": "string"
+        },
+        "bindingRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Bindingrevision",
+          "type": "integer"
+        },
+        "busyRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Busyrevision",
+          "type": "integer"
+        },
+        "commandId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Commandid",
+          "type": "string"
+        },
+        "completionSample": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CompletionSample"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "controlTrackId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Controltrackid",
+          "type": "string"
+        },
+        "deadline": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Deadline",
+          "type": "string"
+        },
+        "destination": {
+          "$ref": "#/$defs/MovePosition"
+        },
+        "directOrder": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Directorder"
+        },
+        "entityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "executorEpoch": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorepoch",
+          "type": "string"
+        },
+        "executorId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorid",
+          "type": "string"
+        },
+        "grantId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Grantid",
+          "type": "string"
+        },
+        "grantRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Grantrevision",
+          "type": "integer"
+        },
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "move",
+          "default": "move",
+          "title": "Kind",
+          "type": "string"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "origin": {
+          "$ref": "#/$defs/MovePosition"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "remainingMetres": {
+          "minimum": 0,
+          "title": "Remainingmetres",
+          "type": "number"
+        },
+        "reservationRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Reservationrevision",
+          "type": "integer"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "runId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Runid",
+          "type": "string"
+        },
+        "sourceId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Sourceid",
+          "type": "string"
+        },
+        "speedMps": {
+          "default": 20.0,
+          "enum": [
+            20.0,
+            43.05555555555556
+          ],
+          "title": "Speedmps",
+          "type": "number"
+        },
+        "startedAt": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Startedat"
+        },
+        "startedTick": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Startedtick"
+        },
+        "state": {
+          "enum": [
+            "Accepted",
+            "Running",
+            "Suspended",
+            "Completed",
+            "Cancelled",
+            "Failed",
+            "Expired",
+            "Interrupted"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "terminalSequence": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Terminalsequence"
+        },
+        "travelledMetres": {
+          "minimum": 0,
+          "title": "Travelledmetres",
+          "type": "number"
+        }
+      },
+      "required": [
+        "assetId",
+        "entityId",
+        "executorId",
+        "sourceId",
+        "controlTrackId",
+        "grantId",
+        "bindingRevision",
+        "busyRevision",
+        "origin",
+        "destination",
+        "id",
+        "commandId",
+        "missionId",
+        "runId",
+        "executorEpoch",
+        "grantRevision",
+        "reservationRevision",
+        "state",
+        "revision",
+        "acceptedAt",
+        "acceptedSequence",
+        "deadline",
+        "travelledMetres",
+        "remainingMetres"
+      ],
+      "title": "MovementExecution",
+      "type": "object"
+    },
+    "Polygon": {
+      "additionalProperties": false,
+      "properties": {
+        "coordinates": {
+          "items": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "maximum": 180,
+                  "minimum": -180,
+                  "type": "number"
+                },
+                {
+                  "maximum": 90,
+                  "minimum": -90,
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "minItems": 1,
+          "title": "Coordinates",
+          "type": "array"
+        },
+        "type": {
+          "const": "Polygon",
+          "default": "Polygon",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "coordinates"
+      ],
+      "title": "Polygon",
+      "type": "object"
+    },
+    "Position3D": {
+      "additionalProperties": false,
+      "properties": {
+        "altitude": {
+          "$ref": "#/$defs/Altitude"
+        },
+        "latitudeDeg": {
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Latitudedeg",
+          "type": "number"
+        },
+        "longitudeDeg": {
+          "maximum": 180,
+          "minimum": -180,
+          "title": "Longitudedeg",
+          "type": "number"
+        }
+      },
+      "required": [
+        "longitudeDeg",
+        "latitudeDeg",
+        "altitude"
+      ],
+      "title": "Position3D",
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "effectiveAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Effectiveat",
+          "type": "string"
+        },
+        "recordedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Recordedat",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/SourceRef"
+        }
+      },
+      "required": [
+        "source",
+        "effectiveAt",
+        "recordedAt"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "ResyncRequiredMessage": {
+      "additionalProperties": false,
+      "properties": {
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "schemaVersion": {
+          "const": "1.6",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "type": {
+          "const": "resync-required",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "schemaVersion",
+        "missionId",
+        "reason"
+      ],
+      "title": "ResyncRequiredMessage",
+      "type": "object"
+    },
+    "ScenarioBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "contentHash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Contenthash",
+          "type": "string"
+        },
+        "definitionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Definitionid",
+          "type": "string"
+        },
+        "entityIds": {
+          "patternProperties": {
+            "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 256,
+            "minLength": 1
+          },
+          "title": "Entityids",
+          "type": "object"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "definitionId",
+        "revision",
+        "contentHash",
+        "name",
+        "entityIds"
+      ],
+      "title": "ScenarioBinding",
+      "type": "object"
+    },
+    "Sensor": {
+      "additionalProperties": false,
+      "properties": {
+        "coverageZoneIds": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "title": "Coveragezoneids",
+          "type": "array"
+        },
+        "entityId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entityid"
+        },
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Id",
+          "type": "string"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "modality": {
+          "title": "Modality",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "status": {
+          "enum": [
+            "available",
+            "unavailable",
+            "unknown"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "missionId",
+        "modality",
+        "status",
+        "provenance"
+      ],
+      "title": "Sensor",
+      "type": "object"
+    },
+    "SensorChanges": {
+      "additionalProperties": false,
+      "properties": {
+        "removes": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "title": "Removes",
+          "type": "array"
+        },
+        "upserts": {
+          "patternProperties": {
+            "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+              "$ref": "#/$defs/Sensor"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 256,
+            "minLength": 1
+          },
+          "title": "Upserts",
+          "type": "object"
+        }
+      },
+      "required": [
+        "upserts",
+        "removes"
+      ],
+      "title": "SensorChanges",
+      "type": "object"
+    },
+    "SentinelEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "detailRef": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detailref"
+        },
+        "effectiveAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Effectiveat",
+          "type": "string"
+        },
+        "entityIds": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "title": "Entityids",
+          "type": "array"
+        },
+        "extensions": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Extensions",
+          "type": "object"
+        },
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Id",
+          "type": "string"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Position3D"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "recordedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Recordedat",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "warning",
+            "critical"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/SourceRef"
+        },
+        "taskIds": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "title": "Taskids",
+          "type": "array"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        },
+        "zoneIds": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "title": "Zoneids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "missionId",
+        "sequence",
+        "effectiveAt",
+        "recordedAt",
+        "type",
+        "severity",
+        "source"
+      ],
+      "title": "SentinelEvent",
+      "type": "object"
+    },
+    "SnapshotMessage": {
+      "additionalProperties": false,
+      "properties": {
+        "frame": {
+          "$ref": "#/$defs/WorldFrame"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "schemaVersion": {
+          "const": "1.6",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "streamEpoch": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Streamepoch",
+          "type": "string"
+        },
+        "type": {
+          "const": "snapshot",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "schemaVersion",
+        "missionId",
+        "streamEpoch",
+        "sequence",
+        "frame"
+      ],
+      "title": "SnapshotMessage",
+      "type": "object"
+    },
+    "SourceRef": {
+      "additionalProperties": false,
+      "properties": {
+        "externalId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Externalid"
+        },
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "simulation",
+            "sensor",
+            "manual",
+            "import"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "simulated",
+            "live",
+            "replay"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "recordingId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recordingid"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "mode"
+      ],
+      "title": "SourceRef",
+      "type": "object"
+    },
+    "Task": {
+      "additionalProperties": false,
+      "properties": {
+        "assetIds": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "title": "Assetids",
+          "type": "array"
+        },
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Id",
+          "type": "string"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "status": {
+          "enum": [
+            "proposed",
+            "accepted",
+            "active",
+            "completed",
+            "cancelled"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "subjectEntityIds": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "title": "Subjectentityids",
+          "type": "array"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        },
+        "zoneIds": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "title": "Zoneids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "missionId",
+        "type",
+        "status",
+        "provenance"
+      ],
+      "title": "Task",
+      "type": "object"
+    },
+    "TaskChanges": {
+      "additionalProperties": false,
+      "properties": {
+        "removes": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "title": "Removes",
+          "type": "array"
+        },
+        "upserts": {
+          "patternProperties": {
+            "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+              "$ref": "#/$defs/Task"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 256,
+            "minLength": 1
+          },
+          "title": "Upserts",
+          "type": "object"
+        }
+      },
+      "required": [
+        "upserts",
+        "removes"
+      ],
+      "title": "TaskChanges",
+      "type": "object"
+    },
+    "Track": {
+      "additionalProperties": false,
+      "properties": {
+        "entityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "historySeriesId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Historyseriesid",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Id",
+          "type": "string"
+        },
+        "latest": {
+          "$ref": "#/$defs/TrackSample"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "predictedSeriesId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Predictedseriesid"
+        },
+        "source": {
+          "$ref": "#/$defs/SourceRef"
+        },
+        "state": {
+          "enum": [
+            "tracking",
+            "stale",
+            "ended"
+          ],
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "missionId",
+        "entityId",
+        "source",
+        "state",
+        "latest",
+        "historySeriesId"
+      ],
+      "title": "Track",
+      "type": "object"
+    },
+    "TrackChanges": {
+      "additionalProperties": false,
+      "properties": {
+        "removes": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "title": "Removes",
+          "type": "array"
+        },
+        "upserts": {
+          "patternProperties": {
+            "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+              "$ref": "#/$defs/Track"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 256,
+            "minLength": 1
+          },
+          "title": "Upserts",
+          "type": "object"
+        }
+      },
+      "required": [
+        "upserts",
+        "removes"
+      ],
+      "title": "TrackChanges",
+      "type": "object"
+    },
+    "TrackSample": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "discontinuity": {
+          "default": false,
+          "title": "Discontinuity",
+          "type": "boolean"
+        },
+        "position": {
+          "$ref": "#/$defs/Position3D"
+        },
+        "timestamp": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "velocity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Velocity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "timestamp",
+        "position"
+      ],
+      "title": "TrackSample",
+      "type": "object"
+    },
+    "Velocity": {
+      "additionalProperties": false,
+      "properties": {
+        "headingTrueDeg": {
+          "exclusiveMaximum": 360,
+          "minimum": 0,
+          "title": "Headingtruedeg",
+          "type": "number"
+        },
+        "speedMps": {
+          "minimum": 0,
+          "title": "Speedmps",
+          "type": "number"
+        },
+        "verticalSpeedMps": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Verticalspeedmps"
+        }
+      },
+      "required": [
+        "speedMps",
+        "headingTrueDeg"
+      ],
+      "title": "Velocity",
+      "type": "object"
+    },
+    "WorldChanges": {
+      "additionalProperties": false,
+      "properties": {
+        "assets": {
+          "$ref": "#/$defs/AssetChanges"
+        },
+        "boundaryRules": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoundaryRules"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "entities": {
+          "$ref": "#/$defs/EntityChanges"
+        },
+        "events": {
+          "items": {
+            "$ref": "#/$defs/SentinelEvent"
+          },
+          "title": "Events",
+          "type": "array"
+        },
+        "interactive": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InteractiveRun"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mission": {
+          "$ref": "#/$defs/Mission"
+        },
+        "scenario": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ScenarioBinding"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sensors": {
+          "$ref": "#/$defs/SensorChanges"
+        },
+        "tasks": {
+          "$ref": "#/$defs/TaskChanges"
+        },
+        "tracks": {
+          "$ref": "#/$defs/TrackChanges"
+        },
+        "zones": {
+          "$ref": "#/$defs/ZoneChanges"
+        }
+      },
+      "required": [
+        "mission",
+        "entities",
+        "tracks",
+        "assets",
+        "sensors",
+        "zones",
+        "tasks",
+        "events"
+      ],
+      "title": "WorldChanges",
+      "type": "object"
+    },
+    "WorldFrame": {
+      "additionalProperties": false,
+      "properties": {
+        "assets": {
+          "patternProperties": {
+            "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+              "$ref": "#/$defs/Asset"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 256,
+            "minLength": 1
+          },
+          "title": "Assets",
+          "type": "object"
+        },
+        "boundaryRules": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoundaryRules"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "effectiveAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Effectiveat",
+          "type": "string"
+        },
+        "entities": {
+          "patternProperties": {
+            "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+              "$ref": "#/$defs/Entity"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 256,
+            "minLength": 1
+          },
+          "title": "Entities",
+          "type": "object"
+        },
+        "frameId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Frameid",
+          "type": "string"
+        },
+        "interactive": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InteractiveRun"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mission": {
+          "$ref": "#/$defs/Mission"
+        },
+        "recentEvents": {
+          "items": {
+            "$ref": "#/$defs/SentinelEvent"
+          },
+          "maxItems": 100,
+          "title": "Recentevents",
+          "type": "array"
+        },
+        "recordedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Recordedat",
+          "type": "string"
+        },
+        "recordingId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Recordingid",
+          "type": "string"
+        },
+        "scenario": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ScenarioBinding"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "schemaVersion": {
+          "const": "1.6",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "sensors": {
+          "patternProperties": {
+            "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+              "$ref": "#/$defs/Sensor"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 256,
+            "minLength": 1
+          },
+          "title": "Sensors",
+          "type": "object"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "streamEpoch": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Streamepoch",
+          "type": "string"
+        },
+        "tasks": {
+          "patternProperties": {
+            "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+              "$ref": "#/$defs/Task"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 256,
+            "minLength": 1
+          },
+          "title": "Tasks",
+          "type": "object"
+        },
+        "tracks": {
+          "patternProperties": {
+            "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+              "$ref": "#/$defs/Track"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 256,
+            "minLength": 1
+          },
+          "title": "Tracks",
+          "type": "object"
+        },
+        "zones": {
+          "patternProperties": {
+            "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+              "$ref": "#/$defs/Zone"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 256,
+            "minLength": 1
+          },
+          "title": "Zones",
+          "type": "object"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "mission",
+        "frameId",
+        "recordingId",
+        "streamEpoch",
+        "sequence",
+        "effectiveAt",
+        "recordedAt",
+        "entities",
+        "tracks",
+        "assets",
+        "sensors",
+        "zones",
+        "tasks",
+        "recentEvents"
+      ],
+      "title": "WorldFrame",
+      "type": "object"
+    },
+    "Zone": {
+      "additionalProperties": false,
+      "properties": {
+        "altitudeBand": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AltitudeBand"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "geometry": {
+          "$ref": "#/$defs/Polygon"
+        },
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "purpose": {
+          "title": "Purpose",
+          "type": "string"
+        },
+        "validFrom": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Validfrom"
+        },
+        "validUntil": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Validuntil"
+        }
+      },
+      "required": [
+        "id",
+        "missionId",
+        "label",
+        "purpose",
+        "geometry",
+        "provenance"
+      ],
+      "title": "Zone",
+      "type": "object"
+    },
+    "ZoneChanges": {
+      "additionalProperties": false,
+      "properties": {
+        "removes": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "title": "Removes",
+          "type": "array"
+        },
+        "upserts": {
+          "patternProperties": {
+            "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+              "$ref": "#/$defs/Zone"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 256,
+            "minLength": 1
+          },
+          "title": "Upserts",
+          "type": "object"
+        }
+      },
+      "required": [
+        "upserts",
+        "removes"
+      ],
+      "title": "ZoneChanges",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "discriminator": {
+    "mapping": {
+      "delta": "#/$defs/DeltaMessage",
+      "heartbeat": "#/$defs/HeartbeatMessage",
+      "resync-required": "#/$defs/ResyncRequiredMessage",
+      "snapshot": "#/$defs/SnapshotMessage"
+    },
+    "propertyName": "type"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/SnapshotMessage"
+    },
+    {
+      "$ref": "#/$defs/DeltaMessage"
+    },
+    {
+      "$ref": "#/$defs/HeartbeatMessage"
+    },
+    {
+      "$ref": "#/$defs/ResyncRequiredMessage"
+    }
+  ]
+}

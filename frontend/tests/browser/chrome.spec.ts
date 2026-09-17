@@ -12,7 +12,7 @@ import { closeTab, tabAction, unloadMission } from './actions';
 
 const product = 'http://127.0.0.1:5181';
 const evidence = resolve(
-  '../docs/compact-demo/evidence/regressions/regressions',
+  '../docs/d2/regressions/evidence/regressions/regressions/regressions',
 );
 const tab = (page: Page, name: string) =>
   page.getByRole('tab', { name, exact: true });

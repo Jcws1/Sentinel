@@ -1,6 +1,8 @@
 import type { Position3D, Zone, ObservedSegment } from '../contracts/generated';
 import type { DeepReadonly, Entity } from '../contracts/types';
 import type { ObjectRef } from '../state/sessionStore';
+import type { BoundaryDefinition } from '../contracts/generated';
+import type { ScreenPoint } from './gestures';
 import type { MapRegion } from './regions';
 
 /** View-local geographic intent. A 2D camera center has no invented altitude. */
@@ -28,6 +30,7 @@ export interface SceneObject {
 }
 
 export interface SceneZone {
+  readonly boundaryType?: BoundaryDefinition['type'];
   readonly ref: Readonly<ObjectRef & { kind: 'zone' }>;
   readonly label: string;
   readonly geometry: DeepReadonly<Zone['geometry']>;
@@ -102,7 +105,18 @@ export interface RendererCallbacks {
   clearSelection?(): void;
   directMove?(longitude: number, latitude: number): void;
   cancelDestination?(): void;
-  destination?(longitude: number, latitude: number): void;
+  destination?(longitude: number, latitude: number): boolean | void;
+  boundaryFinish?(): void;
+  boundaryDeleteVertex?(): void;
+  boundaryContext?(
+    longitude: number,
+    latitude: number,
+    point: ScreenPoint,
+  ): void;
+  boundaryVertex?(
+    index: number,
+    position?: { longitude: number; latitude: number },
+  ): void;
   camera(missionId: string, camera: CameraIntent): void;
   status(status: ProviderStatus): void;
   announce(message: string): void;
@@ -116,9 +130,10 @@ export interface MapRenderer {
   /** Accounted renderer cache bytes, not total GPU/process memory. */
   retainedBytes(): number;
   captureCamera(): CameraIntent | undefined;
+  projectBoundaryVertex?(index: number): ScreenPoint | undefined;
   restoreCamera(camera: CameraIntent): void;
   setScene(scene: SceneProjection, bookmark?: CameraIntent): void;
-  setMode(mode: 'select' | 'pan' | 'destination'): void;
+  setMode(mode: 'select' | 'pan' | 'destination' | 'draw' | 'vertex'): void;
   setPresentation(options: MapPresentation): void;
   setPitch?(pitchFromNadirDeg: number): void;
   recenter(): void;
@@ -130,6 +145,11 @@ export interface MapRenderer {
 
 /** Derived from one complete presentation frame; never an operational store. */
 export interface SceneProjection {
+  readonly boundaryEdit?: {
+    readonly vertices: readonly (readonly [number, number])[];
+    readonly selectedVertex?: number;
+  };
+  readonly context?: 'authoring';
   readonly destinations?: readonly SceneDestination[];
   readonly missionId?: string;
   readonly frameId?: string;

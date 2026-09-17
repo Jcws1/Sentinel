@@ -10,6 +10,16 @@ import {
 } from '../world/movement';
 import { captureDirectMove } from '../world/directMovement';
 import { decodeStream } from '../contracts/decode';
+import {
+  withinScenarioExtent,
+  decodeScenarioWrite,
+} from '../contracts/scenarios';
+import {
+  createScenarioClient,
+  type ScenarioState,
+  type ScenarioUnitEdit,
+} from '../services/scenarioClient';
+import type { ScenarioContent, UnitPlacement } from '../contracts/generated';
 import type { DeepReadonly, ImmutableFrame, Mission } from '../contracts/types';
 import { createApi, type Fetcher } from '../services/api';
 import {
@@ -54,6 +64,7 @@ export interface RuntimeSnapshot {
   observed: ObservedState;
   interactive: DeepReadonly<InteractiveState>;
   browserMode: 'all' | 'fleet';
+  scenario: DeepReadonly<ScenarioState>;
 }
 export interface RuntimeDependencies {
   apiBase?: string;
@@ -123,6 +134,12 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
     },
     timeoutMs: requestTimeout,
   });
+  const scenarios = createScenarioClient({
+    base: apiBase,
+    fetcher: dependencies.fetcher ?? ((input, init) => fetch(input, init)),
+    publish,
+    timeoutMs: requestTimeout,
+  });
   function publish() {
     const cache = world.getState();
     const operational = session.getState();
@@ -149,6 +166,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       presentation: Object.freeze(presentation),
       observed: observed.get(),
       interactive: commandState,
+      scenario: scenarios.get(),
       browserMode,
       session: immutableCopy(operational),
       advancing,
@@ -389,6 +407,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
     loadMission(missionId: string) {
       if (disposed || !missionId || missionId === session.getState().missionId)
         return;
+      scenarios.leave();
       missionGeneration++;
       interactive.setMission(undefined);
       cancelCatalog();
@@ -422,6 +441,10 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
     },
     selectEntity(id?: string, additive = false) {
       if (disposed) return;
+      if (scenarios.get().active) {
+        owner.selectScenarioUnit(id);
+        return;
+      }
       const current = session.getState();
       const frame = snapshot.presentation.frame;
       if (
@@ -462,6 +485,10 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
     },
     selectEntities(ids: string[], additive = false) {
       if (disposed) return;
+      if (scenarios.get().active) {
+        owner.selectScenarioUnit(ids[0]);
+        return;
+      }
       const current = session.getState(),
         frame = snapshot.presentation.frame;
       const unique = [...new Set(ids)].filter((id) => !!frame?.entities[id]);
@@ -516,6 +543,220 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
     },
     refreshInteractive: () => interactive.refresh(),
     newDemo: () => interactive.newDemo(),
+    enterAuthoring() {
+      if (
+        disposed ||
+        interactive.get().startingDemo ||
+        interactive.get().pending
+      )
+        return;
+      owner.unloadMission();
+      scenarios.enter();
+      if (scenarios.get().edit)
+        owner.selectScenarioUnit(scenarios.get().edit!.id);
+    },
+    newScenario() {
+      if (scenarios.get().edit) {
+        scenarios.report('Apply or discard selected unit edits first.');
+        return;
+      }
+      owner.enterAuthoring();
+      if (scenarios.get().active) scenarios.newDraft();
+    },
+    loadScenario: (id: string) => scenarios.load(id),
+    updateScenario: (content: ScenarioContent) => scenarios.update(content),
+    editScenarioUnit: (edit: ScenarioUnitEdit) => scenarios.editUnit(edit),
+    applyScenarioUnitEdit: () => scenarios.applyEdit(),
+    discardScenarioUnitEdit: () => scenarios.discardEdit(),
+    async saveScenario(asNew = false) {
+      await scenarios.save(asNew);
+      const id = session.getState().selection.primary?.id;
+      if (id && !scenarios.get().draft.units.some((u) => u.id === id))
+        owner.selectScenarioUnit();
+    },
+    async reconcileScenario(retry = false) {
+      await scenarios.reconcile(retry);
+      const id = session.getState().selection.primary?.id;
+      if (id && !scenarios.get().draft.units.some((u) => u.id === id))
+        owner.selectScenarioUnit();
+    },
+    beginBoundary: (viewId: string, id?: string) =>
+      scenarios.beginBoundary(viewId, id),
+    editBoundary: scenarios.editBoundary,
+    disarmBoundary: scenarios.disarmBoundary,
+    cancelBoundary: scenarios.cancelBoundary,
+    boundaryPoint: scenarios.boundaryPoint,
+    removeBoundaryVertex: scenarios.removeBoundaryVertex,
+    applyBoundary: scenarios.applyBoundary,
+    setBoundaryType: scenarios.setBoundaryType,
+    deleteBoundary: scenarios.deleteBoundary,
+    boundaryContext: scenarios.boundaryContext,
+    closeBoundaryMenu: scenarios.closeBoundaryMenu,
+    selectBoundary(id?: string) {
+      if (
+        !scenarios.get().active ||
+        scenarios.get().edit ||
+        scenarios.get().boundaryEdit
+      )
+        return;
+      const ref = id ? { kind: 'scenario-boundary' as const, id } : undefined;
+      session.setState({
+        selection: {
+          items: ref ? [ref] : [],
+          primary: ref,
+          revision: session.getState().selection.revision + 1,
+        },
+      });
+      publish();
+    },
+    validateScenario: () => scenarios.validate(),
+    reportScenarioError: (message: string) => scenarios.report(message),
+    locateScenarioUnit: (id: string, viewId: string) =>
+      scenarios.locate(id, viewId),
+    completeScenarioLocate: (serial: number) =>
+      scenarios.completeLocate(serial),
+    armPlacement(placement?: ScenarioState['placement']) {
+      if (scenarios.get().active)
+        scenarios.arm(
+          placement
+            ? { ...placement, viewId: placement.viewId ?? 'tactical' }
+            : undefined,
+        );
+    },
+    selectScenarioUnit(id?: string) {
+      if (scenarios.get().boundaryEdit) return;
+      if (scenarios.get().edit && scenarios.get().edit!.id !== id) {
+        scenarios.report(
+          'Apply or discard selected unit edits before changing selection.',
+        );
+        return;
+      }
+      if (
+        !scenarios.get().active ||
+        (id && !scenarios.get().draft.units.some((u) => u.id === id))
+      )
+        return;
+      const ref = id ? { kind: 'scenario-unit' as const, id } : undefined;
+      session.setState({
+        selection: {
+          items: ref ? [ref] : [],
+          primary: ref,
+          revision: session.getState().selection.revision + 1,
+        },
+      });
+      publish();
+    },
+    placeScenarioUnit(
+      longitudeDeg: number,
+      latitudeDeg: number,
+      pose?: {
+        altitude: number;
+        heading: number;
+        commandRole: UnitPlacement['commandRole'];
+      },
+    ) {
+      const state = scenarios.get(),
+        placement = state.placement;
+      if (
+        !state.active ||
+        !placement ||
+        state.edit ||
+        state.boundaryEdit ||
+        state.blocked ||
+        state.busy ||
+        state.pending
+      )
+        return;
+      if (!withinScenarioExtent(longitudeDeg, latitudeDeg)) {
+        scenarios.report(
+          'Place units within 5 km of the local origin. Recenter to return.',
+        );
+        return;
+      }
+      const draft = structuredClone(state.draft) as ScenarioContent;
+      const source = draft.units.find((u) => u.id === placement.duplicateId);
+      if (
+        placement.duplicateId &&
+        (!source ||
+          (source.position.longitudeDeg === longitudeDeg &&
+            source.position.latitudeDeg === latitudeDeg))
+      ) {
+        scenarios.report(
+          'Choose a different position for the duplicate. The source unit is unchanged.',
+        );
+        return false;
+      }
+      let unit = draft.units.find((u) => u.id === placement.replaceId);
+      if (unit) unit.position = { ...unit.position, longitudeDeg, latitudeDeg };
+      else {
+        if (draft.units.length >= 32) {
+          scenarios.report('This demo supports up to 32 units.');
+          return;
+        }
+        unit = {
+          ...source,
+          id: crypto.randomUUID(),
+          label: source
+            ? `${source.label.slice(0, 59)} copy`
+            : `${placement.category === 'friendly' ? 'Friendly' : placement.category === 'hostile' ? 'Hostile' : 'Unknown'} ${draft.units.length + 1}`,
+          category: placement.category,
+          commandRole:
+            source?.commandRole ??
+            (placement.category === 'friendly' ? 'sentinel' : 'observation'),
+          position: {
+            longitudeDeg,
+            latitudeDeg,
+            altitude: {
+              metres: source?.position.altitude.metres ?? 150,
+              reference: 'ELLIPSOID',
+              datumId: 'WGS84',
+            },
+          },
+          headingTrueDeg: source?.headingTrueDeg ?? 0,
+        } as UnitPlacement;
+        draft.units.push(unit);
+      }
+      if (pose) {
+        unit.position.altitude.metres = pose.altitude;
+        unit.headingTrueDeg = pose.heading;
+        unit.commandRole = pose.commandRole;
+      }
+      try {
+        decodeScenarioWrite({
+          requestId: 'placement',
+          expectedRevision: 0,
+          content: draft,
+        });
+      } catch {
+        scenarios.report(
+          'Check placement: finite coordinates within the local area, height 0–5000 m, heading below 360°, and a supported command role.',
+        );
+        return false;
+      }
+      scenarios.update(draft);
+      scenarios.arm();
+      owner.selectScenarioUnit(unit.id);
+      return true;
+    },
+    async runScenario() {
+      const state = scenarios.get();
+      if (
+        !state.saved ||
+        !state.active ||
+        state.edit ||
+        state.boundaryEdit ||
+        state.blocked ||
+        state.dirty ||
+        state.pending ||
+        state.busy ||
+        state.placement ||
+        !state.review?.canRun ||
+        !state.draft.units.length
+      )
+        return;
+      const { definitionId, revision, contentHash } = state.saved;
+      await interactive.newDemo({ definitionId, revision, contentHash });
+    },
     armDirectMove(viewId?: string) {
       session.setState({ directDestinationView: viewId });
       publish();
@@ -690,6 +931,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       if (disposed) return;
       disposed = true;
       interactive.dispose();
+      scenarios.dispose();
       missionGeneration++;
       interactive.setMission(undefined);
       cancelCatalog();

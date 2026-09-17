@@ -397,9 +397,9 @@ def test_schema_two_migration_aliases_and_v12_bytes_remain_unchanged(tmp_path):
     h.repo.db.executescript('DROP TABLE demo_aliases; PRAGMA user_version=2;')
     h.repo.close()
     migrated = Harness(path)
-    assert migrated.repo.db.execute('PRAGMA user_version').fetchone()[0] == 3
+    assert migrated.repo.db.execute('PRAGMA user_version').fetchone()[0] == 4
     projected = migrated.authority.read(frame.mission.id)
-    assert projected.schema_version == '1.4' and projected.interactive.schema_version == '1.3'
+    assert projected.schema_version == '1.6' and projected.interactive.schema_version == '1.3'
     assert projected.mission.name == 'Demo 001'
     assert migrated.repo.list_missions()[0].name == 'Demo 001'
     assert migrated.repo.latest_text(frame.mission.id) == raw

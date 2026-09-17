@@ -12,6 +12,7 @@ import {
   ScreenSpaceEventType,
   Entity,
   ConstantPositionProperty,
+  ConstantProperty,
   PolygonHierarchy,
   HeightReference,
   BillboardCollection,
@@ -58,7 +59,9 @@ import {
 import { constrainCamera } from '../regions';
 import { defaultMapPresentation } from '../contracts';
 import { MapGestures, insideRectangle, type ScreenPoint } from '../gestures';
+import { layoutLabels, type LabelAnchor } from '../labelLayout';
 import { DestinationAcknowledgement } from '../acknowledgement';
+import { boundaryColors, boundaryLabels } from '../../world/boundaryGeometry';
 import { symbolCanvas, destinationCanvas } from '../symbolCanvas';
 import { visualHeight } from './altitude';
 import type { CesiumProvider } from './config';
@@ -105,6 +108,10 @@ export class CesiumAdapter implements MapRenderer {
   private readonly billboards: BillboardCollection;
   private readonly markers = new Map<string, Billboard>();
   private pendingSymbols = false;
+  private labelsConstrained = false;
+  private readonly labelMeasure = document
+    .createElement('canvas')
+    .getContext('2d')!;
   private readonly removers: (() => void)[] = [];
   private layerRemovers: Record<Layer, (() => void)[]> = {
     imagery: [],
@@ -123,7 +130,7 @@ export class CesiumAdapter implements MapRenderer {
   private bookmark?: CameraIntent;
   private generation = 0;
   private missionGeneration = 0;
-  private mode: 'select' | 'pan' | 'destination' = 'select';
+  private mode: 'select' | 'pan' | 'destination' | 'draw' | 'vertex' = 'select';
   private keyboardId?: string;
   private spatial = initialSpatial();
   private imagery?: ImageryLayer;
@@ -293,6 +300,10 @@ export class CesiumAdapter implements MapRenderer {
     this.acknowledgement = new DestinationAcknowledgement(container);
     this.gestures = new MapGestures(canvas, container, {
       mode: () => this.mode,
+      finishBoundary: () => this.callbacks.boundaryFinish?.(),
+      deleteBoundaryVertex: () => this.callbacks.boundaryDeleteVertex?.(),
+      doubleClick: (point, reverse) => this.zoomAt(point, reverse ? 2 : 0.5),
+      vertexDrag: (start, end) => this.dragVertex(start, end),
       pan: (temporary) => {
         this.temporaryPan = temporary;
         this.updateGestures();
@@ -312,6 +323,7 @@ export class CesiumAdapter implements MapRenderer {
         this.renderedFrames++;
         this.checkReadiness();
         this.positionAcknowledgement();
+        this.layoutBoundaryLabels();
         this.scheduleClearance();
       }),
     );
@@ -466,7 +478,7 @@ export class CesiumAdapter implements MapRenderer {
     }
   }
 
-  setMode(mode: 'select' | 'pan' | 'destination') {
+  setMode(mode: 'select' | 'pan' | 'destination' | 'draw' | 'vertex') {
     this.gestures.cancel();
     this.mode = mode;
     this.updateGestures();
@@ -503,11 +515,14 @@ export class CesiumAdapter implements MapRenderer {
     return point;
   }
   private pick(point: ScreenPoint, additive: boolean) {
-    if (!this.active || this.disposed || this.resourceFailed) return;
-    if (this.mode === 'destination') {
-      this.move(point, true);
+    if (!this.active || this.disposed || this.resourceFailed) return false;
+    if (this.mode === 'vertex') {
+      const index = this.vertexAt(point);
+      if (index >= 0) this.callbacks.boundaryVertex?.(index);
       return;
     }
+    if (this.mode === 'destination' || this.mode === 'draw')
+      return this.move(point, true);
     const picked = this.viewer.scene.pick(new Cartesian2(point.x, point.y));
     if (picked?.id instanceof Entity) {
       const object = this.scene?.objects.find(
@@ -530,8 +545,52 @@ export class CesiumAdapter implements MapRenderer {
       .map((object) => object.ref.id);
     this.callbacks.selection?.(ids, additive);
   }
+  projectBoundaryVertex(index: number) {
+    const v = this.scene?.boundaryEdit?.vertices[index];
+    if (!v) return undefined;
+    const entity = this.viewer.entities.getById(`boundary-edit:${index}`),
+      position =
+        entity?.position?.getValue(JulianDate.now()) ??
+        Cartesian3.fromDegrees(v[0], v[1]);
+    return SceneTransforms.worldToWindowCoordinates(
+      this.viewer.scene,
+      position,
+    );
+  }
+  private vertexAt(point: ScreenPoint) {
+    // Use the rendered handle first: clamped terrain/tiles may sit above its
+    // horizontal definition. Never turn that presentation height into altitude.
+    const picked = this.viewer.scene.pick(new Cartesian2(point.x, point.y));
+    const id = picked?.id?.id;
+    if (typeof id === 'string' && /^boundary-edit:\d+$/.test(id)) {
+      const index = Number(id.slice('boundary-edit:'.length));
+      if (this.scene?.boundaryEdit?.vertices[index]) return index;
+    }
+    return (
+      this.scene?.boundaryEdit?.vertices.findIndex((_, i) => {
+        const p = this.projectBoundaryVertex(i);
+        return p && Math.hypot(point.x - p.x, point.y - p.y) <= 12;
+      }) ?? -1
+    );
+  }
+  private dragVertex(start: ScreenPoint, end: ScreenPoint) {
+    const index = this.vertexAt(start);
+    if (index < 0 || this.movementSurfaceLoading()) return;
+    const target = this.surfaceAt(end);
+    if (!target) {
+      this.callbacks.announce(
+        'No map surface here. Use Tactical or numeric vertex entry.',
+      );
+      return;
+    }
+    const v = Cartographic.fromCartesian(target);
+    this.callbacks.boundaryVertex?.(index, {
+      longitude: CesiumMath.toDegrees(v.longitude),
+      latitude: CesiumMath.toDegrees(v.latitude),
+    });
+  }
   private move(point: ScreenPoint, armed = false) {
-    if (this.movementSurfaceLoading()) return;
+    if (this.movementSurfaceLoading()) return false;
     const target = this.surfaceAt(point);
     // Readiness belongs to the displayed view at the operator's gesture. A
     // synchronous depth pass can evict/refine unrelated tiles under cache
@@ -539,18 +598,29 @@ export class CesiumAdapter implements MapRenderer {
     // visible surface. Missing surface/sky still produces no destination.
     if (!target) {
       this.callbacks.announce(
-        'No map surface here. Choose a visible street or building.',
+        this.scene?.context === 'authoring'
+          ? 'No map surface here. Choose visible ground, switch to Tactical or use numeric coordinates.'
+          : 'No map surface here. Choose a visible street or building.',
+      );
+      return false;
+    }
+    const position = Cartographic.fromCartesian(target);
+    if (!armed && this.scene?.context === 'authoring') {
+      this.callbacks.boundaryContext?.(
+        CesiumMath.toDegrees(position.longitude),
+        CesiumMath.toDegrees(position.latitude),
+        point,
       );
       return;
     }
-    const position = Cartographic.fromCartesian(target);
     const callback = armed
       ? this.callbacks.destination
       : this.callbacks.directMove;
-    callback?.(
+    const accepted = callback?.(
       CesiumMath.toDegrees(position.longitude),
       CesiumMath.toDegrees(position.latitude),
     );
+    return Boolean(callback) && accepted !== false;
   }
   private movementSurfaceLoading() {
     if (
@@ -562,7 +632,9 @@ export class CesiumAdapter implements MapRenderer {
     ) {
       this.lastSurfacePick = { kind: 'loading' };
       this.callbacks.announce(
-        '3D map detail is still loading. Wait for the visible surface, then try again.',
+        this.scene?.context === 'authoring'
+          ? '3D map detail is loading. Wait for the surface, use Tactical or enter numeric coordinates.'
+          : '3D map detail is still loading. Wait for the visible surface, then try again.',
       );
       return true;
     }
@@ -892,7 +964,7 @@ export class CesiumAdapter implements MapRenderer {
       this.viewer.clock.currentTime = JulianDate.fromIso8601(scene.effectiveAt);
     this.viewer.clock.shouldAnimate = false;
     this.draw();
-    if (!this.framed && scene.frameId) {
+    if (!this.framed && (scene.frameId || scene.context === 'authoring')) {
       if (this.bookmark) {
         this.restoreCamera(this.bookmark);
         this.framed = true;
@@ -1130,7 +1202,12 @@ export class CesiumAdapter implements MapRenderer {
           this.spatial.approximateHeights++;
         if (!volume) this.spatial.surfaceZones++;
         if (zone.altitudeBand && !volume) this.spatial.unavailableZones++;
-        const signature = JSON.stringify([zone.geometry, zone.altitudeBand]);
+        const signature = JSON.stringify([
+          zone.geometry,
+          zone.altitudeBand,
+          zone.boundaryType,
+          zone.label,
+        ]);
         if (this.zoneSignatures.get(id) === signature) continue;
         this.zoneSignatures.set(id, signature);
         entity.polygon = new PolygonGraphics({
@@ -1138,9 +1215,9 @@ export class CesiumAdapter implements MapRenderer {
             rings[0],
             rings.slice(1).map((ring) => new PolygonHierarchy(ring)),
           ),
-          material: Color.fromCssColorString('#bbc4ce').withAlpha(
-            volume ? 0.08 : 0.06,
-          ),
+          material: Color.fromCssColorString(
+            boundaryColors[zone.boundaryType ?? 'untyped'],
+          ).withAlpha(volume ? 0.08 : 0.06),
           height: volume ? lower.metres : 0,
           extrudedHeight: volume ? upper.metres : undefined,
           heightReference: volume
@@ -1150,11 +1227,81 @@ export class CesiumAdapter implements MapRenderer {
         });
         entity.polyline = new PolylineGraphics({
           positions: rings[0],
-          width: 1,
-          material: Color.fromCssColorString('#8e99a5').withAlpha(0.65),
+          width: zone.boundaryType === 'restricted' ? 4 : 2,
+          material: ['untyped', 'annotation', 'patrol'].includes(
+            zone.boundaryType ?? 'untyped',
+          )
+            ? new PolylineDashMaterialProperty({
+                color: Color.fromCssColorString(
+                  boundaryColors[zone.boundaryType ?? 'untyped'],
+                ),
+                dashLength: 12,
+              })
+            : Color.fromCssColorString(
+                boundaryColors[zone.boundaryType ?? 'untyped'],
+              ),
           clampToGround: true,
         });
       }
+      for (const z of scene.zones) {
+        if (!z.boundaryType) continue;
+        const id = `boundary-label:${z.ref.id}`;
+        retained.add(id);
+        const entity = collection.getById(id) ?? collection.add({ id });
+        const v = z.geometry.coordinates[0][0];
+        entity.position = new ConstantPositionProperty(
+          Cartesian3.fromDegrees(v[0], v[1]),
+        );
+        entity.label = new LabelGraphics({
+          text: `${z.label.length > 32 ? `${z.label.slice(0, 31)}…` : z.label}\n${boundaryLabels[z.boundaryType]}`,
+          font: '11px Inter, sans-serif',
+          fillColor: Color.fromCssColorString(boundaryColors[z.boundaryType]),
+          showBackground: true,
+          backgroundColor: Color.fromCssColorString('#10191eee'),
+          pixelOffset: new Cartesian2(6, -14),
+          horizontalOrigin: HorizontalOrigin.LEFT,
+          heightReference: HeightReference.CLAMP_TO_GROUND,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        });
+      }
+      const vertices = scene.boundaryEdit?.vertices ?? [];
+      if (vertices.length > 1) {
+        const id = 'boundary-edit-line';
+        retained.add(id);
+        const entity = collection.getById(id) ?? collection.add({ id });
+        entity.polyline = new PolylineGraphics({
+          positions: vertices.map((v) => Cartesian3.fromDegrees(v[0], v[1])),
+          width: 2,
+          clampToGround: true,
+          material: new PolylineDashMaterialProperty({
+            color: Color.fromCssColorString('#d4e2e6'),
+            dashLength: 12,
+          }),
+        });
+      }
+      vertices.forEach((v, index) => {
+        const id = `boundary-edit:${index}`;
+        retained.add(id);
+        const entity = collection.getById(id) ?? collection.add({ id });
+        entity.position = new ConstantPositionProperty(
+          Cartesian3.fromDegrees(v[0], v[1]),
+        );
+        entity.point = new PointGraphics({
+          pixelSize: 11,
+          color: Color.fromCssColorString('#142630'),
+          outlineColor: Color.fromCssColorString('#d4e2e6'),
+          outlineWidth: 2,
+          heightReference: HeightReference.CLAMP_TO_GROUND,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        });
+        entity.label = new LabelGraphics({
+          text: String(index + 1),
+          font: '11px Inter, sans-serif',
+          pixelOffset: new Cartesian2(0, -15),
+          heightReference: HeightReference.CLAMP_TO_GROUND,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        });
+      });
       for (const entity of [...collection.values])
         if (!retained.has(entity.id)) {
           collection.remove(entity);
@@ -1175,6 +1322,81 @@ export class CesiumAdapter implements MapRenderer {
     this.watchReadiness();
     this.viewer.scene.requestRender();
     this.publish();
+  }
+  private layoutBoundaryLabels() {
+    if (!this.scene || !this.active) return;
+    const constrained = this.scene.zones.some((z) => z.boundaryType);
+    if (!constrained && !this.labelsConstrained) return;
+    this.labelsConstrained = constrained;
+    const time = this.viewer.clock.currentTime;
+    const objects = [...this.scene.objects].sort(
+      (a, b) =>
+        Number(b.selected) - Number(a.selected) ||
+        a.ref.id.localeCompare(b.ref.id),
+    );
+    const ids = [
+      ...objects.filter((o) => o.selected).map((o) => JSON.stringify(o.ref)),
+      ...this.scene.zones
+        .filter((z) => z.boundaryType)
+        .map((z) => `boundary-label:${z.ref.id}`)
+        .sort(),
+      ...objects.filter((o) => !o.selected).map((o) => JSON.stringify(o.ref)),
+    ];
+    const anchors: LabelAnchor[] = [];
+    for (const id of ids) {
+      const entity = this.viewer.entities.getById(id),
+        label = entity?.label;
+      let position = entity?.position?.getValue(time);
+      if (!label || !position) continue;
+      const boundary = id.startsWith('boundary-label:');
+      if (boundary) {
+        const geo = Cartographic.fromCartesian(position);
+        geo.height = this.viewer.scene.globe.getHeight(geo) ?? 0;
+        position = Cartographic.toCartesian(geo);
+      }
+      const point = SceneTransforms.worldToWindowCoordinates(
+        this.viewer.scene,
+        position,
+      );
+      if (!point) continue;
+      this.labelMeasure.font = label.font?.getValue(time) ?? '11px monospace';
+      const lines = String(label.text?.getValue(time) ?? '').split('\n');
+      anchors.push({
+        id,
+        x: point.x,
+        y: point.y,
+        width:
+          Math.max(
+            ...lines.map((line) => this.labelMeasure.measureText(line).width),
+          ) + 10,
+        height: lines.length * 14 + 6,
+        offsetX: boundary ? 6 : 18,
+        offsetY: boundary ? -14 : 0,
+      });
+    }
+    // Keep legacy scenes' layout intact; deleting the last draft footprint also
+    // restores any previously displaced entity label. No marker is suppressed.
+    const placements = constrained
+      ? layoutLabels(
+          anchors,
+          this.container.clientWidth,
+          this.container.clientHeight,
+        )
+      : anchors.map((a) => ({ ...a, show: true }));
+    let changed = false;
+    for (const p of placements) {
+      const label = this.viewer.entities.getById(p.id)!.label!;
+      const offset = new Cartesian2(p.offsetX, p.offsetY);
+      if (!Cartesian2.equals(label.pixelOffset?.getValue(time), offset)) {
+        label.pixelOffset = new ConstantProperty(offset);
+        changed = true;
+      }
+      if ((label.show?.getValue(time) ?? true) !== p.show) {
+        label.show = new ConstantProperty(p.show);
+        changed = true;
+      }
+    }
+    if (changed) this.viewer.scene.requestRender();
   }
   private sampleGround(key: string, longitude: number, latitude: number) {
     if (
@@ -1947,7 +2169,10 @@ export class CesiumAdapter implements MapRenderer {
         !this.resourceFailed &&
         !this.pendingSymbols &&
         this.viewer.dataSourceDisplay.ready &&
-        Boolean(scene?.frameId && this.appliedFrameId === scene.frameId),
+        Boolean(
+          scene?.context === 'authoring' ||
+          (scene?.frameId && this.appliedFrameId === scene.frameId),
+        ),
       rendererRunning: this.viewer.useDefaultRenderLoop,
       globeLoaded: this.viewer.scene.globe.tilesLoaded,
       geometryReady: this.viewer.dataSourceDisplay.ready,

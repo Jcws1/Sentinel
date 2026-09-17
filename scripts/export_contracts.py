@@ -17,17 +17,19 @@ from app.world.contracts import StreamMessage
 from app.recording.history import ObservedHistory
 from app.commands.contracts import CommandContracts
 from app.commands.template import new_template
+from app.scenarios.contracts import ScenarioContracts
+from app.scenarios.review import ScenarioReviewContracts
 
 
 def exports() -> dict[str, dict]:
     frame, events = fixture_source("fixture-alpha", 0, instant(0))
     events[0].update(id="fixture-event-0", missionId="fixture-alpha", sequence=0, recordedAt=instant(0))
-    frame.update(schemaVersion="1.4", frameId="fixture-frame-0", recordingId="fixture-recording-alpha", streamEpoch="fixture-epoch-alpha",
+    frame.update(schemaVersion="1.6", frameId="fixture-frame-0", recordingId="fixture-recording-alpha", streamEpoch="fixture-epoch-alpha",
                  sequence=0, recordedAt=instant(0), recentEvents=events)
     frame = WorldFrame.model_validate_json(json.dumps(frame)).model_dump(mode="json", by_alias=True, exclude_none=True)
     with patch('app.commands.template.uuid4', side_effect=[UUID(int=i) for i in range(1, 5)]):
         _, demo = new_template(instant(0))
-    demo.update(schemaVersion="1.4", frameId="demo-frame-0", recordingId="demo-recording", streamEpoch="demo-stream", sequence=0, recordedAt=instant(0), recentEvents=[])
+    demo.update(schemaVersion="1.6", frameId="demo-frame-0", recordingId="demo-recording", streamEpoch="demo-stream", sequence=0, recordedAt=instant(0), recentEvents=[])
     demo = WorldFrame.model_validate_json(json.dumps(demo)).model_dump(mode="json", by_alias=True, exclude_none=True)
     def json_schema(schema):
         return {"$schema": "https://json-schema.org/draft/2020-12/schema", **schema}
@@ -36,6 +38,8 @@ def exports() -> dict[str, dict]:
             "stream.schema.json": json_schema(TypeAdapter(StreamMessage).json_schema()),
             "mission-list.schema.json": json_schema(MissionList.model_json_schema()),
             "interactive.schema.json": json_schema(CommandContracts.model_json_schema()),
+            "scenarios.schema.json": json_schema(ScenarioContracts.model_json_schema()),
+            "scenario-review.schema.json": json_schema(ScenarioReviewContracts.model_json_schema()),
             "observed-history.schema.json": json_schema(ObservedHistory.model_json_schema()),
             "fixture.world.json": frame, "demo.world.json": demo}
 
@@ -44,7 +48,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
     options = parser.parse_args()
-    output = ROOT / "contracts" / "sentinel" / "v1.4"
+    output = ROOT / "contracts" / "sentinel" / "v1.7"
     failures = []
     for name, value in exports().items():
         text = json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False) + "\n"

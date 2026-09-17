@@ -6,13 +6,15 @@ import { createHash } from 'node:crypto';
 import { format, resolveConfig } from 'prettier';
 
 const frontend = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const contractDir = resolve(frontend, '../contracts/sentinel/v1.4');
+const contractDir = resolve(frontend, '../contracts/sentinel/v1.7');
 const files = [
   'world.schema.json',
   'stream.schema.json',
   'mission-list.schema.json',
   'observed-history.schema.json',
   'interactive.schema.json',
+  'scenarios.schema.json',
+  'scenario-review.schema.json',
 ];
 const schemas = await Promise.all(
   files.map(async (name) =>
@@ -77,7 +79,7 @@ const fingerprint = createHash('sha256')
   .digest('hex');
 const generated = await compile(schema, 'BackendContracts', {
   unreachableDefinitions: true,
-  bannerComment: `/* Generated from backend v1.4 JSON Schemas; do not edit.\n * Source SHA-256: ${fingerprint}\n */`,
+  bannerComment: `/* Generated from backend contract package v1.7 JSON Schemas; do not edit.\n * Source SHA-256: ${fingerprint}\n */`,
   style: { singleQuote: true, semi: true },
 });
 const target = resolve(frontend, 'src/contracts/generated.ts');

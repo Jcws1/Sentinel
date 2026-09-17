@@ -1,6 +1,7 @@
 """Candidate movement transitions, composed by InteractiveService's single writer."""
 from datetime import datetime
 from app.commands.kinematics import step
+from app.commands.zone_rules import blocked
 
 TERMINAL = {"Completed", "Cancelled", "Failed", "Expired", "Interrupted"}
 
@@ -34,6 +35,9 @@ def control_reason(frame, control, now, ignore_busy=False):
     altitude = track["latest"]["position"]["altitude"]
     if altitude["reference"] != "ELLIPSOID" or altitude.get("datumId") != "WGS84":
         return "UNSUPPORTED_REFERENCE", "Movement requires supplied ELLIPSOID/WGS84 height."
+    zone_reason = blocked(frame, track["latest"]["position"])
+    if zone_reason:
+        return "ENDPOINT_INVALID", zone_reason
     if not ignore_busy and any(e["assetId"] == control["assetId"] and e["state"] not in TERMINAL for e in run.get("executions", [])):
         return "ASSET_BUSY", "Asset is busy; Cancel its execution and wait for termination."
     return None
@@ -101,7 +105,9 @@ def project(frame, checkpoint, now):
         prior = checkpoint.get("directOrders", {}).get(c["assetId"])
         if prior:
             c["lastDirectOrder"] = prior
-        reason = control_reason(frame, c, now, ignore_busy=True)
+        track = frame['tracks'].get(c.get('controlTrackId'))
+        zone_reason = blocked(frame, track['latest']['position']) if track else None
+        reason = ("ENDPOINT_INVALID", zone_reason) if zone_reason else control_reason(frame, c, now, ignore_busy=True)
         c.update(eligible=reason is None, reason=reason[1] if reason else "Eligible for horizontal movement.")
 
 
@@ -128,10 +134,16 @@ def advance(frame, checkpoint, now):
                 if not e.get("startedAt"):
                     e.update(startedAt=frame["effectiveAt"], startedTick=run["tick"])
                 transition(e, "Running")
-                position, velocity = step(e)
+                candidate = dict(e)
+                position, velocity = step(candidate)
                 track = frame["tracks"][e["controlTrackId"]]
-                track["latest"].update(position=position, velocity=velocity)
-                if e["remainingMetres"] == 0:
+                zone_reason = blocked(frame, track["latest"]["position"], position)
+                if zone_reason:
+                    terminate(frame, e, "Failed", zone_reason)
+                else:
+                    e.update(candidate)
+                    track["latest"].update(position=position, velocity=velocity)
+                if not zone_reason and e["remainingMetres"] == 0:
                     terminate(frame, e, "Completed", "Destination reached in a committed source sample.")
                     e["completionSample"] = {"sequence": frame["sequence"] + 1, "trackId": e["controlTrackId"], "timestamp": frame["effectiveAt"], "position": position}
         if e["state"] != before:

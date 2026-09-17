@@ -113,10 +113,10 @@ def test_archived_rts_recording_is_strictly_validated_and_never_rewritten(tmp_pa
     h.repo.establish(legacy.mission, legacy.recording_id, legacy.stream_epoch, legacy.recorded_at)
     h.repo.db.execute('INSERT INTO frames VALUES (?,?,?,?,?,?)', (legacy.frame_id,legacy.recording_id,legacy.sequence,legacy.effective_at,legacy.recorded_at,raw))
     adapted = h.authority.read(legacy.mission.id)
-    assert adapted.schema_version == '1.4' and adapted.interactive.schema_version == '1.3'
+    assert adapted.schema_version == '1.6' and adapted.interactive.schema_version == '1.3'
     assert adapted.interactive.template_id == 'singapore-local-v1'
     assert h.repo.latest_text(legacy.mission.id) == raw
-    assert h.repo.db.execute('PRAGMA user_version').fetchone()[0] == 3
+    assert h.repo.db.execute('PRAGMA user_version').fetchone()[0] == 4
     invalid = json.loads(raw)
     invalid['interactive']['templateId'] = 'singapore-local-v2'
     with pytest.raises(ValidationError):

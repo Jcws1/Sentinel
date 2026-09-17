@@ -707,7 +707,7 @@ test('standard retry recovers failed terrain without reauthenticating or reloadi
   assertContext(before, after);
   await expect(pane(page)).toHaveAttribute('data-selection', selected!);
   const evidence = resolve(
-    '../docs/compact-demo/evidence/regressions/regressions/recovery',
+    '../docs/d2/regressions/evidence/regressions/regressions/regressions/recovery',
   );
   await mkdir(evidence, { recursive: true });
   await writeFile(

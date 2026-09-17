@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import rawDemo from '../../../contracts/sentinel/v1.4/demo.world.json';
+import rawDemo from '../../../contracts/sentinel/v1.7/demo.world.json';
 import { validateFrame } from '../../src/contracts/decode';
 import {
   decodeRunRead,
@@ -52,6 +52,14 @@ function state() {
     .map((c) => ({ kind: 'entity', id: c.entityId }));
   session.selection.primary = session.selection.items[0];
   return {
+    scenario: {
+      active: false,
+      draft: { name: 'Untitled scenario', units: [] },
+      dirty: false,
+      busy: false,
+      catalog: [],
+      reviewing: false,
+    },
     catalog: { status: 'ready', missions: [] },
     connection: 'connected',
     missionId: frame.mission.id,

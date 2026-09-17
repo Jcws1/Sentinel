@@ -10,7 +10,8 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter
 
-from app.api import missions, stream, interactive
+from app.api import missions, stream, interactive, scenarios
+from app.scenarios.service import ScenarioService
 from app.commands.service import InteractiveService, CommandError
 from fastapi.exceptions import RequestValidationError
 from app.missions.fixtures import seed_fixtures
@@ -33,6 +34,7 @@ def create_app(db_path: str | None = None, fixtures_enabled: bool | None = None,
         application.state.fixtures_enabled = fixtures
         application.state.heartbeat_seconds = heartbeat_seconds
         application.state.interactive = InteractiveService(application.state.service, demo)
+        application.state.scenarios = ScenarioService(application.state.service, demo)
         async def source_loop():
             while True:
                 await asyncio.sleep(.2)
@@ -55,10 +57,11 @@ def create_app(db_path: str | None = None, fixtures_enabled: bool | None = None,
                     await runner
             repository.close()
 
-    application = FastAPI(title="Sentinel world authority", version="1.4.0", lifespan=lifespan)
+    application = FastAPI(title="Sentinel world authority", version="1.6.0", lifespan=lifespan)
     application.include_router(missions.router)
     application.include_router(stream.router)
     application.include_router(interactive.router)
+    application.include_router(scenarios.router)
 
     @application.middleware("http")
     async def prevent_cached_authority(request: Request, call_next):

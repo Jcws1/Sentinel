@@ -9,7 +9,7 @@ import {
   endDemo,
 } from './rtsActions';
 
-const evidence = resolve('../docs/compact-demo/evidence');
+const evidence = resolve('../docs/d2/regressions/evidence/regressions');
 test.use({ trace: 'off' });
 test.afterEach(async ({ page }) => {
   // Keep each real UI scenario independent if an assertion fails mid-demo.
@@ -48,7 +48,7 @@ test('compact chrome preserves direct commands, measured cruise, partial groups 
     true,
   );
   const run = await readWorld(page);
-  expect(run.schemaVersion).toBe('1.4');
+  expect(run.schemaVersion).toBe('1.6');
   expect(run.interactive?.templateId).toBe('singapore-local-v2');
   await directClick(page, 0.76, 0.3);
   await expect

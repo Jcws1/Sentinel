@@ -188,6 +188,7 @@ export function createScene(
             Object.freeze({
               ref: Object.freeze({ kind: 'zone' as const, id: z.id }),
               label: z.label,
+              boundaryType: frame.boundaryRules?.zones[z.id],
               geometry: z.geometry,
               altitudeBand: z.altitudeBand,
             }),

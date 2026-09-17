@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import rawFixture from '../../../contracts/sentinel/v1.4/fixture.world.json';
+import rawFixture from '../../../contracts/sentinel/v1.7/fixture.world.json';
 import { validateFrame } from '../../src/contracts/decode';
 import type { Track, Zone } from '../../src/contracts/generated';
 import type { WorldFrame } from '../../src/contracts/types';

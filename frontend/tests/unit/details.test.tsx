@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import raw from '../../../contracts/sentinel/v1.4/demo.world.json';
+import raw from '../../../contracts/sentinel/v1.7/demo.world.json';
 import { validateFrame } from '../../src/contracts/decode';
 import { initialSession } from '../../src/state/sessionStore';
 import type {
@@ -136,6 +136,14 @@ function snapshot() {
     .map((c) => ({ kind: 'entity', id: c.entityId }));
   session.selection.primary = session.selection.items[0];
   return {
+    scenario: {
+      active: false,
+      draft: { name: 'Untitled scenario', units: [] },
+      dirty: false,
+      busy: false,
+      catalog: [],
+      reviewing: false,
+    },
     presentation: { status: 'current', mode: 'live', frame },
     session,
     connection: 'connected',
