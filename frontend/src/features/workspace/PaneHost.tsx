@@ -8,6 +8,8 @@ import { TacticalMap } from '../map/TacticalMap';
 import { Credits } from '../credits/Credits';
 import { TracksBrowser } from '../entities/TracksBrowser';
 import { EntityInspector } from '../entities/EntityInspector';
+import { EntityDetails } from '../entities/EntityDetails';
+import { MovementPane } from '../movement/MovementPane';
 
 export type PaneLifecycleEvent =
   | { type: 'mount' | 'dispose'; viewId: ViewId }
@@ -81,6 +83,7 @@ export function PaneHost({
       ref={host}
       className="pane"
       data-view={id}
+      data-view-kind={kind}
       aria-label={`${title} view`}
       onKeyDown={(event) => {
         // FlexLayout portals do not bubble React events through their DOM tabpanel ancestor.
@@ -100,8 +103,12 @@ export function PaneHost({
     >
       {kind === 'credits' ? (
         <Credits />
+      ) : kind === 'movement' && runtime ? (
+        <MovementPane bridge={bridge} />
       ) : kind === 'tracks' && runtime ? (
         <TracksBrowser bridge={bridge} />
+      ) : kind === 'details' && runtime ? (
+        <EntityDetails bridge={bridge} />
       ) : kind === 'inspector' && runtime ? (
         <EntityInspector id={id} bridge={bridge} />
       ) : tactical ? (
@@ -109,7 +116,11 @@ export function PaneHost({
       ) : (
         <div className="placeholder">
           <span className="constraint-tag">NOT IMPLEMENTED</span>
-          <OperationalReadout view={{ ...view, title }} viewId={id} />
+          <OperationalReadout
+            view={{ ...view, title }}
+            viewId={id}
+            bridge={bridge}
+          />
           {renderExtension?.(id)}
         </div>
       )}

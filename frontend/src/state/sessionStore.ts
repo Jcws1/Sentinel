@@ -1,5 +1,6 @@
 import { createStore } from 'zustand/vanilla';
 import type { Entity } from '../contracts/types';
+import type { MovementDraft } from '../world/movement';
 
 export type ObjectRef = {
   kind: 'entity' | 'track' | 'asset' | 'sensor' | 'zone' | 'task' | 'event';
@@ -33,6 +34,9 @@ export interface FilterState {
   showRemoved: boolean;
 }
 export interface SessionState {
+  directDestinationView?: string;
+  movementDraft?: MovementDraft;
+  destinationPickView?: string;
   missionId?: string;
   selection: SelectionState;
   time: TimeState;

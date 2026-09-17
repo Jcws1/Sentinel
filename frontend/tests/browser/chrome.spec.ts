@@ -1,3 +1,4 @@
+import { loadFixture } from './actions';
 import {
   test,
   expect,
@@ -10,13 +11,14 @@ import { resolve } from 'node:path';
 import { closeTab, tabAction, unloadMission } from './actions';
 
 const product = 'http://127.0.0.1:5181';
-const evidence = resolve('../docs/chrome-refinement/evidence');
+const evidence = resolve(
+  '../docs/compact-demo/evidence/regressions/regressions',
+);
 const tab = (page: Page, name: string) =>
   page.getByRole('tab', { name, exact: true });
 
 async function load(page: Page, name = 'Synthetic Tactical') {
-  await page.getByRole('button', { name: 'Load mission', exact: true }).click();
-  await page.getByRole('menuitem', { name, exact: true }).click();
+  await loadFixture(page, name);
   await expect(page.locator('.connection-state')).toHaveText('CONNECTED');
   await expect(page.locator('.map-canvas canvas')).toBeVisible();
 }
@@ -65,45 +67,19 @@ async function reachable(control: Locator) {
     .toBe(true);
 }
 
-async function footerIsUsable(page: Page) {
+async function shortcutsAreUsable(page: Page) {
   const button = page.getByRole('button', {
     name: 'Keyboard shortcuts',
     exact: true,
   });
   await reachable(button);
-  const measured = await button.evaluate((element) => {
-    const footer = element.closest('footer')!.getBoundingClientRect();
-    const bounds = element.getBoundingClientRect();
-    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-    const textBounds = [];
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      if (!node.textContent?.trim()) continue;
-      const range = document.createRange();
-      range.selectNodeContents(node);
-      textBounds.push(
-        ...Array.from(range.getClientRects()).map((rect) => ({
-          top: rect.top,
-          bottom: rect.bottom,
-          left: rect.left,
-          right: rect.right,
-        })),
-      );
-    }
-    return {
-      footer: footer.toJSON(),
-      bounds: bounds.toJSON(),
-      textBounds,
-      scrollWidth: element.scrollWidth,
-      clientWidth: element.clientWidth,
-    };
-  });
-  expect(measured.bounds.bottom).toBeLessThanOrEqual(measured.footer.bottom);
-  expect(measured.bounds.top).toBeGreaterThanOrEqual(measured.footer.top);
-  expect(measured.scrollWidth).toBeLessThanOrEqual(measured.clientWidth);
-  expect(measured.textBounds).toHaveLength(1);
-  expect(measured.textBounds[0].bottom).toBeLessThanOrEqual(
-    measured.footer.bottom,
-  );
+  const measured = await button.evaluate((element) => ({
+    rail: element.closest('nav')!.getBoundingClientRect().toJSON(),
+    bounds: element.getBoundingClientRect().toJSON(),
+  }));
+  expect(measured.bounds.bottom).toBeLessThanOrEqual(measured.rail.bottom);
+  expect(measured.bounds.top).toBeGreaterThanOrEqual(measured.rail.top);
+  expect(measured.bounds.right).toBeLessThanOrEqual(measured.rail.right);
   await button.click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.keyboard.press('Escape');
@@ -139,7 +115,7 @@ test('compact header reclaims map space with a single mission breadcrumb and no 
       page.getByRole('button', { name: 'Next fixture frame', exact: true }),
     ).toHaveCount(0);
     await expect(page.locator('.app-header')).toContainText('Missions');
-    await expect(page.locator('.app-header')).toContainText('SYNTHETIC');
+    await expect(page.locator('.app-header')).not.toContainText('SYNTHETIC');
     const current = await geometry(page);
     const before = baseline.find(
       (entry: { viewport: { width: number } }) =>
@@ -276,6 +252,10 @@ test('long backend mission names remain accessible without clock collision or ov
   );
   expect(dimensions.overflow).toBe(false);
   await trigger.click();
+  await page
+    .getByRole('menuitem', { name: 'Developer fixtures', exact: true })
+    .focus();
+  await page.keyboard.press('ArrowRight');
   await expect(
     page.getByRole('menuitem', { name: longName, exact: true }),
   ).toBeVisible();
@@ -284,14 +264,14 @@ test('long backend mission names remain accessible without clock collision or ov
   });
   await page.keyboard.press('Escape');
   await page.setViewportSize({ width: 760, height: 760 });
-  const connectedFooter = await footerIsUsable(page);
+  const connectedFooter = await shortcutsAreUsable(page);
   await page.screenshot({
     path: resolve(evidence, 'long-mission-footer-760.png'),
   });
   blocked = true;
   connection!.close({ code: 1011, reason: 'Deliberate narrow-layout outage' });
   await expect(page.locator('.connection-state')).toHaveText('STALE');
-  const staleFooter = await footerIsUsable(page);
+  const staleFooter = await shortcutsAreUsable(page);
   const staleGeometry = await geometry(page);
   expect(
     staleGeometry.mission.x + staleGeometry.mission.width,
@@ -309,7 +289,9 @@ test('long backend mission names remain accessible without clock collision or ov
   await unloadMission(page);
   await expect(page.locator('.app-header')).toContainText('No mission');
   await expect(page.locator('.app-header')).not.toContainText('SYNTHETIC');
-  await expect(page.locator('.status-bar')).toContainText('No mission loaded');
+  await expect(page.locator('.mission-status')).toContainText(
+    'No mission loaded',
+  );
 });
 
 test('shrinking three existing panes to 760px keeps every map control reachable and session context intact', async ({
@@ -408,10 +390,16 @@ test('shrinking three existing panes to 760px keeps every map control reachable 
     await page.keyboard.press('Escape');
     await expect(layers).toBeFocused();
     const id = `fixture-tactical-${index === 0 ? 'hostile' : 'neutral'}-01`;
-    // Dismiss the summary before picking a symbol beneath its new contextual content.
-    await map
+    // Clear from the shared Details pane; the map surface stays unobscured.
+    await page
+      .locator('.selection-details')
       .getByRole('button', { name: 'Clear selection', exact: true })
       .click();
+    // Details can scroll the overflowing workbench; reveal this canvas before picking.
+    await map.locator('canvas').scrollIntoViewIfNeeded();
+    await expect
+      .poll(async () => (await inspect()).maps[index].ready)
+      .toBe(true);
     const point = (await inspect()).maps[index].points.find(
       (point) => point.id === id,
     )!;

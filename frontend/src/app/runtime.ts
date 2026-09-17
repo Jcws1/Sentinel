@@ -3,6 +3,12 @@ import {
   type InteractiveState,
 } from '../services/interactiveClient';
 import type { Action } from '../services/interactiveClient';
+import {
+  captureMovement,
+  reviewMovement,
+  draftReason,
+} from '../world/movement';
+import { captureDirectMove } from '../world/directMovement';
 import { decodeStream } from '../contracts/decode';
 import type { DeepReadonly, ImmutableFrame, Mission } from '../contracts/types';
 import { createApi, type Fetcher } from '../services/api';
@@ -120,7 +126,13 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
   function publish() {
     const cache = world.getState();
     const operational = session.getState();
-    const presentation = derivePresentation(cache, operational, history);
+    const commandState = interactive.get();
+    const presentation = derivePresentation(
+      cache,
+      operational,
+      history,
+      commandState.now,
+    );
     observed.sync(
       presentation.frame,
       operational.selection.primary?.kind === 'entity'
@@ -136,7 +148,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       missionId: operational.missionId,
       presentation: Object.freeze(presentation),
       observed: observed.get(),
-      interactive: interactive.get(),
+      interactive: commandState,
       browserMode,
       session: immutableCopy(operational),
       advancing,
@@ -408,23 +420,63 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       reconnectAttempts = 0;
       connect();
     },
-    selectEntity(id?: string) {
+    selectEntity(id?: string, additive = false) {
       if (disposed) return;
       const current = session.getState();
       const frame = snapshot.presentation.frame;
-      if (id !== undefined && (!frame || !Object.hasOwn(frame.entities, id)))
+      if (
+        id !== undefined &&
+        (!frame || !Object.hasOwn(frame.entities, id)) &&
+        !(additive && current.selection.items.some((i) => i.id === id))
+      )
         return;
       if (
+        !additive &&
         current.selection.primary?.id === id &&
         current.selection.items.length <= 1
       )
         return;
       const ref = id ? { kind: 'entity' as const, id } : undefined;
+      const items =
+        additive && ref
+          ? current.selection.items.some(
+              (i) => i.kind === 'entity' && i.id === id,
+            )
+            ? current.selection.items.filter((i) => i.id !== id)
+            : [...current.selection.items, ref]
+          : ref
+            ? [ref]
+            : [];
       session.setState({
         selection: {
           missionId: current.missionId,
-          items: ref ? [ref] : [],
-          primary: ref,
+          items,
+          primary: additive
+            ? (items.find((i) => i.id === current.selection.primary?.id) ??
+              items[0])
+            : ref,
+          revision: current.selection.revision + 1,
+        },
+      });
+      publish();
+    },
+    selectEntities(ids: string[], additive = false) {
+      if (disposed) return;
+      const current = session.getState(),
+        frame = snapshot.presentation.frame;
+      const unique = [...new Set(ids)].filter((id) => !!frame?.entities[id]);
+      const items = additive ? [...current.selection.items] : [];
+      for (const id of unique)
+        if (!items.some((i) => i.kind === 'entity' && i.id === id))
+          items.push({ kind: 'entity', id });
+      session.setState({
+        selection: {
+          missionId: current.missionId,
+          items,
+          primary: additive
+            ? (items.find((i) => i.id === current.selection.primary?.id) ??
+              items[0])
+            : items[0],
           revision: current.selection.revision + 1,
         },
       });
@@ -463,9 +515,113 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       publish();
     },
     refreshInteractive: () => interactive.refresh(),
+    newDemo: () => interactive.newDemo(),
+    armDirectMove(viewId?: string) {
+      session.setState({ directDestinationView: viewId });
+      publish();
+    },
+    async directMove(longitude: number, latitude: number) {
+      // Capture before any asynchronous step. Later selection changes cannot retarget it.
+      session.setState({ directDestinationView: undefined });
+      try {
+        const intent = captureDirectMove(snapshot, longitude, latitude);
+        publish();
+        await interactive.submitDirect(intent);
+      } catch (e) {
+        interactive.rejectDirect(
+          longitude,
+          latitude,
+          e instanceof Error ? e.message : 'Destination unavailable.',
+        );
+      }
+    },
     interactiveAction: (action: Action | 'create') =>
       interactive.perform(action),
     reconcileInteractive: (resend = false) => interactive.reconcile(resend),
+    beginMove(replace = false) {
+      if (interactive.get().pending || interactive.get().busy) return;
+      if (session.getState().movementDraft && !replace) return;
+      session.setState({
+        movementDraft: captureMovement(snapshot),
+        destinationPickView: undefined,
+      });
+      publish();
+    },
+    editMove(coordinate: 'longitude' | 'latitude', value: string) {
+      const draft = session.getState().movementDraft;
+      if (!draft || draft.phase === 'submitted') return;
+      session.setState({
+        movementDraft: {
+          ...draft,
+          [coordinate]: value,
+          phase: 'editing',
+          intent: undefined,
+          error: undefined,
+        },
+      });
+      publish();
+    },
+    reviewMove() {
+      const draft = session.getState().movementDraft;
+      if (!draft || draft.phase === 'submitted') return;
+      try {
+        session.setState({
+          movementDraft: {
+            ...draft,
+            intent: reviewMovement(draft),
+            phase: 'reviewed',
+            error: undefined,
+          },
+          destinationPickView: undefined,
+        });
+      } catch (e) {
+        session.setState({
+          movementDraft: {
+            ...draft,
+            error: e instanceof Error ? e.message : 'Invalid destination.',
+          },
+        });
+      }
+      publish();
+    },
+    discardMove() {
+      session.setState({
+        movementDraft: undefined,
+        destinationPickView: undefined,
+      });
+      publish();
+    },
+    pickDestination(viewId?: string) {
+      session.setState({ destinationPickView: viewId });
+      publish();
+    },
+    setDestination(longitude: number, latitude: number) {
+      const draft = session.getState().movementDraft;
+      if (!draft || draft.phase === 'submitted') return;
+      session.setState({
+        movementDraft: {
+          ...draft,
+          longitude: longitude.toFixed(9),
+          latitude: latitude.toFixed(9),
+          phase: 'editing',
+          intent: undefined,
+          error: undefined,
+        },
+      });
+      publish();
+    },
+    async submitMove() {
+      if (draftReason(snapshot)) return;
+      const draft = session.getState().movementDraft!,
+        requestId = crypto.randomUUID();
+      session.setState({
+        movementDraft: { ...draft, phase: 'submitted', requestId },
+        destinationPickView: undefined,
+      });
+      publish();
+      await interactive.submitMove(draft.intent!, requestId);
+    },
+    cancelExecution: (id: string) => interactive.perform('cancel', id),
     retryHistory() {
       if (!disposed) {
         observed.retry();

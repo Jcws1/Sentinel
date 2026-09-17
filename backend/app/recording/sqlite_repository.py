@@ -23,7 +23,7 @@ class RecordingRepository:
         self.db.row_factory = sqlite3.Row
         self._lock = RLock()
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, 2):
+        if version not in (0, 1, 2, 3):
             self.db.close()
             raise RuntimeError(f"Unsupported recording schema version: {version}")
         self.db.execute("PRAGMA foreign_keys = ON")
@@ -64,7 +64,16 @@ class RecordingRepository:
             CREATE TABLE IF NOT EXISTS creation_receipts (
                 creation_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL, receipt_json TEXT NOT NULL
             );
-            PRAGMA user_version = 2;
+            CREATE TABLE IF NOT EXISTS demo_aliases (
+                mission_id TEXT PRIMARY KEY REFERENCES recordings(mission_id),
+                number INTEGER NOT NULL UNIQUE CHECK(number > 0)
+            );
+            INSERT INTO demo_aliases(mission_id, number)
+                SELECT mission_id, (SELECT COALESCE(MAX(number), 0) FROM demo_aliases)
+                    + ROW_NUMBER() OVER (ORDER BY established_at, mission_id)
+                FROM recordings WHERE json_extract(mission_json, '$.domain')='synthetic-interactive'
+                    AND mission_id NOT IN (SELECT mission_id FROM demo_aliases);
+            PRAGMA user_version = 3;
             COMMIT;
         """)
 
@@ -84,7 +93,25 @@ class RecordingRepository:
         return self.db.execute("SELECT 1 FROM recordings WHERE mission_id=?", (mission_id,)).fetchone() is not None
 
     def list_missions(self) -> list[Mission]:
-        return [Mission.model_validate_json(row[0]) for row in self.db.execute("SELECT mission_json FROM recordings ORDER BY mission_id")]
+        return [self.display_mission(Mission.model_validate_json(row[0])) for row in self.db.execute("SELECT mission_json FROM recordings ORDER BY mission_id")]
+
+    def assign_demo_alias(self, mission_id: str) -> str:
+        """Creation calls this inside its recording/frame/receipt transaction."""
+        if not self.db.in_transaction:
+            raise RuntimeError("Demo numbering requires the creation transaction")
+        self.db.execute("INSERT INTO demo_aliases(mission_id, number) SELECT ?, COALESCE(MAX(number), 0) + 1 FROM demo_aliases", (mission_id,))
+        return self.demo_alias(mission_id)
+
+    def demo_alias(self, mission_id: str) -> str | None:
+        row = self.db.execute("SELECT number FROM demo_aliases WHERE mission_id=?", (mission_id,)).fetchone()
+        return f"Demo {row[0]:03d}" if row else None
+
+    def display_mission(self, mission: Mission) -> Mission:
+        alias = self.demo_alias(mission.id)
+        return mission.model_copy(update={"name": alias}) if alias else mission
+
+    def display_frame(self, frame: WorldFrame) -> WorldFrame:
+        return frame.model_copy(update={"mission": self.display_mission(frame.mission)})
 
     def latest_text(self, mission_id: str) -> str | None:
         row = self.db.execute("""SELECT f.frame_json FROM frames f JOIN recordings r ON r.id=f.recording_id

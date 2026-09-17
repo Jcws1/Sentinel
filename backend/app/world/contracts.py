@@ -51,7 +51,7 @@ class WorldChanges(Model):
 
 class SnapshotMessage(Model):
     type: Literal["snapshot"]
-    schema_version: Literal["1.1"]
+    schema_version: Literal["1.4"]
     mission_id: Id
     stream_epoch: Id
     sequence: Sequence
@@ -60,7 +60,7 @@ class SnapshotMessage(Model):
 
 class DeltaMessage(Model):
     type: Literal["delta"]
-    schema_version: Literal["1.1"]
+    schema_version: Literal["1.4"]
     mission_id: Id
     stream_epoch: Id
     sequence: Sequence
@@ -74,7 +74,7 @@ class DeltaMessage(Model):
 
 class HeartbeatMessage(Model):
     type: Literal["heartbeat"]
-    schema_version: Literal["1.1"]
+    schema_version: Literal["1.4"]
     mission_id: Id
     stream_epoch: Id
     sequence: Sequence
@@ -83,7 +83,7 @@ class HeartbeatMessage(Model):
 
 class ResyncRequiredMessage(Model):
     type: Literal["resync-required"]
-    schema_version: Literal["1.1"]
+    schema_version: Literal["1.4"]
     mission_id: Id
     reason: str
 

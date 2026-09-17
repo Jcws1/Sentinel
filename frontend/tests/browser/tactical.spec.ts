@@ -1,3 +1,4 @@
+import { loadFixture } from './actions';
 import { advanceFixture, closeTab, unloadMission, tabAction } from './actions';
 import { test, expect, type Page, type WebSocketRoute } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
@@ -8,7 +9,9 @@ import type { CameraIntent } from '../../src/renderers/contracts';
 
 const product = 'http://127.0.0.1:5181';
 const verification = 'http://127.0.0.1:5182';
-const evidence = resolve('../docs/chrome-refinement/evidence');
+const evidence = resolve(
+  '../docs/compact-demo/evidence/regressions/regressions/chrome',
+);
 const fixture = 'fixture-tactical';
 const failures = new WeakMap<Page, string[]>();
 const entityId = (suffix: string) => `${fixture}-${suffix}`;
@@ -56,9 +59,8 @@ async function frame(page: Page, missionId = fixture): Promise<WorldFrame> {
   expect(response.ok()).toBe(true);
   return response.json();
 }
-async function load(page: Page, name = 'Synthetic Tactical') {
-  await page.getByRole('button', { name: 'Load mission', exact: true }).click();
-  await page.getByRole('menuitem', { name, exact: true }).click();
+async function load(page: Page, name = 'Tactical') {
+  await loadFixture(page, name);
   await expect(page.locator('.connection-state')).toHaveText('CONNECTED');
 }
 async function ready(page: Page, id = 'tactical') {
@@ -114,23 +116,6 @@ async function pick(page: Page, suffix: string, viewId = 'tactical') {
   const point = (await inspect(page, viewId)).points.find(
     (item) => item.id === id,
   )!;
-  const canvas = mapPane(page, viewId).locator('canvas');
-  const canvasBox = (await canvas.boundingBox())!;
-  const summary = mapPane(page, viewId).locator('.map-selection');
-  const summaryBox = (await summary.isVisible())
-    ? await summary.boundingBox()
-    : null;
-  if (
-    summaryBox &&
-    canvasBox.x + point.x >= summaryBox.x &&
-    canvasBox.x + point.x <= summaryBox.x + summaryBox.width &&
-    canvasBox.y + point.y >= summaryBox.y &&
-    canvasBox.y + point.y <= summaryBox.y + summaryBox.height
-  ) {
-    await mapPane(page, viewId)
-      .getByRole('button', { name: 'Clear selection', exact: true })
-      .click();
-  }
   await mapPane(page, viewId)
     .locator('canvas')
     .click({ position: { x: point.x, y: point.y } });
@@ -230,7 +215,7 @@ test('production Tactical view supports keyboard selection without exposing veri
     'data-selection',
     /fixture-tactical-/,
   );
-  await expect(page.locator('.app-header')).toContainText('UTC+8');
+  await expect(page.locator('.app-header')).toContainText('SGT');
   await expect(
     page
       .locator('.app-header')
@@ -248,6 +233,12 @@ test('committed additions, changes and removals preserve camera and stable Entit
   await load(page);
   await ready(page);
   await commandToSide(page);
+  // Reserve Details before measuring camera invariance under world updates.
+  await page.getByRole('button', { name: 'Open Details', exact: true }).click();
+  await mapPane(page)
+    .getByRole('button', { name: 'Recenter', exact: true })
+    .click();
+  await ready(page);
   const first = await stage(page, 0);
   await assertFrame(page, first);
   const before = await inspect(page);
@@ -255,7 +246,7 @@ test('committed additions, changes and removals preserve camera and stable Entit
   await pick(page, 'friendly-01');
   await expect(
     page.locator('[data-readout="command"] [data-field="selection"]'),
-  ).toHaveText(entityId('friendly-01'));
+  ).toHaveText('F-01');
   const changed = await advance(page);
   await assertFrame(page, changed);
   const after = await inspect(page);
@@ -282,14 +273,14 @@ test('committed additions, changes and removals preserve camera and stable Entit
     'data-selection',
     entityId('unknown-01'),
   );
-  await expect(mapPane(page)).toContainText('Unavailable');
+  await expect(page.locator('.selection-details')).toContainText('unavailable');
   await expect(page.locator('[data-readout="command"]')).toContainText(
     'Unavailable in this frame',
   );
   await pick(page, 'hostile-01');
-  // The new quick summary occupies this corner; dismiss it before testing the
-  // former symbol's empty geographic location through the actual canvas.
-  await mapPane(page)
+  // Clear through Details before testing the former symbol's empty location.
+  await page
+    .locator('.selection-details')
     .getByRole('button', { name: 'Clear selection', exact: true })
     .click();
   await mapPane(page)
@@ -307,7 +298,7 @@ test('committed additions, changes and removals preserve camera and stable Entit
     'data-selection',
     entityId('friendly-01'),
   );
-  await expect(mapPane(page)).toContainText('No position');
+  await expect(page.locator('.selection-details')).toContainText('No position');
   await page
     .locator('[data-readout="command"]')
     .getByRole('button', { name: 'Select No position', exact: true })
@@ -316,11 +307,11 @@ test('committed additions, changes and removals preserve camera and stable Entit
     'data-selection',
     entityId('unlocated-01'),
   );
-  await expect(mapPane(page)).toContainText('No position');
+  await expect(page.locator('.selection-details')).toContainText('No position');
   await pick(page, 'hostile-01');
   await expect(
     page.locator('[data-readout="command"] [data-field="selection"]'),
-  ).toHaveText(entityId('hostile-01'));
+  ).toHaveText('H-01');
   await page.screenshot({
     path: resolve(evidence, 'tactical-shared-selection.png'),
   });
@@ -382,8 +373,11 @@ test('simultaneous maps share selection and layers without creating backend subs
     'data-selection',
     entityId('stale-01'),
   );
-  await expect(mapPane(page)).toContainText('Hidden by shared filters');
-  await mapPane(page, 'tactical:2')
+  await expect(page.locator('.selection-details')).toContainText(
+    'Hidden by shared filters',
+  );
+  await page
+    .locator('.selection-details')
     .getByRole('button', { name: 'Clear selection', exact: true })
     .click();
   await expect(mapPane(page)).not.toHaveAttribute('data-selection', /.+/);
@@ -405,6 +399,11 @@ test('pan, recenter, resizing and warm hidden tabs preserve context; closed rend
   await ready(page);
   await stage(page, 0);
   await pick(page, 'hostile-01');
+  // Selection opens Details without reframing. Compare explicit Recenter at
+  // this pane size, rather than the initial auto-fit before Details opened.
+  await mapPane(page)
+    .getByRole('button', { name: 'Recenter', exact: true })
+    .click();
   const initial = await inspect(page);
   await mapPane(page).getByRole('button', { name: 'Pan', exact: true }).click();
   const canvas = mapPane(page).locator('canvas');
@@ -460,7 +459,7 @@ test('pan, recenter, resizing and warm hidden tabs preserve context; closed rend
     .click({ position: { x: unselectedPoint.x, y: unselectedPoint.y } });
   await expect(mapPane(page)).toHaveAttribute(
     'data-selection',
-    entityId('hostile-01'),
+    entityId('friendly-01'),
   );
   await closeTab(page, 'Tactical Map');
   await expect.poll(async () => (await stats(page)).active).toBe(0);
@@ -469,7 +468,7 @@ test('pan, recenter, resizing and warm hidden tabs preserve context; closed rend
   sameCamera((await inspect(page)).camera, panned.camera);
   await expect(mapPane(page)).toHaveAttribute(
     'data-selection',
-    entityId('hostile-01'),
+    entityId('friendly-01'),
   );
   await mapPane(page)
     .getByRole('button', { name: 'Recenter', exact: true })
@@ -479,7 +478,7 @@ test('pan, recenter, resizing and warm hidden tabs preserve context; closed rend
     .click();
   sameCamera((await inspect(page)).camera, initial.camera);
   await anotherMap(page);
-  const divider = page.getByRole('separator');
+  const divider = page.getByRole('separator').first();
   const dividerBox = (await divider.boundingBox())!;
   const beforeWidth = (await mapPane(page).boundingBox())!.width;
   await page.mouse.move(
@@ -509,6 +508,7 @@ test('pan, recenter, resizing and warm hidden tabs preserve context; closed rend
   expect(streams).toBe(1);
   await closeTab(page, 'Tactical Map');
   await closeTab(page, 'Command Picture');
+  await closeTab(page, 'Details');
   await expect(
     page.getByRole('heading', { name: 'No open views', exact: true }),
   ).toBeVisible();
@@ -538,7 +538,7 @@ test('mission switching clears old map objects and selection while both panes re
   await stage(page, 0);
   await anotherMap(page);
   await pick(page, 'hostile-01');
-  await load(page, 'Synthetic Bravo');
+  await load(page, 'Bravo');
   const bravo = await frame(page, 'fixture-bravo');
   await assertFrame(page, bravo);
   await assertFrame(page, bravo, 'tactical:2');
@@ -697,7 +697,9 @@ test('blocked map worker reports reload requirement and recovers after a deliber
       .click(),
   ]);
   // A document reload starts a fresh application session; mission reload is explicit.
-  await expect(page.locator('.status-bar')).toContainText('No mission loaded');
+  await expect(page.locator('.mission-status')).toContainText(
+    'No mission loaded',
+  );
   await expect(mapPane(page)).not.toHaveAttribute('data-frame-id', /.+/);
   await load(page);
   await ready(page);
@@ -763,7 +765,7 @@ for (const viewport of [
     await page.screenshot({
       path: resolve(evidence, `tactical-split-${viewport.width}.png`),
     });
-    const separator = page.getByRole('separator');
+    const separator = page.getByRole('separator').first();
     const dividerBox = (await separator.boundingBox())!;
     const mapBox = (await mapPane(page).boundingBox())!;
     await page.mouse.move(

@@ -1,0 +1,198 @@
+.movement-pane {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: #0b0f14;
+  color: #c6cdd4;
+  font-size: 12px;
+}
+.movement-scroll {
+  overflow: auto;
+  padding: 12px;
+  min-height: 0;
+}
+.movement-heading,
+.movement-execution-heading {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.movement-pane h1 {
+  font-size: 15px;
+  margin: 0;
+  font-weight: 500;
+}
+.movement-pane h2 {
+  font-size: 12px;
+  margin: 0 0 10px;
+  font-weight: 500;
+}
+.movement-pane p,
+.movement-execution p {
+  margin: 6px 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.movement-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 8px 10px;
+  border-block: 1px solid #ffffff12;
+  font-size: 11px;
+}
+.movement-issues {
+  flex-basis: 100%;
+  max-height: 130px;
+  overflow: auto;
+}
+.movement-issues summary {
+  cursor: pointer;
+}
+.movement-audit {
+  margin-top: 8px;
+}
+.movement-audit summary {
+  cursor: pointer;
+  color: #a5afb9;
+}
+.movement-issues ul {
+  padding-left: 16px;
+  margin-block: 6px;
+}
+.movement-issues li {
+  margin-block: 6px;
+  line-height: 1.5;
+}
+.movement-draft,
+.movement-results {
+  border-top: 1px solid #ffffff1a;
+  margin-top: 14px;
+  padding-top: 12px;
+}
+.movement-coordinates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0;
+}
+.movement-coordinates label {
+  display: flex;
+  flex: 1 1 150px;
+  flex-direction: column;
+  gap: 5px;
+}
+.movement-coordinates input {
+  min-width: 0;
+  width: 100%;
+  padding: 7px;
+  color: #d8dde3;
+  background: #11171d;
+  border: 1px solid #ffffff26;
+  font:
+    12px Consolas,
+    monospace;
+}
+.movement-coordinate {
+  font:
+    11px/1.5 Consolas,
+    monospace;
+  overflow-wrap: anywhere;
+}
+.movement-actions,
+.movement-cancel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: center;
+  margin-top: 8px;
+}
+.movement-submit {
+  border: 1px solid #68727e;
+  padding: 6px 10px;
+}
+.movement-members {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0;
+}
+.movement-members li {
+  padding: 8px 10px;
+  border-left: 2px dashed #8f9ba7;
+  margin-block: 8px;
+  background: #ffffff03;
+  overflow-wrap: anywhere;
+}
+.movement-executions {
+  display: grid;
+  gap: 8px;
+}
+.movement-execution {
+  padding: 10px;
+  border: 1px solid #ffffff1a;
+  background: #ffffff02;
+  min-width: 0;
+  font-size: 11px;
+}
+.movement-receipt {
+  padding: 8px;
+  border-left: 2px solid #a5afb9;
+}
+.movement-receipt summary {
+  cursor: pointer;
+  line-height: 1.5;
+}
+.movement-receipt summary time {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+.movement-outcomes {
+  padding-left: 16px;
+  line-height: 1.6;
+}
+.movement-draft > summary {
+  cursor: pointer;
+}
+.movement-context {
+  flex-basis: 100%;
+  color: var(--text-muted);
+}
+.movement-retention {
+  margin-top: 16px !important;
+}
+.movement-pane button:disabled,
+.movement-toolbar button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.movement-pane :focus-visible {
+  outline: 1px solid #bac4cd;
+  outline-offset: 2px;
+}
+.tracks-table .selection-column {
+  width: 34px;
+  padding: 5px 8px;
+}
+.selection-column input {
+  accent-color: #a5afb9;
+  width: 15px;
+  height: 15px;
+  vertical-align: middle;
+}
+.map-destination-help {
+  padding: 6px 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  background: #11171d;
+  border-bottom: 1px solid #ffffff1a;
+}

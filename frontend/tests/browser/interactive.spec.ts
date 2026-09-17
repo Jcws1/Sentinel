@@ -1,311 +1,218 @@
-import { test, expect, type Page, type WebSocketRoute } from '@playwright/test';
+import { test, expect, type WebSocketRoute } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { tabAction } from './actions';
-
-// Authority headers must never be retained in network trace archives.
+import {
+  demoAction,
+  newDemo,
+  readWorld,
+  endDemo,
+  rtsOrigin,
+} from './rtsActions';
 test.use({ trace: 'off' });
-
-const origin = 'http://127.0.0.1:5182';
-const evidence = resolve('../docs/m1.1/evidence');
-async function tracks(page: Page) {
-  await page
-    .getByRole('navigation', { name: 'Activity Bar' })
-    .getByRole('button', { name: 'Open Tracks', exact: true })
-    .click();
-}
-async function action(page: Page, name: string, keyboard = false) {
-  const trigger = page.getByRole('button', { name: 'Simulation', exact: true });
-  await trigger.focus();
-  if (keyboard) await page.keyboard.press('Enter');
-  else await trigger.click();
-  const item = page.getByRole('menuitem', { name, exact: true });
-  await expect(item).toBeEnabled({ timeout: 12_000 });
-  if (keyboard) {
-    await item.focus();
-    await page.keyboard.press('Enter');
-  } else await item.click();
-  if (name === 'End')
-    await expect(page.locator('[data-run-state]')).toHaveAttribute(
-      'data-run-state',
-      'ended',
-    );
-}
-async function world(page: Page) {
-  const id = await page
-    .locator('.tracks-browser')
-    .getAttribute('data-frame-id');
-  const entry = await (
-    await page.request.get(`${origin}/api/interactive/entry`)
-  ).json();
-  return {
-    entry,
-    frame: entry.activeMissionId
-      ? await (
-          await page.request.get(
-            `${origin}/api/missions/${entry.activeMissionId}/world`,
-          )
-        ).json()
-      : undefined,
-    id,
-  };
-}
-async function newRun(page: Page) {
-  await page.goto(origin);
-  await tracks(page);
-  await action(page, 'New demo run', true);
-  await expect(page.locator('[data-run-state]')).toHaveAttribute(
-    'data-run-state',
-    'ready',
-  );
-  await expect(page.locator('.connection-state')).toHaveText('CONNECTED');
-}
+const evidence = resolve('../docs/compact-demo/evidence/regressions');
 test.beforeEach(async () => {
   await mkdir(evidence, { recursive: true });
 });
 
-test('complete operator workflow, actual pause over 30 seconds, keyboard and narrow split', async ({
+test('one-action numbered demo, real long pause, resume and repeatable creation retain recordings', async ({
   page,
 }) => {
-  test.setTimeout(90_000);
-  const errors: string[] = [];
-  page.on('pageerror', (e) => errors.push(e.message));
-  await page.setViewportSize({ width: 1920, height: 1080 });
-  await newRun(page);
-  const first = (await world(page)).frame;
-  await page.getByRole('button', { name: 'Fleet', exact: true }).click();
-  await expect(page.locator('[data-field="total-entities"]')).toHaveText('4');
-  await expect(page.locator('.tracks-table tbody tr')).toHaveCount(4);
-  await action(page, 'Acquire control', true);
-  await expect(page.locator('.simulation-status')).toContainText(
-    'You have control',
-  );
-  await action(page, 'Start', true);
-  await expect(page.locator('[data-run-state]')).toHaveAttribute(
-    'data-run-state',
-    'running',
-  );
-  await expect
-    .poll(async () => (await world(page)).frame.interactive.tick)
-    .toBeGreaterThan(1);
-  await action(page, 'Pause', true);
-  await expect(page.locator('[data-run-state]')).toHaveAttribute(
+  test.setTimeout(100000);
+  await newDemo(page);
+  const first = await readWorld(page);
+  expect(first.mission.name).toMatch(/^Demo \d{3,}$/);
+  await page
+    .getByRole('button', { name: 'Pause', exact: true })
+    .first()
+    .focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('[data-run-state]').first()).toHaveAttribute(
     'data-run-state',
     'paused',
   );
-  const paused = (await world(page)).frame;
-  await page.screenshot({ path: resolve(evidence, 'desktop-paused.png') });
-  // This is elapsed real time, not an accelerated browser clock or fixture control.
-  await page.waitForTimeout(31_500);
-  const longPause = (await world(page)).frame;
-  expect(longPause.effectiveAt).toBe(paused.effectiveAt);
-  expect(longPause.interactive.tick).toBe(paused.interactive.tick);
-  expect(longPause.interactive.lease.revision).toBeGreaterThan(
-    paused.interactive.lease.revision,
+  const paused = await readWorld(page);
+  await page.screenshot({ path: resolve(evidence, 'long-pause.png') });
+  await page.waitForTimeout(31500);
+  const after = await readWorld(page);
+  expect(after.effectiveAt).toBe(paused.effectiveAt);
+  expect(after.interactive!.tick).toBe(paused.interactive!.tick);
+  expect(after.interactive!.lease.revision).toBeGreaterThan(
+    paused.interactive!.lease.revision,
   );
-  await action(page, 'Resume', true);
-  await expect(page.locator('[data-run-state]')).toHaveAttribute(
+  await page
+    .getByRole('button', { name: 'Resume', exact: true })
+    .first()
+    .click();
+  await expect(page.locator('[data-run-state]').first()).toHaveAttribute(
     'data-run-state',
     'running',
   );
-  await tabAction(page, 'Tactical Map', 'Open to Side');
-  await page.setViewportSize({ width: 1100, height: 800 });
-  await expect(page.locator('.tracks-browser')).toBeVisible();
-  // Fleet is table-only: opposing and unmanaged friendly Entities remain on the map.
-  await expect
-    .poll(() =>
-      page.evaluate(() => {
-        const probe = (
-          window as unknown as {
-            __sentinelMapTest?: {
-              inspect: (id: string) => { entityIds: string[] };
-            };
-          }
-        ).__sentinelMapTest;
-        return probe?.inspect('tactical')?.entityIds?.length;
-      }),
-    )
-    .toBe(5);
-  await page.getByRole('button', { name: 'Simulation', exact: true }).click();
-  await page.screenshot({ path: resolve(evidence, 'narrow-split-menu.png') });
-  const accessibility = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa'])
-    .analyze();
-  expect(accessibility.violations).toEqual([]);
-  await page.keyboard.press('Escape');
-  await action(page, 'End', true);
-  await expect(page.locator('[data-run-state]')).toHaveAttribute(
+  await page.setViewportSize({ width: 900, height: 800 });
+  expect(
+    (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze())
+      .violations,
+  ).toEqual([]);
+  await endDemo(page);
+  const completed = await readWorld(page, first.mission.id);
+  await page
+    .getByRole('button', { name: 'New demo', exact: true })
+    .first()
+    .click();
+  await expect(page.locator('[data-run-state]').first()).toHaveAttribute(
     'data-run-state',
-    'ended',
+    'running',
+    { timeout: 20000 },
   );
-  const oldText = await (
-    await page.request.get(`${origin}/api/missions/${first.mission.id}/world`)
-  ).text();
-  const oldMetadata = await (
-    await page.request.get(`${origin}/api/recordings/${first.recordingId}`)
-  ).json();
-  await action(page, 'New demo run', true);
-  await expect(page.locator('[data-run-state]')).toHaveAttribute(
-    'data-run-state',
-    'ready',
-  );
-  const second = (await world(page)).frame;
+  const second = await readWorld(page);
   expect(second.mission.id).not.toBe(first.mission.id);
   expect(second.recordingId).not.toBe(first.recordingId);
-  expect(second.interactive.runId).not.toBe(first.interactive.runId);
-  expect(
-    await (
-      await page.request.get(`${origin}/api/missions/${first.mission.id}/world`)
-    ).text(),
-  ).toBe(oldText);
-  expect(
-    await (
-      await page.request.get(`${origin}/api/recordings/${first.recordingId}`)
-    ).json(),
-  ).toEqual(oldMetadata);
-  await page.screenshot({ path: resolve(evidence, 'narrow-new-run.png') });
-  await action(page, 'Acquire control');
-  await action(page, 'End');
-  expect(errors).toEqual([]);
+  expect(Number(second.mission.name.split(' ')[1])).toBeGreaterThan(
+    Number(first.mission.name.split(' ')[1]),
+  );
+  expect(await readWorld(page, first.mission.id)).toEqual(completed);
+  await page.reload();
+  await demoAction(page, 'Return to active demo');
+  await expect(page.locator('.mission-name')).toHaveText(second.mission.name);
+  await page.screenshot({ path: resolve(evidence, 'repeat-demo-narrow.png') });
+  await endDemo(page);
 });
 
-test('lost creation and command replies reconcile through reload without new identities', async ({
+test('lost creation and lifecycle responses reconcile automatically without new identities', async ({
   page,
 }) => {
-  test.setTimeout(45_000);
-  await page.goto(origin);
-  await tracks(page);
-  let creationId = '',
-    commandId = '';
+  test.setTimeout(60000);
+  await page.goto(rtsOrigin);
+  let creation = '',
+    command = '';
+  let creates = 0,
+    pauses = 0;
   await page.route('**/api/interactive/runs', async (route) => {
-    creationId = route.request().postDataJSON().creationId;
+    creates++;
+    creation = route.request().postDataJSON().creationId;
     await route.fetch();
     await route.abort();
   });
-  await action(page, 'New demo run');
   await expect(
-    page.getByRole('button', { name: 'Reconcile request' }),
-  ).toBeVisible();
+    page.getByRole('button', { name: 'New demo', exact: true }).first(),
+  ).toBeEnabled();
+  await page
+    .getByRole('button', { name: 'New demo', exact: true })
+    .first()
+    .click();
+  await expect.poll(() => creation).not.toBe('');
   await page.reload();
-  await tracks(page);
-  await page.getByRole('button', { name: 'Reconcile request' }).click();
-  await expect(page.locator('[data-run-state]')).toHaveAttribute(
+  await expect(page.locator('[data-run-state]').first()).toHaveAttribute(
     'data-run-state',
-    'ready',
+    'running',
+    { timeout: 25000 },
   );
-  await page.unroute('**/api/interactive/runs');
+  expect(creates).toBe(1);
+  const mid = (await readWorld(page)).mission.id;
   expect(
     (
       await (
         await page.request.get(
-          `${origin}/api/interactive/creations/${creationId}`,
+          `${rtsOrigin}/api/interactive/creations?identity=${encodeURIComponent(creation)}`,
         )
       ).json()
     ).accepted,
   ).toBe(true);
-  await action(page, 'Acquire control');
-  const mid = (await world(page)).entry.activeMissionId;
   await page.route('**/api/interactive/*/commands', async (route) => {
-    const body = route.request().postDataJSON();
-    if (body.intent.action !== 'start') return route.continue();
-    commandId = body.commandId;
+    const b = route.request().postDataJSON();
+    if (b.intent.action !== 'pause') return route.continue();
+    pauses++;
+    command = b.commandId;
     await route.fetch();
     await route.abort();
   });
-  await action(page, 'Start');
-  await expect(page.locator('.simulation-status')).toContainText(
-    'Outcome unknown',
+  await page
+    .getByRole('button', { name: 'Pause', exact: true })
+    .first()
+    .click();
+  await expect.poll(() => command).not.toBe('');
+  await expect(page.locator('[data-run-state]').first()).toHaveAttribute(
+    'data-run-state',
+    'paused',
   );
-  await page.screenshot({ path: resolve(evidence, 'lost-response.png') });
-  await page.unroute('**/api/interactive/*/commands');
-  let retriedId = '';
-  page.on('request', (r) => {
-    if (
-      r.url().endsWith('/commands') &&
-      r.postDataJSON()?.intent.action === 'start'
-    )
-      retriedId = r.postDataJSON().commandId;
+  await expect(page.locator('.recovery-details')).toHaveCount(0, {
+    timeout: 20000,
   });
-  await page.getByRole('button', { name: 'Retry saved request' }).click();
   await expect(
-    page.getByRole('button', { name: 'Reconcile request' }),
-  ).toHaveCount(0);
-  expect(retriedId).toBe(commandId);
-  const events = await (
-    await page.request.get(`${origin}/api/missions/${mid}/events?limit=500`)
-  ).json();
+    page.getByRole('button', { name: 'Resume', exact: true }).first(),
+  ).toBeEnabled({ timeout: 20000 });
+  expect(pauses).toBe(1);
+  const events = (
+    await (
+      await page.request.get(
+        `${rtsOrigin}/api/missions/${mid}/events?limit=500`,
+      )
+    ).json()
+  ).events;
   expect(
-    events.events.filter(
-      (e: { type: string }) => e.type === 'interactive.start',
-    ),
+    events.filter((e: { type: string }) => e.type === 'interactive.pause'),
   ).toHaveLength(1);
-  await action(page, 'End');
+  await page.unroute('**/api/interactive/*/commands');
+  await endDemo(page);
 });
 
-test('navigation preserves the run, a second session cannot take over and reclaim is explicit after expiry', async ({
+test('another session cannot silently take over; expired ownership requires explicit action', async ({
   page,
   browser,
 }) => {
-  test.setTimeout(65_000);
-  await newRun(page);
-  await action(page, 'Acquire control');
-  await action(page, 'Start');
-  const mid = (await world(page)).entry.activeMissionId;
+  test.setTimeout(65000);
+  await newDemo(page);
+  const mid = (await readWorld(page)).mission.id;
   await page.getByRole('button', { name: 'Load mission', exact: true }).click();
   await page
-    .getByRole('menuitem', { name: 'Synthetic Alpha', exact: true })
+    .getByRole('menuitem', { name: 'Unload mission', exact: true })
     .click();
-  await expect(page.locator('.simulation-status')).toContainText('active run');
   const other = await browser.newContext();
   try {
     const second = await other.newPage();
-    await second.goto(origin);
-    await tracks(second);
-    await action(second, 'Reopen active run');
-    await expect(second.locator('.simulation-status')).toContainText(
-      'Control held by Operator',
+    await second.goto(rtsOrigin);
+    await demoAction(second, 'Return to active demo');
+    await expect(second.locator('.operational-attention')).toContainText(
+      'Another session has control',
+      { timeout: 10000 },
     );
-    await second
-      .getByRole('button', { name: 'Simulation', exact: true })
-      .click();
-    await expect(
-      second.getByRole('menuitem', { name: /^Acquire control/ }),
-    ).toBeDisabled();
-    await second.keyboard.press('Escape');
+    const before = await readWorld(second, mid);
+    await second.waitForTimeout(1000);
+    expect((await readWorld(second, mid)).interactive!.lease.holderId).toBe(
+      before.interactive!.lease.holderId,
+    );
     await expect
       .poll(
         async () =>
           (
             await (
               await second.request.get(
-                `${origin}/api/interactive/${mid}/status`,
+                `${rtsOrigin}/api/interactive/${mid}/status`,
               )
             ).json()
           ).leaseState,
-        { timeout: 38_000, intervals: [1000] },
+        { timeout: 38000, intervals: [1000] },
       )
       .toBe('expired');
-    await expect(second.locator('.simulation-status')).toContainText(
-      'Control expired',
-      { timeout: 10_000 },
+    await second.waitForTimeout(5500);
+    expect((await readWorld(second, mid)).interactive!.lease.holderId).toBe(
+      before.interactive!.lease.holderId,
     );
-    await action(second, 'Reclaim control', true);
-    await expect(second.locator('.simulation-status')).toContainText(
-      'You have control',
-    );
-    await action(second, 'Pause');
-    await action(second, 'End');
+    await demoAction(second, 'Take control');
+    await expect(
+      second.getByRole('button', { name: 'Pause', exact: true }).first(),
+    ).toBeEnabled({ timeout: 10000 });
+    await endDemo(second);
   } finally {
     await other.close();
   }
 });
 
-test('disconnected run retains its frame and labels source state unverified until recovery', async ({
+test('disconnect retains committed frame and truthful connection notice through recovery', async ({
   page,
   context,
 }) => {
-  test.setTimeout(50_000);
+  test.setTimeout(50000);
   let offline = false;
   const sockets: WebSocketRoute[] = [];
   await page.routeWebSocket('**/api/missions/*/stream', (socket) => {
@@ -313,36 +220,26 @@ test('disconnected run retains its frame and labels source state unverified unti
     if (offline) socket.close();
     else socket.connectToServer();
   });
-  await newRun(page);
-  await action(page, 'Acquire control');
-  await action(page, 'Start');
-  await expect(page.locator('.simulation-status')).toContainText(
-    'Stationary source running',
-  );
+  await newDemo(page);
   offline = true;
-  sockets.forEach((socket) => socket.close());
+  sockets.forEach((s) => s.close());
   await context.setOffline(true);
   await expect(page.locator('.connection-state')).toHaveText('STALE');
-  await expect(page.locator('.simulation-status')).toContainText(
-    'Source state unverified · last known running',
+  await expect(page.locator('.operational-attention')).toContainText(
+    'Connection',
   );
-  await page.waitForTimeout(12_000);
-  await expect(page.locator('.simulation-status')).not.toContainText(
-    'Stationary source running',
-  );
-  await expect(page.locator('[data-run-state]')).toHaveAttribute(
-    'data-run-state',
-    'running',
-  );
-  await page.screenshot({ path: resolve(evidence, 'source-unverified.png') });
+  const sequence = await page
+    .locator('.tactical-view')
+    .getAttribute('data-sequence');
+  await page.waitForTimeout(2200);
+  expect(
+    await page.locator('.tactical-view').getAttribute('data-sequence'),
+  ).toBe(sequence);
+  await page.screenshot({ path: resolve(evidence, 'disconnected.png') });
   offline = false;
   await context.setOffline(false);
   await expect(page.locator('.connection-state')).toHaveText('CONNECTED', {
-    timeout: 15_000,
+    timeout: 15000,
   });
-  await expect(page.locator('.simulation-status')).toContainText(
-    'Stationary source running',
-    { timeout: 15_000 },
-  );
-  await action(page, 'End');
+  await endDemo(page);
 });

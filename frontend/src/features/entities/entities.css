@@ -372,3 +372,15 @@ details > summary:focus-visible {
     gap: 12px;
   }
 }
+.source-id-copy {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: 340px;
+  white-space: normal;
+}
+.source-id-copy code {
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  user-select: text;
+}

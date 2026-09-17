@@ -19,9 +19,17 @@ import {
   extrusionLayer,
   buildingFootprints,
 } from './regionalStyle';
-import { affiliationSymbols } from '../symbology';
-import { symbolCanvas } from '../symbolCanvas';
-import { groundSpan, sceneBounds, zoomForCamera } from '../camera';
+import { symbolCanvas, destinationCanvas } from '../symbolCanvas';
+import {
+  groundSpan,
+  sceneBounds,
+  zoomForCamera,
+  wheelSpanFactor,
+  localHomeCamera,
+  boundsCamera,
+} from '../camera';
+import { MapGestures, insideRectangle, type ScreenPoint } from '../gestures';
+import { DestinationAcknowledgement } from '../acknowledgement';
 import {
   loadHostedStyle,
   localStyle,
@@ -64,7 +72,7 @@ export class MapLibreAdapter {
   private framed = false;
   private initialCamera?: CameraIntent;
   private imageIds = new Set<string>();
-  private mode: 'select' | 'pan' = 'select';
+  private mode: 'select' | 'pan' | 'destination' = 'select';
   private keyboardId?: string;
   private provider: TacticalProvider;
   private providerGeneration = 0;
@@ -96,6 +104,11 @@ export class MapLibreAdapter {
   private sceneDraws = 0;
   private attribution?: maplibregl.AttributionControl;
   private attributionObserver?: ResizeObserver;
+  private readonly gestures: MapGestures;
+  private readonly acknowledgement: DestinationAcknowledgement;
+  private temporaryPan = false;
+  private focusHeightM?: number;
+  private readonly wheelHandler = (event: WheelEvent) => this.onWheel(event);
 
   constructor(
     private readonly container: HTMLElement,
@@ -106,6 +119,7 @@ export class MapLibreAdapter {
   ) {
     this.provider = provider;
     this.initialCamera = initialCamera;
+    this.focusHeightM = initialCamera?.focusHeightM;
     this.map = new maplibregl.Map({
       container,
       style: localStyle(),
@@ -118,6 +132,8 @@ export class MapLibreAdapter {
       bearing: initialCamera?.headingTrueDeg ?? 0,
       pitch: initialCamera?.pitchFromNadirDeg ?? 0,
       maxPitch: 60,
+      maxZoom: 24,
+      clickTolerance: 5,
       attributionControl: false,
       dragRotate: true,
       pitchWithRotate: true,
@@ -131,6 +147,10 @@ export class MapLibreAdapter {
     });
     this.releaseArchives = acquireArchives();
     this.map.touchZoomRotate.disableRotation();
+    this.map.scrollZoom.disable();
+    this.map.boxZoom.disable();
+    this.map.doubleClickZoom.disable();
+    this.map.keyboard.disable();
     this.updateAttribution();
     this.map.addControl(
       new maplibregl.ScaleControl({ maxWidth: 100, unit: 'metric' }),
@@ -144,8 +164,29 @@ export class MapLibreAdapter {
       `map-help-${viewId.replace(':', '-')}`,
     );
     canvas.addEventListener('keydown', this.keyHandler);
+    canvas.addEventListener('wheel', this.wheelHandler, {
+      passive: false,
+      capture: true,
+    });
+    this.acknowledgement = new DestinationAcknowledgement(container);
+    this.gestures = new MapGestures(canvas, container, {
+      mode: () => this.mode,
+      pan: (temporary) => {
+        this.temporaryPan = temporary;
+        this.updateGestures();
+      },
+      click: (point, additive) => this.pick(point, additive),
+      rectangle: (start, end, additive) => this.rectangle(start, end, additive),
+      move: (point) => this.move(point),
+      clear: () => this.callbacks.clearSelection?.(),
+      cancelDestination: () => this.callbacks.cancelDestination?.(),
+    });
+    this.updateGestures();
     this.map.on('style.load', () => this.install());
-    this.map.on('render', () => this.renderedFrames++);
+    this.map.on('render', () => {
+      this.renderedFrames++;
+      this.positionAcknowledgement();
+    });
     this.map.on('idle', () => {
       if (!this.installed || this.disposed) return;
       if (this.rendererTimer) clearTimeout(this.rendererTimer);
@@ -156,6 +197,10 @@ export class MapLibreAdapter {
       const current = new Set(
         (this.scene?.objects ?? []).map((object) => this.labelId(object)),
       );
+      for (const d of this.scene?.destinations ?? [])
+        current.add(
+          `${prefix}label-destination-${JSON.stringify([d.label, d.stage])}`,
+        );
       for (const id of this.imageIds)
         if (!current.has(id) && id.startsWith(`${prefix}label-`)) {
           this.map.removeImage(id);
@@ -172,18 +217,6 @@ export class MapLibreAdapter {
       this.saveCamera();
     });
     this.map.on('move', () => this.saveCamera());
-    this.map.on('click', (event) => {
-      if (this.mode !== 'select' || !this.installed) return;
-      const picked = this.map.queryRenderedFeatures(
-        [
-          [event.point.x - 7, event.point.y - 7],
-          [event.point.x + 7, event.point.y + 7],
-        ],
-        { layers: [symbols] },
-      )[0];
-      if (typeof picked?.properties.entityId === 'string')
-        this.callbacks.pick(picked.properties.entityId);
-    });
     this.map.on('error', (event) => {
       const failingSource = 'sourceId' in event ? event.sourceId : undefined;
       if (
@@ -235,9 +268,107 @@ export class MapLibreAdapter {
     this.setProvider(provider);
   }
 
-  setMode(mode: 'select' | 'pan') {
+  setMode(mode: 'select' | 'pan' | 'destination') {
+    this.gestures.cancel();
     this.mode = mode;
-    this.map.getCanvas().style.cursor = mode === 'pan' ? 'grab' : 'crosshair';
+    this.updateGestures();
+    if (mode === 'destination') {
+      this.map.dragRotate.disable();
+      this.map.touchPitch.disable();
+    } else {
+      this.map.dragRotate.enable();
+      this.map.touchPitch.enable();
+    }
+  }
+  private updateGestures() {
+    const pan = this.mode === 'pan' || this.temporaryPan;
+    this.map.getCanvas().style.cursor = pan ? 'grab' : 'crosshair';
+    if (pan) this.map.dragPan.enable();
+    else this.map.dragPan.disable();
+  }
+  private pick(point: ScreenPoint, additive: boolean) {
+    if (!this.installed || this.disposed || !this.active) return;
+    if (this.mode === 'destination') {
+      const position = this.map.unproject([point.x, point.y]);
+      this.callbacks.destination?.(position.lng, position.lat);
+      return;
+    }
+    const picked = this.map.queryRenderedFeatures(
+      [
+        [point.x - 10, point.y - 10],
+        [point.x + 10, point.y + 10],
+      ],
+      { layers: [symbols] },
+    )[0];
+    if (typeof picked?.properties.entityId === 'string')
+      this.callbacks.pick(picked.properties.entityId, additive);
+    else if (!additive) this.callbacks.clearSelection?.();
+  }
+  private rectangle(start: ScreenPoint, end: ScreenPoint, additive: boolean) {
+    if (!this.installed || !this.active) return;
+    const pickable = new Set(
+      this.map
+        .queryRenderedFeatures({ layers: [symbols] })
+        .map((feature) => feature.properties.entityId),
+    );
+    const ids = (this.scene?.objects ?? [])
+      .filter((object) => {
+        if (
+          !object.managed ||
+          object.affiliation !== 'friendly' ||
+          !pickable.has(object.ref.id)
+        )
+          return false;
+        const point = this.map.project([
+          object.position.longitudeDeg,
+          object.position.latitudeDeg,
+        ]);
+        return (
+          point.x >= 0 &&
+          point.y >= 0 &&
+          point.x <= this.container.clientWidth &&
+          point.y <= this.container.clientHeight &&
+          insideRectangle(point, start, end)
+        );
+      })
+      .map((object) => object.ref.id);
+    this.callbacks.selection?.(ids, additive);
+  }
+  private move(point: ScreenPoint) {
+    if (!this.installed || !this.active) return;
+    const position = this.map.unproject([point.x, point.y]);
+    this.callbacks.directMove?.(position.lng, position.lat);
+  }
+  private positionAcknowledgement() {
+    this.acknowledgement.position((longitude, latitude) =>
+      this.map.project([longitude, latitude]),
+    );
+  }
+  private onWheel(event: WheelEvent) {
+    if (!this.active || this.disposed) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const rect = this.map.getCanvas().getBoundingClientRect();
+    const around = this.map.unproject([
+      event.clientX - rect.left,
+      event.clientY - rect.top,
+    ]);
+    const camera = this.camera();
+    const limited = constrainCamera(
+      {
+        ...camera,
+        groundSpanM:
+          camera.groundSpanM *
+          wheelSpanFactor(event.deltaY, event.deltaMode, camera.groundSpanM),
+      },
+      this.scene?.region,
+    );
+    // No residual animation: small trackpad events compose exactly, including reduced motion.
+    this.map.easeTo({
+      zoom: zoomForCamera(limited, this.container.clientWidth),
+      around,
+      duration: 0,
+    });
   }
   setPresentation(options: MapPresentation) {
     const changed =
@@ -250,6 +381,7 @@ export class MapLibreAdapter {
   setActive(active: boolean) {
     if (this.disposed || this.active === active) return;
     if (!active) {
+      this.gestures.reset();
       this.map.stop();
       this.saveCamera();
       this.dormantCamera = this.camera();
@@ -337,6 +469,7 @@ export class MapLibreAdapter {
       return;
     }
     const limited = constrainCamera(camera, this.scene?.region);
+    this.focusHeightM = limited.focusHeightM;
     this.map.jumpTo({
       center: [limited.center.longitudeDeg, limited.center.latitudeDeg],
       zoom: zoomForCamera(limited, this.container.clientWidth),
@@ -374,6 +507,7 @@ export class MapLibreAdapter {
     }
     const changedMission = this.scene?.missionId !== scene.missionId;
     if (changedMission) {
+      this.gestures.reset();
       this.framed = false;
       this.keyboardId = undefined;
       this.appliedFrameId = undefined;
@@ -395,6 +529,11 @@ export class MapLibreAdapter {
         ]);
         // Clear old mission geometry before the worker processes the new source.
         this.map.setFilter(symbols, ['==', ['get', 'kind'], 'none']);
+        this.map.setFilter(`${prefix}destinations`, [
+          '==',
+          ['get', 'kind'],
+          'none',
+        ]);
         this.map.setFilter(`${prefix}zone-fill`, [
           '==',
           ['get', 'kind'],
@@ -419,6 +558,8 @@ export class MapLibreAdapter {
       }
     }
     this.scene = scene;
+    this.acknowledgement.update(scene.acknowledgement);
+    this.positionAcknowledgement();
     if (changedMission) {
       this.map.setMaxBounds(
         scene.region
@@ -550,7 +691,7 @@ export class MapLibreAdapter {
         'icon-allow-overlap': true,
         'icon-ignore-placement': true,
       },
-      paint: { 'icon-opacity': ['case', ['get', 'stale'], 0.6, 1] },
+      paint: { 'icon-opacity': ['case', ['get', 'stale'], 0.7, 1] },
     });
     this.map.addLayer({
       id: `${prefix}labels`,
@@ -567,19 +708,39 @@ export class MapLibreAdapter {
       },
       paint: { 'icon-opacity': ['case', ['get', 'stale'], 0.65, 1] },
     });
+    this.map.addLayer({
+      id: `${prefix}destinations`,
+      type: 'symbol',
+      source: sourceId,
+      filter: ['==', ['get', 'kind'], 'destination'],
+      layout: {
+        'icon-image': ['get', 'image'],
+        'icon-anchor': 'left',
+        'icon-offset': [-14, 0],
+        'icon-pitch-alignment': 'viewport',
+        'icon-rotation-alignment': 'viewport',
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+      },
+    });
     this.draw();
     this.updateGrid();
   }
 
   private labelId(object: SceneObject) {
-    return `${prefix}label-${JSON.stringify([object.label, object.affiliation, object.stale])}`;
+    return `${prefix}label-${JSON.stringify([object.label, object.affiliation, object.stale, object.unavailable])}`;
   }
 
   private addImages(object: SceneObject) {
-    const symbol = affiliationSymbols[object.affiliation];
-    const iconId = `${prefix}${object.affiliation}`;
+    const iconId = `${prefix}${object.affiliation}:${Boolean(object.unavailable)}`;
     if (!this.map.hasImage(iconId)) {
-      const canvas = symbolCanvas(object.affiliation);
+      const canvas = symbolCanvas(
+        object.affiliation,
+        false,
+        false,
+        false,
+        Boolean(object.unavailable),
+      );
       const context = canvas.getContext('2d')!;
       this.map.addImage(iconId, context.getImageData(0, 0, 56, 56), {
         pixelRatio: 2,
@@ -594,7 +755,7 @@ export class MapLibreAdapter {
         object.label.length > 36
           ? `${object.label.slice(0, 35)}…`
           : object.label;
-      const text = `${label} · ${symbol.shortLabel}${object.stale ? ' · LAST KNOWN' : ''}`;
+      const text = `${label}${object.unavailable ? ` · ${object.unavailable}` : object.stale ? ' · Last known' : ''}`;
       context.font = '22px ui-monospace, Consolas, monospace';
       canvas.width = Math.ceil(context.measureText(text).width) + 12;
       canvas.height = 32;
@@ -683,6 +844,34 @@ export class MapLibreAdapter {
         },
       });
     }
+    for (const d of scene.destinations ?? []) {
+      const imageId = `${prefix}label-destination-${JSON.stringify([d.label, d.stage])}`;
+      if (!this.map.hasImage(imageId)) {
+        const canvas = destinationCanvas(d);
+        this.map.addImage(
+          imageId,
+          canvas
+            .getContext('2d')!
+            .getImageData(0, 0, canvas.width, canvas.height),
+          { pixelRatio: 2 },
+        );
+        this.imageIds.add(imageId);
+      }
+      features.push({
+        type: 'Feature',
+        id: `destination:${d.id}`,
+        properties: {
+          kind: 'destination',
+          destinationId: d.id,
+          stage: d.stage,
+          image: imageId,
+        },
+        geometry: {
+          type: 'Point',
+          coordinates: [d.position.longitudeDeg, d.position.latitudeDeg],
+        },
+      });
+    }
     const signature = JSON.stringify(features);
     if (signature !== this.sourceSignature) {
       this.sourceSignature = signature;
@@ -712,6 +901,11 @@ export class MapLibreAdapter {
         'trail-point',
       ]);
       this.map.setFilter(symbols, ['==', ['get', 'kind'], 'entity']);
+      this.map.setFilter(`${prefix}destinations`, [
+        '==',
+        ['get', 'kind'],
+        'destination',
+      ]);
       this.map.setFilter(`${prefix}labels`, ['==', ['get', 'kind'], 'entity']);
       this.map.setFilter(`${prefix}selection`, [
         'all',
@@ -732,6 +926,7 @@ export class MapLibreAdapter {
     }
     if (!this.framed && scene.frameId) {
       if (this.initialCamera) {
+        this.focusHeightM = this.initialCamera.focusHeightM;
         this.map.jumpTo({
           center: [
             this.initialCamera.center.longitudeDeg,
@@ -749,6 +944,42 @@ export class MapLibreAdapter {
 
   recenter() {
     if (!this.scene || this.disposed) return;
+    const home = localHomeCamera(
+      this.scene,
+      this.container.clientWidth,
+      this.container.clientHeight,
+    );
+    if (home) {
+      this.framed = true;
+      this.restoreCamera({ ...home, pitchFromNadirDeg: 0 });
+      this.saveCamera();
+      return;
+    }
+    this.overview();
+  }
+  focusSelection() {
+    if (!this.scene || this.disposed) return;
+    const objects = this.scene.objects.filter((object) => object.selected);
+    if (!objects.length) {
+      this.callbacks.announce('No located selection to focus.');
+      return;
+    }
+    const bounds = sceneBounds({ ...this.scene, objects, zones: [] });
+    if (!bounds) return;
+    this.framed = true;
+    this.restoreCamera({
+      ...boundsCamera(
+        bounds,
+        this.container.clientWidth,
+        this.container.clientHeight,
+        250,
+      ),
+      pitchFromNadirDeg: this.map.getPitch(),
+    });
+    this.saveCamera();
+  }
+  overview() {
+    if (!this.scene || this.disposed) return;
     const bounds = sceneBounds(this.scene);
     if (!bounds) return;
     this.framed = true;
@@ -761,7 +992,7 @@ export class MapLibreAdapter {
           this.container.clientHeight * 0.15,
         ),
       ),
-      maxZoom: 14,
+      maxZoom: 19,
       duration: 0,
       bearing: 0,
     });
@@ -834,6 +1065,7 @@ export class MapLibreAdapter {
       headingTrueDeg: this.map.getBearing(),
       pitchFromNadirDeg: this.map.getPitch(),
       projection: 'tactical',
+      focusHeightM: this.focusHeightM,
     };
   }
   private saveCamera() {
@@ -870,16 +1102,45 @@ export class MapLibreAdapter {
         ];
       this.keyboardId = next.ref.id;
       this.callbacks.announce(
-        `${next.label}. ${this.mode === 'select' ? 'Press Enter to select.' : 'Switch to Select to choose this symbol.'}`,
+        `${next.label}${next.unavailable ? `, ${next.unavailable}` : ''}. Press Enter to select.`,
       );
       this.draw();
+    } else if (event.key === 'Enter' && this.mode === 'destination') {
+      event.preventDefault();
+      const center = this.map.getCenter();
+      this.callbacks.destination?.(center.lng, center.lat);
+    } else if (event.key === 'Enter' && this.keyboardId) {
+      event.preventDefault();
+      this.callbacks.pick(
+        this.keyboardId,
+        event.shiftKey || event.ctrlKey || event.metaKey,
+      );
     } else if (
-      event.key === 'Enter' &&
-      this.keyboardId &&
-      this.mode === 'select'
+      [
+        'ArrowLeft',
+        'ArrowRight',
+        'ArrowUp',
+        'ArrowDown',
+        '+',
+        '=',
+        '-',
+      ].includes(event.key)
     ) {
       event.preventDefault();
-      this.callbacks.pick(this.keyboardId);
+      if (event.key === '+' || event.key === '=' || event.key === '-') {
+        const camera = this.camera();
+        this.restoreCamera({
+          ...camera,
+          groundSpanM:
+            camera.groundSpanM * (event.key === '-' ? 1.12 : 1 / 1.12),
+        });
+      } else {
+        const x =
+          event.key === 'ArrowLeft' ? -60 : event.key === 'ArrowRight' ? 60 : 0;
+        const y =
+          event.key === 'ArrowUp' ? -60 : event.key === 'ArrowDown' ? 60 : 0;
+        this.map.panBy([x, y], { duration: 0 });
+      }
     }
   }
 
@@ -1002,6 +1263,10 @@ export class MapLibreAdapter {
         ),
       ].sort(),
       selectedId: this.scene?.selection.id,
+      selectedIds: this.scene?.objects
+        .filter((o) => o.selected)
+        .map((o) => o.ref.id),
+      destinations: this.scene?.destinations,
       trails: (this.scene?.paths ?? []).map((p) => ({
         id: p.id,
         trackId: p.trackId,
@@ -1052,6 +1317,8 @@ export class MapLibreAdapter {
         ]),
         affiliation: object.affiliation,
         stale: object.stale,
+        managed: object.managed,
+        unavailable: object.unavailable,
       })),
       ready:
         this.installed &&
@@ -1083,7 +1350,10 @@ export class MapLibreAdapter {
     if (this.readinessTimer) clearTimeout(this.readinessTimer);
     if (this.rendererTimer) clearTimeout(this.rendererTimer);
     this.observer.disconnect();
+    this.gestures.dispose();
+    this.acknowledgement.dispose();
     this.map.getCanvas().removeEventListener('keydown', this.keyHandler);
+    this.map.getCanvas().removeEventListener('wheel', this.wheelHandler, true);
     this.map.remove();
     this.releaseArchives();
     this.imageIds.clear();

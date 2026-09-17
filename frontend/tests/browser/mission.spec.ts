@@ -1,3 +1,5 @@
+import { formatSgt } from '../../src/world/time';
+import { loadFixture } from './actions';
 import { advanceFixture, closeTab, unloadMission } from './actions';
 import { test, expect, type Page, type WebSocketRoute } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
@@ -5,7 +7,9 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 const product = 'http://127.0.0.1:5181';
-const evidence = resolve('../docs/chrome-refinement/evidence');
+const evidence = resolve(
+  '../docs/compact-demo/evidence/regressions/regressions',
+);
 async function load(page: Page, missionId: string) {
   const catalog = await (
     await page.request.get(`${product}/api/missions`)
@@ -13,8 +17,7 @@ async function load(page: Page, missionId: string) {
   const mission = catalog.missions.find(
     (item: { id: string }) => item.id === missionId,
   );
-  await page.getByRole('button', { name: 'Load mission', exact: true }).click();
-  await page.getByRole('menuitem', { name: mission.name, exact: true }).click();
+  await loadFixture(page, mission.name);
   await expect(page.locator('.connection-state')).toHaveText('CONNECTED');
 }
 async function split(page: Page, title: string) {
@@ -51,11 +54,11 @@ test('backend committed frame and selection are shared without pane subscription
   const panes = page.locator('[data-readout]:visible');
   await expect(panes).toHaveCount(2);
   for (const pane of await panes.all()) {
-    await expect(pane.locator('[data-field="frame"]')).toHaveText(
+    await expect(pane.locator('[data-field="frame"] dd span')).toHaveText(
       backendFrame.frameId,
     );
     await expect(pane.locator('[data-field="effective-time"]')).toHaveText(
-      backendFrame.effectiveAt,
+      formatSgt(backendFrame.effectiveAt, { date: true }),
     );
     await expect(pane.locator('[data-field="entity-count"]')).toHaveText(
       String(Object.keys(backendFrame.entities).length),
@@ -70,18 +73,18 @@ test('backend committed frame and selection are shared without pane subscription
     .getByRole('button', { name: `Select ${entity.label}`, exact: true })
     .click();
   await expect(panes.locator('[data-field="selection"]')).toHaveText([
-    entity.id,
-    entity.id,
+    entity.label,
+    entity.label,
   ]);
   await advanceFixture(page, 'fixture-alpha');
-  await expect(panes.locator('[data-field="sequence"]')).toHaveText([
+  await expect(panes.locator('[data-field="sequence"] dd span')).toHaveText([
     String(backendFrame.sequence + 1),
     String(backendFrame.sequence + 1),
   ]);
   const updated = await (
     await page.request.get(`${product}/api/missions/fixture-alpha/world`)
   ).json();
-  await expect(panes.locator('[data-field="frame"]')).toHaveText([
+  await expect(panes.locator('[data-field="frame"] dd span')).toHaveText([
     updated.frameId,
     updated.frameId,
   ]);
@@ -94,7 +97,7 @@ test('backend committed frame and selection are shared without pane subscription
     .click();
   await expect(
     page.locator('[data-readout="timeline"] [data-field="selection"]'),
-  ).toHaveText(entity.id);
+  ).toHaveText(entity.label);
   expect(streams).toBe(1);
   await load(page, 'fixture-bravo');
   await expect(
@@ -104,12 +107,14 @@ test('backend committed frame and selection are shared without pane subscription
     await page.request.get(`${product}/api/missions/fixture-bravo/world`)
   ).json();
   await expect(
-    page.locator('[data-readout]:visible [data-field="frame"]'),
+    page.locator('[data-readout]:visible [data-field="frame"] dd span'),
   ).toHaveText(bravo.frameId);
   expect(streams).toBe(2);
   await unloadMission(page);
   await expect(page.locator('[data-readout]')).toHaveCount(0);
-  await expect(page.locator('.status-bar')).toContainText('No mission loaded');
+  await expect(page.locator('.mission-status')).toContainText(
+    'No mission loaded',
+  );
   expect(errors).toEqual([]);
 });
 
@@ -237,8 +242,10 @@ for (const viewport of [
         .locator('.app-header')
         .getByRole('button', { name: 'Load mission', exact: true }),
     ).toBeVisible();
-    await expect(page.locator('.wall-clock')).toContainText('UTC+8');
-    await expect(page.locator('.mission-controls')).toContainText('SYNTHETIC');
+    await expect(page.locator('.wall-clock')).toContainText('SGT');
+    await expect(page.locator('.mission-controls')).not.toContainText(
+      'SYNTHETIC',
+    );
     expect(
       await page.evaluate(
         () =>

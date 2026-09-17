@@ -1,104 +1,70 @@
 import * as Menu from '@radix-ui/react-dropdown-menu';
-import { ChevronDown } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronDown, Pause, Play } from 'lucide-react';
 import type { ApplicationRuntime, RuntimeSnapshot } from '../../app/runtime';
-import type { Action } from '../../services/interactiveClient';
 import './simulation.css';
 
 export function SimulationControls({
   state,
   runtime,
+  compact = false,
 }: {
   state: RuntimeSnapshot;
   runtime: ApplicationRuntime;
+  compact?: boolean;
 }) {
+  const [copyOwnerResult, setCopyOwnerResult] = useState('Copy owner ID');
   const ui = state.interactive,
     frame = state.presentation.frame,
-    run = frame?.interactive;
-  const current = ui.current;
+    run = frame?.interactive,
+    current = ui.current;
+  const ended = run?.state === 'ended';
   const synced =
     !!run &&
     current?.run.executorEpoch === run.executorEpoch &&
     current.run.runRevision === run.runRevision &&
     current.run.lease.revision === run.lease.revision;
-  const common = !ui.entry
-    ? 'Checking the local backend.'
-    : !ui.entry.enabled
-      ? 'Enable the local synthetic template on the backend.'
-      : ui.pending
-        ? 'Reconcile the saved request first.'
-        : ui.busy
-          ? 'A request is pending.'
+  const pending = ui.busy || !!ui.pending || ui.startingDemo;
+  const activeElsewhere =
+    ui.entry?.activeMissionId && ui.entry.activeMissionId !== state.missionId;
+  const ownershipConflict = !!run && !ended && synced && !current?.ownsControl;
+  const action =
+    run?.state === 'running'
+      ? 'pause'
+      : run?.state === 'ready'
+        ? 'start'
+        : 'resume';
+  const actionLabel =
+    action === 'pause' ? 'Pause' : action === 'start' ? 'Start demo' : 'Resume';
+  const actionReason = pending
+    ? 'Request pending'
+    : state.connection !== 'connected'
+      ? 'Connection lost'
+      : !synced
+        ? 'Waiting for synchronized state'
+        : !current?.ownsControl
+          ? 'Control is not held by this session'
           : undefined;
-  const reason = (action: Action) => {
-    if (common) return common;
-    if (!run) return 'Create or reopen a local demo run.';
-    if (run.state === 'ended') return 'This run has ended.';
-    if (state.connection !== 'connected')
-      return 'Reconnect to the backend for current state.';
-    if (!synced) return 'Waiting for current control status and world sync.';
-    if (action === 'acquire')
-      return current.leaseState === 'held'
-        ? 'Control is already held.'
-        : current.leaseState === 'expired'
-          ? 'Use Reclaim control for the expired lease.'
-          : undefined;
-    if (action === 'reclaim')
-      return current.leaseState !== 'expired'
-        ? 'Reclaim is available only after lease expiry.'
-        : undefined;
-    if (!current.ownsControl)
-      return current.leaseState === 'expired'
-        ? 'Reclaim control before submitting an action.'
-        : 'Acquire control in this session.';
-    if (action === 'start' && run.state !== 'ready')
-      return 'Start is available before the first start.';
-    if (action === 'pause' && run.state !== 'running')
-      return 'Pause requires a running source.';
-    if (action === 'resume' && run.state !== 'paused')
-      return 'Resume requires a paused source.';
-    return undefined;
-  };
-  const actions: [Action, string][] = [
-    ['acquire', 'Acquire control'],
-    ['start', 'Start'],
-    ['pause', 'Pause'],
-    ['resume', 'Resume'],
-    ['end', 'End'],
-  ];
-  if (current?.leaseState === 'expired')
-    actions.splice(1, 0, ['reclaim', 'Reclaim control']);
-  if (current?.ownsControl) actions.push(['revoke', 'Release control']);
-  const createReason =
-    common ??
-    (ui.entry?.activeMissionId
-      ? 'End the active run before creating another.'
-      : undefined);
-  const verifiedSource =
-    state.connection === 'connected' &&
-    state.presentation.status !== 'stale' &&
-    current &&
-    synced;
-  const sourceStatus = !run
-    ? undefined
-    : run.state === 'ended'
-      ? 'Recording retained'
-      : !verifiedSource
-        ? `Source state unverified · last known ${run.state === 'running' ? 'running' : 'paused'}`
-        : run.state !== 'running'
-          ? 'Source clock paused'
-          : !run.lastReportAt
-            ? 'Waiting for the first source report'
-            : Date.parse(current.serverTime) - Date.parse(run.lastReportAt) >
-                2000
-              ? 'Source report delayed'
-              : 'Stationary source running';
-  const awaiting =
-    ui.receipt?.accepted &&
-    ui.receipt.missionId === frame?.mission.id &&
-    !!frame &&
-    ui.receipt.sequence! > frame.sequence;
+  const status = ui.startingDemo
+    ? 'Starting demo…'
+    : ended
+      ? 'Demo ended · Recording saved'
+      : !run
+        ? undefined
+        : state.connection !== 'connected'
+          ? 'Connection lost'
+          : state.presentation.sourceDelayed
+            ? 'Reports delayed'
+            : state.presentation.status !== 'current'
+              ? 'State unverified'
+              : run.state === 'running'
+                ? 'Running'
+                : 'Paused';
   return (
-    <section className="simulation-controls" aria-label="Local demo simulation">
+    <section
+      className={`simulation-controls ${compact ? 'simulation-compact' : ''}`}
+      aria-label="Demo controls"
+    >
       <div className="simulation-heading">
         <Menu.Root
           modal={false}
@@ -115,104 +81,156 @@ export function SimulationControls({
               align="start"
               sideOffset={5}
             >
-              <Menu.Label className="menu-label">
-                Local synthetic demonstration
-              </Menu.Label>
-              <Menu.Item
-                className="menu-item simulation-action"
-                disabled={!!createReason}
-                onSelect={() => void runtime.interactiveAction('create')}
-              >
-                <span>New demo run</span>
-                {createReason && <small>{createReason}</small>}
-              </Menu.Item>
-              {ui.entry?.activeMissionId &&
-                ui.entry.activeMissionId !== state.missionId && (
+              <Menu.Label className="menu-label">Demo</Menu.Label>
+              {status && <div className="simulation-menu-status">{status}</div>}
+              {activeElsewhere ? (
+                <Menu.Item
+                  className="menu-item"
+                  onSelect={() =>
+                    runtime.loadMission(ui.entry!.activeMissionId!)
+                  }
+                >
+                  Return to active demo
+                </Menu.Item>
+              ) : !run || ended ? (
+                <Menu.Item
+                  className="menu-item"
+                  disabled={pending || !ui.entry?.enabled}
+                  onSelect={() => void runtime.newDemo()}
+                >
+                  {ui.startingDemo ? 'Starting demo…' : 'New demo'}
+                </Menu.Item>
+              ) : null}
+              {!ui.entry?.enabled && (
+                <div className="simulation-menu-status">
+                  {ui.entry
+                    ? 'Demo mode is unavailable on this backend.'
+                    : 'Checking demo availability…'}
+                </div>
+              )}
+              {ownershipConflict && (
+                <>
+                  <div className="simulation-menu-status" role="status">
+                    {current?.leaseState === 'held'
+                      ? 'Another session has control. Its accepted movements continue.'
+                      : current?.leaseState === 'expired'
+                        ? 'Control expired. Take control to issue new actions.'
+                        : 'Control was released. Take control to issue new actions.'}
+                  </div>
+                  {current?.leaseState !== 'held' && (
+                    <Menu.Item
+                      className="menu-item"
+                      disabled={pending || state.connection !== 'connected'}
+                      onSelect={() =>
+                        void runtime.interactiveAction(
+                          current?.leaseState === 'expired'
+                            ? 'reclaim'
+                            : 'acquire',
+                        )
+                      }
+                    >
+                      Take control
+                    </Menu.Item>
+                  )}
+                </>
+              )}
+              {!!run && !ended && (
+                <>
                   <Menu.Item
                     className="menu-item"
-                    onSelect={() =>
-                      runtime.loadMission(ui.entry!.activeMissionId!)
-                    }
-                  >
-                    Reopen active run
-                  </Menu.Item>
-                )}
-              <Menu.Separator className="menu-separator" />
-              {actions.map(([action, label]) => {
-                const unavailable = reason(action);
-                return (
-                  <Menu.Item
-                    key={action}
-                    className="menu-item simulation-action"
-                    disabled={!!unavailable}
+                    disabled={!!actionReason}
+                    title={actionReason}
                     onSelect={() => void runtime.interactiveAction(action)}
                   >
-                    <span>{label}</span>
-                    {unavailable && <small>{unavailable}</small>}
+                    {actionLabel}
                   </Menu.Item>
-                );
-              })}
+                  <Menu.Separator className="menu-separator" />
+                  <Menu.Item
+                    className="menu-item"
+                    disabled={!!actionReason}
+                    title={actionReason}
+                    onSelect={() => void runtime.interactiveAction('end')}
+                  >
+                    End demo
+                  </Menu.Item>
+                </>
+              )}
+              {run && (
+                <Menu.Sub>
+                  <Menu.SubTrigger className="menu-item">
+                    Technical session details
+                  </Menu.SubTrigger>
+                  <Menu.Portal>
+                    <Menu.SubContent className="menu-content simulation-menu">
+                      <div className="simulation-menu-status">
+                        {current?.run.lease.holderId ?? 'No control owner'}
+                      </div>
+                      {current?.run.lease.holderId && (
+                        <Menu.Item
+                          className="menu-item"
+                          onSelect={(event) => {
+                            event.preventDefault();
+                            void navigator.clipboard
+                              .writeText(current.run.lease.holderId!)
+                              .then(
+                                () => setCopyOwnerResult('Owner ID copied'),
+                                () =>
+                                  setCopyOwnerResult(
+                                    'Copy unavailable; select the owner text',
+                                  ),
+                              );
+                          }}
+                        >
+                          {copyOwnerResult}
+                        </Menu.Item>
+                      )}
+                      {current?.ownsControl && !ended && (
+                        <Menu.Item
+                          className="menu-item"
+                          disabled={!!actionReason}
+                          onSelect={() =>
+                            void runtime.interactiveAction('revoke')
+                          }
+                        >
+                          Release control and stop its work
+                        </Menu.Item>
+                      )}
+                    </Menu.SubContent>
+                  </Menu.Portal>
+                </Menu.Sub>
+              )}
             </Menu.Content>
           </Menu.Portal>
         </Menu.Root>
-        <span className="constraint-tag">SYNTHETIC · LOCAL</span>
-        <span className="simulation-run-state" data-run-state={run?.state}>
-          {run
-            ? run.state === 'ready'
-              ? 'READY · PAUSED'
-              : run.state.toUpperCase()
-            : 'No demo run loaded'}
-        </span>
-      </div>
-      <div className="simulation-status" role="status" aria-live="polite">
-        <span>
-          {run
-            ? current && synced
-              ? current.ownsControl
-                ? `You have control · ${ui.holderId}`
-                : current.leaseState === 'expired'
-                  ? `Control expired · ${current.run.lease.holderId}. Reclaim explicitly.`
-                  : current.run.lease.holderId
-                    ? `Control held by ${current.run.lease.holderId}`
-                    : 'Control unclaimed · Acquire control to begin.'
-              : 'Checking control status…'
-            : ui.entry?.activeMissionId
-              ? 'An active run is available. Simulation → Reopen active run.'
-              : 'Simulation → New demo run to begin.'}
-        </span>
-        {run && (
-          <span>{sourceStatus} · Movement and encounters unavailable</span>
-        )}
-        {ui.busy && <span>Request pending…</span>}
-        {awaiting && (
-          <span>Committed receipt received · awaiting world sync</span>
-        )}
-        {ui.error && <span className="simulation-error">{ui.error}</span>}
-      </div>
-      {ui.pending && (
-        <div className="simulation-reconciliation">
-          <span>
-            Saved{' '}
-            {'creationId' in ui.pending.body
-              ? 'creation'
-              : ui.pending.body.intent.action}{' '}
-            request · outcome unconfirmed
+        {run && !ended ? (
+          <button
+            className="text-control simulation-toggle"
+            disabled={!!actionReason}
+            title={actionReason}
+            onClick={() => void runtime.interactiveAction(action)}
+          >
+            {action === 'pause' ? <Pause size={12} /> : <Play size={12} />}
+            {actionLabel}
+          </button>
+        ) : !activeElsewhere ? (
+          <button
+            className="text-control simulation-toggle"
+            disabled={pending || !ui.entry?.enabled}
+            onClick={() => void runtime.newDemo()}
+          >
+            {ui.startingDemo ? 'Starting…' : 'New demo'}
+          </button>
+        ) : null}
+        {status && (
+          <span className="simulation-run-state" data-run-state={run?.state}>
+            {status}
           </span>
-          <button
-            className="text-control"
-            disabled={ui.busy}
-            onClick={() => void runtime.reconcileInteractive()}
-          >
-            Reconcile request
-          </button>
-          <button
-            className="text-control"
-            disabled={ui.busy}
-            onClick={() => void runtime.reconcileInteractive(true)}
-          >
-            Retry saved request
-          </button>
-        </div>
+        )}
+      </div>
+      {!compact && ui.error && (
+        <p className="simulation-error" role="status">
+          {ui.error}
+        </p>
       )}
     </section>
   );

@@ -9,13 +9,13 @@ import {
   IonResource,
   CesiumTerrainProvider,
   Cesium3DTileset,
-  ScreenSpaceEventHandler,
   ScreenSpaceEventType,
   Entity,
   ConstantPositionProperty,
   PolygonHierarchy,
   HeightReference,
   BillboardCollection,
+  BillboardGraphics,
   type Billboard,
   LabelGraphics,
   PolygonGraphics,
@@ -49,11 +49,17 @@ import type {
   SpatialStatus,
   MapPresentation,
 } from '../contracts';
-import { sceneBounds } from '../camera';
+import {
+  sceneBounds,
+  localHomeCamera,
+  boundsCamera,
+  wheelSpanFactor,
+} from '../camera';
 import { constrainCamera } from '../regions';
 import { defaultMapPresentation } from '../contracts';
-import { affiliationSymbols } from '../symbology';
-import { symbolCanvas } from '../symbolCanvas';
+import { MapGestures, insideRectangle, type ScreenPoint } from '../gestures';
+import { DestinationAcknowledgement } from '../acknowledgement';
+import { symbolCanvas, destinationCanvas } from '../symbolCanvas';
 import { visualHeight } from './altitude';
 import type { CesiumProvider } from './config';
 import { ionImagery } from './ionImagery';
@@ -94,7 +100,8 @@ const initialSpatial = (): SpatialStatus => ({
 export class CesiumAdapter implements MapRenderer {
   private readonly viewer: Viewer;
   private readonly observer: ResizeObserver;
-  private readonly input: ScreenSpaceEventHandler;
+  private readonly gestures: MapGestures;
+  private readonly acknowledgement: DestinationAcknowledgement;
   private readonly billboards: BillboardCollection;
   private readonly markers = new Map<string, Billboard>();
   private pendingSymbols = false;
@@ -116,7 +123,7 @@ export class CesiumAdapter implements MapRenderer {
   private bookmark?: CameraIntent;
   private generation = 0;
   private missionGeneration = 0;
-  private mode: 'select' | 'pan' = 'select';
+  private mode: 'select' | 'pan' | 'destination' = 'select';
   private keyboardId?: string;
   private spatial = initialSpatial();
   private imagery?: ImageryLayer;
@@ -160,6 +167,27 @@ export class CesiumAdapter implements MapRenderer {
   private readonly failures: { at: string; stage: string; code: string }[] = [];
   private readonly failureTasks = new Set<ReturnType<typeof setTimeout>>();
   private readonly pendingLayerFailures = new Set<string>();
+  private temporaryPan = false;
+  private surfacePicking = false;
+  private lastSurfacePick?: {
+    kind: string;
+    longitudeDeg?: number;
+    latitudeDeg?: number;
+    heightM?: number;
+  };
+  private readonly wheelHandler = (event: WheelEvent) => this.onWheel(event);
+  private wheelFrame?: number;
+  private pendingWheel?: { point: ScreenPoint; factor: number };
+  private clearanceFrame?: number;
+  private clearanceGeometryTimer?: ReturnType<typeof setTimeout>;
+  private clearanceGeometryRevision = 0;
+  private sampledGeometryRevision = -1;
+  private readonly clearancePosition = new Cartesian3();
+  private cameraClearance?: {
+    surfaceHeightM: number;
+    cameraHeightM: number;
+    corrected: boolean;
+  };
 
   constructor(
     private readonly container: HTMLElement,
@@ -223,7 +251,7 @@ export class CesiumAdapter implements MapRenderer {
     resize();
     owner.addEventListener('resize', resize);
     this.removers.push(() => owner.removeEventListener('resize', resize));
-    this.viewer.scene.screenSpaceCameraController.minimumZoomDistance = 20;
+    this.viewer.scene.screenSpaceCameraController.minimumZoomDistance = 8;
     this.viewer.scene.screenSpaceCameraController.maximumTiltAngle =
       CesiumMath.toRadians(70);
     this.viewer.scene.screenSpaceCameraController.maximumZoomDistance = 20_000_000;
@@ -232,9 +260,11 @@ export class CesiumAdapter implements MapRenderer {
       CameraEventType.RIGHT_DRAG,
     ];
     this.viewer.scene.screenSpaceCameraController.zoomEventTypes = [
-      CameraEventType.WHEEL,
       CameraEventType.PINCH,
     ];
+    this.viewer.scene.screenSpaceCameraController.inertiaSpin = 0;
+    this.viewer.scene.screenSpaceCameraController.inertiaTranslate = 0;
+    this.viewer.scene.screenSpaceCameraController.inertiaZoom = 0;
     this.viewer.cesiumWidget.screenSpaceEventHandler.removeInputAction(
       ScreenSpaceEventType.LEFT_DOUBLE_CLICK,
     );
@@ -256,17 +286,24 @@ export class CesiumAdapter implements MapRenderer {
       `map-help-${viewId.replace(':', '-')}`,
     );
     canvas.addEventListener('keydown', this.keyHandler);
-    this.input = new ScreenSpaceEventHandler(canvas);
-    this.input.setInputAction((event: { position: Cartesian2 }) => {
-      if (this.mode !== 'select') return;
-      const picked = this.viewer.scene.pick(event.position);
-      if (picked?.id instanceof Entity) {
-        const object = this.scene?.objects.find(
-          (o) => JSON.stringify(o.ref) === picked.id.id,
-        );
-        if (object) this.callbacks.pick(object.ref.id);
-      }
-    }, ScreenSpaceEventType.LEFT_CLICK);
+    canvas.addEventListener('wheel', this.wheelHandler, {
+      capture: true,
+      passive: false,
+    });
+    this.acknowledgement = new DestinationAcknowledgement(container);
+    this.gestures = new MapGestures(canvas, container, {
+      mode: () => this.mode,
+      pan: (temporary) => {
+        this.temporaryPan = temporary;
+        this.updateGestures();
+      },
+      click: (point, additive) => this.pick(point, additive),
+      rectangle: (start, end, additive) => this.rectangle(start, end, additive),
+      move: (point) => this.move(point),
+      clear: () => this.callbacks.clearSelection?.(),
+      cancelDestination: () => this.callbacks.cancelDestination?.(),
+    });
+    this.updateGestures();
     this.removers.push(
       this.viewer.camera.moveEnd.addEventListener(() => this.saveCamera()),
     );
@@ -274,7 +311,21 @@ export class CesiumAdapter implements MapRenderer {
       this.viewer.scene.postRender.addEventListener(() => {
         this.renderedFrames++;
         this.checkReadiness();
+        this.positionAcknowledgement();
+        this.scheduleClearance();
       }),
+    );
+    let globeLoading = false;
+    this.removers.push(
+      this.viewer.scene.globe.tileLoadProgressEvent.addEventListener(
+        (remaining: number) => {
+          if (remaining > 0) globeLoading = true;
+          else if (globeLoading) {
+            globeLoading = false;
+            this.queueGeometryClearance();
+          }
+        },
+      ),
     );
     this.removers.push(
       this.viewer.scene.preUpdate.addEventListener(() => {
@@ -415,9 +466,333 @@ export class CesiumAdapter implements MapRenderer {
     }
   }
 
-  setMode(mode: 'select' | 'pan') {
+  setMode(mode: 'select' | 'pan' | 'destination') {
+    this.gestures.cancel();
     this.mode = mode;
-    this.viewer.canvas.style.cursor = mode === 'pan' ? 'grab' : '';
+    this.updateGestures();
+  }
+  private updateGestures() {
+    const pan = this.mode === 'pan' || this.temporaryPan;
+    const controller = this.viewer.scene.screenSpaceCameraController;
+    controller.rotateEventTypes = pan ? [CameraEventType.LEFT_DRAG] : [];
+    controller.translateEventTypes = pan ? [CameraEventType.LEFT_DRAG] : [];
+    this.viewer.canvas.style.cursor = pan ? 'grab' : 'crosshair';
+  }
+  private visiblePoint(id: string) {
+    const marker = this.markers.get(JSON.stringify({ kind: 'entity', id }));
+    if (!marker || !marker.show) return undefined;
+    const direction = Cartesian3.subtract(
+      marker.position,
+      this.viewer.camera.positionWC,
+      new Cartesian3(),
+    );
+    if (Cartesian3.dot(direction, this.viewer.camera.directionWC) <= 0)
+      return undefined;
+    const point = SceneTransforms.worldToWindowCoordinates(
+      this.viewer.scene,
+      marker.position,
+    );
+    if (
+      !point ||
+      point.x < 0 ||
+      point.y < 0 ||
+      point.x > this.container.clientWidth ||
+      point.y > this.container.clientHeight
+    )
+      return undefined;
+    return point;
+  }
+  private pick(point: ScreenPoint, additive: boolean) {
+    if (!this.active || this.disposed || this.resourceFailed) return;
+    if (this.mode === 'destination') {
+      this.move(point, true);
+      return;
+    }
+    const picked = this.viewer.scene.pick(new Cartesian2(point.x, point.y));
+    if (picked?.id instanceof Entity) {
+      const object = this.scene?.objects.find(
+        (o) => JSON.stringify(o.ref) === picked.id.id,
+      );
+      if (object) {
+        this.callbacks.pick(object.ref.id, additive);
+        return;
+      }
+    }
+    if (!additive) this.callbacks.clearSelection?.();
+  }
+  private rectangle(start: ScreenPoint, end: ScreenPoint, additive: boolean) {
+    const ids = (this.scene?.objects ?? [])
+      .filter((object) => {
+        if (!object.managed || object.affiliation !== 'friendly') return false;
+        const point = this.visiblePoint(object.ref.id);
+        return point && insideRectangle(point, start, end);
+      })
+      .map((object) => object.ref.id);
+    this.callbacks.selection?.(ids, additive);
+  }
+  private move(point: ScreenPoint, armed = false) {
+    if (this.movementSurfaceLoading()) return;
+    const target = this.surfaceAt(point);
+    // Readiness belongs to the displayed view at the operator's gesture. A
+    // synchronous depth pass can evict/refine unrelated tiles under cache
+    // pressure; that must not invalidate a position actually picked from this
+    // visible surface. Missing surface/sky still produces no destination.
+    if (!target) {
+      this.callbacks.announce(
+        'No map surface here. Choose a visible street or building.',
+      );
+      return;
+    }
+    const position = Cartographic.fromCartesian(target);
+    const callback = armed
+      ? this.callbacks.destination
+      : this.callbacks.directMove;
+    callback?.(
+      CesiumMath.toDegrees(position.longitude),
+      CesiumMath.toDegrees(position.latitude),
+    );
+  }
+  private movementSurfaceLoading() {
+    if (
+      this.spatial.photorealistic === 'loading' ||
+      (this.spatial.displayedBase === 'photorealistic' &&
+        (this.spatial.photorealistic !== 'ready' ||
+          !this.photorealistic?.tilesLoaded ||
+          this.photoVisibleTiles === 0))
+    ) {
+      this.lastSurfacePick = { kind: 'loading' };
+      this.callbacks.announce(
+        '3D map detail is still loading. Wait for the visible surface, then try again.',
+      );
+      return true;
+    }
+    return false;
+  }
+  /** Pick rendered opaque geographic geometry. Operational overlays are removed for
+   * one synchronous depth pass and restored before the browser can paint. A hidden
+   * globe is never used as a substitute for missing photorealistic geometry. */
+  private surfaceAt(point: ScreenPoint) {
+    if (
+      !this.active ||
+      this.disposed ||
+      this.resourceFailed ||
+      !this.engineReady ||
+      this.surfacePicking
+    )
+      return undefined;
+    const scene = this.viewer.scene,
+      pixel = new Cartesian2(point.x, point.y);
+    if (
+      point.x < 0 ||
+      point.y < 0 ||
+      point.x > this.container.clientWidth ||
+      point.y > this.container.clientHeight
+    )
+      return undefined;
+    let target: Cartesian3 | undefined;
+    const entitiesShown = this.viewer.entities.show,
+      symbolsShown = this.billboards.show;
+    this.surfacePicking = true;
+    try {
+      this.viewer.entities.show = false;
+      this.billboards.show = false;
+      scene.requestRender();
+      this.viewer.render();
+      if (scene.pickPositionSupported) target = scene.pickPosition(pixel);
+      if (!target && scene.globe.show) {
+        const ray = this.viewer.camera.getPickRay(pixel);
+        if (ray) target = scene.globe.pick(ray, scene);
+      }
+      const position = target && Cartographic.fromCartesian(target);
+      this.lastSurfacePick = position
+        ? {
+            kind: scene.globe.show
+              ? 'standard-surface'
+              : 'photorealistic-surface',
+            longitudeDeg: CesiumMath.toDegrees(position.longitude),
+            latitudeDeg: CesiumMath.toDegrees(position.latitude),
+            heightM: position.height,
+          }
+        : { kind: 'unresolved' };
+    } finally {
+      this.viewer.entities.show = entitiesShown;
+      this.billboards.show = symbolsShown;
+      scene.requestRender();
+      this.viewer.render();
+      this.surfacePicking = false;
+    }
+    return target;
+  }
+  private positionAcknowledgement() {
+    this.acknowledgement.position((longitude, latitude) => {
+      const height =
+        this.lastSurfacePick?.heightM ?? this.bookmark?.focusHeightM ?? 0;
+      return SceneTransforms.worldToWindowCoordinates(
+        this.viewer.scene,
+        Cartesian3.fromDegrees(longitude, latitude, height),
+      );
+    });
+  }
+  /** Loaded geometry can arrive around an unmoving restored camera. Coalesce
+   * provider events into at most one extra clearance check per 250 ms; ordinary
+   * rendered frames do not repeat a stationary-eye sample. */
+  private queueGeometryClearance() {
+    if (this.disposed || this.clearanceGeometryTimer !== undefined) return;
+    this.clearanceGeometryTimer = setTimeout(() => {
+      this.clearanceGeometryTimer = undefined;
+      if (this.disposed) return;
+      this.clearanceGeometryRevision++;
+      if (this.active && !this.resourceFailed)
+        this.viewer.scene.requestRender();
+    }, 250);
+  }
+  private watchGeometryClearance(
+    tileset: Cesium3DTileset,
+    removers: (() => void)[],
+  ) {
+    const changed = () => this.queueGeometryClearance();
+    removers.push(
+      tileset.tileLoad.addEventListener(changed),
+      tileset.allTilesLoaded.addEventListener(changed),
+    );
+  }
+  private scheduleClearance() {
+    if (
+      this.surfacePicking ||
+      this.clearanceFrame !== undefined ||
+      !this.active ||
+      this.disposed ||
+      !this.framed ||
+      !this.engineReady ||
+      this.resourceFailed
+    )
+      return;
+    const camera = this.viewer.camera;
+    if (
+      (Cartesian3.distance(camera.positionWC, this.clearancePosition) < 0.1 &&
+        this.sampledGeometryRevision === this.clearanceGeometryRevision) ||
+      (this.camera()?.groundSpanM ?? Infinity) > 3000
+    )
+      return;
+    // Public sampleHeight queries the loaded displayed 3D mesh, including buildings.
+    // Run outside Cesium's render/update stack; never recurse through a depth pass.
+    this.clearanceFrame = requestAnimationFrame(() => {
+      this.clearanceFrame = undefined;
+      if (this.disposed || !this.active || this.resourceFailed) return;
+      Cartesian3.clone(camera.positionWC, this.clearancePosition);
+      this.sampledGeometryRevision = this.clearanceGeometryRevision;
+      const scene = this.viewer.scene;
+      const point = Cartographic.fromCartesian(camera.positionWC);
+      let surface: number | undefined;
+      if (scene.sampleHeightSupported) {
+        surface = scene.sampleHeight(point, [
+          ...this.viewer.entities.values,
+          ...this.markers.values(),
+          this.billboards,
+        ]);
+      }
+      if (scene.globe.show) {
+        const terrain = scene.globe.getHeight(point);
+        if (terrain !== undefined)
+          surface = Math.max(surface ?? terrain, terrain);
+      }
+      if (surface === undefined || !Number.isFinite(surface)) return;
+      const corrected = point.height < surface + 8;
+      this.cameraClearance = {
+        surfaceHeightM: surface,
+        cameraHeightM: point.height,
+        corrected,
+      };
+      if (corrected) {
+        camera.setView({
+          destination: Cartesian3.fromRadians(
+            point.longitude,
+            point.latitude,
+            surface + 8,
+          ),
+          orientation: { direction: camera.directionWC, up: camera.upWC },
+        });
+        Cartesian3.clone(camera.positionWC, this.clearancePosition);
+        this.viewer.scene.requestRender();
+        this.saveCamera();
+      }
+    });
+  }
+  private onWheel(event: WheelEvent) {
+    if (!this.active || this.disposed || this.resourceFailed) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const rect = this.viewer.canvas.getBoundingClientRect();
+    const camera = this.camera();
+    if (!camera) return;
+    const point = {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
+    const factor = wheelSpanFactor(
+      event.deltaY,
+      event.deltaMode,
+      camera.groundSpanM,
+    );
+    this.pendingWheel = {
+      point,
+      factor: (this.pendingWheel?.factor ?? 1) * factor,
+    };
+    if (this.wheelFrame !== undefined) return;
+    // Dense trackpad events share one accurate depth pass per animation frame.
+    // Accumulate the scale exactly; no timer-driven tail continues after input.
+    this.wheelFrame = requestAnimationFrame(() => {
+      this.wheelFrame = undefined;
+      const pending = this.pendingWheel;
+      this.pendingWheel = undefined;
+      if (pending && this.active && !this.disposed && !this.resourceFailed)
+        this.zoomAt(pending.point, pending.factor);
+    });
+  }
+  private zoomAt(point: ScreenPoint, factor: number) {
+    const camera = this.camera();
+    if (!camera) return;
+    const surface = this.surfaceAt(point);
+    const target =
+      surface ??
+      Cartesian3.fromDegrees(
+        camera.center.longitudeDeg,
+        camera.center.latitudeDeg,
+        camera.focusHeightM ?? 0,
+      );
+    if (surface)
+      this.bookmark = {
+        ...camera,
+        focusHeightM: Cartographic.fromCartesian(surface).height,
+      };
+    const zoomCamera = this.camera() ?? camera;
+    const limited = constrainCamera(
+      { ...zoomCamera, groundSpanM: zoomCamera.groundSpanM * factor },
+      this.scene?.region,
+    );
+    const applied = limited.groundSpanM / zoomCamera.groundSpanM;
+    const offset = Cartesian3.subtract(
+      this.viewer.camera.positionWC,
+      target,
+      new Cartesian3(),
+    );
+    const distance = Cartesian3.magnitude(offset);
+    // Maintain a small clearance from the actual pointed-at mesh, including roofs.
+    const scale = Math.max(applied, 8 / Math.max(8, distance));
+    const destination = Cartesian3.add(
+      target,
+      Cartesian3.multiplyByScalar(offset, scale, offset),
+      new Cartesian3(),
+    );
+    this.viewer.camera.setView({
+      destination,
+      orientation: {
+        direction: this.viewer.camera.directionWC,
+        up: this.viewer.camera.upWC,
+      },
+    });
+    this.viewer.scene.requestRender();
+    this.saveCamera();
   }
   captureCamera() {
     return this.active ? this.camera() : this.bookmark;
@@ -451,6 +826,10 @@ export class CesiumAdapter implements MapRenderer {
   setActive(active: boolean) {
     if (this.disposed || active === this.active) return;
     if (!active) {
+      this.pendingWheel = undefined;
+      if (this.wheelFrame !== undefined) cancelAnimationFrame(this.wheelFrame);
+      this.wheelFrame = undefined;
+      this.gestures.reset();
       this.saveCamera();
       this.viewer.camera.cancelFlight();
       this.active = false;
@@ -488,6 +867,8 @@ export class CesiumAdapter implements MapRenderer {
     }
     const changed = scene.missionId !== this.scene?.missionId;
     if (changed) {
+      this.pendingWheel = undefined;
+      this.gestures.reset();
       this.missionGeneration++;
       this.framed = false;
       this.bookmark = bookmark ?? (this.scene ? undefined : this.bookmark);
@@ -505,6 +886,8 @@ export class CesiumAdapter implements MapRenderer {
       this.appliedFrameId = undefined;
     }
     this.scene = scene;
+    this.acknowledgement.update(scene.acknowledgement);
+    this.positionAcknowledgement();
     if (scene.effectiveAt)
       this.viewer.clock.currentTime = JulianDate.fromIso8601(scene.effectiveAt);
     this.viewer.clock.shouldAnimate = false;
@@ -565,7 +948,7 @@ export class CesiumAdapter implements MapRenderer {
           this.spatial.approximateHeights++;
         const id = JSON.stringify(object.ref);
         retained.add(id);
-        const imageKey = `${object.affiliation}:${object.selected}:${object.ref.id === this.keyboardId}:${object.stale}`;
+        const imageKey = `${object.affiliation}:${object.selected}:${object.ref.id === this.keyboardId}:${object.stale}:${Boolean(object.unavailable)}`;
         if (!this.symbols.has(imageKey))
           this.symbols.set(
             imageKey,
@@ -574,6 +957,7 @@ export class CesiumAdapter implements MapRenderer {
               object.selected,
               object.ref.id === this.keyboardId,
               object.stale,
+              Boolean(object.unavailable),
             ),
           );
         const entity = collection.getById(id) ?? collection.add({ id });
@@ -607,15 +991,15 @@ export class CesiumAdapter implements MapRenderer {
           symbolsChanged = true;
           this.symbolUpdates++;
         }
-        const labelKey = `${object.label}:${object.affiliation}:${object.stale}`;
+        const labelKey = `${object.label}:${object.affiliation}:${object.stale}:${object.unavailable}`;
         if (this.labelSignatures.get(id) !== labelKey) {
           this.labelSignatures.set(id, labelKey);
           this.labelUpdates++;
           entity.label = new LabelGraphics({
-            text: `${object.label.length > 36 ? `${object.label.slice(0, 35)}…` : object.label} · ${affiliationSymbols[object.affiliation].shortLabel}${object.stale ? ' · LAST KNOWN' : ''}`,
+            text: `${object.label.length > 36 ? `${object.label.slice(0, 35)}…` : object.label}${object.unavailable ? ` · ${object.unavailable}` : object.stale ? ' · Last known' : ''}`,
             font: '11px Consolas, monospace',
             fillColor: Color.fromCssColorString(
-              object.stale ? '#8a949e' : '#c6cfd7',
+              object.stale || object.unavailable ? '#9ca7b2' : '#c6cfd7',
             ),
             style: LabelStyle.FILL_AND_OUTLINE,
             outlineColor: Color.fromCssColorString('#0b1015'),
@@ -629,6 +1013,30 @@ export class CesiumAdapter implements MapRenderer {
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
           });
         }
+      }
+      for (const d of scene.destinations ?? []) {
+        const id = `destination:${d.id}`,
+          key = JSON.stringify([d.position, d.stage, d.label]);
+        retained.add(id);
+        if (this.markerSignatures.get(id) === key) continue;
+        this.markerSignatures.set(id, key);
+        const entity = collection.getById(id) ?? collection.add({ id });
+        entity.position = new ConstantPositionProperty(
+          Cartesian3.fromDegrees(
+            d.position.longitudeDeg,
+            d.position.latitudeDeg,
+            d.position.altitude.metres,
+          ),
+        );
+        const canvas = destinationCanvas(d);
+        entity.billboard = new BillboardGraphics({
+          image: canvas,
+          width: canvas.width / 2,
+          height: canvas.height / 2,
+          horizontalOrigin: HorizontalOrigin.LEFT,
+          pixelOffset: new Cartesian2(-14, 0),
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        });
       }
       for (const path of scene.paths ?? []) {
         // No invented AGL history heights. MSL keeps the existing explicit N=0
@@ -816,25 +1224,67 @@ export class CesiumAdapter implements MapRenderer {
       });
   }
   recenter() {
+    const home =
+      this.scene &&
+      localHomeCamera(
+        this.scene,
+        this.container.clientWidth,
+        this.container.clientHeight,
+      );
+    if (home) {
+      this.restoreCamera({ ...home, pitchFromNadirDeg: 35 });
+      this.framed = true;
+      this.saveCamera();
+    } else this.overview();
+  }
+  focusSelection() {
+    if (!this.scene) return;
+    const objects = this.scene.objects.filter(
+      (object) =>
+        object.selected && this.markers.has(JSON.stringify(object.ref)),
+    );
+    if (!objects.length) {
+      this.callbacks.announce('No located selection to focus.');
+      return;
+    }
+    const bounds = sceneBounds({ ...this.scene, objects, zones: [] });
+    if (!bounds) return;
+    const height = Math.max(
+      ...objects.map(
+        (object) =>
+          Cartographic.fromCartesian(
+            this.markers.get(JSON.stringify(object.ref))!.position,
+          ).height,
+      ),
+    );
+    // Airborne selections retain a view from above; camera focus is never telemetry.
+    this.restoreCamera({
+      ...boundsCamera(
+        bounds,
+        this.container.clientWidth,
+        this.container.clientHeight,
+        300,
+      ),
+      focusHeightM: Math.max(0, height),
+      pitchFromNadirDeg: 30,
+    });
+    this.framed = true;
+    this.saveCamera();
+  }
+  overview() {
     const bounds = this.scene && sceneBounds(this.scene);
     if (!bounds) return;
-    const longitude = (bounds[0][0] + bounds[1][0]) / 2,
-      latitude = (bounds[0][1] + bounds[1][1]) / 2;
-    const width =
-      (bounds[1][0] - bounds[0][0]) *
-      111320 *
-      Math.cos((latitude * Math.PI) / 180);
-    const height = (bounds[1][1] - bounds[0][1]) * 111320;
     this.restoreCamera({
-      center: { longitudeDeg: longitude, latitudeDeg: latitude },
-      groundSpanM:
-        Math.max(
-          1200,
-          width,
-          (height * this.container.clientWidth) /
-            Math.max(1, this.container.clientHeight),
-        ) * 1.65,
-      headingTrueDeg: 0,
+      ...boundsCamera(
+        bounds,
+        this.container.clientWidth,
+        this.container.clientHeight,
+        800,
+      ),
+      focusHeightM: Math.max(
+        0,
+        ...this.scene!.objects.map((object) => object.position.altitude.metres),
+      ),
     });
     this.framed = true;
     this.saveCamera();
@@ -856,13 +1306,14 @@ export class CesiumAdapter implements MapRenderer {
     }
     const camera = constrainCamera(input, this.scene?.region);
     const range = Math.max(
-      25,
+      12,
       camera.groundSpanM / (2 * Math.tan(this.horizontalFov() / 2)),
     );
     this.viewer.camera.lookAt(
       Cartesian3.fromDegrees(
         camera.center.longitudeDeg,
         camera.center.latitudeDeg,
+        camera.focusHeightM ?? 0,
       ),
       new HeadingPitchRange(
         CesiumMath.toRadians(camera.headingTrueDeg),
@@ -877,12 +1328,42 @@ export class CesiumAdapter implements MapRenderer {
   }
   private camera(): CameraIntent | undefined {
     const viewer = this.viewer;
-    // Focus is the ellipsoid intersection, independent of asynchronous terrain LOD.
-    const target = viewer.camera.pickEllipsoid(
-      new Cartesian2(
-        viewer.canvas.clientWidth / 2,
-        viewer.canvas.clientHeight / 2,
-      ),
+    const center = new Cartesian2(
+      viewer.canvas.clientWidth / 2,
+      viewer.canvas.clientHeight / 2,
+    );
+    const ray = viewer.camera.getPickRay(center);
+    let target: Cartesian3 | undefined;
+    // Keep the established presentation focus plane while tiles refine. This
+    // preserves oblique height bookmarks instead of drifting to the ellipsoid.
+    if (ray && this.bookmark) {
+      const anchor = Cartesian3.fromDegrees(
+        this.bookmark.center.longitudeDeg,
+        this.bookmark.center.latitudeDeg,
+        this.bookmark.focusHeightM ?? 0,
+      );
+      const normal = viewer.scene.globe.ellipsoid.geodeticSurfaceNormal(anchor);
+      const denominator = Cartesian3.dot(ray.direction, normal);
+      if (Math.abs(denominator) > 1e-6) {
+        const distance =
+          Cartesian3.dot(
+            Cartesian3.subtract(anchor, ray.origin, new Cartesian3()),
+            normal,
+          ) / denominator;
+        if (distance > 0)
+          target = Cartesian3.add(
+            ray.origin,
+            Cartesian3.multiplyByScalar(
+              ray.direction,
+              distance,
+              new Cartesian3(),
+            ),
+            new Cartesian3(),
+          );
+      }
+    }
+    target ??= viewer.camera.pickEllipsoid(
+      center,
       viewer.scene.globe.ellipsoid,
     );
     if (!target) return this.bookmark; // Looking above the horizon preserves the last geographic focus.
@@ -899,6 +1380,7 @@ export class CesiumAdapter implements MapRenderer {
       headingTrueDeg: CesiumMath.toDegrees(viewer.camera.heading),
       pitchFromNadirDeg: 90 + CesiumMath.toDegrees(viewer.camera.pitch),
       projection: 'three-d',
+      focusHeightM: this.bookmark?.focusHeightM ?? point.height,
     };
   }
   private saveCamera() {
@@ -923,6 +1405,7 @@ export class CesiumAdapter implements MapRenderer {
       this.disposed ||
       !this.active ||
       this.constraining ||
+      this.surfacePicking ||
       !this.framed ||
       !this.scene?.region
     )
@@ -1169,6 +1652,7 @@ export class CesiumAdapter implements MapRenderer {
           this.layerRemovers.buildings.push(
             buildings.tileFailed.addEventListener(onFailure),
           );
+          this.watchGeometryClearance(buildings, this.layerRemovers.buildings);
           this.viewer.scene.primitives.add(buildings);
         },
         (buildings) => {
@@ -1286,6 +1770,7 @@ export class CesiumAdapter implements MapRenderer {
         return;
       }
       this.photorealistic = tileset;
+      this.watchGeometryClearance(tileset, this.photoRemovers);
       const credit = new Credit(
         '<span class="google-maps-credit">Google Maps</span>',
         true,
@@ -1355,23 +1840,31 @@ export class CesiumAdapter implements MapRenderer {
     if (event.key === '[' || event.key === ']') {
       event.preventDefault();
       const objects =
-        this.scene?.objects.filter((o) =>
-          this.viewer.entities.getById(JSON.stringify(o.ref)),
-        ) ?? [];
+        this.scene?.objects.filter((o) => this.visiblePoint(o.ref.id)) ?? [];
       if (!objects.length) return;
       const old = objects.findIndex((o) => o.ref.id === this.keyboardId);
       const index =
         (old + (event.key === ']' ? 1 : -1) + objects.length) % objects.length;
       this.keyboardId = objects[index].ref.id;
-      this.callbacks.announce(objects[index].label);
+      this.callbacks.announce(
+        `${objects[index].label}${objects[index].unavailable ? `, ${objects[index].unavailable}` : ''}. Press Enter to select.`,
+      );
       this.draw();
-    } else if (
-      event.key === 'Enter' &&
-      this.keyboardId &&
-      this.mode === 'select'
-    ) {
+    } else if (event.key === 'Enter' && this.mode === 'destination') {
       event.preventDefault();
-      this.callbacks.pick(this.keyboardId);
+      this.move(
+        {
+          x: this.viewer.canvas.clientWidth / 2,
+          y: this.viewer.canvas.clientHeight / 2,
+        },
+        true,
+      );
+    } else if (event.key === 'Enter' && this.keyboardId) {
+      event.preventDefault();
+      this.callbacks.pick(
+        this.keyboardId,
+        event.shiftKey || event.ctrlKey || event.metaKey,
+      );
     } else if (
       [
         'ArrowLeft',
@@ -1397,8 +1890,8 @@ export class CesiumAdapter implements MapRenderer {
           Math.max(0.1, Math.cos((camera.center.latitudeDeg * Math.PI) / 180));
       if (event.key === 'ArrowUp') camera.center.latitudeDeg += step;
       if (event.key === 'ArrowDown') camera.center.latitudeDeg -= step;
-      if (event.key === '+' || event.key === '=') camera.groundSpanM /= 1.3;
-      if (event.key === '-') camera.groundSpanM *= 1.3;
+      if (event.key === '+' || event.key === '=') camera.groundSpanM /= 1.12;
+      if (event.key === '-') camera.groundSpanM *= 1.12;
       camera.center.longitudeDeg =
         ((camera.center.longitudeDeg + 540) % 360) - 180;
       camera.center.latitudeDeg = Math.max(
@@ -1441,6 +1934,9 @@ export class CesiumAdapter implements MapRenderer {
         labelUpdates: this.labelUpdates,
         symbolUpdates: this.symbolUpdates,
         environmentLoads: this.environmentLoads,
+        ...(import.meta.env.MODE === 'verification'
+          ? { standardLayerGenerations: { ...this.layerGenerations } }
+          : {}),
         accountedBytes: this.retainedBytes(),
         failures: [...this.failures],
         requestRecovery: this.requestRecovery?.snapshot(),
@@ -1461,6 +1957,10 @@ export class CesiumAdapter implements MapRenderer {
       sequence: scene?.sequence,
       effectiveAt: scene?.effectiveAt,
       selectionId: scene?.selection.id,
+      selectedIds: scene?.objects
+        .filter((o) => o.selected)
+        .map((o) => o.ref.id),
+      destinations: scene?.destinations,
       trails: (scene?.paths ?? []).map((p) => ({
         id: p.id,
         trackId: p.trackId,
@@ -1475,6 +1975,8 @@ export class CesiumAdapter implements MapRenderer {
         (id) => this.viewer.entities.getById(id)?.point,
       ).length,
       camera: this.captureCamera(),
+      lastSurfacePick: this.lastSurfacePick,
+      cameraClearance: this.cameraClearance,
       spatial: { ...this.spatial },
       presentation: { ...this.presentation },
       region: scene?.region,
@@ -1532,6 +2034,12 @@ export class CesiumAdapter implements MapRenderer {
             x: pixel?.x,
             y: pixel?.y,
             height: position && Cartographic.fromCartesian(position).height,
+            managed: this.scene?.objects.find(
+              (object) => JSON.stringify(object.ref) === e.id,
+            )?.managed,
+            unavailable: this.scene?.objects.find(
+              (object) => JSON.stringify(object.ref) === e.id,
+            )?.unavailable,
           };
         }),
     };
@@ -1549,13 +2057,19 @@ export class CesiumAdapter implements MapRenderer {
     this.pendingLayerFailures.clear();
     this.generation++;
     this.observer.disconnect();
+    this.gestures.dispose();
+    this.acknowledgement.dispose();
+    if (this.clearanceFrame !== undefined)
+      cancelAnimationFrame(this.clearanceFrame);
+    clearTimeout(this.clearanceGeometryTimer);
+    if (this.wheelFrame !== undefined) cancelAnimationFrame(this.wheelFrame);
     clearTimeout(this.renderDeadline);
     this.viewer.canvas.removeEventListener('keydown', this.keyHandler);
+    this.viewer.canvas.removeEventListener('wheel', this.wheelHandler, true);
     this.removers.splice(0).forEach((remove) => remove());
     this.clearPhotorealistic();
     for (const layer of ['imagery', 'terrain', 'buildings'] as const)
       this.clearLayer(layer);
-    this.input.destroy();
     this.viewer.destroy();
     this.markers.clear();
     this.symbols.clear();

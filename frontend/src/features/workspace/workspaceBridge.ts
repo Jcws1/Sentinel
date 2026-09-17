@@ -4,6 +4,7 @@ import {
   Model,
   TabNode,
   TabSetNode,
+  RowNode,
   type IJsonTabNode,
 } from 'flexlayout-react';
 import {
@@ -31,11 +32,20 @@ export class WorkspaceBridge {
   private readonly metadata = createWorkspaceMetadata();
   private disposed = false;
   private nextMapInstance = 2;
+  private viewportWidth = 1920;
+  private bottomDetails = false;
+  private sidebarMode: 'views' | 'fleet' = 'views';
+  private sidebarOpen = true;
+  private detailsReturnFocus?: HTMLElement;
   private readonly inspectorLabels = new Map<ViewId, string>();
   // Retain a closed view's presentation preference, like its camera bookmark.
   private readonly mapModes = new Map<ViewId, MapMode>();
   private readonly mapPresentations = new Map<ViewId, MapPresentation>();
   private readonly mapPitches = new Map<string, number>();
+  private readonly authoringCameras = new Map<
+    ViewId,
+    { missionId: string; mode: MapMode; camera?: CameraIntent }
+  >();
   /** Per-view bookmarks only. No engine objects or domain state enter layout metadata. */
   private readonly mapCameras = new Map<
     ViewId,
@@ -93,8 +103,15 @@ export class WorkspaceBridge {
     };
   }
   private mainTarget() {
+    const active = this.layoutModel.getActiveTabset(Model.MAIN_LAYOUT_ID);
+    const main = this.getSnapshot()
+      .views.filter((v) => v.location === 'main' && !this.auxiliary(v.id))
+      .map((v) => this.layoutModel.getNodeById(v.id)?.getParent())
+      .find((n): n is TabSetNode => n instanceof TabSetNode);
     return (
-      this.layoutModel.getActiveTabset(Model.MAIN_LAYOUT_ID) ??
+      (active?.getChildren().some((n) => !this.auxiliary(n.getId()))
+        ? active
+        : main) ??
       this.layoutModel.getFirstTabSet(
         this.layoutModel.getRootRow(Model.MAIN_LAYOUT_ID),
       ) ??
@@ -132,10 +149,127 @@ export class WorkspaceBridge {
       views,
       activeViewId,
       revision: previous.revision + 1,
+      sidebarMode: this.sidebarMode,
+      sidebarOpen: this.sidebarOpen,
     }));
   };
+  setSidebar(mode: 'views' | 'fleet', open = true) {
+    if (this.disposed) return;
+    this.sidebarMode = mode;
+    this.sidebarOpen = open;
+    this.publish();
+  }
+  private auxiliary(id: string) {
+    return (
+      isViewId(id) &&
+      ['details', 'movement', 'inspector'].includes(viewKind(id))
+    );
+  }
+  private auxiliaryTabset() {
+    return this.getSnapshot()
+      .views.map((v) => this.layoutModel.getNodeById(v.id)?.getParent())
+      .find(
+        (p): p is TabSetNode =>
+          p instanceof TabSetNode &&
+          p.getChildren().every((n) => this.auxiliary(n.getId())),
+      );
+  }
+  private sizeAuxiliary(tabset: TabSetNode) {
+    const bottom = this.bottomDetails;
+    const parent = tabset.getParent();
+    const size = bottom ? parent?.getRect().height : parent?.getRect().width;
+    const available =
+      size ||
+      (bottom ? 720 : this.viewportWidth - 40 - (this.sidebarOpen ? 220 : 0));
+    const desired = bottom ? 260 : 340;
+    const others =
+      parent
+        ?.getChildren()
+        .filter((n) => n !== tabset)
+        .reduce(
+          (sum, n) =>
+            sum +
+            (n instanceof TabSetNode || n instanceof RowNode
+              ? n.getWeight()
+              : 100),
+          0,
+        ) || 100;
+    this.layoutModel.doAction(
+      Actions.updateNodeAttributes(tabset.getId(), {
+        minWidth: bottom ? 260 : 300,
+        maxWidth: bottom ? 99999 : 440,
+        minHeight: bottom ? 220 : 180,
+        maxHeight: bottom ? 320 : 99999,
+        weight: (others * desired) / Math.max(260, available - desired),
+      }),
+    );
+  }
+  setViewportWidth(width: number) {
+    const collapse = width < 1180 && this.viewportWidth >= 1180;
+    this.viewportWidth = width;
+    if (collapse) this.sidebarOpen = false;
+    const bottom = width < 900;
+    if (bottom !== this.bottomDetails) {
+      this.bottomDetails = bottom;
+      const tabset = this.auxiliaryTabset();
+      if (tabset) {
+        this.layoutModel.doAction(
+          Actions.moveNode(
+            tabset.getId(),
+            this.layoutModel.getRootRow(Model.MAIN_LAYOUT_ID)!.getId(),
+            bottom ? DockLocation.BOTTOM : DockLocation.RIGHT,
+            -1,
+            false,
+          ),
+        );
+        this.sizeAuxiliary(tabset);
+      }
+    }
+    if (collapse) this.publish();
+  }
+  /** Revealed only by explicit UI selection, never by source updates. */
+  revealDetails(focus = false) {
+    const current =
+      typeof document === 'undefined' ? undefined : document.activeElement;
+    if (
+      current instanceof HTMLElement &&
+      !current.closest('[data-view="details"]') &&
+      current !== document.body
+    )
+      this.detailsReturnFocus = current;
+    this.openAuxiliary('details', focus);
+  }
+  private openAuxiliary(id: ViewId, focus = true) {
+    if (this.disposed) return;
+    if (!this.layoutModel.getNodeById(id)) {
+      const existing = this.auxiliaryTabset();
+      this.layoutModel.doAction(
+        Actions.addNode(
+          this.tab(id),
+          (
+            existing ?? this.layoutModel.getRootRow(Model.MAIN_LAYOUT_ID)!
+          ).getId(),
+          existing
+            ? DockLocation.CENTER
+            : this.bottomDetails
+              ? DockLocation.BOTTOM
+              : DockLocation.RIGHT,
+          -1,
+          true,
+        ),
+      );
+      const parent = this.layoutModel.getNodeById(id)?.getParent();
+      if (!existing && parent instanceof TabSetNode) this.sizeAuxiliary(parent);
+    }
+    if (focus) this.focus(id);
+    else this.layoutModel.doAction(Actions.selectTab(id));
+  }
   open(id: ViewId) {
     if (this.disposed) return;
+    if (this.auxiliary(id)) {
+      this.openAuxiliary(id);
+      return;
+    }
     if (!this.layoutModel.getNodeById(id)) {
       this.layoutModel.doAction(
         Actions.addNode(
@@ -166,6 +300,7 @@ export class WorkspaceBridge {
   }
   close(id: ViewId) {
     if (this.disposed || !this.layoutModel.getNodeById(id)) return;
+    this.endDestinationAuthoring(id);
     this.renderers.closeView(id);
     this.layoutModel.doAction(Actions.deleteTab(id));
     const workspace = this.getSnapshot();
@@ -178,13 +313,39 @@ export class WorkspaceBridge {
         (view) => view.location === 'main' && view.selectedInPane,
       )?.id ??
       workspace.views.find((view) => view.selectedInPane)?.id;
-    if (next) this.focus(next);
+    if (id === 'details' && this.detailsReturnFocus) {
+      const target = this.detailsReturnFocus;
+      requestAnimationFrame(() => {
+        if (this.disposed) return;
+        // A retained source tab can still be connected while its content is hidden.
+        const visible =
+          target.isConnected &&
+          target.getClientRects().length > 0 &&
+          !target.closest('[hidden], [inert], [aria-hidden="true"]') &&
+          !target.matches(':disabled') &&
+          target.ownerDocument.defaultView?.getComputedStyle(target)
+            .visibility === 'visible';
+        if (visible) target.focus();
+        if (target.ownerDocument.activeElement !== target && next)
+          this.focus(next);
+      });
+    } else if (next) this.focus(next);
   }
   openToSide(id: ViewId, relativeTo?: ViewId) {
     if (this.disposed) return;
+    if (this.auxiliary(id)) {
+      this.openAuxiliary(id);
+      return;
+    }
     const existing = this.layoutModel.getNodeById(id);
+    if (relativeTo && this.auxiliary(relativeTo) && existing) {
+      this.focus(id);
+      return;
+    }
     const relative = relativeTo
-      ? this.layoutModel.getNodeById(relativeTo)?.getParent()
+      ? this.auxiliary(relativeTo)
+        ? undefined
+        : this.layoutModel.getNodeById(relativeTo)?.getParent()
       : undefined;
     const target = relative ?? this.mainTarget();
     // Moving the only tab beside itself has no useful result; keep its identity intact.
@@ -230,6 +391,35 @@ export class WorkspaceBridge {
   getMapMode(id: ViewId): MapMode {
     return this.mapModes.get(id) ?? (id === 'three-d' ? 'three-d' : 'tactical');
   }
+  beginDestinationAuthoring(id: ViewId, missionId: string) {
+    if (!this.authoringCameras.has(id))
+      this.authoringCameras.set(id, {
+        missionId,
+        mode: this.getMapMode(id),
+        camera: this.getMapCamera(id, missionId),
+      });
+    this.setMapMode(id, 'tactical');
+    const prior = this.getMapCamera(id, missionId);
+    const camera: CameraIntent = {
+      ...(prior ?? {
+        center: { longitudeDeg: 103.85, latitudeDeg: 1.29 },
+        groundSpanM: 3000,
+        headingTrueDeg: 0,
+      }),
+      projection: 'tactical',
+      pitchFromNadirDeg: 0,
+    };
+    this.setMapCamera(id, missionId, camera);
+    return camera;
+  }
+  endDestinationAuthoring(id: ViewId) {
+    const saved = this.authoringCameras.get(id);
+    if (!saved) return;
+    this.authoringCameras.delete(id);
+    this.setMapMode(id, saved.mode);
+    if (saved.camera) this.setMapCamera(id, saved.missionId, saved.camera);
+    return saved;
+  }
   getMapPresentation(id: ViewId): Readonly<MapPresentation> {
     return this.mapPresentations.get(id) ?? defaultMapPresentation;
   }
@@ -243,7 +433,7 @@ export class WorkspaceBridge {
   }
   getViewTitle(id: ViewId): string {
     if (this.inspectorLabels.has(id))
-      return `Details · ${this.inspectorLabels.get(id)}`;
+      return `Pinned · ${this.inspectorLabels.get(id)}`;
     if (!['tactical', 'three-d'].includes(viewKind(id))) return viewTitle(id);
     const suffix = id.startsWith('tactical:') ? ` ${id.split(':')[1]}` : '';
     const noun = id === 'three-d' ? 'View' : 'Map';
@@ -303,6 +493,7 @@ export class WorkspaceBridge {
     this.mapModes.clear();
     this.mapPresentations.clear();
     this.mapPitches.clear();
+    this.authoringCameras.clear();
     this.layoutModel.removeChangeListener(this.publish);
   }
 }

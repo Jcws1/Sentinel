@@ -1,8 +1,6 @@
-# M1.1 local synthetic control
+# RTS demo authority and horizontal movement
 
-Enable the separate interactive template with `SENTINEL_DEMO=1`; `SENTINEL_FIXTURES=1` independently enables the unchanged read-only fixture catalogue and test advancement endpoint. Run one Uvicorn process/worker per SQLite database. The new source is stationary at 5 Hz while running; movement and encounters are deferred.
-
-From the repository root:
+Enable `SENTINEL_DEMO=1`; `SENTINEL_FIXTURES=1` independently enables the unchanged Alpha/Bravo/Tactical/Observations fixtures. Run one Uvicorn process/worker per SQLite database. The local source remains fixed-step 5 Hz. New `singapore-local-v2` demos use 155 km/h (43.05555555555556 m/s) horizontal movement, the midpoint of STING’s published cruise range. Existing/explicit v1 runs retain 20 m/s. Executions retain their persisted speed; published altitude, climb, endurance, range and equipment are reference data rather than simulated capabilities. M1.3 encounters remain deferred.
 
 ```powershell
 $env:SENTINEL_FIXTURES = '1'
@@ -11,9 +9,13 @@ Set-Location backend
 .venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Open the frontend, then Tracks → Simulation → New demo run → Acquire control → Start → Pause → Resume → End. Wait more than 30 seconds while paused to verify lease renewal and a fresh Resume intent. New demo run creates new mission/run/recording identities. Reopen an existing active run from Simulation; navigating to a fixture does not end it. A lease lost through navigation requires explicit Reclaim control after expiry. Release control records revocation. Restart restores the checkpoint paused with a new executor epoch and requires acquisition again.
+The frontend New demo action orchestrates create, available ownership and Start. It does not bypass server exclusion. Pause suspends movement, Resume continues it, and End retains the recording while terminalizing unfinished work. Lease expiry/navigation alone do not cancel accepted execution; explicit revocation does. Restart restores committed positions, interrupts unfinished execution, creates a new executor epoch and starts paused.
 
-Current world/stream contracts are [1.1](../contracts/sentinel/v1.1/README.md). SQLite migrates to user_version 2 without modifying legacy stored frames; original 1.0 contract artifacts remain frozen. See [contract decisions](../docs/m1.1/CONTRACT_DECISIONS.md) and [implementation review](../docs/m1.1/REVIEW.md). The earlier foundation notes below describe their original phase; the M1.1 policies supersede their no-controls/no-migration statements for interactive missions only.
+`POST /api/interactive/{missionId}/direct-moves` captures explicit bindings, a stored running-frame anchor, the original admission/start deadline, horizontal destination and per-session logical order. The existing mission lock validates global context and every binding, skips unavailable members, computes available-only group offsets from committed positions, validates endpoints and atomically supersedes/replaces accepted members. Invalid replacements do not cancel previous work. Persisted per-asset ordering prevents delayed old commands from taking over. Immutable receipts retain exact per-member outcomes; current execution and completion samples remain separate. The legacy reviewed `/moves` endpoint preserves its all-or-none M1.2 semantics.
+
+Current [world/stream 1.4 contracts](../contracts/sentinel/v1.4/README.md), interactive/status 1.3, execution read 1.2, demo entry 1.1, receipt 1.2 and SQLite schema 3 are coordinated. [Compact-demo decisions](../docs/compact-demo/DECISIONS.md) document the profile and in-memory migration; historical contract directories remain frozen. Schema 3 adds persistent transactional Demo NNN aliases, including existing runs, without rewriting original recording JSON. Archived contracts and legacy receipt/world readers remain strict. [Contract decisions](../docs/rts-refinement/CONTRACT_DECISIONS.md), [review](../docs/rts-refinement/REVIEW.md), [backend verification](../docs/rts-refinement/BACKEND_VERIFICATION.md).
+
+The foundation notes below retain their original phase context. The current interactive policies above supersede older no-controls/no-migration statements only for the explicitly local demonstration; the separate external Phase 5 contract is unchanged.
 
 # Sentinel backend â€” authority, recording and observed history
 

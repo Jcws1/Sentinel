@@ -6,7 +6,7 @@ import {
   decodeRunRead,
 } from '../../src/contracts/interactive';
 import { validateFrame } from '../../src/contracts/decode';
-import rawFrame from '../../../contracts/sentinel/v1.1/fixture.world.json';
+import rawFrame from '../../../contracts/sentinel/v1.4/fixture.world.json';
 import type { CommandRequest } from '../../src/contracts/generated';
 
 const cleanup: (() => void)[] = [];
@@ -44,9 +44,9 @@ const evidence = {
   expiresAt: '2026-09-14T00:00:30.000Z',
 };
 const entry = {
-  schemaVersion: '1.0',
+  schemaVersion: '1.1',
   enabled: true,
-  templateId: 'singapore-local-v1',
+  templateId: 'singapore-local-v2',
 };
 
 it('saves creation identity before send, reconciles lost reply after reload, never recreates', async () => {

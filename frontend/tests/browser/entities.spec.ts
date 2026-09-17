@@ -1,3 +1,4 @@
+import { loadFixture } from './actions';
 import { test, expect, type Page, type WebSocketRoute } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mkdir } from 'node:fs/promises';
@@ -8,7 +9,9 @@ import type { CameraIntent } from '../../src/renderers/contracts';
 const origin = 'http://127.0.0.1:5182',
   mid = 'fixture-observations',
   eid = mid + '-friendly-01';
-const evidence = resolve('../docs/phase3b/evidence');
+const evidence = resolve(
+  '../docs/compact-demo/evidence/regressions/regressions',
+);
 const pane = (page: Page, id = 'tactical') =>
   page.locator(`.tactical-view[data-view-id="${id}"]`);
 type Probe = {
@@ -43,8 +46,7 @@ async function inspect(page: Page, mode = 'tactical', id = 'tactical') {
   );
 }
 async function load(page: Page, name = 'Synthetic Observations') {
-  await page.getByRole('button', { name: 'Load mission', exact: true }).click();
-  await page.getByRole('menuitem', { name, exact: true }).click();
+  await loadFixture(page, name);
   await expect(page.locator('.connection-state')).toHaveText('CONNECTED');
 }
 async function tracks(page: Page) {
@@ -115,21 +117,33 @@ test('find → select → summary → pinned details → recorded trail agrees a
   const row = await select(page);
   await expect(row).toHaveAttribute('aria-selected', 'true');
   await expect(
-    page.getByRole('region', { name: 'Selected entity summary' }),
+    page.getByRole('article', { name: 'Selected entity details' }),
   ).toContainText('150 m MSL');
   await expect(
-    page.getByRole('region', { name: 'Selected entity summary' }),
+    page.getByRole('article', { name: 'Selected entity details' }),
   ).toContainText('12 m/s');
-  await page.getByRole('button', { name: 'Open Details', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Pin inspector', exact: true })
+    .click();
   const inspector = page.locator('.entity-inspector');
   await expect(inspector).toHaveAttribute('data-entity-id', eid);
+  if (
+    !(await page
+      .locator('.entity-inspector')
+      .getByRole('button', { name: 'Show observed trail', exact: true })
+      .isVisible())
+  )
+    await page
+      .locator('.entity-inspector')
+      .getByText('Observed trail', { exact: true })
+      .click();
   await page
     .getByRole('button', { name: 'Show observed trail', exact: true })
     .click();
-  await expect(page.locator('.trail-readout')).toContainText(
+  await expect(page.locator('.entity-inspector .trail-readout')).toContainText(
     '8 observations · 3 segments',
   );
-  await tabAction(page, 'Details · F-01', 'Open to Side');
+  await tabAction(page, 'Pinned · F-01', 'Open to Side');
   await page.getByRole('tab', { name: 'Tactical Map', exact: true }).click();
   await ready(page);
   await expect.poll(async () => (await inspect(page)).trails?.length).toBe(3);
@@ -137,9 +151,13 @@ test('find → select → summary → pinned details → recorded trail agrees a
     .poll(async () => (await inspect(page)).renderedTrailPoints)
     .toBe(8);
   const tactical = await inspect(page);
-  await expect(pane(page).locator('.map-footer')).toContainText(
+  await pane(page)
+    .getByRole('button', { name: 'Map layers', exact: true })
+    .click();
+  await expect(page.locator('.map-scope')).toContainText(
     'Mission · 1 unlocated',
   );
+  await page.keyboard.press('Escape');
   expect(tactical.trails.map((t) => t.times.length)).toEqual([3, 2, 3]);
   await page.screenshot({ path: resolve(evidence, 'workflow-tactical.png') });
   await pane(page).getByRole('button', { name: '3D', exact: true }).click();
@@ -155,22 +173,22 @@ test('find → select → summary → pinned details → recorded trail agrees a
     'dashed height approximate',
   );
   await pane(page)
-    .getByRole('button', { name: /Reset filters/ })
+    .getByRole('button', { name: 'Reset shared map filters', exact: true })
     .click();
   await pick(page, 'hostile-01', 'three-d');
   await expect(inspector).toHaveAttribute('data-entity-id', eid);
-  await expect(
-    inspector.getByRole('button', { name: 'Select entity', exact: true }),
-  ).toBeVisible();
-  await expect(page.locator('.map-selection')).toContainText('H-01');
+  await expect(page.locator('.selection-details')).toBeVisible();
+  await expect(page.locator('.selection-details')).toContainText('H-01');
+  await page.getByRole('tab', { name: 'Pinned · F-01', exact: true }).click();
   await inspector
     .getByRole('button', { name: 'Select entity', exact: true })
     .click();
-  await pane(page)
-    .getByRole('button', { name: 'Open Details', exact: true })
+  await page
+    .locator('.selection-details')
+    .getByRole('button', { name: 'Pin inspector', exact: true })
     .click();
   await expect(
-    page.getByRole('tab', { name: 'Details · F-01', exact: true }),
+    page.getByRole('tab', { name: 'Pinned · F-01', exact: true }),
   ).toHaveCount(1);
   await page.screenshot({ path: resolve(evidence, 'workflow-cesium.png') });
   await tracks(page);
@@ -183,7 +201,7 @@ test('find → select → summary → pinned details → recorded trail agrees a
   await page.keyboard.press('ArrowRight');
   await page
     .getByRole('menuitemcheckbox', {
-      name: 'synthetic-observations-secondary',
+      name: 'Import · simulated 3',
       exact: true,
     })
     .focus();
@@ -222,19 +240,37 @@ test('550 ms recorded reads make progress during 5 Hz commits, expose their thro
   await load(page, 'Synthetic Alpha');
   await tracks(page);
   await page.locator('.tracks-table tbody tr').first().click();
-  await page.getByRole('button', { name: 'Open Details', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Pin inspector', exact: true })
+    .click();
+  if (
+    !(await page
+      .locator('.entity-inspector')
+      .getByRole('button', { name: 'Show observed trail', exact: true })
+      .isVisible())
+  )
+    await page
+      .locator('.entity-inspector')
+      .getByText('Observed trail', { exact: true })
+      .click();
   await page
     .getByRole('button', { name: 'Show observed trail', exact: true })
     .click();
   for (let i = 0; i < 8; i++) {
     await advanceFixture(page, 'fixture-alpha');
     await page.waitForTimeout(200);
-    seen.push(await page.locator('.trail-readout').innerText());
+    seen.push(
+      await page.locator('.entity-inspector .trail-readout').innerText(),
+    );
   }
   expect(seen.some((s) => s.includes('observations'))).toBe(true);
   expect(seen.some((s) => s.includes('Refreshing · trail through'))).toBe(true);
-  await expect(page.locator('.trail-readout')).not.toContainText('Refreshing');
-  await expect(page.locator('.trail-readout')).toContainText('observations');
+  await expect(
+    page.locator('.entity-inspector .trail-readout'),
+  ).not.toContainText('Refreshing');
+  await expect(page.locator('.entity-inspector .trail-readout')).toContainText(
+    'observations',
+  );
   expect(peak).toBe(1);
   expect(requests).toBeLessThan(9);
 });
@@ -252,7 +288,7 @@ test('filters, source choice, unknown measurements, unlocated discovery and neut
   await page
     .getByRole('searchbox', { name: 'Search entities in all views' })
     .fill('No position');
-  await expect(page.locator('.map-selection')).toContainText(
+  await expect(page.locator('.selection-details')).toContainText(
     'Hidden by shared filters',
   );
   await expect(page.locator('[data-field="filtered-entities"]')).toHaveText(
@@ -260,7 +296,7 @@ test('filters, source choice, unknown measurements, unlocated discovery and neut
   );
   await expect.poll(async () => (await inspect(page)).entityIds.length).toBe(0);
   await page.locator('.tracks-table tbody tr').click();
-  await expect(page.locator('.map-selection')).toContainText(
+  await expect(page.locator('.selection-details')).toContainText(
     'No position supplied',
   );
   await expect(page.locator('.tracks-table tbody')).toContainText(
@@ -275,7 +311,7 @@ test('filters, source choice, unknown measurements, unlocated discovery and neut
   await page.getByRole('button', { name: 'Shared entity filters' }).click();
   await page.getByRole('menuitem', { name: 'Source', exact: true }).hover();
   const sourceChoice = page.getByRole('menuitemcheckbox', {
-    name: 'synthetic-observations-secondary',
+    name: 'Import · simulated 3',
     exact: true,
   });
   const choiceBounds = (await sourceChoice.boundingBox())!;
@@ -312,8 +348,10 @@ test('narrow splits retain complete copyable values, keyboard menus, scrolling a
   await page.goto(origin);
   await load(page);
   await select(page);
-  await page.getByRole('button', { name: 'Open Details', exact: true }).click();
-  const tab = page.getByRole('tab', { name: 'Details · F-01', exact: true });
+  await page
+    .getByRole('button', { name: 'Pin inspector', exact: true })
+    .click();
+  const tab = page.getByRole('tab', { name: 'Pinned · F-01', exact: true });
   await tab.focus();
   await page.keyboard.press('Shift+F10');
   await page
@@ -352,12 +390,12 @@ test('narrow splits retain complete copyable values, keyboard menus, scrolling a
   await page.screenshot({
     path: resolve(evidence, 'cesium-inspector-narrow.png'),
   });
-  const summary = page.locator('.map-selection'),
+  const details = page.locator('.entity-inspector'),
     surface = pane(page).locator('.map-surface');
-  const a = (await summary.boundingBox())!,
+  const a = (await details.boundingBox())!,
     b = (await surface.boundingBox())!;
-  expect(a.x + a.width).toBeLessThanOrEqual(b.x + b.width);
-  expect(a.y).toBeGreaterThan(b.y);
+  expect(a.x).toBeGreaterThanOrEqual(b.x + b.width);
+  await expect(page.locator('.map-selection')).toHaveCount(0);
 });
 
 test('one history request and backend stream serve simultaneous maps; tab changes and frame updates retain cameras and resources', async ({
@@ -374,11 +412,25 @@ test('one history request and backend stream serve simultaneous maps; tab change
   await page.goto(origin);
   await load(page);
   await select(page);
-  await page.getByRole('button', { name: 'Open Details', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Pin inspector', exact: true })
+    .click();
+  if (
+    !(await page
+      .locator('.entity-inspector')
+      .getByRole('button', { name: 'Show observed trail', exact: true })
+      .isVisible())
+  )
+    await page
+      .locator('.entity-inspector')
+      .getByText('Observed trail', { exact: true })
+      .click();
   await page
     .getByRole('button', { name: 'Show observed trail', exact: true })
     .click();
-  await expect(page.locator('.trail-readout')).toContainText('8 observations');
+  await expect(page.locator('.entity-inspector .trail-readout')).toContainText(
+    '8 observations',
+  );
   await page.getByRole('tab', { name: 'Tactical Map', exact: true }).click();
   await ready(page);
   await tabAction(page, 'Tactical Map', 'New Tactical pane');
@@ -462,7 +514,19 @@ test('late history responses, errors and retry cannot contaminate another missio
   await page.goto(origin);
   await load(page);
   await select(page);
-  await page.getByRole('button', { name: 'Open Details', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Pin inspector', exact: true })
+    .click();
+  if (
+    !(await page
+      .locator('.entity-inspector')
+      .getByRole('button', { name: 'Show observed trail', exact: true })
+      .isVisible())
+  )
+    await page
+      .locator('.entity-inspector')
+      .getByText('Observed trail', { exact: true })
+      .click();
   await page
     .getByRole('button', { name: 'Show observed trail', exact: true })
     .click();
@@ -472,7 +536,10 @@ test('late history responses, errors and retry cannot contaminate another missio
   await expect(
     page.getByRole('heading', { name: 'Mission not active' }),
   ).toBeVisible();
-  await expect(page.locator('.entity-inspector')).toHaveCount(0);
+  await expect(page.locator('.entity-inspector')).toHaveAttribute(
+    'data-mission-id',
+    mid,
+  );
   await page.unroute('**/observed-history?**');
   await load(page);
   await expect(page.locator('.entity-inspector')).toHaveAttribute(
@@ -485,15 +552,29 @@ test('late history responses, errors and retry cannot contaminate another missio
       json: { detail: 'Injected recording outage' },
     }),
   );
+  if (
+    !(await page
+      .locator('.entity-inspector')
+      .getByRole('button', { name: 'Show observed trail', exact: true })
+      .isVisible())
+  )
+    await page
+      .locator('.entity-inspector')
+      .getByText('Observed trail', { exact: true })
+      .click();
   await page
     .getByRole('button', { name: 'Show observed trail', exact: true })
     .click();
-  await expect(page.locator('.trail-readout')).toContainText('503');
+  await expect(page.locator('.entity-inspector .trail-readout')).toContainText(
+    '503',
+  );
   await page.unroute('**/observed-history?**');
   await page
     .getByRole('button', { name: 'Retry history', exact: true })
     .click();
-  await expect(page.locator('.trail-readout')).toContainText('8 observations');
+  await expect(page.locator('.entity-inspector .trail-readout')).toContainText(
+    '8 observations',
+  );
 });
 
 test('committed removals and stale/reconnect preserve selection, inspector identity and camera', async ({
@@ -512,43 +593,45 @@ test('committed removals and stale/reconnect preserve selection, inspector ident
   await page.goto(origin);
   await load(page);
   await select(page);
-  await page.getByRole('button', { name: 'Open Details', exact: true }).click();
-  await tabAction(page, 'Details · F-01', 'Open to Side');
+  await page
+    .getByRole('button', { name: 'Pin inspector', exact: true })
+    .click();
+  await tabAction(page, 'Pinned · F-01', 'Open to Side');
   await page.getByRole('tab', { name: 'Tactical Map', exact: true }).click();
   await ready(page);
   const before = await inspect(page);
   await advanceFixture(page, mid);
-  await expect(page.locator('.map-selection')).toContainText(
-    'No position supplied',
-  );
   await expect(page.locator('.entity-inspector')).toContainText(
     'No position supplied',
   );
   expect((await inspect(page)).camera).toEqual(before.camera);
   blocked = true;
   current!.close({ code: 1011, reason: 'Injected outage' });
-  await expect(page.locator('.entity-inspector')).toContainText('STALE FRAME');
+  await expect(page.locator('.entity-inspector')).toContainText('Stale frame');
   await expect(pane(page)).toContainText('STALE');
   blocked = false;
   await page.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(page.locator('.connection-state')).toHaveText('CONNECTED');
   await pane(page)
-    .getByRole('button', { name: /Reset filters/ })
+    .getByRole('button', { name: 'Reset shared map filters', exact: true })
     .click();
-  await pane(page)
+  await page.getByRole('button', { name: 'Open Details', exact: true }).click();
+  await page
+    .locator('.selection-details')
     .getByRole('button', { name: 'Clear selection', exact: true })
     .click();
   await pick(page, 'unknown-01');
-  await pane(page)
-    .getByRole('button', { name: 'Open Details', exact: true })
+  await page
+    .locator('.selection-details')
+    .getByRole('button', { name: 'Pin inspector', exact: true })
     .click();
   await advanceFixture(page, mid);
   await expect(
     page.getByRole('heading', { name: 'Entity unavailable' }),
   ).toBeVisible();
   await page.getByRole('tab', { name: 'Tactical Map', exact: true }).click();
-  await expect(page.locator('.map-selection')).toContainText(
-    'Unavailable in this frame',
+  await expect(page.locator('.selection-details')).toContainText(
+    'missing from the presented frame',
   );
   await expect(pane(page)).toHaveAttribute(
     'data-selection',

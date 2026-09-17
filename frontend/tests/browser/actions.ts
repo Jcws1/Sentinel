@@ -1,5 +1,24 @@
 import { expect, type Page } from '@playwright/test';
 
+/** Fixture identities/data are unchanged; their short labels live in the secondary menu. */
+export async function loadFixture(page: Page, name: string) {
+  await page.getByRole('button', { name: 'Load mission', exact: true }).click();
+  const submenu = page.getByRole('menuitem', {
+    name: 'Developer fixtures',
+    exact: true,
+  });
+  await submenu.focus();
+  await page.keyboard.press('ArrowRight');
+  await page
+    .getByRole('menuitem', {
+      name: /^Synthetic (Alpha|Bravo|Tactical|Observations)$/.test(name)
+        ? name.replace(/^Synthetic /, '')
+        : name,
+      exact: true,
+    })
+    .click();
+}
+
 /** Fixtures advance through the opt-in backend authority; the product has no generator. */
 export async function advanceFixture(page: Page, missionId: string) {
   const origin = new URL(page.url()).origin;

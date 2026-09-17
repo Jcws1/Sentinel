@@ -82,3 +82,13 @@
   gap: 5px;
   min-height: 24px;
 }
+.simulation-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  min-height: 24px;
+}
+.simulation-toggle:disabled {
+  color: var(--text-muted);
+}

@@ -133,8 +133,15 @@ export function Credits() {
         </dl>
       </section>
       <section>
-        <h2>Map software and assets</h2>
+        <h2>Software and assets</h2>
         <dl>
+          <div>
+            <dt>Inter typeface</dt>
+            <dd>
+              Locally bundled UI typeface by Rasmus Andersson.{' '}
+              <Link href="/fonts/Inter-LICENSE.txt">SIL Open Font License</Link>
+            </dd>
+          </div>
           <div>
             <dt>MapLibre GL JS</dt>
             <dd>

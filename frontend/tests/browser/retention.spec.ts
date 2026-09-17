@@ -1,3 +1,4 @@
+import { loadFixture } from './actions';
 import { test, expect, type Page } from '@playwright/test';
 import { advanceFixture, closeTab, tabAction } from './actions';
 import type { CameraIntent, MapMode } from '../../src/renderers/contracts';
@@ -62,9 +63,8 @@ async function ready(page: Page, mode: MapMode = 'tactical', id = 'tactical') {
     .poll(async () => (await inspect(page, mode, id))?.retainable)
     .toBe(true);
 }
-async function load(page: Page, name = 'Synthetic Tactical') {
-  await page.getByRole('button', { name: 'Load mission', exact: true }).click();
-  await page.getByRole('menuitem', { name, exact: true }).click();
+async function load(page: Page, name = 'Tactical') {
+  await loadFixture(page, name);
   await expect(page.locator('.connection-state')).toHaveText('CONNECTED');
 }
 
@@ -105,9 +105,14 @@ test('twenty warm tab/mode changes reuse viewers, suspend hidden work and resume
     .getByRole('button', { name: /^Select / })
     .first()
     .click();
-  const selected = await readout
-    .locator('[data-field="selection"]')
-    .textContent();
+  const selected = (
+    await page.request
+      .get(`${origin}/api/missions/fixture-tactical/world`)
+      .then((r) => r.json())
+  ).entities;
+  const selectedId = Object.values(selected).find(
+    (e) => (e as { label: string }).label === 'F-01',
+  ) as { id: string };
   const frame = await readout.getAttribute('data-frame-id');
   await page.waitForTimeout(350);
   expect((await inspect(page, 'three-d')).environment!.renderedFrames).toBe(
@@ -116,7 +121,7 @@ test('twenty warm tab/mode changes reuse viewers, suspend hidden work and resume
   await page.getByRole('button', { name: 'Open Map', exact: true }).click();
   await ready(page, 'three-d');
   expect((await inspect(page, 'three-d')).frameId).toBe(frame);
-  expect((await inspect(page, 'three-d')).selectionId).toBe(selected);
+  expect((await inspect(page, 'three-d')).selectionId).toBe(selectedId.id);
   expect(
     (await inspect(page, 'three-d')).camera.center.longitudeDeg,
   ).toBeCloseTo(initial.camera.center.longitudeDeg, 6);
@@ -143,7 +148,7 @@ test('twenty warm tab/mode changes reuse viewers, suspend hidden work and resume
   await expect.poll(async () => (await pool(page)).alive).toBe(0);
   await page.getByRole('button', { name: 'Open Map', exact: true }).click();
   await ready(page, 'three-d');
-  expect((await inspect(page, 'three-d')).selectionId).toBe(selected);
+  expect((await inspect(page, 'three-d')).selectionId).toBe(selectedId.id);
   expect(
     await page.evaluate(
       () => (window as unknown as Probes).__sentinelCesiumTest.stats().created,
@@ -163,7 +168,7 @@ test('hidden mission changes reconcile before a retained renderer becomes curren
   await page
     .getByRole('button', { name: 'Open Command Picture', exact: true })
     .click();
-  await load(page, 'Synthetic Bravo');
+  await load(page, 'Bravo');
   await page.setViewportSize({ width: 1100, height: 700 });
   await page.getByRole('button', { name: 'Open Map', exact: true }).click();
   await ready(page);

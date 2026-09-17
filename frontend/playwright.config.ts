@@ -8,14 +8,15 @@ export default defineConfig({
     ['list'],
     [
       'json',
-      { outputFile: '../docs/map-services/evidence/browser-results.json' },
+      { outputFile: '../docs/compact-demo/evidence/browser-results.json' },
     ],
   ],
   use: {
     channel: 'msedge',
     headless: true,
     viewport: { width: 1440, height: 900 },
-    trace: 'retain-on-failure',
+    // Interactive authority headers must never enter captured network traces.
+    trace: 'off',
   },
   webServer: [
     {

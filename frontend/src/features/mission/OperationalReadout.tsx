@@ -2,6 +2,10 @@ import { useSyncExternalStore } from 'react';
 import { useOperationalRuntime } from '../../app/OperationalContext';
 import type { ApplicationRuntime } from '../../app/runtime';
 import type { ViewId } from '../workspace/viewRegistry';
+import type { WorkspaceBridge } from '../workspace/workspaceBridge';
+import { selectForDetails } from '../entities/selectionActions';
+import { CopyValue } from '../entities/CopyValue';
+import { formatSgt } from '../../world/time';
 
 type ViewLabel = { title: string; unavailable: string };
 function EmptyView({ view }: { view: ViewLabel }) {
@@ -15,13 +19,15 @@ function EmptyView({ view }: { view: ViewLabel }) {
 export function OperationalReadout({
   view,
   viewId,
+  bridge,
 }: {
   view: ViewLabel;
   viewId: ViewId;
+  bridge: WorkspaceBridge;
 }) {
   const runtime = useOperationalRuntime();
   return runtime ? (
-    <Readout runtime={runtime} view={view} viewId={viewId} />
+    <Readout runtime={runtime} view={view} viewId={viewId} bridge={bridge} />
   ) : (
     <EmptyView view={view} />
   );
@@ -30,10 +36,12 @@ function Readout({
   runtime,
   view,
   viewId,
+  bridge,
 }: {
   runtime: ApplicationRuntime;
   view: ViewLabel;
   viewId: ViewId;
+  bridge: WorkspaceBridge;
 }) {
   const state = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);
   const frame = state.presentation.frame;
@@ -61,22 +69,29 @@ function Readout({
       )}
       <dl className="frame-facts">
         <div>
-          <dt>Frame</dt>
-          <dd data-field="frame">{frame.frameId}</dd>
+          <dt>Observation time</dt>
+          <dd data-field="effective-time">
+            {formatSgt(frame.effectiveAt, { date: true })}
+          </dd>
         </div>
         <div>
-          <dt>Mission time / UTC</dt>
-          <dd data-field="effective-time">{frame.effectiveAt}</dd>
-        </div>
-        <div>
-          <dt>Recorded / UTC</dt>
-          <dd>{frame.recordedAt}</dd>
-        </div>
-        <div>
-          <dt>Sequence</dt>
-          <dd data-field="sequence">{frame.sequence}</dd>
+          <dt>Recorded</dt>
+          <dd>{formatSgt(frame.recordedAt, { date: true })}</dd>
         </div>
       </dl>
+      <details className="detail-section">
+        <summary>Technical frame</summary>
+        <dl>
+          <div data-field="frame">
+            <CopyValue label="Frame ID" value={frame.frameId} />
+          </div>
+          <div data-field="sequence">
+            <CopyValue label="Sequence" value={frame.sequence} />
+          </div>
+          <CopyValue label="Observation UTC" value={frame.effectiveAt} />
+          <CopyValue label="Recorded UTC" value={frame.recordedAt} />
+        </dl>
+      </details>
       <div className="readout-counts">
         <span>
           Entities <b data-field="entity-count">{entities.length}</b>
@@ -104,7 +119,6 @@ function Readout({
         <thead>
           <tr>
             <th scope="col">Entity</th>
-            <th scope="col">Identifier</th>
             <th scope="col">Affiliation</th>
           </tr>
         </thead>
@@ -115,12 +129,11 @@ function Readout({
                 <button
                   aria-label={`Select ${entity.label}`}
                   aria-pressed={selectedId === entity.id}
-                  onClick={() => runtime.selectEntity(entity.id)}
+                  onClick={() => selectForDetails(runtime, bridge, entity.id)}
                 >
                   {entity.label}
                 </button>
               </td>
-              <td className="mono">{entity.id}</td>
               <td>{entity.affiliation}</td>
             </tr>
           ))}
@@ -129,7 +142,9 @@ function Readout({
       <div className="selection-summary">
         Selected{' '}
         <span className="mono" data-field="selection">
-          {selectedId ?? 'None'}
+          {selectedId
+            ? (frame.entities[selectedId]?.label ?? 'Missing entity')
+            : 'None'}
         </span>
         {selectedId && !Object.hasOwn(frame.entities, selectedId) && (
           <span>Unavailable in this frame</span>

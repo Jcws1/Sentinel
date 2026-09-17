@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import rawFixture from '../../../contracts/sentinel/v1.1/fixture.world.json';
+import rawFixture from '../../../contracts/sentinel/v1.4/fixture.world.json';
 import { createRuntime, type ApplicationRuntime } from '../../src/app/runtime';
 import { decodeCatalog, validateFrame } from '../../src/contracts/decode';
 import type { DeltaMessage, WorldFrame } from '../../src/contracts/types';
@@ -25,7 +25,7 @@ function frameAt(sequence = 0, missionId = 'fixture-alpha'): WorldFrame {
 function snapshot(frame: WorldFrame) {
   return {
     type: 'snapshot',
-    schemaVersion: '1.1',
+    schemaVersion: '1.4',
     missionId: frame.mission.id,
     streamEpoch: frame.streamEpoch,
     sequence: frame.sequence,
@@ -38,7 +38,7 @@ function deltaFrom(
 ): DeltaMessage {
   return {
     type: 'delta',
-    schemaVersion: '1.1',
+    schemaVersion: '1.4',
     missionId: frame.mission.id,
     streamEpoch: frame.streamEpoch,
     sequence,
@@ -252,7 +252,7 @@ describe('one authoritative application subscription', () => {
     if (failure === 'heartbeat-gap')
       message = {
         type: 'heartbeat',
-        schemaVersion: '1.1',
+        schemaVersion: '1.4',
         missionId: initial.mission.id,
         streamEpoch: initial.streamEpoch,
         sequence: 9,
@@ -261,7 +261,7 @@ describe('one authoritative application subscription', () => {
     if (failure === 'resync')
       message = {
         type: 'resync-required',
-        schemaVersion: '1.1',
+        schemaVersion: '1.4',
         missionId: initial.mission.id,
         reason: 'slow-subscriber',
       };
@@ -308,7 +308,7 @@ describe('one authoritative application subscription', () => {
       vi.advanceTimersByTime(900);
       sockets[0].send({
         type: 'heartbeat',
-        schemaVersion: '1.1',
+        schemaVersion: '1.4',
         missionId: initial.mission.id,
         streamEpoch: initial.streamEpoch,
         sequence: initial.sequence,

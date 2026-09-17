@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import rawFixture from '../../../contracts/sentinel/v1.1/fixture.world.json';
+import rawFixture from '../../../contracts/sentinel/v1.4/fixture.world.json';
 import { validateFrame } from '../../src/contracts/decode';
 import type { Track, Zone } from '../../src/contracts/generated';
 import type { WorldFrame } from '../../src/contracts/types';
@@ -60,6 +60,42 @@ function locate(track: Track, longitude: number, latitude: number) {
 }
 
 describe('renderer-neutral scene', () => {
+  it('projects explicit fleet membership once and distinguishes down from missing response', () => {
+    const { frame, session } = fixture();
+    const [first, second] = Object.values(frame.entities);
+    const [track] = Object.values(frame.tracks);
+    first.affiliation = 'friendly';
+    second.affiliation = 'friendly';
+    first.condition = 'operational';
+    second.condition = 'operational';
+    track.state = 'stale';
+    let scene = project(frame, session);
+    expect(
+      scene.objects.find((object) => object.ref.id === first.id),
+    ).toMatchObject({ managed: true, unavailable: 'No response' });
+    expect(
+      scene.objects.find((object) => object.ref.id === second.id)?.managed,
+    ).toBe(false);
+    first.condition = 'non-operational';
+    scene = project(frame, session);
+    expect(
+      scene.objects.find((object) => object.ref.id === first.id)?.unavailable,
+    ).toBe('Down');
+    // A backend outage does not turn supplied operational condition into Down.
+    first.condition = 'operational';
+    track.state = 'tracking';
+    Object.values(frame.assets)[0].availability = 'available';
+    scene = createScene(
+      { status: 'stale', mode: 'live', frame: immutableCopy(frame) },
+      session,
+    );
+    expect(scene.stale).toBe(true);
+    expect(
+      scene.objects.find((object) => object.ref.id === first.id)?.unavailable,
+    ).toBeUndefined();
+    session.filters.affiliations = ['hostile'];
+    expect(project(frame, session).objects).toEqual([]);
+  });
   it('projects tracks once per Entity without counting Asset roles as objects', () => {
     const { frame, session } = fixture();
     const before = JSON.stringify(frame);

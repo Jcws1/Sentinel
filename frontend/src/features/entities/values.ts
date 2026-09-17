@@ -27,7 +27,7 @@ export function observationText(row: EntityRow) {
           ? 'Ended'
           : 'Tracking';
 }
-/** Age is relative to the presented frame, never the UTC+8 wall clock. */
+/** Age is relative to the presented frame, never the Singapore wall clock. */
 export function freshness(row: EntityRow, effectiveAt: string) {
   if (!row.track) return 'No recorded position';
   const seconds =

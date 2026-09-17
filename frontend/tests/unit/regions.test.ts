@@ -25,7 +25,7 @@ describe('Regional presentation and orientation', () => {
         { ...source, groundSpanM: 0 },
         regionalMissions['fixture-tactical'],
       ).groundSpanM,
-    ).toBe(150);
+    ).toBe(50);
   });
   it('keeps independent pane and per-projection pitches with shared geographic intent', () => {
     const bridge = new WorkspaceBridge();
@@ -46,12 +46,14 @@ describe('Regional presentation and orientation', () => {
       headingTrueDeg: 25,
       projection: 'three-d',
       pitchFromNadirDeg: 40,
+      focusHeightM: 120,
     });
     bridge.setMapMode('tactical', 'tactical');
     expect(bridge.getMapCamera('tactical', 'fixture-tactical')).toMatchObject({
       center: { longitudeDeg: 103.9 },
       pitchFromNadirDeg: 55,
       headingTrueDeg: 25,
+      focusHeightM: 120,
     });
     expect(bridge.getMapCamera('three-d', 'fixture-tactical')).toBeUndefined();
     expect(bridge.getMapCamera('tactical', 'fixture-bravo')).toBeUndefined();

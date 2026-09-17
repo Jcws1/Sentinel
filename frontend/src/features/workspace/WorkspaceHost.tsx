@@ -2,9 +2,11 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp } from 'lucide-react';
 import {
   Layout,
+  Actions,
   TabNode,
   type ITabRenderValues,
   type ILayoutProps,
+  type ILayoutApi,
 } from 'flexlayout-react';
 import { PaneHost, type PaneHooks } from './PaneHost';
 import { isViewId } from './viewRegistry';
@@ -21,6 +23,7 @@ export const WorkspaceHost = memo(function WorkspaceHost({
 }: PaneHooks & { bridge: WorkspaceBridge }) {
   const { onPaneEvent, renderExtension } = hooks;
   const scroll = useRef<HTMLDivElement>(null);
+  const layout = useRef<ILayoutApi>(null);
   const [overflow, setOverflow] = useState({
     x: false,
     y: false,
@@ -45,6 +48,14 @@ export const WorkspaceHost = memo(function WorkspaceHost({
       }
       const maxX = element!.scrollWidth - element!.clientWidth;
       const maxY = element!.scrollHeight - element!.clientHeight;
+      // A newly reoriented FlexLayout row is initially rendered before its rect
+      // is measured. Re-render that measured layout so its native separator
+      // publishes the real ARIA value; never synthesize a second resize model.
+      if (
+        element!.querySelector('.flexlayout__splitter:not([aria-valuenow])') &&
+        element!.clientHeight > 0
+      )
+        layout.current?.redraw();
       const next = {
         x: maxX > 1,
         y: maxY > 1,
@@ -162,7 +173,18 @@ export const WorkspaceHost = memo(function WorkspaceHost({
           }}
         >
           <Layout
+            ref={layout}
             model={bridge.layoutModel}
+            onAction={(action) => {
+              if (
+                action.type === Actions.DELETE_TAB &&
+                action.data.node === 'details'
+              ) {
+                bridge.close('details');
+                return undefined;
+              }
+              return action;
+            }}
             factory={factory}
             onRenderTab={identifyTab}
             onContextMenu={onContextMenu}

@@ -16,14 +16,14 @@ export const regionalMissions: Readonly<Record<string, MapRegion>> = {
     id: 'singapore-seasia',
     label: 'Singapore / Southeast Asia',
     bounds: [99, -1.5, 105.5, 7],
-    minSpanM: 150,
+    minSpanM: 50,
     maxSpanM: 1_100_000,
   },
   'fixture-observations': {
     id: 'singapore-seasia',
     label: 'Singapore / Southeast Asia',
     bounds: [99, -1.5, 105.5, 7],
-    minSpanM: 150,
+    minSpanM: 50,
     maxSpanM: 1_100_000,
   },
 };

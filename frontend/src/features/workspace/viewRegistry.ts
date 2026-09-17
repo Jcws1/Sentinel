@@ -10,6 +10,22 @@ import {
 
 // View kinds describe capabilities, never domain objects or individual pane instances.
 export const viewRegistry = {
+  details: {
+    unavailable: '',
+    title: 'Details',
+    category: 'Primary selection',
+    icon: Info,
+    description: 'Follow the primary selected entity.',
+    future: '',
+  },
+  movement: {
+    unavailable: '',
+    title: 'Activity',
+    category: 'Demo commands',
+    icon: Crosshair,
+    description: 'Inspect command outcomes and committed movement.',
+    future: '',
+  },
   tracks: {
     unavailable: 'Entity browsing is not implemented.',
     title: 'Tracks',
@@ -112,7 +128,7 @@ export function viewKind(id: ViewId): ViewKind {
 }
 export function viewTitle(id: ViewId): string {
   if (id.startsWith('inspector:'))
-    return `Details · ${inspectorIdentity(id)?.entityId ?? 'Unavailable'}`;
+    return `Pinned · ${inspectorIdentity(id)?.entityId ?? 'Unavailable'}`;
   return id.startsWith('tactical:')
     ? `Tactical Map ${id.slice('tactical:'.length)}`
     : viewRegistry[viewKind(id)].title;

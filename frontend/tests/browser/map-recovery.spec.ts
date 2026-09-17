@@ -1,4 +1,7 @@
+import { loadFixture } from './actions';
 import { expect, test, type Page } from '@playwright/test';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import type {
   CameraIntent,
   MapPresentation,
@@ -24,6 +27,10 @@ interface ViewProbe {
   spatial: SpatialStatus;
   diagnostics: {
     environmentLoads: number;
+    standardLayerGenerations?: Record<
+      'imagery' | 'terrain' | 'buildings',
+      number
+    >;
     requestRecovery?: ReturnType<RequestRecovery['snapshot']>;
     failures: { stage: string; code: string }[];
   };
@@ -34,6 +41,7 @@ interface ViewProbe {
     globeShown: boolean;
     photoVisibleTiles: number;
     osmBuildings: boolean;
+    imageryLayers: number;
   };
 }
 interface Probes {
@@ -57,10 +65,7 @@ const stats = (page: Page) =>
 
 async function load(page: Page) {
   await page.goto(origin);
-  await page.getByRole('button', { name: 'Load mission', exact: true }).click();
-  await page
-    .getByRole('menuitem', { name: 'Synthetic Tactical', exact: true })
-    .click();
+  await loadFixture(page, 'Tactical');
   await expect(page.locator('.connection-state')).toHaveText('CONNECTED');
   await pane(page).getByRole('button', { name: '3D', exact: true }).click();
   await expect.poll(async () => (await inspect(page))?.ready).toBe(true);
@@ -647,6 +652,22 @@ test('standard retry recovers failed terrain without reauthenticating or reloadi
     .toBe('error');
   await expect.poll(() => imageryTiles).toBeGreaterThan(0);
   await expect.poll(async () => (await inspect(page)).globeLoaded).toBe(true);
+  // Selection now opens a reserved Details pane. Wait until initial imagery
+  // loading and the resulting viewport resize have settled before measuring retry.
+  let previousTiles = -1,
+    stableLoadedChecks = 0;
+  await expect
+    .poll(
+      async () => {
+        const loaded = (await inspect(page)).globeLoaded;
+        stableLoadedChecks =
+          loaded && imageryTiles === previousTiles ? stableLoadedChecks + 1 : 0;
+        previousTiles = imageryTiles;
+        return stableLoadedChecks;
+      },
+      { intervals: [200, 300, 500] },
+    )
+    .toBeGreaterThanOrEqual(3);
   const before = await inspect(page);
   const initial = await stats(page);
   const selected = await pane(page).getAttribute('data-selection');
@@ -661,9 +682,23 @@ test('standard retry recovers failed terrain without reauthenticating or reloadi
     .poll(async () => (await inspect(page)).spatial.terrain)
     .toBe('ready');
   expect(imageryEndpoints).toBe(1);
-  expect(imageryTiles).toBe(initialImageryTiles);
   expect(terrainEndpoints).toBe(2);
   const after = await inspect(page);
+  // Cesium invalidates globe tiles when terrain changes, including cached tile
+  // textures. Assert Sentinel's service retention directly, not SDK tile demand.
+  expect(before.diagnostics.standardLayerGenerations).toBeDefined();
+  expect(after.diagnostics.standardLayerGenerations?.imagery).toBe(
+    before.diagnostics.standardLayerGenerations!.imagery,
+  );
+  expect(after.diagnostics.standardLayerGenerations?.buildings).toBe(
+    before.diagnostics.standardLayerGenerations!.buildings,
+  );
+  expect(after.diagnostics.standardLayerGenerations?.terrain).toBeGreaterThan(
+    before.diagnostics.standardLayerGenerations!.terrain,
+  );
+  expect(after.environment.imageryLayers).toBe(
+    before.environment.imageryLayers,
+  );
   expect(after.spatial.imagery).toBe('ready');
   expect(after.diagnostics.environmentLoads).toBe(
     before.diagnostics.environmentLoads,
@@ -671,4 +706,29 @@ test('standard retry recovers failed terrain without reauthenticating or reloadi
   expect((await stats(page)).created).toBe(initial.created);
   assertContext(before, after);
   await expect(pane(page)).toHaveAttribute('data-selection', selected!);
+  const evidence = resolve(
+    '../docs/compact-demo/evidence/regressions/regressions/recovery',
+  );
+  await mkdir(evidence, { recursive: true });
+  await writeFile(
+    resolve(evidence, 'provider-retry-resources.json'),
+    JSON.stringify(
+      {
+        provider:
+          'Explicit synthetic standard imagery and terrain; no real provider claim',
+        beforeGenerations: before.diagnostics.standardLayerGenerations,
+        afterGenerations: after.diagnostics.standardLayerGenerations,
+        imageryLayers: [
+          before.environment.imageryLayers,
+          after.environment.imageryLayers,
+        ],
+        imageryEndpoints,
+        terrainEndpoints,
+        initialImageryTiles,
+        imageryTiles,
+      },
+      null,
+      2,
+    ),
+  );
 });

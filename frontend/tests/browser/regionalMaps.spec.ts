@@ -1,3 +1,4 @@
+import { loadFixture } from './actions';
 import { test, expect, type Page } from '@playwright/test';
 import type {
   CameraIntent,
@@ -59,10 +60,7 @@ const inspect = (page: Page, threeD = false, id = 'tactical') =>
   );
 async function load(page: Page) {
   await page.goto(origin);
-  await page.getByRole('button', { name: 'Load mission', exact: true }).click();
-  await page
-    .getByRole('menuitem', { name: 'Synthetic Tactical', exact: true })
-    .click();
+  await loadFixture(page, 'Tactical');
   await expect.poll(async () => (await inspect(page))?.ready).toBe(true);
 }
 async function regional(page: Page, id = 'tactical') {
@@ -95,6 +93,7 @@ test('local source credits follow visible terrain and remain accessible when com
   await layer(page, 'Hillshade');
   await expect(attribution).toContainText('Mapterhorn');
   await page.setViewportSize({ width: 760, height: 650 });
+  await pane(page).getByRole('button', { name: 'Pan', exact: true }).click();
   const canvas = pane(page).locator('canvas');
   const box = await canvas.boundingBox();
   await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
@@ -177,7 +176,7 @@ test('local source credits follow visible terrain and remain accessible when com
   );
 });
 
-test('Pan prevents keyboard selection and the 3D Layers disclosure is keyboard-scrollable at 960 by 600', async ({
+test('Pan permits keyboard selection and the 3D Layers disclosure is keyboard-scrollable at 960 by 600', async ({
   page,
 }) => {
   await load(page);
@@ -189,10 +188,16 @@ test('Pan prevents keyboard selection and the 3D Layers disclosure is keyboard-s
     /fixture-tactical-/,
   );
   await pane(page).getByRole('button', { name: 'Pan', exact: true }).click();
-  await pane(page).getByRole('button', { name: 'Clear selection' }).click();
+  await page
+    .locator('.selection-details')
+    .getByRole('button', { name: 'Clear selection', exact: true })
+    .click();
   await pane(page).locator('canvas').focus();
   await page.keyboard.press('Enter');
-  await expect(pane(page)).not.toHaveAttribute('data-selection', /.+/);
+  await expect(pane(page)).toHaveAttribute(
+    'data-selection',
+    /fixture-tactical-/,
+  );
   await pane(page).getByRole('button', { name: 'Select', exact: true }).click();
   await pane(page).locator('canvas').focus();
   await page.keyboard.press('Enter');

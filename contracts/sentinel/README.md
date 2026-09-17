@@ -1,6 +1,6 @@
 # Foundation contracts â€” Phase 0 draft
 
-**Phase 2 authority:** The runnable generic domain is now `backend/app/domain/models.py`. Its current versioned exports are in [`v1.1/`](v1.1/README.md); [`v1/`](v1/README.md) remains the frozen legacy contract, and the product consumes `frontend/src/contracts/generated.ts`. The files beside this README remain the reproducible Phase 0 design record; they are not imported by the product runtime. Ownership below remains applicable. The validation limitations described here refer to the archived draft, not the promoted application.
+**Current authority:** The runnable generic domain is `backend/app/domain/models.py`. Current compact-demo exports are in [`v1.4/`](v1.4/README.md); `v1/`, `v1.1/`, `v1.2/` and `v1.3/` remain frozen legacy contracts. The product consumes `frontend/src/contracts/generated.ts`. Files beside this README remain the reproducible Phase 0 design record; they are not imported by the product runtime. Ownership below remains applicable. The validation limitations described here refer to the archived draft, not the promoted application.
 
 `backend/drafts/domain.py` is the backend wire-shape authority. `world.schema.json` and `world.generated.d.ts` are generated outputs; `session-view.ts` is handwritten client-only state and runtime ports. This is not a backend app, frontend shell, simulation resolver or renderer implementation.
 

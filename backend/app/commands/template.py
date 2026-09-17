@@ -1,22 +1,24 @@
-"""Authored stationary cases for M1.1. No movement or encounter handler."""
+"""Authored local synthetic cases. Movement is explicit; no encounter handler."""
 from uuid import uuid4
 from app.commands.contracts import InteractiveRun, Lease, AssetControl
 from app.domain.models import Mission
 from app.world.serialization import canonical
 import json
 
-TEMPLATE = "singapore-local-v1"
+TEMPLATE = "singapore-local-v2"
+LEGACY_TEMPLATE = "singapore-local-v1"
 
 
-def new_template(at: str):
+def new_template(at: str, template_id=TEMPLATE):
     mid, rid, epoch = (str(uuid4()) for _ in range(3))
     source = {"id": f"demo-source-{rid}", "kind": "simulation", "mode": "simulated"}
     executor, grant = f"local-executor-{rid}", str(uuid4())
     point = {"longitudeDeg": 103.85, "latitudeDeg": 1.29,
              "altitude": {"metres": 150.0, "reference": "ELLIPSOID", "datumId": "WGS84"}}
-    mission = Mission(id=mid, name=f"Local demo {mid[:8]}", domain="synthetic-interactive", lifecycle="draft",
+    mission = Mission(id=mid, name="Demo", domain="synthetic-interactive", lifecycle="draft",
                       created_at=at, updated_at=at, reference_point=point,
-                      extensions={"sentinel.interactive": {"templateId": TEMPLATE, "synthetic": True}})
+                      extensions={"sentinel.interactive": {"templateId": template_id, "synthetic": True,
+                          **({"vehicleProfile": "sting-reference-v1", "cruiseSpeedKmh": 155} if template_id == TEMPLATE else {})}})
     frame = {"mission": json.loads(canonical(mission)), "effectiveAt": at, "entities": {}, "tracks": {},
              "assets": {}, "sensors": {}, "zones": {}, "tasks": {}}
     provenance = {"source": source, "effectiveAt": at, "recordedAt": at}
@@ -43,16 +45,16 @@ def new_template(at: str):
                                         control_track_id=tid if label != "F-03" else None, source_id=source["id"], grant_id=grant,
                                         binding_revision=1, capabilities=["move-horizontal"] if index < 2 else [],
                                         position_reference="ELLIPSOID/WGS84",
-                                        reason="Movement is not available in M1.1" if index < 2 else "Position missing" if index == 2 else "Stale control report"))
+                                        reason="Start the source to move." if index < 2 else "Position missing" if index == 2 else "Stale control report"))
     # A competing display observation demonstrates that it never selects control routing.
     tid = f"{rid}:F-01:control"
     alternate = json.loads(canonical(frame["tracks"][tid]))
     alternate.update(id=f"{rid}:F-01:alternate", source={"id": "demo-observer-v1", "kind": "sensor", "mode": "simulated"})
     frame["tracks"][alternate["id"]] = alternate
-    run = InteractiveRun(mission_id=mid, run_id=rid, executor_id=executor, executor_epoch=epoch,
+    run = InteractiveRun(mission_id=mid, run_id=rid, template_id=template_id, executor_id=executor, executor_epoch=epoch,
                          source_id=source["id"], state="ready", run_revision=0, grant_id=grant, grant_revision=0,
                          capabilities=["run-control", "scenario-pair"],
-                         supported_actions=["acquire", "renew", "reclaim", "revoke", "start", "pause", "resume", "end"],
+                         supported_actions=["acquire", "renew", "reclaim", "revoke", "start", "pause", "resume", "end", "cancel"],
                          lease=Lease(revision=0), tick=0, controls=controls)
     frame["interactive"] = json.loads(canonical(run))
     return mission, frame

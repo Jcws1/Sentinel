@@ -1,3 +1,4 @@
+import { loadFixture } from './actions';
 import { test, expect, type Page, type WebSocketRoute } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -8,7 +9,9 @@ import { syntheticTile } from './syntheticTile';
 import { advanceFixture, closeTab, tabAction, unloadMission } from './actions';
 
 const origin = 'http://127.0.0.1:5182';
-const dir = resolve('../docs/map-services/evidence');
+const dir = resolve(
+  '../docs/compact-demo/evidence/regressions/regressions/map-services',
+);
 const pane = (page: Page, id = 'tactical') =>
   page.locator(`.tactical-view[data-view-id="${id}"]`);
 type Snapshot = {
@@ -64,9 +67,8 @@ async function ready(
     .poll(async () => (await inspect(page, mode, id))?.ready)
     .toBe(true);
 }
-async function load(page: Page, name = 'Synthetic Tactical') {
-  await page.getByRole('button', { name: 'Load mission', exact: true }).click();
-  await page.getByRole('menuitem', { name, exact: true }).click();
+async function load(page: Page, name = 'Tactical') {
+  await loadFixture(page, name);
   await expect(page.locator('.connection-state')).toHaveText('CONNECTED');
 }
 async function mode(
@@ -273,9 +275,7 @@ test('3D mission switching, missing selected entities and stale recovery respect
   await expect
     .poll(async () => (await inspect(page)).frameId)
     .toBe(final.frameId);
-  await expect(pane(page).locator('.map-selection')).toContainText(
-    'Unavailable',
-  );
+  await expect(page.locator('.selection-details')).toContainText('unavailable');
   expect((await inspect(page)).entityIds).not.toContain(
     'fixture-tactical-unknown-01',
   );
@@ -283,14 +283,17 @@ test('3D mission switching, missing selected entities and stale recovery respect
   socket!.close({ code: 1011 });
   await expect(page.locator('.connection-state')).toHaveText('STALE');
   await expect(pane(page)).toContainText('Last complete frame retained');
-  expect((await inspect(page)).frameId).toBe(final.frameId);
+  // Stale symbols upload asynchronously; wait for the rendered frame as above.
+  await expect
+    .poll(async () => (await inspect(page)).frameId)
+    .toBe(final.frameId);
   await page.screenshot({
     path: resolve(dir, '3d-stale-unavailable-selection.png'),
   });
   blocked = false;
   await page.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(page.locator('.connection-state')).toHaveText('CONNECTED');
-  await load(page, 'Synthetic Bravo');
+  await load(page, 'Bravo');
   await expect
     .poll(async () => (await inspect(page)).missionId)
     .toBe('fixture-bravo');
@@ -766,7 +769,8 @@ test('remote selection moves the visible Cesium ring without camera input', asyn
   await page.screenshot({
     path: resolve(dir, 'shared-selection-rendered.png'),
   });
-  await pane(page, 'tactical:2')
+  await page
+    .locator('.selection-details')
     .getByRole('button', { name: 'Clear selection', exact: true })
     .click();
   await expect.poll(() => ringPixels('hostile-01')).toBeLessThan(5);

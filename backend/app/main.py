@@ -55,7 +55,7 @@ def create_app(db_path: str | None = None, fixtures_enabled: bool | None = None,
                     await runner
             repository.close()
 
-    application = FastAPI(title="Sentinel world authority", version="1.1.0", lifespan=lifespan)
+    application = FastAPI(title="Sentinel world authority", version="1.4.0", lifespan=lifespan)
     application.include_router(missions.router)
     application.include_router(stream.router)
     application.include_router(interactive.router)

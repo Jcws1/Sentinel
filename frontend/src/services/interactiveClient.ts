@@ -4,30 +4,60 @@ import type {
   DemoEntry,
   Receipt,
   RunRead,
+  LegacyReceipt,
+  LegacyM12Receipt,
+  MoveIntent,
+  MoveRequest,
+  DirectMoveIntent,
+  DirectMoveRequest,
 } from '../contracts/generated';
 import {
   decodeEntry,
   decodeIntent,
   decodeReceipt,
   decodeRunRead,
+  decodeDirectMoveRequest,
 } from '../contracts/interactive';
 import type { Fetcher } from './api';
 import { immutableCopy } from '../world/immutable';
 import type { DeepReadonly } from '../contracts/types';
 
 export type Action = CommandRequest['intent']['action'];
-type Pending = { missionId?: string; body: CommandRequest | CreateRunRequest };
+type Pending = {
+  missionId?: string;
+  body: CommandRequest | CreateRunRequest | MoveRequest;
+};
+export type DirectPending = { missionId: string; body: DirectMoveRequest };
+export interface DirectFeedback {
+  acknowledgedAt?: number;
+  id: string;
+  longitudeDeg: number;
+  latitudeDeg: number;
+  stage: 'pending' | 'accepted' | 'rejected';
+  message: string;
+}
 export interface InteractiveState {
+  directPending: readonly DirectPending[];
+  directReceipt?: DeepReadonly<Receipt>;
+  directReceipts: readonly DeepReadonly<Receipt>[];
+  directFeedback?: DirectFeedback;
+  startingDemo: boolean;
   entry?: DeepReadonly<DemoEntry>;
   current?: DeepReadonly<RunRead>;
   pending?: DeepReadonly<Pending>;
   busy: boolean;
   error?: string;
-  receipt?: DeepReadonly<Receipt>;
+  receipt?: DeepReadonly<Receipt | LegacyReceipt | LegacyM12Receipt>;
+  movementReceipt?: DeepReadonly<Receipt | LegacyReceipt | LegacyM12Receipt>;
+  now?: string;
   holderId: string;
 }
 const pendingKey = 'sentinel.interactive.pending.v1';
 const privateKey = 'sentinel.interactive.private.v1';
+const directKey = 'sentinel.interactive.direct.v1';
+const orderKey = 'sentinel.interactive.order.v1';
+const startupKey = 'sentinel.interactive.startup.v1';
+const releaseKey = 'sentinel.interactive.released.v1';
 export interface PrivateSession {
   holderId: string;
   credential: string;
@@ -51,7 +81,23 @@ export function createInteractiveClient(options: {
   let privateSession: PrivateSession | undefined;
   let pending: Pending | undefined;
   let error: string | undefined;
+  let directPending: DirectPending[] = [];
+  let startup: string | undefined;
+  let nextOrder = 0;
+  let storageFault = false;
+  let released: string[] = [];
   try {
+    directPending = (
+      JSON.parse(storage?.getItem(directKey) ?? '[]') as DirectPending[]
+    ).map((p) => {
+      const body = decodeDirectMoveRequest(p.body);
+      if (p.missionId !== body.direct.missionId)
+        throw new Error('Saved movement context mismatch');
+      return { missionId: p.missionId, body };
+    });
+    nextOrder = Number(storage?.getItem(orderKey) ?? 0);
+    startup = storage?.getItem(startupKey) ?? undefined;
+    released = JSON.parse(storage?.getItem(releaseKey) ?? '[]') as string[];
     const saved = storage?.getItem(privateKey);
     if (saved) privateSession = JSON.parse(saved) as PrivateSession;
     const savedPending = storage?.getItem(pendingKey);
@@ -60,10 +106,14 @@ export function createInteractiveClient(options: {
       error = 'Outcome unknown after reload. Reconcile the saved request.';
     }
   } catch {
+    storageFault = true;
     error =
       'Saved session could not be read. Requests are blocked until session storage is available.';
   }
   let state: InteractiveState = {
+    directPending,
+    directReceipts: [],
+    startingDemo: !!startup,
     holderId: privateSession?.holderId ?? 'This local session',
     pending,
     busy: false,
@@ -75,11 +125,20 @@ export function createInteractiveClient(options: {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let abort: AbortController | undefined;
   let polling = false;
+  let managing = false;
+  let creatingDemo = false;
+  const directSending = new Set<string>();
+  let latestDirectId: string | undefined;
+  let latestDirectOrder = -1;
+  let clockAnchor: { iso: string; elapsed: number } | undefined;
+  let healthTimer: ReturnType<typeof setInterval> | undefined;
   const emit = (update: Partial<InteractiveState>) => {
     state = { ...state, ...update };
     options.publish();
   };
   function identity() {
+    if (storageFault)
+      throw new Error('Saved session cannot be decoded; requests are blocked.');
     if (!storage)
       throw new Error(
         'Session storage is unavailable; request identity cannot be saved.',
@@ -165,15 +224,22 @@ export function createInteractiveClient(options: {
         : undefined;
       if (current && current.run.missionId !== mid)
         throw new Error('Run status mission mismatch');
-      if (!disposed && gen === generation)
+      if (!disposed && gen === generation) {
+        if (current)
+          clockAnchor = { iso: current.serverTime, elapsed: performance.now() };
         emit({
           entry,
           current,
+          now: current?.serverTime,
           error:
-            pending || state.receipt?.accepted === false
+            storageFault ||
+            pending ||
+            state.receipt?.accepted === false ||
+            state.directFeedback?.stage === 'rejected'
               ? state.error
               : undefined,
         });
+      }
     } catch (e) {
       if (!disposed && gen === generation)
         emit({
@@ -196,28 +262,50 @@ export function createInteractiveClient(options: {
       'creationId' in sent.body ? sent.body.creationId : sent.body.commandId;
     if (
       receipt.requestId !== id ||
+      receipt.operation !==
+        ('creationId' in sent.body
+          ? 'create'
+          : 'move' in sent.body
+            ? 'move'
+            : sent.body.intent.action) ||
       (sent.missionId && receipt.missionId !== sent.missionId)
     )
       throw new Error('Receipt identity mismatch');
     if (disposed || gen !== generation) return;
+    if (receipt.accepted && sent.missionId) {
+      if (receipt.operation === 'revoke')
+        released = [...new Set([...released, sent.missionId])];
+      if (receipt.operation === 'acquire' || receipt.operation === 'reclaim')
+        released = released.filter((id) => id !== sent.missionId);
+      storage!.setItem(releaseKey, JSON.stringify(released));
+    }
     storage!.removeItem(pendingKey);
     pending = undefined;
     emit({
       pending: undefined,
       receipt,
+      ...('move' in sent.body ||
+      ('intent' in sent.body && sent.body.intent.action === 'cancel')
+        ? { movementReceipt: receipt }
+        : {}),
       error: receipt.accepted
         ? undefined
         : `${receipt.code}: ${receipt.message}`,
     });
-    if (receipt.accepted && receipt.operation === 'create')
+    if (receipt.accepted && receipt.operation === 'create') {
+      if (creatingDemo || startup === 'creating') {
+        startup = receipt.missionId!;
+        storage!.setItem(startupKey, startup);
+      }
       options.loadMission(receipt.missionId!);
+    }
     await refresh();
   }
   async function transmit(sent: Pending, gen: number) {
     await accept(
       await request(
         sent.missionId
-          ? `/${encodeURIComponent(sent.missionId)}/commands`
+          ? `/${encodeURIComponent(sent.missionId)}/${'move' in sent.body ? 'moves' : 'commands'}`
           : '/runs',
         'POST',
         sent.body,
@@ -227,7 +315,7 @@ export function createInteractiveClient(options: {
       gen,
     );
   }
-  async function perform(action: Action | 'create') {
+  async function perform(action: Action | 'create', executionId?: string) {
     if (disposed || state.busy || pending) return;
     const gen = generation,
       mid = missionId;
@@ -238,7 +326,7 @@ export function createInteractiveClient(options: {
         remember({
           body: {
             creationId: crypto.randomUUID(),
-            templateId: 'singapore-local-v1',
+            templateId: 'singapore-local-v2',
           },
         });
       } else {
@@ -246,10 +334,15 @@ export function createInteractiveClient(options: {
         const intent = decodeIntent(
           await request(`/${encodeURIComponent(mid)}/intents`, 'POST', {
             action,
+            ...(executionId ? { executionId } : {}),
           }),
         );
         if (disposed || gen !== generation) return;
-        if (intent.missionId !== mid || intent.action !== action)
+        if (
+          intent.missionId !== mid ||
+          intent.action !== action ||
+          (action === 'cancel' && intent.executionId !== executionId)
+        )
           throw new Error('Intent context mismatch');
         remember({
           missionId: mid,
@@ -301,8 +394,308 @@ export function createInteractiveClient(options: {
       if (!disposed && gen === generation) emit({ busy: false });
     }
   }
+  async function submitMove(move: MoveIntent, commandId: string) {
+    if (disposed || state.busy || pending || move.missionId !== missionId)
+      return;
+    const gen = generation;
+    emit({ busy: true, error: undefined });
+    try {
+      const session = identity();
+      remember({
+        missionId,
+        body: { commandId, holderId: session.holderId, move },
+      });
+      await transmit(pending!, gen);
+    } catch (e) {
+      if (!disposed && gen === generation)
+        emit({
+          error: pending
+            ? 'Outcome unknown. Reconcile or retry the saved Move; its identity is retained.'
+            : e instanceof Error
+              ? e.message
+              : 'Move unavailable.',
+        });
+    } finally {
+      if (!disposed && gen === generation) emit({ busy: false });
+    }
+  }
+  function saveDirect(values: DirectPending[]) {
+    identity();
+    // Persist the complete immutable content before either sending or forgetting it.
+    storage!.setItem(directKey, JSON.stringify(values));
+    directPending = values;
+    emit({ directPending: values });
+  }
+  function rejectDirect(
+    longitudeDeg: number,
+    latitudeDeg: number,
+    message: string,
+  ) {
+    const id = crypto.randomUUID();
+    latestDirectId = id;
+    emit({
+      directFeedback: {
+        id,
+        longitudeDeg,
+        latitudeDeg,
+        stage: 'rejected',
+        acknowledgedAt: Date.now(),
+        message,
+      },
+    });
+  }
+  async function acceptDirect(value: unknown, sent: DirectPending) {
+    const decoded = decodeReceipt(value);
+    if (
+      decoded.schemaVersion !== '1.2' ||
+      decoded.requestId !== sent.body.commandId ||
+      decoded.operation !== 'direct-move' ||
+      decoded.missionId !== sent.missionId ||
+      decoded.directOrder !== sent.body.direct.order
+    )
+      throw new Error('Direct movement receipt context mismatch.');
+    if (decoded.accepted && decoded.runId !== sent.body.direct.runId)
+      throw new Error('Direct receipt run mismatch.');
+    const captured = sent.body.direct.members,
+      outcomes = decoded.memberOutcomes ?? [];
+    if (
+      (decoded.accepted || outcomes.length > 0) &&
+      (outcomes.length !== captured.length ||
+        outcomes.some(
+          (o, i) =>
+            o.assetId !== captured[i].assetId ||
+            o.entityId !== captured[i].entityId,
+        ))
+    )
+      throw new Error('Direct receipt membership mismatch.');
+    if (disposed) return;
+    saveDirect(
+      directPending.filter((p) => p.body.commandId !== sent.body.commandId),
+    );
+    const receipt = decoded;
+    const receipts = [
+      ...state.directReceipts.filter((r) => r.requestId !== receipt.requestId),
+      receipt,
+    ].slice(-32);
+    const update: Partial<InteractiveState> = { directReceipts: receipts };
+    if (
+      missionId === sent.missionId &&
+      sent.body.commandId === latestDirectId &&
+      sent.body.direct.order >= latestDirectOrder
+    ) {
+      const outcomes = receipt.memberOutcomes ?? [];
+      const accepted = outcomes.filter((m) => m.outcome === 'accepted').length;
+      const skipped = outcomes.length - accepted;
+      const superseded = outcomes.some((m) => m.code === 'ORDER_SUPERSEDED');
+      const message = !receipt.accepted
+        ? receipt.message
+        : accepted
+          ? `${accepted} commanded${skipped ? ` · ${skipped} skipped` : ''}`
+          : superseded
+            ? 'A newer destination is already accepted.'
+            : 'No available drones.';
+      update.directReceipt = receipt;
+      update.directFeedback = {
+        id: sent.body.commandId,
+        ...sent.body.direct.anchor,
+        acknowledgedAt:
+          state.directFeedback?.id === sent.body.commandId
+            ? state.directFeedback.acknowledgedAt
+            : 0,
+        stage: receipt.accepted && accepted > 0 ? 'accepted' : 'rejected',
+        message,
+      };
+    }
+    emit(update);
+    await refresh();
+  }
+  async function transmitDirect(sent: DirectPending) {
+    const id = sent.body.commandId;
+    if (directSending.has(id) || disposed) return;
+    directSending.add(id);
+    try {
+      await acceptDirect(
+        await request(
+          `/${encodeURIComponent(sent.missionId)}/direct-moves`,
+          'POST',
+          sent.body,
+          true,
+        ),
+        sent,
+      );
+    } catch {
+      if (!disposed && latestDirectId === id && missionId === sent.missionId)
+        emit({
+          directFeedback: {
+            id,
+            ...sent.body.direct.anchor,
+            stage: 'pending',
+            acknowledgedAt: state.directFeedback?.acknowledgedAt ?? 0,
+            message: 'Confirming destination…',
+          },
+        });
+    } finally {
+      directSending.delete(id);
+    }
+  }
+  async function submitDirect(direct: Omit<DirectMoveIntent, 'order'>) {
+    if (disposed || direct.missionId !== missionId) return;
+    try {
+      if (directPending.length >= 64)
+        throw new Error('Waiting for outstanding destinations to reconcile.');
+      const session = identity();
+      const known =
+        state.current?.run.controls.flatMap((c) =>
+          c.lastDirectOrder &&
+          c.lastDirectOrder.holderId === session.holderId &&
+          c.lastDirectOrder.executorEpoch === direct.executorEpoch &&
+          c.lastDirectOrder.grantId === direct.grantId &&
+          c.lastDirectOrder.grantRevision === direct.grantRevision
+            ? [c.lastDirectOrder.order]
+            : [],
+        ) ?? [];
+      const order = Math.max(nextOrder, ...known, 0) + 1;
+      if (!Number.isSafeInteger(order))
+        throw new Error('Movement order unavailable.');
+      storage!.setItem(orderKey, String(order));
+      nextOrder = order;
+      const sent: DirectPending = {
+        missionId: direct.missionId,
+        body: {
+          commandId: crypto.randomUUID(),
+          holderId: session.holderId,
+          direct: structuredClone({ ...direct, order }),
+        },
+      };
+      saveDirect([...directPending, sent]);
+      latestDirectId = sent.body.commandId;
+      latestDirectOrder = order;
+      emit({
+        directReceipt: undefined,
+        directFeedback: {
+          id: latestDirectId,
+          ...direct.anchor,
+          stage: 'pending',
+          acknowledgedAt: Date.now(),
+          message: 'Destination requested',
+        },
+      });
+      await transmitDirect(sent);
+    } catch (e) {
+      rejectDirect(
+        direct.anchor.longitudeDeg,
+        direct.anchor.latitudeDeg,
+        e instanceof Error ? e.message : 'Destination unavailable.',
+      );
+    }
+  }
+  async function reconcileDirect() {
+    for (const sent of [...directPending]) {
+      if (disposed || directSending.has(sent.body.commandId)) continue;
+      directSending.add(sent.body.commandId);
+      let missing = false;
+      try {
+        await acceptDirect(
+          await request(
+            `/${encodeURIComponent(sent.missionId)}/receipts?identity=${encodeURIComponent(sent.body.commandId)}`,
+          ),
+          sent,
+        );
+      } catch (e) {
+        missing = (e as { status?: number }).status === 404;
+      } finally {
+        directSending.delete(sent.body.commandId);
+      }
+      // Retries keep the original order, identity, content and admission deadline.
+      if (missing && !disposed) await transmitDirect(sent);
+    }
+  }
+  async function manageControl() {
+    if (
+      disposed ||
+      managing ||
+      state.busy ||
+      pending ||
+      !missionId ||
+      released.includes(missionId)
+    )
+      return;
+    managing = true;
+    try {
+      for (let step = 0; step < 3; step++) {
+        const current = state.current;
+        if (
+          !current ||
+          current.run.missionId !== missionId ||
+          current.run.state === 'ended'
+        )
+          break;
+        if (!current.ownsControl) {
+          if (current.leaseState === 'unclaimed') await perform('acquire');
+          else if (
+            current.leaseState === 'expired' &&
+            current.run.lease.holderId === privateSession?.holderId
+          )
+            await perform('reclaim');
+          else break; // A valid other owner is never displaced.
+          if (storageFault || pending || state.receipt?.accepted === false)
+            break;
+        } else if (startup === missionId && current.run.state === 'ready') {
+          await perform('start');
+          if (storageFault || pending || state.receipt?.accepted === false)
+            break;
+        } else break;
+      }
+      if (
+        startup === missionId &&
+        state.current?.run.state === 'running' &&
+        state.current.run.lastReportAt
+      ) {
+        storage?.removeItem(startupKey);
+        startup = undefined;
+        emit({ startingDemo: false });
+      }
+    } finally {
+      managing = false;
+    }
+  }
+  async function newDemo() {
+    if (disposed || state.startingDemo || state.busy || pending) return;
+    if (state.entry?.activeMissionId) {
+      options.loadMission(state.entry.activeMissionId);
+      return;
+    }
+    creatingDemo = true;
+    try {
+      identity();
+      storage!.setItem(startupKey, 'creating');
+      startup = 'creating';
+      emit({ startingDemo: true });
+      await perform('create');
+      if (!pending && state.receipt?.accepted === false) {
+        storage!.removeItem(startupKey);
+        startup = undefined;
+        emit({ startingDemo: false });
+      }
+      await manageControl();
+    } catch (e) {
+      emit({
+        startingDemo: false,
+        error: e instanceof Error ? e.message : 'Demo startup unavailable.',
+      });
+    } finally {
+      creatingDemo = false;
+    }
+  }
   async function poll() {
     await refresh();
+    if (pending && !state.busy) {
+      await reconcile();
+      if (pending && state.error?.startsWith('No committed receipt yet.'))
+        await reconcile(true);
+    }
+    await reconcileDirect();
+    await manageControl();
     const current = state.current;
     if (
       !disposed &&
@@ -316,13 +709,21 @@ export function createInteractiveClient(options: {
     )
       await perform('renew');
     if (!disposed)
-      timer = setTimeout(() => {
-        void poll();
-      }, 5_000);
+      timer = setTimeout(
+        () => {
+          void poll();
+        },
+        state.startingDemo ? 500 : 5_000,
+      );
   }
   return {
     get: () => immutableCopy(state),
     perform,
+    submitMove,
+    submitDirect,
+    rejectDirect,
+    newDemo,
+    reconcileDirect,
     reconcile,
     refresh,
     setMission(mid?: string) {
@@ -330,15 +731,34 @@ export function createInteractiveClient(options: {
       generation++;
       abort?.abort();
       missionId = mid;
+      const latest = directPending
+        .filter((p) => p.missionId === mid)
+        .sort((a, b) => b.body.direct.order - a.body.direct.order)[0];
+      latestDirectId = latest?.body.commandId;
+      latestDirectOrder = latest?.body.direct.order ?? -1;
       emit({
         current: undefined,
         busy: false,
         receipt: undefined,
+        movementReceipt: undefined,
+        directReceipt: undefined,
+        directFeedback: undefined,
         error: pending ? 'A saved request needs reconciliation.' : undefined,
       });
-      void refresh();
+      void refresh().then(manageControl);
     },
     start() {
+      if (!healthTimer)
+        healthTimer = setInterval(() => {
+          if (clockAnchor && !disposed)
+            emit({
+              now: new Date(
+                Date.parse(clockAnchor.iso) +
+                  performance.now() -
+                  clockAnchor.elapsed,
+              ).toISOString(),
+            });
+        }, 1000);
       if (!timer)
         timer = setTimeout(() => {
           void poll();
@@ -349,6 +769,7 @@ export function createInteractiveClient(options: {
       generation++;
       abort?.abort();
       clearTimeout(timer);
+      clearInterval(healthTimer);
     },
   };
 }

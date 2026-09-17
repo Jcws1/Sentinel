@@ -2,9 +2,21 @@
 @source '../';
 @import 'flexlayout-react/style/dark.css';
 
+@font-face {
+  font-family: Inter;
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/InterVariable.woff2') format('woff2');
+}
+
 :root {
   color-scheme: dark;
-  font-family: 'Segoe UI', Arial, sans-serif;
+  --font-sans: Inter, 'Segoe UI', Arial, sans-serif;
+  font-family: var(--font-sans);
+  font-optical-sizing: auto;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  font-variant-numeric: tabular-nums;
   font-size: 12px;
   --surface-base: #0b0d10;
   --surface-raised: #101216;
@@ -394,27 +406,9 @@ h1 {
   margin-top: 7px;
   line-height: 1.6;
 }
-.status-bar {
-  height: 25px;
-  flex-shrink: 0;
-  background: var(--surface-raised);
-  border-top: 1px solid var(--border-subtle);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 0 12px;
-  color: var(--text-muted);
-  font-size: 10px;
-}
 .keyboard-button {
-  height: 23px;
-  flex-shrink: 0;
-  white-space: nowrap;
-  padding: 0 5px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  width: 32px;
+  height: 32px;
 }
 .keyboard-button:hover {
   background: var(--surface-hover);
@@ -530,7 +524,7 @@ h1 {
 /* Engine-owned layout, neutral tokens. Drag previews are UI state, never affiliation. */
 .flexlayout__layout {
   --font-size: 12px;
-  --font-family: 'Segoe UI', Arial, sans-serif;
+  --font-family: var(--font-sans);
   --color-text: var(--text-primary);
   --color-focus: var(--focus);
   --color-background: var(--surface-base);

@@ -2,7 +2,7 @@
 import json
 from datetime import datetime, timezone, timedelta
 from time import monotonic
-from app.domain.models import Model, WorldFrame, LegacyWorldFrame
+from app.domain.models import Model, WorldFrame, LegacyWorldFrame, LegacyInteractiveWorldFrame, LegacyMovementWorldFrame, LegacyRtsWorldFrame
 
 
 def utc_now() -> str:
@@ -27,6 +27,24 @@ def read_frame(text: str) -> WorldFrame:
         legacy = LegacyWorldFrame.model_validate_json(text)
         value = legacy.model_dump(mode="json", by_alias=True, exclude_none=True)
         value["schemaVersion"] = "1.1"
+    if value.get("schemaVersion") == "1.1":
+        legacy = LegacyInteractiveWorldFrame.model_validate_json(canonical(value))
+        value = legacy.model_dump(mode="json", by_alias=True, exclude_none=True)
+        value["schemaVersion"] = "1.2"
+        if value.get("interactive"):
+            value["interactive"]["schemaVersion"] = "1.1"
+    if value.get("schemaVersion") == "1.2":
+        legacy = LegacyMovementWorldFrame.model_validate_json(canonical(value))
+        value = legacy.model_dump(mode="json", by_alias=True, exclude_none=True)
+        value["schemaVersion"] = "1.3"
+        if value.get("interactive"):
+            value["interactive"]["schemaVersion"] = "1.2"
+    if value.get("schemaVersion") == "1.3":
+        legacy = LegacyRtsWorldFrame.model_validate_json(canonical(value))
+        value = legacy.model_dump(mode="json", by_alias=True, exclude_none=True)
+        value["schemaVersion"] = "1.4"
+        if value.get("interactive"):
+            value["interactive"]["schemaVersion"] = "1.3"
     return WorldFrame.model_validate_json(canonical(value))
 
 

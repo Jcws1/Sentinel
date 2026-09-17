@@ -29,6 +29,7 @@ export function moduleForView(view?: ViewId) {
   const kind = viewKind(view);
   if (kind === 'three-d') return 'map';
   if (kind === 'vertical') return 'command';
-  if (kind === 'inspector') return 'tracks';
+  if (kind === 'inspector' || kind === 'movement' || kind === 'details')
+    return 'tracks';
   return modules.find((item) => item.view === kind)?.id;
 }

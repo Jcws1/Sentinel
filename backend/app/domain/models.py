@@ -13,6 +13,9 @@ from pydantic.alias_generators import to_camel
 
 from app.domain.base import Model, Id, UtcInstant, Finite, Sequence, Longitude, Latitude
 from app.commands.contracts import InteractiveRun
+from app.commands.legacy_rts import LegacyRtsInteractiveRun
+from app.commands.legacy import LegacyInteractiveRun
+from app.commands.legacy_movement import LegacyM12InteractiveRun
 
 
 class Altitude(Model):
@@ -306,9 +309,9 @@ class LegacyWorldFrame(Model):
         return self
 
 
-class WorldFrame(LegacyWorldFrame):
+class LegacyInteractiveWorldFrame(LegacyWorldFrame):
     schema_version: Literal["1.1"]
-    interactive: InteractiveRun | None = None
+    interactive: LegacyInteractiveRun | None = None
 
     @model_validator(mode="after")
     def interactive_integrity(self):
@@ -331,6 +334,55 @@ class WorldFrame(LegacyWorldFrame):
         if run.last_report_at and run.last_report_at > self.recorded_at:
             raise ValueError("source report is newer than the frame")
         return self
+
+
+class LegacyMovementWorldFrame(LegacyInteractiveWorldFrame):
+    schema_version: Literal["1.2"]
+    interactive: LegacyM12InteractiveRun | None = None
+
+    @model_validator(mode="after")
+    def movement_integrity(self):
+        if self.interactive is None:
+            return self
+        run = self.interactive
+        seen = set()
+        active_assets = set()
+        for execution in run.executions:
+            if execution.id in seen or (execution.mission_id, execution.run_id) != (self.mission.id, run.run_id):
+                raise ValueError("execution identity mismatch")
+            seen.add(execution.id)
+            if execution.accepted_sequence > self.sequence or (execution.terminal_sequence is not None and execution.terminal_sequence > self.sequence):
+                raise ValueError("execution references future commit")
+            if execution.state not in ("Completed", "Cancelled", "Failed", "Expired", "Interrupted"):
+                if execution.asset_id in active_assets:
+                    raise ValueError("multiple active executions for one Asset")
+                active_assets.add(execution.asset_id)
+                controls = [c for c in run.controls if c.asset_id == execution.asset_id]
+                if len(controls) != 1 or controls[0].busy_revision != execution.reservation_revision:
+                    raise ValueError("execution reservation mismatch")
+                control = controls[0]
+                if any(getattr(control, name) != getattr(execution, name) for name in ("entity_id", "executor_id", "control_track_id", "source_id", "grant_id", "binding_revision")) or execution.executor_epoch != run.executor_epoch or execution.grant_revision != run.grant_revision:
+                    raise ValueError("execution control binding mismatch")
+            sample = execution.completion_sample
+            if sample and sample.sequence == self.sequence:
+                track = self.tracks.get(sample.track_id)
+                if track is None or canonical_position(track.latest.position) != canonical_position(sample.position) or track.latest.timestamp != sample.timestamp:
+                    raise ValueError("completion not backed by this committed sample")
+        return self
+
+
+class LegacyRtsWorldFrame(LegacyMovementWorldFrame):
+    schema_version: Literal["1.3"]
+    interactive: LegacyRtsInteractiveRun | None = None
+
+
+class WorldFrame(LegacyRtsWorldFrame):
+    schema_version: Literal["1.4"]
+    interactive: InteractiveRun | None = None
+
+
+def canonical_position(position):
+    return position.model_dump(mode="json", by_alias=True, exclude_none=True)
 
 
 class MissionList(Model):

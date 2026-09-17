@@ -22,6 +22,8 @@ function renderer(options: { ready?: boolean; bytes?: number } = {}) {
     setMode: vi.fn(),
     setPresentation: vi.fn(),
     recenter: vi.fn(),
+    overview: vi.fn(),
+    focusSelection: vi.fn(),
     retryProvider: vi.fn(),
     dispose: vi.fn(),
   } satisfies MapRenderer;

@@ -49,7 +49,7 @@ export function applyDelta(
     );
   }
   const next = {
-    schemaVersion: '1.1',
+    schemaVersion: '1.4',
     mission: delta.changes.mission,
     interactive: delta.changes.interactive,
     frameId: delta.frameId,

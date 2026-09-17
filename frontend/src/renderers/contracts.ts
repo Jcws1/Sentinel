@@ -10,6 +10,8 @@ export interface CameraIntent {
   headingTrueDeg: number;
   /** Optional, pane-local orientation; never a source altitude or operational value. */
   pitchFromNadirDeg?: number;
+  /** Presentation focus height only; never a requested or reported flight height. */
+  focusHeightM?: number;
   projection?: MapMode;
 }
 
@@ -21,6 +23,8 @@ export interface SceneObject {
   readonly label: string;
   readonly selected: boolean;
   readonly stale: boolean;
+  readonly managed?: boolean;
+  readonly unavailable?: string;
 }
 
 export interface SceneZone {
@@ -93,7 +97,12 @@ export interface SpatialStatus {
   retryAfterSeconds?: number;
 }
 export interface RendererCallbacks {
-  pick(id: string): void;
+  pick(id: string, additive?: boolean): void;
+  selection?(ids: string[], additive?: boolean): void;
+  clearSelection?(): void;
+  directMove?(longitude: number, latitude: number): void;
+  cancelDestination?(): void;
+  destination?(longitude: number, latitude: number): void;
   camera(missionId: string, camera: CameraIntent): void;
   status(status: ProviderStatus): void;
   announce(message: string): void;
@@ -109,16 +118,19 @@ export interface MapRenderer {
   captureCamera(): CameraIntent | undefined;
   restoreCamera(camera: CameraIntent): void;
   setScene(scene: SceneProjection, bookmark?: CameraIntent): void;
-  setMode(mode: 'select' | 'pan'): void;
+  setMode(mode: 'select' | 'pan' | 'destination'): void;
   setPresentation(options: MapPresentation): void;
   setPitch?(pitchFromNadirDeg: number): void;
   recenter(): void;
+  overview(): void;
+  focusSelection(): void;
   retryProvider(): void;
   dispose(): void;
 }
 
 /** Derived from one complete presentation frame; never an operational store. */
 export interface SceneProjection {
+  readonly destinations?: readonly SceneDestination[];
   readonly missionId?: string;
   readonly frameId?: string;
   readonly sequence?: number;
@@ -136,4 +148,21 @@ export interface SceneProjection {
   readonly unlocatedCount: number;
   readonly referencePoint?: DeepReadonly<Position3D>;
   readonly region?: MapRegion;
+  readonly localHome?: CameraIntent;
+  readonly acknowledgement?: {
+    readonly id: string;
+    readonly longitudeDeg: number;
+    readonly latitudeDeg: number;
+    readonly state: 'pending' | 'accepted' | 'rejected';
+    /** UI-only wall-time expiry; old intents do not pulse on pane reopen. */
+    readonly expiresAtMs?: number;
+  };
+}
+
+export interface SceneDestination {
+  readonly id: string;
+  readonly entityId: string;
+  readonly position: DeepReadonly<Position3D>;
+  readonly stage: 'draft' | 'requested' | 'accepted';
+  readonly label: string;
 }

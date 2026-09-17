@@ -15,7 +15,7 @@ export function zoomForCamera(camera: CameraIntent, width: number) {
   return Math.max(
     0,
     Math.min(
-      20,
+      24,
       Math.log2(
         groundSpan(0, camera.center.latitudeDeg, width) /
           Math.max(1, camera.groundSpanM),
@@ -23,7 +23,55 @@ export function zoomForCamera(camera: CameraIntent, width: number) {
     ),
   );
 }
-/** Frame once on mission entry; recenter explicitly recomputes current visible extent. */
+/** A physical wheel notch is about 100 pixel units; trackpads accumulate smoothly. */
+export function wheelSpanFactor(
+  deltaY: number,
+  deltaMode: number,
+  span: number,
+) {
+  const pixels = deltaY * (deltaMode === 1 ? 16 : deltaMode === 2 ? 320 : 1);
+  const rate = span <= 2000 ? Math.log(1.12) : Math.log(1.25);
+  return Math.exp((Math.max(-240, Math.min(240, pixels)) * rate) / 100);
+}
+/** Fit a useful vertical neighbourhood too, rather than clipping it in a short pane. */
+export function localHomeCamera(
+  scene: SceneProjection,
+  width: number,
+  height: number,
+) {
+  if (!scene.localHome) return undefined;
+  return {
+    ...scene.localHome,
+    center: { ...scene.localHome.center },
+    groundSpanM: Math.max(
+      scene.localHome.groundSpanM,
+      (600 * width) / Math.max(1, height),
+    ),
+  };
+}
+export function boundsCamera(
+  bounds: [[number, number], [number, number]],
+  width: number,
+  height: number,
+  minimum = 150,
+): CameraIntent {
+  const longitude = (bounds[0][0] + bounds[1][0]) / 2,
+    latitude = (bounds[0][1] + bounds[1][1]) / 2;
+  return {
+    center: { longitudeDeg: longitude, latitudeDeg: latitude },
+    groundSpanM: Math.max(
+      minimum,
+      (bounds[1][0] - bounds[0][0]) *
+        111320 *
+        Math.cos((latitude * Math.PI) / 180) *
+        1.4,
+      (((bounds[1][1] - bounds[0][1]) * 111320 * width) / Math.max(1, height)) *
+        1.4,
+    ),
+    headingTrueDeg: 0,
+  };
+}
+/** Full mission extent is available only through an explicit Overview action. */
 export function sceneBounds(
   scene: SceneProjection,
 ): [[number, number], [number, number]] | undefined {

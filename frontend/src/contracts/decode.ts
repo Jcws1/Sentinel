@@ -1,9 +1,9 @@
 import Ajv2020 from 'ajv/dist/2020';
 import addFormats from 'ajv-formats';
-import worldSchema from '../../../contracts/sentinel/v1.1/world.schema.json';
-import streamSchema from '../../../contracts/sentinel/v1.1/stream.schema.json';
-import catalogSchema from '../../../contracts/sentinel/v1.1/mission-list.schema.json';
-import observedSchema from '../../../contracts/sentinel/v1.1/observed-history.schema.json';
+import worldSchema from '../../../contracts/sentinel/v1.4/world.schema.json';
+import streamSchema from '../../../contracts/sentinel/v1.4/stream.schema.json';
+import catalogSchema from '../../../contracts/sentinel/v1.4/mission-list.schema.json';
+import observedSchema from '../../../contracts/sentinel/v1.4/observed-history.schema.json';
 import type { ObservedHistory } from './generated';
 import type {
   DeepReadonly,
@@ -12,6 +12,7 @@ import type {
   WorldFrame,
 } from './types';
 import { calendarInstant, polygonIntegrity } from './integrity';
+import { validateMovementRun } from './interactive';
 
 const ajv = new Ajv2020({
   allErrors: false,
@@ -131,7 +132,7 @@ export function validateFrame(value: unknown): WorldFrame {
     `Invalid world frame: ${ajv.errorsText(validateWorld.errors)}`,
   );
   const frame = value;
-  assert(frame.schemaVersion === '1.1', 'Missing world schema version');
+  assert(frame.schemaVersion === '1.4', 'Missing world schema version');
   calendarInstant(frame.effectiveAt);
   calendarInstant(frame.recordedAt);
   calendarInstant(frame.mission.createdAt);
@@ -225,6 +226,7 @@ export function validateFrame(value: unknown): WorldFrame {
   validateEvents(frame.recentEvents, frame);
   const run = frame.interactive;
   if (run) {
+    validateMovementRun(run, frame.sequence, frame);
     assert(run.missionId === frame.mission.id, 'Interactive mission mismatch');
     const seen = new Set<string>();
     assert(
@@ -318,7 +320,7 @@ export function decodeStream(text: string): StreamMessage {
     validateStream(value),
     `Invalid stream message: ${ajv.errorsText(validateStream.errors)}`,
   );
-  assert(value.schemaVersion === '1.1', 'Missing stream schema version');
+  assert(value.schemaVersion === '1.4', 'Missing stream schema version');
   if (value.type === 'snapshot') {
     const frame = validateFrame(value.frame);
     assert(value.missionId === frame.mission.id, 'Snapshot mission mismatch');

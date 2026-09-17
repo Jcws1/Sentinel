@@ -39,10 +39,11 @@ import type { RendererLease } from '../../renderers/rendererPool';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
 import './tactical.css';
-import { EntitySummary } from '../entities/EntitySummary';
+import { selectForDetails } from '../entities/selectionActions';
 import { countText } from '../entities/values';
 import { FilterItems, filtersActive } from '../entities/EntityFilters';
 import { entityRows } from '../../world/entityRows';
+import { formatSgt } from '../../world/time';
 
 export function TacticalMap({
   viewId,
@@ -62,8 +63,23 @@ export function TacticalMap({
   const latestPresentation = useRef(presentation);
   latestPresentation.current = presentation;
   const scene = useMemo(
-    () => createScene(state.presentation, state.session, state.observed),
-    [state.presentation, state.session, state.observed],
+    () => ({
+      ...createScene(
+        state.presentation,
+        state.session,
+        state.observed,
+        state.interactive,
+      ),
+      acknowledgement: state.interactive.directFeedback && {
+        id: state.interactive.directFeedback.id,
+        longitudeDeg: state.interactive.directFeedback.longitudeDeg,
+        latitudeDeg: state.interactive.directFeedback.latitudeDeg,
+        state: state.interactive.directFeedback.stage,
+        expiresAtMs:
+          (state.interactive.directFeedback.acknowledgedAt ?? 0) + 900,
+      },
+    }),
+    [state.presentation, state.session, state.observed, state.interactive],
   );
   const canvas = useRef<HTMLDivElement>(null);
   const adapter = useRef<MapRenderer | undefined>(undefined);
@@ -76,8 +92,41 @@ export function TacticalMap({
   });
   const [spatial, setSpatial] = useState<SpatialStatus>();
   const [mode, setMode] = useState<'select' | 'pan'>('select');
-  const latestMode = useRef(mode);
+  const picking = state.session.destinationPickView === viewId;
+  const directPicking = state.session.directDestinationView === viewId;
+  const effectiveMode = picking || directPicking ? 'destination' : mode;
+  const latestMode = useRef<'select' | 'pan' | 'destination'>(effectiveMode);
+  useEffect(() => {
+    const missionId = state.missionId;
+    if (picking && missionId) {
+      const camera = bridge.beginDestinationAuthoring(viewId, missionId);
+      if (!threeD) adapter.current?.restoreCamera(camera);
+    } else {
+      const saved = bridge.endDestinationAuthoring(viewId);
+      if (
+        saved?.camera &&
+        saved.missionId === missionId &&
+        saved.mode === projection
+      )
+        adapter.current?.restoreCamera(saved.camera);
+    }
+  }, [picking, state.missionId, bridge, viewId, projection, threeD]);
+  useEffect(
+    () => () => {
+      bridge.endDestinationAuthoring(viewId);
+      if (runtime.getSnapshot().session.destinationPickView === viewId)
+        runtime.pickDestination();
+      if (runtime.getSnapshot().session.directDestinationView === viewId)
+        runtime.armDirectMove();
+    },
+    [bridge, viewId, runtime],
+  );
   const [announcement, setAnnouncement] = useState('');
+  useEffect(() => {
+    if (!announcement) return;
+    const timer = setTimeout(() => setAnnouncement(''), 4000);
+    return () => clearTimeout(timer);
+  }, [announcement]);
   const [generation, setGeneration] = useState(0);
   // Adapter diagnostics use a bounded vocabulary. Never display request details or URLs.
   const failureCode =
@@ -165,8 +214,43 @@ export function TacticalMap({
       pool.status(lease, { kind: 'renderer-error', recoverable: true });
     }, 12000);
     const callbacks: RendererCallbacks = {
-      pick: (id) => {
-        if (pool.owns(lease) && lease.active) runtime.selectEntity(id);
+      pick: (id, additive) => {
+        if (pool.owns(lease) && lease.active)
+          selectForDetails(runtime, bridge, id, additive);
+      },
+      selection: (ids, additive) => {
+        if (!pool.owns(lease) || !lease.active) return;
+        runtime.selectEntities(ids, additive);
+        if (runtime.getSnapshot().session.selection.items.length)
+          bridge.revealDetails();
+      },
+      clearSelection: () => {
+        if (pool.owns(lease) && lease.active) runtime.selectEntity();
+      },
+      cancelDestination: () => {
+        if (!pool.owns(lease) || !lease.active) return;
+        runtime.armDirectMove();
+        runtime.pickDestination();
+      },
+      directMove: (longitude, latitude) => {
+        if (pool.owns(lease) && lease.active)
+          void runtime.directMove(longitude, latitude);
+      },
+      destination: (longitude, latitude) => {
+        if (
+          pool.owns(lease) &&
+          lease.active &&
+          runtime.getSnapshot().session.directDestinationView === viewId
+        ) {
+          void runtime.directMove(longitude, latitude);
+          return;
+        }
+        if (
+          pool.owns(lease) &&
+          lease.active &&
+          runtime.getSnapshot().session.destinationPickView === viewId
+        )
+          runtime.setDestination(longitude, latitude);
       },
       camera: (missionId, camera) => {
         if (pool.owns(lease) && lease.active)
@@ -232,9 +316,9 @@ export function TacticalMap({
     };
   }, [visible, viewId, bridge, runtime, generation, threeD, projection]);
   useEffect(() => {
-    latestMode.current = mode;
-    adapter.current?.setMode(mode);
-  }, [mode, visible, generation]);
+    latestMode.current = effectiveMode;
+    adapter.current?.setMode(effectiveMode);
+  }, [effectiveMode, visible, generation]);
   const selection = scene.selection;
   const filtered = filtersActive(state.session.filters);
   const rows = state.presentation.frame
@@ -262,6 +346,7 @@ export function TacticalMap({
           <button
             className="map-tool"
             aria-pressed={!threeD}
+            disabled={picking}
             onClick={() => bridge.setMapMode(viewId, 'tactical')}
           >
             Tactical
@@ -269,6 +354,7 @@ export function TacticalMap({
           <button
             className="map-tool"
             aria-pressed={threeD}
+            disabled={picking}
             onClick={() => bridge.setMapMode(viewId, 'three-d')}
           >
             3D
@@ -277,9 +363,13 @@ export function TacticalMap({
         <button
           className="map-tool"
           aria-label="Select"
-          title="Select an entity"
+          title="Click to select; drag to select managed drones"
           aria-pressed={mode === 'select'}
-          onClick={() => setMode('select')}
+          onClick={() => {
+            runtime.pickDestination();
+            runtime.armDirectMove();
+            setMode('select');
+          }}
         >
           <MousePointer2 size={15} />
           <span>Select</span>
@@ -287,17 +377,36 @@ export function TacticalMap({
         <button
           className="map-tool"
           aria-label="Pan"
-          title="Pan without selecting"
+          title="Click to select; drag to pan"
           aria-pressed={mode === 'pan'}
-          onClick={() => setMode('pan')}
+          onClick={() => {
+            runtime.pickDestination();
+            runtime.armDirectMove();
+            setMode('pan');
+          }}
         >
           <Hand size={15} />
           <span>Pan</span>
         </button>
+        {state.presentation.frame?.interactive && (
+          <button
+            className="map-tool"
+            aria-label="Move selected members"
+            disabled={!state.session.selection.items.length}
+            onClick={() => {
+              runtime.armDirectMove(viewId);
+              canvas.current
+                ?.querySelector<HTMLCanvasElement>('canvas')
+                ?.focus();
+            }}
+          >
+            Move
+          </button>
+        )}
         <button
           className="map-tool"
           aria-label="Recenter"
-          title="Frame visible entities and zones; use mission reference point if empty"
+          title="Return to the local operating area"
           disabled={
             !scene.frameId ||
             (!scene.objects.length &&
@@ -309,6 +418,17 @@ export function TacticalMap({
           <Crosshair size={15} />
           <span>Recenter</span>
         </button>
+        {filtered && (
+          <button
+            className="map-tool map-filter-state"
+            onClick={() => runtime.resetFilters()}
+            title="Shared filters affect every map and Tracks"
+            aria-label="Reset shared map filters"
+          >
+            {rows.filter((r) => r.visible).length}/{rows.length} entities ·
+            Reset filters
+          </button>
+        )}
         <Menu.Root>
           <Menu.Trigger
             className="map-tool map-layers"
@@ -337,6 +457,23 @@ export function TacticalMap({
               align="end"
               collisionPadding={8}
             >
+              <Menu.Label className="menu-label map-scope">
+                Mission · {scene.unlocatedCount} unlocated
+              </Menu.Label>
+              <Menu.Item
+                className="menu-item"
+                onSelect={() => adapter.current?.overview()}
+              >
+                Overview
+              </Menu.Item>
+              <Menu.Item
+                className="menu-item"
+                disabled={!scene.objects.some((o) => o.selected)}
+                onSelect={() => adapter.current?.focusSelection()}
+              >
+                Focus selection
+              </Menu.Item>
+              <Menu.Separator className="menu-separator" />
               <Menu.Sub>
                 <Menu.SubTrigger className="menu-item">
                   Shared entity filters
@@ -726,7 +863,9 @@ export function TacticalMap({
           </div>
           {scene.stale && scene.frameId && (
             <div className="map-stale" role="status">
-              STALE · Last complete frame retained
+              {state.presentation.sourceDelayed
+                ? 'SOURCE REPORT DELAYED · Last complete frame retained'
+                : 'STALE · Last complete frame retained'}
             </div>
           )}
           {!threeD && polarCount > 0 && (
@@ -789,35 +928,43 @@ export function TacticalMap({
               />
             </a>
           )}
-        <EntitySummary state={state} runtime={runtime} bridge={bridge} map />
       </div>
-      <div className="map-footer">
-        <span
-          id={`map-help-${viewId.replace(':', '-')}`}
-          title={`Arrow keys pan; + and − zoom; [ and ] review symbols; ${mode === 'select' ? 'Enter selects' : 'switch to Select to choose a symbol'}.${threeD ? ' Drag to pan; right-drag to orbit.' : ''}`}
-        >
-          {mode === 'select'
-            ? '[ ] symbols · Enter select'
-            : 'PAN · [ ] review symbols'}
-        </span>
-        {filtered && (
-          <button
-            className="text-control"
-            onClick={() => runtime.resetFilters()}
-            title="Shared filters affect every map and Tracks"
-          >
-            {rows.filter((r) => r.visible).length}/{rows.length} entities ·
-            Reset filters
-          </button>
-        )}
-        <span
-          className="map-value"
-          title="Total mission entities without a recorded position"
-        >
-          {scene.unlocatedCount > 0 &&
-            `Mission · ${scene.unlocatedCount} unlocated`}
-        </span>
-      </div>
+      {(picking || directPicking) && (
+        <div className="map-destination-help" role="status">
+          {directPicking ? (
+            <>
+              <span>
+                Choose a destination · click the map or press Enter at its
+                centre.
+              </span>
+              <button
+                className="text-control"
+                onClick={() => runtime.armDirectMove()}
+              >
+                Cancel picking
+              </button>
+            </>
+          ) : picking ? (
+            <>
+              <span>
+                TOP-DOWN · Click an anchor, then review every endpoint in
+                Movement.
+              </span>
+              <button
+                className="text-control"
+                onClick={() => runtime.pickDestination()}
+              >
+                Finish picking
+              </button>
+            </>
+          ) : (
+            <span>
+              DEST · dashed = draft · dotted = requested · solid = accepted
+              endpoint. No validated route.
+            </span>
+          )}
+        </div>
+      )}
       {state.session.overlays.history && (
         <div className="map-trail-status" role="status">
           {!selection.id ? (
@@ -842,7 +989,7 @@ export function TacticalMap({
                   <span>
                     Refreshing · trail through{' '}
                     <time className="entity-value">
-                      {state.observed.data.throughAt}
+                      {formatSgt(state.observed.data.throughAt)}
                     </time>
                   </span>
                 )}
@@ -852,9 +999,11 @@ export function TacticalMap({
           )}
         </div>
       )}
-      <span className="sr-only" aria-live="polite">
-        {announcement}
-      </span>
+      {announcement && (
+        <div className="map-destination-help" role="status">
+          {announcement}
+        </div>
+      )}
     </div>
   );
 }

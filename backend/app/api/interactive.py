@@ -1,6 +1,6 @@
 import re
 from fastapi import APIRouter, Request
-from app.commands.contracts import CommandRequest, CreateRunRequest, DemoEntry, Intent, IntentRequest, Receipt, RunRead
+from app.commands.contracts import CommandRequest, CreateRunRequest, DemoEntry, Intent, IntentRequest, ReceiptRead, RunRead, MoveRequest, DirectMoveRequest, ExecutionRead
 from app.commands.service import CommandError
 
 router = APIRouter(prefix="/api/interactive", tags=["local synthetic demo"])
@@ -18,14 +18,14 @@ async def entry(request: Request):
     return request.app.state.interactive.entry()
 
 
-@router.post("/runs", response_model=Receipt, response_model_exclude_none=True)
+@router.post("/runs", response_model=ReceiptRead, response_model_exclude_none=True)
 async def create(command: CreateRunRequest, request: Request):
     return await request.app.state.interactive.create(command)
 
 
 # Query lookups preserve every opaque ID, including URL dot segments. Keep path aliases.
-@router.get("/creations", response_model=Receipt, response_model_exclude_none=True)
-@router.get("/creations/{identity:path}", response_model=Receipt, response_model_exclude_none=True, deprecated=True)
+@router.get("/creations", response_model=ReceiptRead, response_model_exclude_none=True)
+@router.get("/creations/{identity:path}", response_model=ReceiptRead, response_model_exclude_none=True, deprecated=True)
 async def creation_receipt(identity: str, request: Request):
     return request.app.state.interactive.lookup(identity)
 
@@ -37,15 +37,30 @@ async def status(mission_id: str, request: Request):
 
 @router.post("/{mission_id}/intents", response_model=Intent, response_model_exclude_none=True)
 async def intent(mission_id: str, command: IntentRequest, request: Request):
-    return await request.app.state.interactive.issue_intent(mission_id, command.action)
+    return await request.app.state.interactive.issue_intent(mission_id, command.action, command.execution_id)
 
 
-@router.post("/{mission_id}/commands", response_model=Receipt, response_model_exclude_none=True)
+@router.post("/{mission_id}/commands", response_model=ReceiptRead, response_model_exclude_none=True)
 async def command(mission_id: str, command: CommandRequest, request: Request):
     return await request.app.state.interactive.command(mission_id, command, credential(request))
 
 
-@router.get("/{mission_id}/receipts", response_model=Receipt, response_model_exclude_none=True)
-@router.get("/{mission_id}/receipts/{identity:path}", response_model=Receipt, response_model_exclude_none=True, deprecated=True)
+@router.get("/{mission_id}/receipts", response_model=ReceiptRead, response_model_exclude_none=True)
+@router.get("/{mission_id}/receipts/{identity:path}", response_model=ReceiptRead, response_model_exclude_none=True, deprecated=True)
 async def receipt(mission_id: str, identity: str, request: Request):
     return request.app.state.interactive.lookup(identity, mission_id)
+
+
+@router.post("/{mission_id}/moves", response_model=ReceiptRead, response_model_exclude_none=True)
+async def move(mission_id: str, command: MoveRequest, request: Request):
+    return await request.app.state.interactive.move(mission_id, command, credential(request))
+
+
+@router.get("/{mission_id}/executions", response_model=ExecutionRead, response_model_exclude_none=True)
+async def executions(mission_id: str, request: Request, throughFrameId: str | None = None):
+    return request.app.state.interactive.executions(mission_id, throughFrameId)
+
+
+@router.post("/{mission_id}/direct-moves", response_model=ReceiptRead, response_model_exclude_none=True)
+async def direct_move(mission_id: str, command: DirectMoveRequest, request: Request):
+    return await request.app.state.interactive.direct_move(mission_id, command, credential(request))

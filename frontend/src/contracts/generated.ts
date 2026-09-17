@@ -1,5 +1,5 @@
-/* Generated from backend v1.1 JSON Schemas; do not edit.
- * Source SHA-256: cca5bb4cb31afdaede9885ba3c2a42cb97035e682252e86d98ccf12493fba3b4
+/* Generated from backend v1.4 JSON Schemas; do not edit.
+ * Source SHA-256: 8838ea1861a372c972a04f2808bf2890b80fdbfd416d930c2a939ceb9ca6ef71
  */
 
 /**
@@ -21,7 +21,7 @@ export interface BackendContracts {
 export interface SnapshotMessage {
   frame: WorldFrame;
   missionId: string;
-  schemaVersion: '1.1';
+  schemaVersion: '1.4';
   sequence: number;
   streamEpoch: string;
   type: 'snapshot';
@@ -43,7 +43,7 @@ export interface WorldFrame {
   recentEvents: SentinelEvent[];
   recordedAt: string;
   recordingId: string;
-  schemaVersion: '1.1';
+  schemaVersion: '1.4';
   sensors: Sensors;
   sequence: number;
   streamEpoch: string;
@@ -140,6 +140,10 @@ export interface InteractiveRun {
    * @maxItems 32
    */
   controls: AssetControl[];
+  /**
+   * @maxItems 64
+   */
+  executions?: MovementExecution[];
   executorEpoch: string;
   executorId: string;
   grantId: string;
@@ -147,9 +151,10 @@ export interface InteractiveRun {
   lastReportAt?: string | null;
   lease: Lease;
   missionId: string;
+  movementModel?: 'local-horizontal-v1';
   runId: string;
   runRevision: number;
-  schemaVersion?: '1.0';
+  schemaVersion?: '1.3';
   sourceId: string;
   state: 'ready' | 'running' | 'paused' | 'ended';
   supportedActions: (
@@ -161,8 +166,9 @@ export interface InteractiveRun {
     | 'pause'
     | 'resume'
     | 'end'
+    | 'cancel'
   )[];
-  templateId?: 'singapore-local-v1';
+  templateId?: 'singapore-local-v1' | 'singapore-local-v2';
   tick: number;
 }
 /**
@@ -172,16 +178,103 @@ export interface InteractiveRun {
 export interface AssetControl {
   assetId: string;
   bindingRevision: number;
+  busyRevision?: number;
   capabilities: 'move-horizontal'[];
   controlTrackId?: string | null;
-  eligible?: false;
+  eligible?: boolean;
   entityId: string;
   executorId: string;
   grantId: string;
+  lastDirectOrder?: DirectOrderContext | null;
   missionId: string;
   positionReference: 'ELLIPSOID/WGS84';
   reason: string;
   sourceId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "DirectOrderContext".
+ */
+export interface DirectOrderContext {
+  executorEpoch: string;
+  grantId: string;
+  grantRevision: number;
+  holderId: string;
+  order: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "MovementExecution".
+ */
+export interface MovementExecution {
+  acceptedAt: string;
+  acceptedSequence: number;
+  assetId: string;
+  bindingRevision: number;
+  busyRevision: number;
+  commandId: string;
+  completionSample?: CompletionSample | null;
+  controlTrackId: string;
+  deadline: string;
+  destination: MovePosition;
+  directOrder?: number | null;
+  entityId: string;
+  executorEpoch: string;
+  executorId: string;
+  grantId: string;
+  grantRevision: number;
+  id: string;
+  kind?: 'move';
+  missionId: string;
+  origin: MovePosition;
+  reason?: string | null;
+  remainingMetres: number;
+  reservationRevision: number;
+  revision: number;
+  runId: string;
+  sourceId: string;
+  speedMps?: 20 | 43.05555555555556;
+  startedAt?: string | null;
+  startedTick?: number | null;
+  state:
+    | 'Accepted'
+    | 'Running'
+    | 'Suspended'
+    | 'Completed'
+    | 'Cancelled'
+    | 'Failed'
+    | 'Expired'
+    | 'Interrupted';
+  terminalSequence?: number | null;
+  travelledMetres: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "CompletionSample".
+ */
+export interface CompletionSample {
+  position: MovePosition;
+  sequence: number;
+  timestamp: string;
+  trackId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "MovePosition".
+ */
+export interface MovePosition {
+  altitude: MoveAltitude;
+  latitudeDeg: number;
+  longitudeDeg: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "MoveAltitude".
+ */
+export interface MoveAltitude {
+  datumId?: 'WGS84';
+  metres: number;
+  reference?: 'ELLIPSOID';
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
@@ -394,7 +487,7 @@ export interface DeltaMessage {
   previousSequence: number;
   recordedAt: string;
   recordingId: string;
-  schemaVersion: '1.1';
+  schemaVersion: '1.4';
   sequence: number;
   streamEpoch: string;
   type: 'delta';
@@ -486,7 +579,7 @@ export interface Upserts5 {
  */
 export interface HeartbeatMessage {
   missionId: string;
-  schemaVersion: '1.1';
+  schemaVersion: '1.4';
   sequence: number;
   serverTime: string;
   streamEpoch: string;
@@ -499,7 +592,7 @@ export interface HeartbeatMessage {
 export interface ResyncRequiredMessage {
   missionId: string;
   reason: string;
-  schemaVersion: '1.1';
+  schemaVersion: '1.4';
   type: 'resync-required';
 }
 /**
@@ -566,7 +659,10 @@ export interface Intent {
     | 'start'
     | 'pause'
     | 'resume'
-    | 'end';
+    | 'end'
+    | 'cancel';
+  executionId?: string | null;
+  executionRevision?: number | null;
   executorEpoch: string;
   expiresAt: string;
   grantId: string;
@@ -594,14 +690,159 @@ export interface CreateRunRequest {
 export interface DemoEntry {
   activeMissionId?: string | null;
   enabled: boolean;
-  schemaVersion?: '1.0';
-  templateId?: 'singapore-local-v1';
+  schemaVersion?: '1.1';
+  templateId?: 'singapore-local-v2';
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
- * via the `definition` "Receipt".
+ * via the `definition` "DirectMemberOutcome".
  */
-export interface Receipt {
+export interface DirectMemberOutcome {
+  assetId: string;
+  code:
+    | 'OK'
+    | 'UNAVAILABLE'
+    | 'NO_RESPONSE'
+    | 'POSITION_UNAVAILABLE'
+    | 'UNSUPPORTED_REFERENCE'
+    | 'ORDER_SUPERSEDED';
+  entityId: string;
+  executionId?: string | null;
+  outcome: 'accepted' | 'skipped';
+  reason: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "DirectMoveIntent".
+ */
+export interface DirectMoveIntent {
+  anchor: MoveAnchor;
+  deadline: string;
+  executorEpoch: string;
+  grantId: string;
+  grantRevision: number;
+  /**
+   * @minItems 1
+   * @maxItems 32
+   */
+  members: [DirectMoveMember, ...DirectMoveMember[]];
+  missionId: string;
+  modelId?: 'local-horizontal-v1';
+  order: number;
+  reviewedFrameId: string;
+  runId: string;
+  sourceId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "MoveAnchor".
+ */
+export interface MoveAnchor {
+  latitudeDeg: number;
+  longitudeDeg: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "DirectMoveMember".
+ */
+export interface DirectMoveMember {
+  assetId: string;
+  bindingRevision: number;
+  controlTrackId?: string | null;
+  entityId: string;
+  executorId: string;
+  grantId: string;
+  sourceId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "DirectMoveRequest".
+ */
+export interface DirectMoveRequest {
+  commandId: string;
+  direct: DirectMoveIntent;
+  holderId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "ExecutionRead".
+ */
+export interface ExecutionRead {
+  /**
+   * @maxItems 64
+   */
+  executions: MovementExecution[];
+  frameId: string;
+  missionId: string;
+  schemaVersion?: '1.2';
+  sequence: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyM12Receipt".
+ */
+export interface LegacyM12Receipt {
+  accepted: boolean;
+  code:
+    | 'OK'
+    | 'NOT_INTERACTIVE'
+    | 'DEMO_DISABLED'
+    | 'ACTIVE_RUN_EXISTS'
+    | 'IDENTITY_CONFLICT'
+    | 'INTENT_INVALID'
+    | 'INTENT_EXPIRED'
+    | 'OBSOLETE_INTENT'
+    | 'REFERENCE_MISMATCH'
+    | 'CONTROL_HELD'
+    | 'CONTROL_REQUIRED'
+    | 'LEASE_EXPIRED'
+    | 'RECLAIM_REQUIRED'
+    | 'INVALID_TRANSITION'
+    | 'RUN_TERMINAL'
+    | 'INVALID_REQUEST'
+    | 'NOT_FOUND'
+    | 'SOURCE_UNHEALTHY'
+    | 'FRAME_INVALID'
+    | 'MOVE_EXPIRED'
+    | 'SELECTION_INVALID'
+    | 'BINDING_CHANGED'
+    | 'ASSET_BUSY'
+    | 'POSITION_UNAVAILABLE'
+    | 'UNSUPPORTED_REFERENCE'
+    | 'OUTSIDE_EXTENT'
+    | 'ENDPOINT_INVALID'
+    | 'EXECUTION_TERMINAL';
+  /**
+   * @maxItems 32
+   */
+  executionIds?: string[];
+  frameId?: string | null;
+  message: string;
+  missionId?: string | null;
+  operation:
+    | 'create'
+    | 'acquire'
+    | 'renew'
+    | 'reclaim'
+    | 'revoke'
+    | 'start'
+    | 'pause'
+    | 'resume'
+    | 'end'
+    | 'move'
+    | 'cancel';
+  recordedAt: string;
+  recordingId?: string | null;
+  requestId: string;
+  runId?: string | null;
+  schemaVersion?: '1.1';
+  sequence?: number | null;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyReceipt".
+ */
+export interface LegacyReceipt {
   accepted: boolean;
   code:
     | 'OK'
@@ -643,6 +884,121 @@ export interface Receipt {
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "MoveIntent".
+ */
+export interface MoveIntent {
+  anchor: MoveAnchor;
+  deadline: string;
+  executorEpoch: string;
+  grantId: string;
+  grantRevision: number;
+  /**
+   * @minItems 1
+   * @maxItems 32
+   */
+  members: [MoveMember, ...MoveMember[]];
+  missionId: string;
+  modelId?: 'local-horizontal-v1';
+  reviewedFrameId: string;
+  runId: string;
+  sourceId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "MoveMember".
+ */
+export interface MoveMember {
+  assetId: string;
+  bindingRevision: number;
+  busyRevision: number;
+  controlTrackId: string;
+  destination: MovePosition;
+  entityId: string;
+  executorId: string;
+  grantId: string;
+  origin: MovePosition;
+  sourceId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "MoveRequest".
+ */
+export interface MoveRequest {
+  commandId: string;
+  holderId: string;
+  move: MoveIntent;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "Receipt".
+ */
+export interface Receipt {
+  accepted: boolean;
+  code:
+    | 'OK'
+    | 'NOT_INTERACTIVE'
+    | 'DEMO_DISABLED'
+    | 'ACTIVE_RUN_EXISTS'
+    | 'IDENTITY_CONFLICT'
+    | 'INTENT_INVALID'
+    | 'INTENT_EXPIRED'
+    | 'OBSOLETE_INTENT'
+    | 'REFERENCE_MISMATCH'
+    | 'CONTROL_HELD'
+    | 'CONTROL_REQUIRED'
+    | 'LEASE_EXPIRED'
+    | 'RECLAIM_REQUIRED'
+    | 'INVALID_TRANSITION'
+    | 'RUN_TERMINAL'
+    | 'INVALID_REQUEST'
+    | 'NOT_FOUND'
+    | 'SOURCE_UNHEALTHY'
+    | 'FRAME_INVALID'
+    | 'MOVE_EXPIRED'
+    | 'SELECTION_INVALID'
+    | 'BINDING_CHANGED'
+    | 'ASSET_BUSY'
+    | 'POSITION_UNAVAILABLE'
+    | 'UNSUPPORTED_REFERENCE'
+    | 'OUTSIDE_EXTENT'
+    | 'ENDPOINT_INVALID'
+    | 'EXECUTION_TERMINAL'
+    | 'NO_AVAILABLE_ASSETS'
+    | 'ORDER_SUPERSEDED';
+  directOrder?: number | null;
+  /**
+   * @maxItems 32
+   */
+  executionIds?: string[];
+  frameId?: string | null;
+  /**
+   * @maxItems 32
+   */
+  memberOutcomes?: DirectMemberOutcome[];
+  message: string;
+  missionId?: string | null;
+  operation:
+    | 'create'
+    | 'acquire'
+    | 'renew'
+    | 'reclaim'
+    | 'revoke'
+    | 'start'
+    | 'pause'
+    | 'resume'
+    | 'end'
+    | 'move'
+    | 'cancel'
+    | 'direct-move';
+  recordedAt: string;
+  recordingId?: string | null;
+  requestId: string;
+  runId?: string | null;
+  schemaVersion?: '1.2';
+  sequence?: number | null;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
  * via the `definition` "RunRead".
  */
 export interface RunRead {
@@ -650,7 +1006,7 @@ export interface RunRead {
   leaseState: 'unclaimed' | 'held' | 'expired';
   ownsControl: boolean;
   run: InteractiveRun;
-  schemaVersion?: '1.0';
+  schemaVersion?: '1.3';
   sequence: number;
   serverTime: string;
 }

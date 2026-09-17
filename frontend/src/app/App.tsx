@@ -1,6 +1,6 @@
 import {
   useRef,
-  useState,
+  useEffect,
   useSyncExternalStore,
   type KeyboardEvent,
 } from 'react';
@@ -15,6 +15,7 @@ import {
   Plus,
   X,
   Info,
+  Drone,
 } from 'lucide-react';
 import { WorkspaceHost } from '../features/workspace/WorkspaceHost';
 import {
@@ -31,6 +32,8 @@ import {
   MissionControls,
   MissionStatus,
 } from '../features/mission/MissionControls';
+import { FleetSidebar } from '../features/entities/FleetSidebar';
+import { OperationalChrome } from '../features/entities/OperationalChrome';
 
 function ViewMenu({
   id,
@@ -128,12 +131,11 @@ function Shortcuts() {
   return (
     <Dialog.Root>
       <Dialog.Trigger
-        className="keyboard-button"
+        className="icon-button keyboard-button"
         aria-label="Keyboard shortcuts"
         title="Keyboard shortcuts"
       >
         <Keyboard size={14} />
-        <span>Keyboard shortcuts</span>
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" />
@@ -143,6 +145,22 @@ function Shortcuts() {
             Move between views using the keyboard.
           </Dialog.Description>
           <dl className="shortcuts">
+            <div>
+              <dt>Move selected drones</dt>
+              <dd>Right-click destination</dd>
+            </div>
+            <div>
+              <dt>Pan temporarily</dt>
+              <dd>Space + drag</dd>
+            </div>
+            <div>
+              <dt>Review map symbols / select</dt>
+              <dd>[ or ] / Enter</dd>
+            </div>
+            <div>
+              <dt>Map pan / zoom</dt>
+              <dd>Arrow keys / + or −</dd>
+            </div>
             <div>
               <dt>Move focus between controls</dt>
               <dd>Tab / Shift + Tab</dd>
@@ -192,7 +210,13 @@ export function App({
   ...hooks
 }: PaneHooks & { bridge: WorkspaceBridge }) {
   const workspace = useSyncExternalStore(bridge.subscribe, bridge.getSnapshot);
-  const [showViews, setShowViews] = useState(true);
+  const showViews = workspace.sidebarOpen;
+  useEffect(() => {
+    const resize = () => bridge.setViewportWidth(window.innerWidth);
+    resize();
+    window.addEventListener('resize', resize);
+    return () => window.removeEventListener('resize', resize);
+  }, [bridge]);
   const openedCredits = useRef(false);
   const activeModule = moduleForView(workspace.activeViewId);
   function navigateActivity(event: KeyboardEvent<HTMLElement>) {
@@ -307,7 +331,11 @@ export function App({
           </span>
         </div>
         <MissionControls />
+        <OperationalChrome bridge={bridge} />
         <WallClock />
+        <span className="sr-only">
+          <MissionStatus />
+        </span>
       </header>
       <div className="workbench-body">
         <nav
@@ -316,15 +344,40 @@ export function App({
           onKeyDown={navigateActivity}
         >
           <div className="activity-views">
+            <button
+              className="activity-button fleet-activity"
+              data-activity-view="fleet"
+              aria-label="Fleet"
+              aria-expanded={showViews && workspace.sidebarMode === 'fleet'}
+              onClick={() =>
+                bridge.setSidebar(
+                  'fleet',
+                  !(showViews && workspace.sidebarMode === 'fleet'),
+                )
+              }
+            >
+              <Drone size={19} />
+              <span>Fleet</span>
+            </button>
             {modules.filter((item) => item.id !== 'settings').map(moduleButton)}
           </div>
           <div className="activity-bottom">
+            <Shortcuts />
             <button
               className="icon-button"
-              aria-label={showViews ? 'Hide Views list' : 'Show Views list'}
-              title={showViews ? 'Hide Views list' : 'Show Views list'}
-              aria-expanded={showViews}
-              onClick={() => setShowViews(!showViews)}
+              aria-label={
+                showViews && workspace.sidebarMode === 'views'
+                  ? 'Hide Views list'
+                  : 'Show Views list'
+              }
+              title="Views"
+              aria-expanded={showViews && workspace.sidebarMode === 'views'}
+              onClick={() =>
+                bridge.setSidebar(
+                  'views',
+                  !(showViews && workspace.sidebarMode === 'views'),
+                )
+              }
             >
               <PanelLeft size={17} />
             </button>
@@ -332,54 +385,88 @@ export function App({
           </div>
         </nav>
         {showViews && (
-          <aside className="views-sidebar" aria-label="Workspace views">
+          <aside className="views-sidebar" aria-label="Workspace navigation">
             <div className="sidebar-heading">
-              <span>Views</span>
-              <span className="constraint-tag">WORKBENCH</span>
-            </div>
-            <div className="view-list">
-              {viewIds
-                .filter((id) => id !== 'credits')
-                .map((id) => {
-                  const view = viewRegistry[id];
-                  const title = bridge.getViewTitle(id);
-                  const Icon = view.icon;
-                  const isOpen = workspace.views.some(
-                    (item) => viewKind(item.id) === id,
+              <button
+                className="text-control"
+                aria-pressed={workspace.sidebarMode === 'views'}
+                onClick={() => bridge.setSidebar('views')}
+              >
+                Views
+              </button>
+              <button
+                className="text-control"
+                aria-pressed={workspace.sidebarMode === 'fleet'}
+                onClick={() => bridge.setSidebar('fleet')}
+              >
+                Fleet
+              </button>
+              <button
+                className="icon-button sidebar-close"
+                aria-label="Close navigation sidebar"
+                onClick={() => {
+                  bridge.setSidebar(workspace.sidebarMode, false);
+                  requestAnimationFrame(() =>
+                    document
+                      .querySelector<HTMLButtonElement>(
+                        workspace.sidebarMode === 'fleet'
+                          ? '[data-activity-view="fleet"]'
+                          : '[title="Views"]',
+                      )
+                      ?.focus(),
                   );
-                  return (
-                    <div
-                      key={id}
-                      className="view-row"
-                      data-active={
-                        workspace.activeViewId !== undefined &&
-                        viewKind(workspace.activeViewId) === id
-                      }
-                    >
-                      <button
-                        className="view-launcher"
-                        aria-label={`Open ${title} from Views`}
-                        onClick={() => bridge.open(id)}
+                }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+            {workspace.sidebarMode === 'fleet' ? (
+              <FleetSidebar bridge={bridge} />
+            ) : (
+              <div className="view-list">
+                {viewIds
+                  .filter((id) => id !== 'credits' && id !== 'inspector')
+                  .map((id) => {
+                    const view = viewRegistry[id];
+                    const title = bridge.getViewTitle(id);
+                    const Icon = view.icon;
+                    const isOpen = workspace.views.some(
+                      (item) => viewKind(item.id) === id,
+                    );
+                    return (
+                      <div
+                        key={id}
+                        className="view-row"
+                        data-active={
+                          workspace.activeViewId !== undefined &&
+                          viewKind(workspace.activeViewId) === id
+                        }
                       >
-                        <Icon size={15} strokeWidth={1.5} />
-                        <span>{title}</span>
-                        {isOpen && (
-                          <Check
-                            className="open-marker"
-                            size={11}
-                            aria-label="Open"
-                          />
-                        )}
-                      </button>
-                      <ViewMenu
-                        id={id}
-                        bridge={bridge}
-                        open={workspace.views.some((item) => item.id === id)}
-                      />
-                    </div>
-                  );
-                })}
-            </div>
+                        <button
+                          className="view-launcher"
+                          aria-label={`Open ${title} from Views`}
+                          onClick={() => bridge.open(id)}
+                        >
+                          <Icon size={15} strokeWidth={1.5} />
+                          <span>{title}</span>
+                          {isOpen && (
+                            <Check
+                              className="open-marker"
+                              size={11}
+                              aria-label="Open"
+                            />
+                          )}
+                        </button>
+                        <ViewMenu
+                          id={id}
+                          bridge={bridge}
+                          open={workspace.views.some((item) => item.id === id)}
+                        />
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
           </aside>
         )}
         <main className="workspace" aria-label="Operational workspace">
@@ -400,10 +487,6 @@ export function App({
           </div>
         </main>
       </div>
-      <footer className="status-bar">
-        <MissionStatus />
-        <Shortcuts />
-      </footer>
     </div>
   );
 }

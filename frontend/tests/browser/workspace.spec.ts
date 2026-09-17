@@ -6,7 +6,9 @@ import { resolve } from 'node:path';
 
 const product = 'http://127.0.0.1:5181';
 const harness = 'http://127.0.0.1:5182/tests/harness/index.html';
-const evidence = resolve('../docs/chrome-refinement/evidence');
+const evidence = resolve(
+  '../docs/compact-demo/evidence/regressions/regressions',
+);
 const failures = new WeakMap<Page, string[]>();
 test.beforeAll(async ({ browser }) => {
   await mkdir(evidence, { recursive: true });
@@ -81,7 +83,7 @@ test('registry navigation focuses singleton views without reloading, closes and 
     'Command Picture',
     'Vertical Profile',
     'Timeline',
-    'Entity Inspector',
+    'Details',
   ];
   for (const title of titles) {
     await page
@@ -94,11 +96,9 @@ test('registry navigation focuses singleton views without reloading, closes and 
         'Load a mission',
       );
       await expect(page.locator('.tactical-view:visible canvas')).toBeVisible();
-    } else if (title === 'Entity Inspector') {
+    } else if (title === 'Details') {
       await expect(
-        page.getByText(
-          'Select an entity, then use Open Details to pin its inspector.',
-        ),
+        page.getByText('Select an entity in Fleet, Tracks or either map.'),
       ).toBeVisible();
     } else {
       await expect(
@@ -137,11 +137,38 @@ test('keyboard focus, tab activation and closure, menus, dialog and divider resi
   page,
 }) => {
   await page.goto(product);
+  await expect(
+    page.getByRole('button', { name: 'Load mission', exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'New demo', exact: true }),
+  ).toBeEnabled();
   await page.keyboard.press('Tab');
   await expect(
     page.getByRole('button', { name: 'Load mission', exact: true }),
   ).toBeFocused();
   await page.keyboard.press('Tab');
+  await expect(
+    page.getByRole('button', { name: 'Simulation', exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(
+    page.getByRole('button', { name: 'New demo', exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(
+    page.getByRole('button', { name: 'Open Details', exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(
+    page.getByRole('button', {
+      name: 'Open Activity',
+      exact: true,
+    }),
+  ).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.locator('[data-activity-view="fleet"]')).toBeFocused();
+  await page.keyboard.press('ArrowDown');
   await expect(
     page.getByRole('button', { name: 'Open Map', exact: true }),
   ).toBeFocused();
@@ -436,12 +463,10 @@ for (const size of [
   }) => {
     await page.setViewportSize(size);
     await page.goto(product);
-    await side(page, 'Entity Inspector');
+    await side(page, 'Details');
     await expect(page.locator('.tactical-view')).toBeVisible();
     await expect(
-      page.getByText(
-        'Select an entity, then use Open Details to pin its inspector.',
-      ),
+      page.getByText('Select an entity in Fleet, Tracks or either map.'),
     ).toBeVisible();
     const dimensions = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
@@ -487,7 +512,7 @@ test('module constraints, neutral chrome and a wall clock independent of the wor
   await page.goto(product);
   await expect(page.locator('.app-header')).toContainText('Sentinel v3');
   await expect(page.locator('.app-header')).toContainText('No mission');
-  await expect(page.locator('.wall-clock')).toHaveText('23:30:00UTC+8');
+  await expect(page.locator('.wall-clock')).toHaveText('23:30:00SGT');
   await expect(page.locator('.mission-controls')).toBeVisible();
   for (const name of ['Home', 'Sensors', 'Reports', 'Events']) {
     const control = page.getByRole('button', {
@@ -500,7 +525,9 @@ test('module constraints, neutral chrome and a wall clock independent of the wor
   await page.clock.runFor(1000);
   await expect(page.locator('.wall-clock time')).toHaveText('23:30:01');
   await expect(page.getByRole('tab')).toHaveCount(2);
-  await expect(page.locator('.status-bar')).toContainText('No mission loaded');
+  await expect(page.locator('.mission-status')).toContainText(
+    'No mission loaded',
+  );
   await page.getByRole('button', { name: 'Hide Views list' }).click();
   await expect(page.getByRole('complementary')).toHaveCount(0);
   await page

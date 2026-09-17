@@ -1,7 +1,9 @@
 import * as Menu from '@radix-ui/react-dropdown-menu';
+import { useState } from 'react';
 import { Check, ChevronRight, ListFilter } from 'lucide-react';
 import type { ApplicationRuntime, RuntimeSnapshot } from '../../app/runtime';
 import type { FilterState } from '../../state/sessionStore';
+import { sourceChoices } from './presentation';
 
 export function filtersActive(filters: FilterState) {
   return !!(
@@ -20,12 +22,15 @@ function Choices({
   options,
   selected,
   change,
+  technical = false,
 }: {
   name: string;
   options: readonly { id: string; label: string }[];
   selected: readonly string[];
   change: (value: string[]) => void;
+  technical?: boolean;
 }) {
+  const [copyResult, setCopyResult] = useState('Choose a source ID to copy');
   return (
     <Menu.Sub>
       <Menu.SubTrigger className="menu-item">
@@ -64,6 +69,46 @@ function Choices({
           {!options.length && (
             <Menu.Label className="menu-label">None supplied</Menu.Label>
           )}
+          {technical && !!options.length && (
+            <>
+              <Menu.Separator className="menu-separator" />
+              <Menu.Sub>
+                <Menu.SubTrigger className="menu-item">
+                  Technical source IDs <ChevronRight size={12} />
+                </Menu.SubTrigger>
+                <Menu.Portal>
+                  <Menu.SubContent className="menu-content entity-filter-menu">
+                    <div className="menu-label" role="status">
+                      {copyResult}
+                    </div>
+                    {options.map((option) => (
+                      <Menu.Item
+                        key={option.id}
+                        className="menu-item source-id-copy"
+                        aria-label={`Copy ${option.label} source ID`}
+                        onSelect={(event) => {
+                          event.preventDefault();
+                          void (async () => {
+                            try {
+                              await navigator.clipboard.writeText(option.id);
+                              setCopyResult(`${option.label} ID copied`);
+                            } catch {
+                              setCopyResult(
+                                'Copy unavailable; select the exact ID',
+                              );
+                            }
+                          })();
+                        }}
+                      >
+                        <span>{option.label}</span>
+                        <code>{option.id}</code>
+                      </Menu.Item>
+                    ))}
+                  </Menu.SubContent>
+                </Menu.Portal>
+              </Menu.Sub>
+            </>
+          )}
         </Menu.SubContent>
       </Menu.Portal>
     </Menu.Sub>
@@ -88,14 +133,6 @@ export function FilterItems({
         e.classification!.label ?? e.classification!.code,
       ]),
   );
-  const sources = [
-    ...new Set([
-      ...Object.values(frame?.tracks ?? {}).map((t) => t.source.id),
-      ...Object.values(frame?.entities ?? {}).map(
-        (e) => e.provenance.source.id,
-      ),
-    ]),
-  ].sort();
   return (
     <>
       <Menu.Label className="menu-label">
@@ -135,7 +172,8 @@ export function FilterItems({
       />
       <Choices
         name="Source"
-        options={sources.map((id) => ({ id, label: id }))}
+        options={sourceChoices(frame)}
+        technical
         selected={f.sourceIds}
         change={(v) => runtime.setFilters({ sourceIds: v })}
       />
