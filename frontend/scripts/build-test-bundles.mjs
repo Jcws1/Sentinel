@@ -10,9 +10,10 @@ const env = {
   VITE_GOOGLE_MAPS_API_KEY: '',
   VITE_CESIUM_PHOTOREALISTIC_ASSET_ID: '0',
 };
+const suffix = process.env.SENTINEL_TEST_BUILD_SUFFIX ?? '';
 for (const args of [
-  ['build', '--outDir', 'dist-test'],
-  ['build', '--mode', 'verification'],
+  ['build', '--outDir', `dist-test${suffix}`],
+  ['build', '--mode', 'verification', '--outDir', `dist-verification${suffix}`],
 ]) {
   const result = spawnSync(
     process.execPath,

@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import raw from '../../../contracts/sentinel/v1.7/fixture.world.json';
+import raw from '../../../contracts/sentinel/v1.11/fixture.world.json';
 import { validateFrame } from '../../src/contracts/decode';
 import { initialSession } from '../../src/state/sessionStore';
 import { entityRows, selectionStatus } from '../../src/world/entityRows';

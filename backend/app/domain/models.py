@@ -376,9 +376,12 @@ class LegacyRtsWorldFrame(LegacyMovementWorldFrame):
     interactive: LegacyRtsInteractiveRun | None = None
 
 
+from app.commands.legacy_d2 import LegacyD2InteractiveRun
+
+
 class LegacyCompactWorldFrame(LegacyRtsWorldFrame):
     schema_version: Literal["1.4"]
-    interactive: InteractiveRun | None = None
+    interactive: LegacyD2InteractiveRun | None = None
 
 
 from app.scenarios.contracts import ScenarioBinding
@@ -398,7 +401,7 @@ class LegacyScenarioWorldFrame(LegacyCompactWorldFrame):
 
 from app.scenarios.boundaries import BoundaryRules
 
-class WorldFrame(LegacyScenarioWorldFrame):
+class LegacyBoundaryWorldFrame(LegacyScenarioWorldFrame):
     schema_version: Literal["1.6"]
     boundary_rules: BoundaryRules | None = None
 
@@ -415,6 +418,230 @@ class WorldFrame(LegacyScenarioWorldFrame):
                 if z.purpose != kind or z.altitude_band or len(z.geometry.coordinates) != 1 or z.provenance.source.id != self.interactive.source_id:
                     raise ValueError("Invalid boundary footprint or source")
                 validate(z.geometry.coordinates[0][:-1], kind)
+        return self
+
+
+from app.commands.schedule_contracts import ScenarioSchedule
+from app.commands.legacy_schedule import ScenarioSchedule as LegacyScenarioSchedule
+from app.commands.legacy_d3 import LegacyD3InteractiveRun
+from app.commands.boundary_contracts import LiveBoundaries
+
+
+class LegacyScheduledWorldFrame(LegacyBoundaryWorldFrame):
+    schema_version: Literal["1.7"]
+    interactive: LegacyD3InteractiveRun | None = None
+    scenario_schedule: LegacyScenarioSchedule | None = None
+
+    @model_validator(mode="after")
+    def schedule_integrity(self):
+        schedule, run = self.scenario_schedule, self.interactive
+        if schedule is None:
+            return self
+        if not run or not self.scenario or (schedule.run_id, schedule.source_id, schedule.executor_epoch) != (run.run_id, run.source_id, run.executor_epoch):
+            raise ValueError("Script requires a frozen custom source binding")
+        controlled = {c.entity_id for c in run.controls}
+        if not set(schedule.manual_overrides) <= controlled:
+            raise ValueError("Manual override requires explicit live control")
+        manual_active = {e.entity_id for e in run.executions if e.state not in {"Completed", "Cancelled", "Failed", "Expired", "Interrupted"}}
+        if not manual_active <= set(schedule.manual_overrides):
+            raise ValueError("Live movement must establish Manual override")
+        for item in schedule.actions:
+            if self.scenario.entity_ids.get(item.action.unit_id) != item.entity_id or item.entity_id not in self.entities:
+                raise ValueError("Script actor reference disagrees with the frozen definition")
+            track = self.tracks.get(item.track_id)
+            if track is None or track.entity_id != item.entity_id or track.source.id != run.source_id or track.source.kind != "simulation" or track.source.mode != "simulated":
+                raise ValueError("Script Track requires its exact source binding")
+            if item.terminal_sequence is not None and (item.terminal_sequence > self.sequence or item.terminal_tick > run.tick):
+                raise ValueError("Script outcome references a future commit")
+            if item.consumed_tick is not None and item.consumed_tick > run.tick:
+                raise ValueError("Script dispatch references a future tick")
+            motion = item.motion
+            if motion:
+                from app.commands.kinematics import cruise_speed
+                if motion.accepted_sequence > self.sequence or motion.accepted_tick > run.tick or motion.speed_mps != (self.unit_profiles[item.entity_id].cruise_mps if getattr(self, "unit_profiles", {}).get(item.entity_id) else cruise_speed(run.template_id)):
+                    raise ValueError("Script execution references a future commit or changed profile")
+                if motion.started_tick is not None and (motion.started_tick > run.tick or motion.started_tick < motion.accepted_tick):
+                    raise ValueError("Script motion start references an invalid tick")
+                if motion.origin.altitude != motion.destination.altitude:
+                    raise ValueError("Script motion must preserve supplied operational height")
+                if item.state in {"Accepted", "Running"} and (item.entity_id in manual_active or motion.destination.longitude_deg != item.action.destination.longitude_deg or motion.destination.latitude_deg != item.action.destination.latitude_deg):
+                    raise ValueError("Script execution has conflicting ownership or destination")
+                sample = motion.completion_sample
+                if sample and sample.sequence == self.sequence and (canonical_position(track.latest.position) != canonical_position(sample.position) or track.latest.timestamp != sample.timestamp):
+                    raise ValueError("Script arrival is not backed by this committed sample")
+        return self
+
+
+from app.commands.legacy_d3a import LegacyD3aInteractiveRun
+from app.commands.behavior_contracts import FleetBehavior
+from app.commands.legacy_d4_behavior import LegacyD4FleetBehavior
+from app.commands.legacy_d4 import LegacyD4InteractiveRun
+from app.commands.legacy_d3a_schedule import LegacyD3aScenarioSchedule
+from app.commands.unit_profiles import UnitProfile, allowed_profile
+
+
+class LegacyD3aWorldFrame(LegacyScheduledWorldFrame):
+    schema_version: Literal["1.8"]
+    interactive: LegacyD3aInteractiveRun | None = None
+    scenario_schedule: LegacyD3aScenarioSchedule | None = None
+    live_boundaries: LiveBoundaries | None = None
+
+    @model_validator(mode="after")
+    def boundary_integrity(self):
+        from app.scenarios.geometry import validate
+        if self.live_boundaries:
+            live, run = self.live_boundaries, self.interactive
+            if not run or not self.boundary_rules or (live.run_id, live.source_id) != (run.run_id, run.source_id) or live.committed_sequence > self.sequence:
+                raise ValueError("Effective live boundaries require committed source-bound run evidence")
+        if self.boundary_rules is not None:
+            if not self.interactive or (not self.scenario and not self.live_boundaries):
+                raise ValueError("Boundary rules require a custom or explicitly edited local demo")
+            if set(self.boundary_rules.zones) != set(self.zones):
+                raise ValueError("Boundary rules must cover exactly the effective zones")
+            for zid, kind in self.boundary_rules.zones.items():
+                z = self.zones[zid]
+                if z.purpose != kind or z.altitude_band or len(z.geometry.coordinates) != 1 or z.provenance.source.id != self.interactive.source_id:
+                    raise ValueError("Invalid boundary footprint or source")
+                validate(z.geometry.coordinates[0][:-1], kind)
+        return self
+
+
+class LegacyD4WorldFrame(LegacyD3aWorldFrame):
+    schema_version: Literal["1.9"]
+    interactive: LegacyD4InteractiveRun | None = None
+    fleet_behavior: LegacyD4FleetBehavior | None = None
+
+    @model_validator(mode="after")
+    def behavior_integrity(self):
+        fleet, run = self.fleet_behavior, self.interactive
+        if fleet is None:
+            return self
+        from app.commands.kinematics import cruise_speed
+        if not run or (fleet.run_id, fleet.source_id) != (run.run_id, run.source_id) or fleet.model.speed_mps != cruise_speed(run.template_id):
+            raise ValueError("Fleet behavior requires its exact run/source/profile")
+        if not {"fleet-policy", "demo-outcome"} <= set(run.capabilities):
+            raise ValueError("Fleet source lacks explicit capabilities")
+        active = {a.id: a for a in fleet.assignments if a.state == "active"}
+        members = {m.asset_id: m for m in fleet.members}
+        for member in fleet.members:
+            control = next((c for c in run.controls if c.asset_id == member.asset_id), None)
+            if not control or control.entity_id != member.entity_id or member.accepted_sequence > self.sequence or member.accepted_tick > run.tick:
+                raise ValueError("Invalid behavior member or commit anchor")
+            if member.state in {"armed", "patrolling", "pursuing", "reserve"}:
+                if (member.executor_epoch, member.grant_revision, member.binding_revision, member.reservation_revision, member.control_track_id) != (run.executor_epoch, run.grant_revision, control.binding_revision, control.busy_revision, control.control_track_id):
+                    raise ValueError("Behavior control/reservation changed")
+                if self.scenario_schedule and member.entity_id not in self.scenario_schedule.manual_overrides:
+                    raise ValueError("Behavior must establish Manual override")
+                if any(e.entity_id == member.entity_id and e.state not in {"Completed", "Cancelled", "Failed", "Expired", "Interrupted"} for e in run.executions):
+                    raise ValueError("Behavior conflicts with manual movement")
+            if member.assignment_id and (member.assignment_id not in active or active[member.assignment_id].asset_id != member.asset_id):
+                raise ValueError("Behavior lacks its active assignment")
+        for assignment in fleet.assignments:
+            if assignment.created_sequence > self.sequence or (assignment.released_sequence is not None and assignment.released_sequence > self.sequence):
+                raise ValueError("Assignment references future commit")
+            if assignment.state == "active":
+                member = members.get(assignment.asset_id)
+                target = self.entities.get(assignment.target_id)
+                track = self.tracks.get(assignment.target_track_id)
+                if not member or member.assignment_id != assignment.id or member.id != assignment.policy_id or member.entity_id != assignment.interceptor_id or assignment.target_id not in member.target_scope or not target or not track or track.entity_id != target.id or track.source.id != run.source_id:
+                    raise ValueError("Assignment scope/source disagreement")
+        for outcome in fleet.outcomes:
+            if (outcome.run_id, outcome.source_id) != (run.run_id, run.source_id) or outcome.committed_sequence > self.sequence or outcome.tick > run.tick or outcome.input_sequence + 1 != outcome.committed_sequence:
+                raise ValueError("Outcome references invalid evaluation anchors")
+            if [p.affiliation for p in outcome.participants] != ["friendly", "hostile"] or outcome.separation_m > fleet.model.contact_radius_m + fleet.model.tolerance_m + 0.001:
+                raise ValueError("Invalid mutual loss participants/contact")
+            for participant in outcome.participants:
+                entity, track = self.entities.get(participant.entity_id), self.tracks.get(participant.track_id)
+                if not entity or entity.condition != "non-operational" or entity.affiliation != participant.affiliation or not track or track.entity_id != entity.id or track.source.id != run.source_id or canonical_position(track.latest.position) != canonical_position(participant.evaluated):
+                    raise ValueError("Outcome loss/position is not preserved")
+                if participant.before.altitude.metres != participant.proposed.altitude.metres or participant.before.altitude.metres != participant.evaluated.altitude.metres:
+                    raise ValueError("Outcome must preserve supplied height")
+                if any(a.entity_id == entity.id and a.availability != "unavailable" for a in self.assets.values()):
+                    raise ValueError("Lost assets must be unavailable")
+        return self
+
+
+
+class WorldFrame(LegacyD3aWorldFrame):
+    schema_version: Literal["1.10"]
+    interactive: InteractiveRun | None = None
+    fleet_behavior: FleetBehavior | None = None
+    scenario_schedule: ScenarioSchedule | None = None
+    unit_profiles: dict[Id, UnitProfile] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def unit_profile_integrity(self):
+        if any(eid not in self.entities or not allowed_profile(p.id, self.entities[eid].affiliation) for eid,p in self.unit_profiles.items()):
+            raise ValueError("Profile must identify a compatible run entity")
+        if self.interactive:
+            from app.commands.kinematics import cruise_speed
+            for e in self.interactive.executions:
+                p = self.unit_profiles.get(e.entity_id)
+                if e.speed_mps != (p.cruise_mps if p else cruise_speed(self.interactive.template_id)):
+                    raise ValueError("Movement speed differs from frozen unit profile")
+        return self
+
+    @model_validator(mode="after")
+    def behavior_integrity(self):
+        fleet, run = self.fleet_behavior, self.interactive
+        if fleet is None:
+            return self
+        from app.commands.kinematics import cruise_speed
+        if not run or (fleet.run_id, fleet.source_id) != (run.run_id, run.source_id) or fleet.model.speed_mps != cruise_speed(run.template_id):
+            raise ValueError("Fleet behavior requires its exact run/source/profile")
+        if not {"fleet-policy", "demo-outcome"} <= set(run.capabilities):
+            raise ValueError("Fleet source lacks explicit capabilities")
+        active = {a.id: a for a in fleet.assignments if a.state == "active"}
+        members = {m.asset_id: m for m in fleet.members}
+        for member in fleet.members:
+            control = next((c for c in run.controls if c.asset_id == member.asset_id), None)
+            if not control or control.entity_id != member.entity_id or member.accepted_sequence > self.sequence or member.accepted_tick > run.tick:
+                raise ValueError("Invalid behavior member or commit anchor")
+            if member.state in {"armed", "patrolling", "pursuing", "reserve"}:
+                if (member.executor_epoch, member.grant_revision, member.binding_revision, member.reservation_revision, member.control_track_id) != (run.executor_epoch, run.grant_revision, control.binding_revision, control.busy_revision, control.control_track_id):
+                    raise ValueError("Behavior control/reservation changed")
+                if self.scenario_schedule and member.entity_id not in self.scenario_schedule.manual_overrides:
+                    raise ValueError("Behavior must establish Manual override")
+                if fleet.rule_version == "local-fleet-v1" and any(e.entity_id == member.entity_id and e.state not in {"Completed", "Cancelled", "Failed", "Expired", "Interrupted"} for e in run.executions):
+                    raise ValueError("Behavior conflicts with manual movement")
+            if fleet.rule_version == "local-fleet-v2":
+                work = [e for e in run.executions if e.asset_id == member.asset_id and e.state not in {"Completed", "Cancelled", "Failed", "Expired", "Interrupted"}]
+                if member.movement_execution_id:
+                    linked = next((e for e in work if e.id == member.movement_execution_id), None)
+                    if not linked or member.policy == "patrol" or (linked.entity_id, linked.control_track_id, linked.reservation_revision) != (member.entity_id, member.control_track_id, member.reservation_revision):
+                        raise ValueError("Invalid retained movement reservation")
+                if work and member.state in {"armed", "pursuing"} and member.movement_execution_id != work[0].id:
+                    raise ValueError("Stance must reference its unfinished destination")
+            if member.assignment_id and (member.assignment_id not in active or active[member.assignment_id].asset_id != member.asset_id):
+                raise ValueError("Behavior lacks its active assignment")
+        for e in run.executions:
+            if not e.suspended_by:
+                continue
+            member = members.get(e.asset_id)
+            if fleet.rule_version != "local-fleet-v2" or e.state != "Suspended" or not member or member.state != "pursuing" or member.id != e.suspended_by or member.movement_execution_id != e.id:
+                raise ValueError("Suspended destination lacks its pursuing owner")
+        for assignment in fleet.assignments:
+            if assignment.created_sequence > self.sequence or (assignment.released_sequence is not None and assignment.released_sequence > self.sequence):
+                raise ValueError("Assignment references future commit")
+            if assignment.state == "active":
+                member = members.get(assignment.asset_id)
+                target = self.entities.get(assignment.target_id)
+                track = self.tracks.get(assignment.target_track_id)
+                if not member or member.assignment_id != assignment.id or member.id != assignment.policy_id or member.entity_id != assignment.interceptor_id or (fleet.rule_version == "local-fleet-v1" and assignment.target_id not in member.target_scope) or not target or not track or track.entity_id != target.id or track.source.id != run.source_id:
+                    raise ValueError("Assignment scope/source disagreement")
+        for outcome in fleet.outcomes:
+            if (outcome.run_id, outcome.source_id) != (run.run_id, run.source_id) or outcome.committed_sequence > self.sequence or outcome.tick > run.tick or outcome.input_sequence + 1 != outcome.committed_sequence:
+                raise ValueError("Outcome references invalid evaluation anchors")
+            if [p.affiliation for p in outcome.participants] != ["friendly", "hostile"] or outcome.separation_m > fleet.model.contact_radius_m + fleet.model.tolerance_m + 0.001:
+                raise ValueError("Invalid mutual loss participants/contact")
+            for participant in outcome.participants:
+                entity, track = self.entities.get(participant.entity_id), self.tracks.get(participant.track_id)
+                if not entity or entity.condition != "non-operational" or entity.affiliation != participant.affiliation or not track or track.entity_id != entity.id or track.source.id != run.source_id or canonical_position(track.latest.position) != canonical_position(participant.evaluated):
+                    raise ValueError("Outcome loss/position is not preserved")
+                if participant.before.altitude.metres != participant.proposed.altitude.metres or participant.before.altitude.metres != participant.evaluated.altitude.metres:
+                    raise ValueError("Outcome must preserve supplied height")
+                if any(a.entity_id == entity.id and a.availability != "unavailable" for a in self.assets.values()):
+                    raise ValueError("Lost assets must be unavailable")
         return self
 
 

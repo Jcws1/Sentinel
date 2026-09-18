@@ -4,6 +4,7 @@ import type { ObjectRef } from '../state/sessionStore';
 import type { BoundaryDefinition } from '../contracts/generated';
 import type { ScreenPoint } from './gestures';
 import type { MapRegion } from './regions';
+import type { DisplayPreferences } from '../state/displayPreferences';
 
 /** View-local geographic intent. A 2D camera center has no invented altitude. */
 export interface CameraIntent {
@@ -18,6 +19,9 @@ export interface CameraIntent {
 }
 
 export interface SceneObject {
+  readonly profileId?: string;
+  readonly planLabel?: string;
+  readonly condition?: Entity['condition'];
   readonly ref: Readonly<ObjectRef & { kind: 'entity' }>;
   readonly trackId: string;
   readonly position: DeepReadonly<Position3D>;
@@ -133,6 +137,8 @@ export interface MapRenderer {
   projectBoundaryVertex?(index: number): ScreenPoint | undefined;
   restoreCamera(camera: CameraIntent): void;
   setScene(scene: SceneProjection, bookmark?: CameraIntent): void;
+  /** Presentation poses only; no transport, history, camera or rule updates. */
+  setMotion?(objects: readonly SceneObject[]): void;
   setMode(mode: 'select' | 'pan' | 'destination' | 'draw' | 'vertex'): void;
   setPresentation(options: MapPresentation): void;
   setPitch?(pitchFromNadirDeg: number): void;
@@ -145,6 +151,9 @@ export interface MapRenderer {
 
 /** Derived from one complete presentation frame; never an operational store. */
 export interface SceneProjection {
+  readonly display?: Readonly<DisplayPreferences>;
+  readonly routes?: readonly SceneRoute[];
+  readonly boundaryInteraction?: boolean;
   readonly boundaryEdit?: {
     readonly vertices: readonly (readonly [number, number])[];
     readonly selectedVertex?: number;
@@ -179,7 +188,24 @@ export interface SceneProjection {
   };
 }
 
+/** Accepted current intent, distinct from observed history and authored scripts. */
+export interface SceneRoute {
+  readonly id: string;
+  readonly entityId: string;
+  readonly kind: 'move' | 'patrol' | 'pursuit';
+  readonly label: string;
+  readonly points: readonly DeepReadonly<Position3D>[];
+  readonly targetId?: string;
+  readonly targetTrackId?: string;
+}
+
 export interface SceneDestination {
+  /** Optional straight script intent, not observed history or route clearance. */
+  readonly intentOrigin?: DeepReadonly<Position3D>;
+  /** Actual/nominal interruption endpoint; the destination marker can remain unreached. */
+  readonly intentEnd?: DeepReadonly<Position3D>;
+  readonly selected?: boolean;
+  readonly outcome?: string;
   readonly id: string;
   readonly entityId: string;
   readonly position: DeepReadonly<Position3D>;

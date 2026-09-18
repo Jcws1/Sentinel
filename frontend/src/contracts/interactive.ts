@@ -1,11 +1,17 @@
 import Ajv2020 from 'ajv/dist/2020';
-import schema from '../../../contracts/sentinel/v1.5/interactive.schema.json';
+import schema from '../../../contracts/sentinel/v1.11/interactive.schema.json';
 import type {
   DemoEntry,
   Intent,
   Receipt,
   LegacyReceipt,
   LegacyM12Receipt,
+  LegacyD2Receipt,
+  LegacyD3Receipt,
+  LegacyD3AReceipt,
+  LegacyD3ARunRead,
+  LegacyD4Receipt,
+  LegacyD4RunRead,
   DirectMoveRequest,
   RunRead,
   InteractiveRun,
@@ -13,6 +19,7 @@ import type {
 } from './generated';
 import type { DeepReadonly, ImmutableFrame } from './types';
 import { calendarInstant, invariant } from './integrity';
+import { validateProfiles } from '../world/unitProfiles';
 
 const ajv = new Ajv2020({
   strict: false,
@@ -49,11 +56,40 @@ export function decodeIntent(value: unknown) {
       : result.executionId == null && result.executionRevision == null,
     'Invalid cancellation evidence',
   );
+  invariant(
+    ['stop', 'return-to-script', 'behavior'].includes(result.action)
+      ? !!result.members?.length && result.order != null
+      : result.members == null && result.order == null,
+    'Invalid selected control evidence',
+  );
+  invariant(
+    (result.action === 'boundary-edit') === !!result.boundary,
+    'Boundary mutation missing or attached to another action',
+  );
+  invariant(
+    (result.action === 'behavior') === !!result.policy,
+    'Missing behavior policy',
+  );
+  if (result.policy)
+    invariant(
+      result.policy.kind === 'patrol'
+        ? !!result.policy.boundaryId &&
+            !!result.policy.reviewedFrameId &&
+            !!result.policy.deadline
+        : result.policy.boundaryId == null &&
+            result.policy.reviewedFrameId == null &&
+            result.policy.deadline == null,
+      'Invalid Patrol evidence',
+    );
   return result;
 }
 const receipt = decoder<Receipt>('Receipt');
+const legacyD4Receipt = decoder<LegacyD4Receipt>('LegacyD4Receipt');
+const legacyD3aReceipt = decoder<LegacyD3AReceipt>('LegacyD3aReceipt');
 const legacyReceipt = decoder<LegacyReceipt>('LegacyReceipt');
 const legacyM12Receipt = decoder<LegacyM12Receipt>('LegacyM12Receipt');
+const legacyD2Receipt = decoder<LegacyD2Receipt>('LegacyD2Receipt');
+const legacyD3Receipt = decoder<LegacyD3Receipt>('LegacyD3Receipt');
 const directMoveRequest = decoder<DirectMoveRequest>('DirectMoveRequest');
 export function decodeDirectMoveRequest(value: unknown) {
   const result = directMoveRequest(value);
@@ -69,7 +105,13 @@ export function decodeDirectMoveRequest(value: unknown) {
 export function decodeReceipt(value: unknown) {
   const version = (value as { schemaVersion?: string })?.schemaVersion;
   invariant(
-    version === '1.0' || version === '1.1' || version === '1.2',
+    version === '1.0' ||
+      version === '1.1' ||
+      version === '1.2' ||
+      version === '1.3' ||
+      version === '1.4' ||
+      version === '1.5' ||
+      version === '1.6',
     'Unsupported receipt version',
   );
   const result =
@@ -77,8 +119,21 @@ export function decodeReceipt(value: unknown) {
       ? legacyReceipt(value)
       : version === '1.1'
         ? legacyM12Receipt(value)
-        : receipt(value);
+        : version === '1.2'
+          ? legacyD2Receipt(value)
+          : version === '1.3'
+            ? legacyD3Receipt(value)
+            : version === '1.4'
+              ? legacyD3aReceipt(value)
+              : version === '1.5'
+                ? legacyD4Receipt(value)
+                : receipt(value);
   calendarInstant(result.recordedAt);
+  if (result.schemaVersion === '1.5' || result.schemaVersion === '1.6')
+    invariant(
+      result.movementOrder == null || result.operation === 'move',
+      'Reviewed movement order attached to another operation',
+    );
   invariant(
     result.accepted === (result.code === 'OK'),
     'Receipt result mismatch',
@@ -92,7 +147,14 @@ export function decodeReceipt(value: unknown) {
         result.sequence != null,
       'Receipt missing committed references',
     );
-  if (result.schemaVersion === '1.1' || result.schemaVersion === '1.2') {
+  if (
+    result.schemaVersion === '1.1' ||
+    result.schemaVersion === '1.2' ||
+    result.schemaVersion === '1.3' ||
+    result.schemaVersion === '1.4' ||
+    result.schemaVersion === '1.5' ||
+    result.schemaVersion === '1.6'
+  ) {
     const ids = result.executionIds ?? [];
     invariant(new Set(ids).size === ids.length, 'Duplicate receipt executions');
     invariant(
@@ -100,7 +162,13 @@ export function decodeReceipt(value: unknown) {
       'Move receipt missing execution references',
     );
   }
-  if (result.schemaVersion === '1.2') {
+  if (
+    result.schemaVersion === '1.2' ||
+    result.schemaVersion === '1.3' ||
+    result.schemaVersion === '1.4' ||
+    result.schemaVersion === '1.5' ||
+    result.schemaVersion === '1.6'
+  ) {
     const outcomes = result.memberOutcomes ?? [];
     if (result.operation === 'direct-move') {
       invariant(result.directOrder != null, 'Missing direct order');
@@ -131,12 +199,110 @@ export function decodeReceipt(value: unknown) {
         'Direct outcomes on another operation',
       );
   }
+  if (
+    result.schemaVersion === '1.3' ||
+    result.schemaVersion === '1.4' ||
+    result.schemaVersion === '1.5' ||
+    result.schemaVersion === '1.6'
+  ) {
+    const outcomes = result.controlOutcomes ?? [];
+    if (['stop', 'return-to-script'].includes(result.operation)) {
+      invariant(
+        result.controlOrder != null && !result.executionIds?.length,
+        'Missing selected control order or fabricated movement',
+      );
+      invariant(
+        new Set(outcomes.map((o) => o.assetId)).size === outcomes.length &&
+          new Set(outcomes.map((o) => o.entityId)).size === outcomes.length,
+        'Duplicate selected control members',
+      );
+      for (const o of outcomes)
+        invariant(
+          (o.outcome === 'accepted') === (o.code === 'OK'),
+          'Invalid selected control outcome',
+        );
+      invariant(
+        result.accepted === outcomes.some((o) => o.outcome === 'accepted'),
+        'Selected control outcome disagrees',
+      );
+    } else
+      invariant(
+        result.controlOrder == null && outcomes.length === 0,
+        'Selected control result on another operation',
+      );
+  }
+  if (
+    result.schemaVersion === '1.4' ||
+    result.schemaVersion === '1.5' ||
+    result.schemaVersion === '1.6'
+  )
+    invariant(
+      (result.operation === 'boundary-edit' && result.accepted) ===
+        (result.boundaryRevision != null),
+      'Boundary receipt lacks committed revision',
+    );
+  if (result.schemaVersion === '1.5' || result.schemaVersion === '1.6') {
+    const outcomes = result.behaviorOutcomes ?? [];
+    if (['behavior', 'intercept-approach'].includes(result.operation)) {
+      invariant(
+        result.behaviorOrder != null && !result.executionIds?.length,
+        'Invalid behavior order',
+      );
+      invariant(
+        new Set(outcomes.map((o) => o.assetId)).size === outcomes.length &&
+          new Set(outcomes.map((o) => o.entityId)).size === outcomes.length,
+        'Duplicate behavior members',
+      );
+      for (const o of outcomes)
+        invariant(
+          o.outcome === 'accepted'
+            ? o.code === 'OK' && o.state != null
+            : o.code !== 'OK' && o.state == null && o.assignmentId == null,
+          'Invalid behavior outcome',
+        );
+      invariant(
+        result.accepted === outcomes.some((o) => o.outcome === 'accepted'),
+        'Behavior receipt disagreement',
+      );
+      invariant(
+        new Set(result.targetScope ?? []).size ===
+          (result.targetScope ?? []).length,
+        'Duplicate target scope',
+      );
+    } else
+      invariant(
+        result.behaviorOrder == null &&
+          !outcomes.length &&
+          !result.targetScope?.length,
+        'Behavior evidence on another operation',
+      );
+  }
   return result;
 }
 const status = decoder<RunRead>('RunRead');
+const legacyStatus = decoder<LegacyD3ARunRead>('LegacyD3aRunRead');
+const d4Status = decoder<LegacyD4RunRead>('LegacyD4RunRead');
 export function decodeRunRead(value: unknown) {
-  const result = status(value);
-  validateMovementRun(result.run, result.sequence);
+  const legacy =
+    (value as { schemaVersion?: string })?.schemaVersion === '1.5'
+      ? legacyStatus(value)
+      : (value as { schemaVersion?: string })?.schemaVersion === '1.6'
+        ? d4Status(value)
+        : undefined;
+  const result = legacy
+    ? status({
+        ...legacy,
+        schemaVersion: '1.7',
+        run: { ...legacy.run, schemaVersion: '1.7' },
+      })
+    : status(value);
+  validateMovementRun(
+    result.run,
+    result.sequence,
+    undefined,
+    result.unitProfiles,
+  );
+  validateProfiles(result.unitProfiles);
   calendarInstant(result.serverTime);
   const lease = result.run.lease;
   invariant(!!lease.holderId === !!lease.expiresAt, 'Incomplete lease');
@@ -168,13 +334,16 @@ export function validateMovementRun(
   run: DeepReadonly<InteractiveRun>,
   sequence: number,
   frame?: ImmutableFrame,
+  profiles: ImmutableFrame['unitProfiles'] = frame?.unitProfiles,
 ) {
-  invariant(run.schemaVersion === '1.3', 'Unsupported interactive module');
+  invariant(run.schemaVersion === '1.7', 'Unsupported interactive module');
   const ids = new Set<string>(),
     active = new Set<string>();
   for (const e of run.executions ?? []) {
     invariant(
-      e.speedMps === (run.templateId === 'singapore-local-v2' ? 155 / 3.6 : 20),
+      e.speedMps ===
+        (profiles?.[e.entityId]?.cruiseMps ??
+          (run.templateId === 'singapore-local-v2' ? 155 / 3.6 : 20)),
       'Execution speed differs from the run profile',
     );
     invariant(

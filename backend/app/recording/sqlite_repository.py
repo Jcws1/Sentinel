@@ -119,7 +119,16 @@ class RecordingRepository:
 
     def display_mission(self, mission: Mission) -> Mission:
         alias = self.demo_alias(mission.id)
-        return mission.model_copy(update={"name": alias}) if alias else mission
+        updates = {"name": alias} if alias else {}
+        if "sentinel.scenario" not in mission.extensions:
+            row = self.db.execute("SELECT revision_json FROM scenario_runs WHERE mission_id=?", (mission.id,)).fetchone()
+            if row:
+                from app.scenarios.contracts import ScenarioRevision
+                revision = ScenarioRevision.model_validate_json(row[0])
+                updates["extensions"] = {**mission.extensions, "sentinel.scenario": dict(
+                    name=revision.content.name, revision=revision.revision, definitionId=revision.definition_id)}
+        # Read projection only: legacy mission/frame/receipt bytes stay untouched.
+        return mission.model_copy(update=updates) if updates else mission
 
     def display_frame(self, frame: WorldFrame) -> WorldFrame:
         return frame.model_copy(update={"mission": self.display_mission(frame.mission)})

@@ -37,7 +37,7 @@ async def status(mission_id: str, request: Request):
 
 @router.post("/{mission_id}/intents", response_model=Intent, response_model_exclude_none=True)
 async def intent(mission_id: str, command: IntentRequest, request: Request):
-    return await request.app.state.interactive.issue_intent(mission_id, command.action, command.execution_id)
+    return await request.app.state.interactive.issue_intent(mission_id, command.action, command.execution_id, command.members, command.order, command.boundary, command.policy)
 
 
 @router.post("/{mission_id}/commands", response_model=ReceiptRead, response_model_exclude_none=True)

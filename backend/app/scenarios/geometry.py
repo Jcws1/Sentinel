@@ -67,5 +67,5 @@ def validate(vertices, kind):
         raise ValueError("Boundary area is too small or zero.")
     turns = [cross(ring[i-1], ring[i], ring[(i+1)%len(ring)]) for i in range(len(ring))]
     if kind == "patrol" and any(t > 0 for t in turns) and any(t < 0 for t in turns):
-        raise ValueError("Patrol boundaries must be convex; automatic patrol is not available yet.")
+        raise ValueError("Patrol boundaries must be convex; use a convex footprint for Patrol.")
     return ring

@@ -1,4 +1,5 @@
 import { defineConfig } from '@playwright/test';
+const suffix = process.env.SENTINEL_TEST_BUILD_SUFFIX ?? '';
 export default defineConfig({
   testDir: './tests/browser',
   fullyParallel: false,
@@ -6,7 +7,10 @@ export default defineConfig({
   timeout: 30000,
   reporter: [
     ['list'],
-    ['json', { outputFile: '../docs/d2/evidence/browser-results.json' }],
+    [
+      'json',
+      { outputFile: '../docs/d4-refinement/regressions/browser-results.json' },
+    ],
   ],
   use: {
     channel: 'msedge',
@@ -15,24 +19,26 @@ export default defineConfig({
     // Interactive authority headers must never enter captured network traces.
     trace: 'off',
   },
-  webServer: [
-    {
-      command: 'node tests/start-backend.mjs',
-      url: 'http://127.0.0.1:8011/api/missions',
-      reuseExistingServer: false,
-    },
-    {
-      command:
-        'npx vite preview --outDir dist-test --host 127.0.0.1 --port 5181 --strictPort',
-      url: 'http://127.0.0.1:5181',
-      reuseExistingServer: false,
-      env: { SENTINEL_API_TARGET: 'http://127.0.0.1:8011' },
-    },
-    {
-      command: 'npm run preview:verification',
-      url: 'http://127.0.0.1:5182/tests/harness/index.html',
-      reuseExistingServer: false,
-      env: { SENTINEL_API_TARGET: 'http://127.0.0.1:8011' },
-    },
-  ],
+  webServer:
+    process.env.SENTINEL_EXTERNAL_TEST_SERVERS === '1'
+      ? []
+      : [
+          {
+            command: 'node tests/start-backend.mjs',
+            url: 'http://127.0.0.1:8011/api/missions',
+            reuseExistingServer: false,
+          },
+          {
+            command: `npx vite preview --outDir dist-test${suffix} --host 127.0.0.1 --port 5181 --strictPort`,
+            url: 'http://127.0.0.1:5181',
+            reuseExistingServer: false,
+            env: { SENTINEL_API_TARGET: 'http://127.0.0.1:8011' },
+          },
+          {
+            command: `npx vite preview --mode verification --outDir dist-verification${suffix} --host 127.0.0.1 --port 5182 --strictPort`,
+            url: 'http://127.0.0.1:5182/tests/harness/index.html',
+            reuseExistingServer: false,
+            env: { SENTINEL_API_TARGET: 'http://127.0.0.1:8011' },
+          },
+        ],
 });

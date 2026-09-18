@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import raw from '../../../contracts/sentinel/v1.7/demo.world.json';
+import raw from '../../../contracts/sentinel/v1.11/demo.world.json';
 import { validateFrame } from '../../src/contracts/decode';
 import type {
   ApplicationRuntime,
@@ -73,7 +73,7 @@ function snapshot() {
       now: frame.recordedAt,
       entry: { enabled: true, activeMissionId: frame.mission.id },
       current: {
-        schemaVersion: '1.3',
+        schemaVersion: '1.7',
         run,
         ownsControl: true,
         leaseState: 'held',
@@ -120,7 +120,7 @@ it('distinguishes no response and absent position from confirmed non-operational
   expect(assetStatus(frame, id('F-03'))).toBe('No position');
   expect(assetStatus(frame, id('F-04'))).toBe('No response');
   frame.entities[id('F-04')].condition = 'non-operational';
-  expect(assetStatus(frame, id('F-04'))).toBe('Down');
+  expect(assetStatus(frame, id('F-04'))).toBe('NON-OP');
   expect(assetStatus(frame, id('O-01'))).toBe('Unmanaged');
   expect(
     executionLabel({ state: 'Cancelled', reason: 'Superseded by order 7.' }),
@@ -189,7 +189,7 @@ it('Activity preserves per-member skipped outcomes and keeps receipt acceptance 
     frame = state.presentation.frame!,
     controls = frame.interactive!.controls;
   const receipt: Receipt = {
-    schemaVersion: '1.2',
+    schemaVersion: '1.6',
     requestId: 'request-current',
     operation: 'direct-move',
     missionId: frame.mission.id,
@@ -261,7 +261,7 @@ it('replaces receipt acknowledgement with only the newest command’s committed 
     run = frame.interactive!;
   state.presentation = { ...state.presentation, frame };
   const receipt: Receipt = {
-    schemaVersion: '1.2',
+    schemaVersion: '1.6',
     requestId: 'latest-command',
     operation: 'direct-move',
     missionId: frame.mission.id,

@@ -13,7 +13,7 @@ import {
   withinScenarioExtent,
 } from '../../src/contracts/scenarios';
 import { validateFrame } from '../../src/contracts/decode';
-import raw from '../../../contracts/sentinel/v1.7/demo.world.json';
+import raw from '../../../contracts/sentinel/v1.11/demo.world.json';
 import type {
   ScenarioContent,
   ScenarioReceipt,
@@ -418,8 +418,10 @@ it('a local draft-write failure after accepted save retains the request until re
 
 function reviewFor(saved: ScenarioRevision) {
   return {
-    schemaVersion: '1.1',
+    schemaVersion: '1.4',
     boundaryCount: 0,
+    actionCount: 0,
+    scriptDurationMs: 0,
     reference: {
       definitionId: saved.definitionId,
       revision: saved.revision,

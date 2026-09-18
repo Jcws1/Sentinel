@@ -3,6 +3,7 @@ from typing import Literal
 from pydantic import Field, model_validator
 from app.domain.base import Model, Id, Finite, Longitude, Latitude, UtcInstant
 from app.scenarios.boundaries import BoundaryDefinition
+from app.scenarios.actions import ScheduledAction, validate_chain
 
 
 class ScenarioAltitude(Model):
@@ -17,7 +18,11 @@ class ScenarioPosition(Model):
     altitude: ScenarioAltitude
 
 
+from app.commands.unit_profiles import UnitProfileId, allowed_profile
+
+
 class UnitPlacement(Model):
+    profile_id: UnitProfileId | None = None
     id: Id = Field(max_length=64)
     label: str = Field(min_length=1, max_length=64)
     category: Literal["friendly", "hostile", "unknown"]
@@ -28,6 +33,8 @@ class UnitPlacement(Model):
     @model_validator(mode="after")
     def valid_role_and_position(self):
         from app.commands.kinematics import in_extent
+        if not allowed_profile(self.profile_id, self.category):
+            raise ValueError("Unit profile is not available for this affiliation")
         if self.command_role == "sentinel" and self.category != "friendly":
             raise ValueError("Only explicitly friendly placements may request the Sentinel role")
         if not self.label.strip() or not in_extent(self.position.model_dump(by_alias=True)):
@@ -41,6 +48,9 @@ class ScenarioContent(Model):
     boundaries: list[BoundaryDefinition] | None = Field(default=None, max_length=16)
     boundary_rule_version: Literal["local-boundary-v1"] | None = None
 
+    actions: list[ScheduledAction] | None = Field(default=None, max_length=128)
+    schedule_rule_version: Literal["local-schedule-v1", "local-schedule-v2"] | None = None
+
     @model_validator(mode="after")
     def identities(self):
         if not self.name.strip() or len({u.id for u in self.units}) != len(self.units):
@@ -50,7 +60,24 @@ class ScenarioContent(Model):
         ids = [b.id for b in self.boundaries or []]
         if len(ids) != len(set(ids)) or set(ids) & {u.id for u in self.units}:
             raise ValueError("Boundary and unit identities must be unique")
+        if (self.actions is None) != (self.schedule_rule_version is None):
+            raise ValueError("Script content requires its explicit rule version")
+        units = {u.id: u for u in self.units}
+        actions = self.actions or []
+        action_ids = [a.id for a in actions]
+        actor_ticks = [(a.unit_id, a.offset_ms) for a in actions if a.offset_ms is not None]
+        if len(action_ids) != len(set(action_ids)) or set(action_ids) & (set(ids) | set(units)):
+            raise ValueError("Action identities must be unique across the definition")
+        if len(actor_ticks) != len(set(actor_ticks)):
+            raise ValueError("An actor may start only one movement at each 200 ms tick")
+        if any(a.unit_id not in units or units[a.unit_id].category == "unknown" for a in actions):
+            raise ValueError("Script actions require a placed friendly or hostile actor; Unknown remains stationary")
+        validate_chain(actions, self.schedule_rule_version)
         return self
+
+
+def content_version(content):
+    return "1.4" if any(u.profile_id for u in content.units) else "1.3" if content.schedule_rule_version == "local-schedule-v2" else "1.2" if content.actions is not None else "1.1" if content.boundaries is not None else "1.0"
 
 
 class ScenarioRef(Model):
@@ -65,21 +92,30 @@ class ScenarioBinding(ScenarioRef):
 
 
 class ScenarioRevision(ScenarioRef):
-    schema_version: Literal["1.0", "1.1"] = "1.1"
+    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4"] = "1.4"
     created_at: UtcInstant
     content: ScenarioContent
 
     @model_validator(mode="before")
     @classmethod
     def strict_legacy(cls, value):
+        if isinstance(value, dict) and value.get("schemaVersion", value.get("schema_version")) == "1.3":
+            from app.scenarios.legacy_d3a import LegacyD3aScenarioRevision
+            LegacyD3aScenarioRevision.model_validate({k:v.model_dump(by_alias=True,exclude_none=True) if isinstance(v,Model) else v for k,v in value.items()})
+        if isinstance(value, dict) and value.get("schemaVersion", value.get("schema_version")) == "1.2":
+            from app.scenarios.legacy_scheduled import ScenarioRevision as LegacyScheduled
+            LegacyScheduled.model_validate({k:v.model_dump(by_alias=True,exclude_none=True) if isinstance(v,Model) else v for k,v in value.items()})
         if isinstance(value, dict) and value.get("schemaVersion", value.get("schema_version")) == "1.0":
             from app.scenarios.legacy import ScenarioRevision as LegacyRevision
             LegacyRevision.model_validate({k:v.model_dump(by_alias=True,exclude_none=True) if isinstance(v,Model) else v for k,v in value.items()})
+        if isinstance(value, dict) and value.get("schemaVersion", value.get("schema_version")) == "1.1":
+            from app.scenarios.legacy_boundaries import ScenarioRevision as LegacyBoundary
+            LegacyBoundary.model_validate({k:v.model_dump(by_alias=True,exclude_none=True) if isinstance(v,Model) else v for k,v in value.items()})
         return value
 
     @model_validator(mode="after")
     def immutable_hash(self):
-        if self.schema_version != ("1.1" if self.content.boundaries is not None else "1.0"):
+        if self.schema_version != content_version(self.content):
             raise ValueError("Scenario schema and content version disagree")
         if self.schema_version == "1.0":
             from app.scenarios.legacy import ScenarioRevision as LegacyRevision
@@ -98,7 +134,7 @@ class ScenarioWrite(Model):
 
 
 class ScenarioReceipt(Model):
-    schema_version: Literal["1.0", "1.1"] = "1.1"
+    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4"] = "1.4"
     request_id: Id
     accepted: bool
     code: Literal["OK", "REVISION_CONFLICT", "NOT_FOUND"]
@@ -108,9 +144,18 @@ class ScenarioReceipt(Model):
     @model_validator(mode="before")
     @classmethod
     def strict_legacy(cls, value):
+        if isinstance(value, dict) and value.get("schemaVersion", value.get("schema_version")) == "1.3":
+            from app.scenarios.legacy_d3a import LegacyD3aScenarioReceipt
+            LegacyD3aScenarioReceipt.model_validate({k:v.model_dump(by_alias=True,exclude_none=True) if isinstance(v,Model) else v for k,v in value.items()})
+        if isinstance(value, dict) and value.get("schemaVersion", value.get("schema_version")) == "1.2":
+            from app.scenarios.legacy_scheduled import ScenarioReceipt as LegacyScheduled
+            LegacyScheduled.model_validate({k:v.model_dump(by_alias=True,exclude_none=True) if isinstance(v,Model) else v for k,v in value.items()})
         if isinstance(value, dict) and value.get("schemaVersion", value.get("schema_version")) == "1.0":
             from app.scenarios.legacy import ScenarioReceipt as LegacyReceipt
             LegacyReceipt.model_validate({k:v.model_dump(by_alias=True,exclude_none=True) if isinstance(v,Model) else v for k,v in value.items()})
+        if isinstance(value, dict) and value.get("schemaVersion", value.get("schema_version")) == "1.1":
+            from app.scenarios.legacy_boundaries import ScenarioReceipt as LegacyBoundary
+            LegacyBoundary.model_validate({k:v.model_dump(by_alias=True,exclude_none=True) if isinstance(v,Model) else v for k,v in value.items()})
         return value
 
     @model_validator(mode="after")
@@ -124,7 +169,7 @@ class ScenarioReceipt(Model):
 
 
 class ScenarioList(Model):
-    schema_version: Literal["1.0", "1.1"] = "1.1"
+    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4"] = "1.4"
     scenarios: list[ScenarioRevision]
 
 

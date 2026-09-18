@@ -6,10 +6,27 @@ import {
   Map,
   ScanSearch,
   Info,
+  Settings2,
 } from 'lucide-react';
 
 // View kinds describe capabilities, never domain objects or individual pane instances.
 export const viewRegistry = {
+  settings: {
+    unavailable: '',
+    title: 'Settings',
+    category: 'Workspace preferences',
+    icon: Settings2,
+    description: 'Entity symbols, destinations and movement overlays.',
+    future: '',
+  },
+  conductor: {
+    unavailable: '',
+    title: 'Conductor',
+    category: 'Scenario authoring',
+    icon: Clock3,
+    description: 'Author and inspect timed source motion.',
+    future: '',
+  },
   units: {
     unavailable: '',
     title: 'Units',

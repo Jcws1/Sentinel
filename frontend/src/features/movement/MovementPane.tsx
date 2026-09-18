@@ -2,8 +2,9 @@ import { useState, useSyncExternalStore } from 'react';
 import { useOperationalRuntime } from '../../app/OperationalContext';
 import type { ApplicationRuntime, RuntimeSnapshot } from '../../app/runtime';
 import type { DeepReadonly } from '../../contracts/types';
-import type { MovementExecution, Receipt } from '../../contracts/generated';
+import type { MovementExecution } from '../../contracts/generated';
 import { terminalExecution } from '../../world/movement';
+import { interceptSelection } from '../../world/behavior';
 import {
   directContextReason,
   directMovementReason,
@@ -16,8 +17,9 @@ import { CopyValue } from '../entities/CopyValue';
 import './movement.css';
 
 export function executionLabel(
-  execution: Pick<MovementExecution, 'state' | 'reason'>,
+  execution: Pick<MovementExecution, 'state' | 'reason' | 'suspendedBy'>,
 ) {
+  if (execution.suspendedBy) return 'Destination retained · pursuit';
   if (
     execution.state === 'Cancelled' &&
     execution.reason?.startsWith('Superseded by order ')
@@ -38,6 +40,8 @@ function cancelReason(
   state: RuntimeSnapshot,
   execution: DeepReadonly<MovementExecution>,
 ) {
+  if (state.scenario.active || state.presentation.mode !== 'live')
+    return 'Return to the live demo to cancel movement.';
   const run = state.presentation.frame?.interactive,
     current = state.interactive.current;
   if (terminalExecution(execution)) return 'Movement has terminated.';
@@ -100,6 +104,7 @@ export function MovementToolbar({
     (i) => i.kind === 'entity',
   );
   const contextReason = directContextReason(state);
+  const mode = interceptSelection(state);
   const issues = selected.flatMap((i) => {
     const reason = directMovementReason(state, i.id);
     return reason && reason !== contextReason ? [{ id: i.id, reason }] : [];
@@ -112,11 +117,17 @@ export function MovementToolbar({
       </span>
       <button
         className="text-control"
-        disabled={!selected.length || !!contextReason}
+        disabled={
+          !selected.length ||
+          !!contextReason ||
+          (mode.mixed &&
+            state.presentation.frame?.fleetBehavior?.ruleVersion !==
+              'local-fleet-v2')
+        }
         title={contextReason}
         onClick={() => armMoveInMap(runtime, bridge)}
       >
-        Move
+        {mode.armed ? 'Move · Intercept' : 'Move'}
       </button>
       <button className="text-control" onClick={() => bridge.open('movement')}>
         Activity
@@ -151,11 +162,13 @@ function ExecutionCard({
   state,
   runtime,
   compact = false,
+  readOnly = false,
 }: {
   execution: DeepReadonly<MovementExecution>;
   state: RuntimeSnapshot;
   runtime: ApplicationRuntime;
   compact?: boolean;
+  readOnly?: boolean;
 }) {
   const reason = cancelReason(state, e);
   const label =
@@ -206,7 +219,7 @@ function ExecutionCard({
           )}
         </>
       )}
-      {!terminalExecution(e) && (
+      {!readOnly && !terminalExecution(e) && (
         <div className="movement-cancel">
           <button
             className="text-control"
@@ -262,11 +275,13 @@ export function MovementDetails({
   runtime,
   entityId,
   expanded = false,
+  readOnly = false,
 }: {
   state: RuntimeSnapshot;
   runtime: ApplicationRuntime;
   entityId: string;
   expanded?: boolean;
+  readOnly?: boolean;
 }) {
   const executions = (
     state.presentation.frame?.interactive?.executions ?? []
@@ -276,12 +291,23 @@ export function MovementDetails({
   return last && expanded ? (
     <section className="detail-section">
       <h2>Movement</h2>
-      <ExecutionCard execution={last} state={state} runtime={runtime} />
+      <ExecutionCard
+        execution={last}
+        state={state}
+        runtime={runtime}
+        readOnly={readOnly}
+      />
     </section>
   ) : last ? (
     <details className="control-binding">
       <summary>Movement · {executionLabel(last)}</summary>
-      <ExecutionCard execution={last} state={state} runtime={runtime} compact />
+      <ExecutionCard
+        execution={last}
+        state={state}
+        runtime={runtime}
+        compact
+        readOnly={readOnly}
+      />
     </details>
   ) : null;
 }
@@ -290,7 +316,7 @@ function CommandResult({
   receipt,
   state,
 }: {
-  receipt: DeepReadonly<Receipt>;
+  receipt: NonNullable<RuntimeSnapshot['interactive']['directReceipt']>;
   state: RuntimeSnapshot;
 }) {
   const accepted =

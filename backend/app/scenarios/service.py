@@ -3,7 +3,7 @@ import hashlib
 import json
 from uuid import uuid4
 from app.commands.errors import CommandError
-from app.scenarios.contracts import ScenarioRevision, ScenarioReceipt, ScenarioList
+from app.scenarios.contracts import ScenarioRevision, ScenarioReceipt, ScenarioList, content_version
 from app.world.serialization import canonical
 
 
@@ -36,12 +36,15 @@ class ScenarioService:
     def review(self, reference):
         from app.commands.template import TEMPLATE
         from app.commands.kinematics import cruise_speed
+        from app.commands.unit_profiles import profile
         from app.scenarios.review import ScenarioReview, ScenarioCounts, ScenarioMotionPreset, ScenarioReviewIssue
         revision = self.resolve(reference)
         units = revision.content.units
         active = self.repository.active_interactive()
         from app.commands.zone_rules import scenario_issues
-        issues = [ScenarioReviewIssue.model_validate(i) for i in scenario_issues(revision.content)]
+        from app.commands.scheduler import scenario_issues as script_issues, nominal_plan
+        plan = nominal_plan(revision.content)
+        issues = [ScenarioReviewIssue.model_validate(i) for i in scenario_issues(revision.content) + script_issues(revision.content, plan)]
         if not units:
             issues.append(ScenarioReviewIssue(code="EMPTY_ARRANGEMENT", message="Place at least one entity, then save and validate the new revision."))
         if not self.enabled:
@@ -50,11 +53,15 @@ class ScenarioService:
             issues.append(ScenarioReviewIssue(code="ACTIVE_RUN_EXISTS", message="Return to the active demo and End it before starting another; then validate again."))
         controlled = sum(u.command_role == "sentinel" for u in units)
         return ScenarioReview(reference=reference, name=revision.content.name, checked_at=self.authority.clock(),
-            boundary_count=len(revision.content.boundaries or []),
+            boundary_count=len(revision.content.boundaries or []), action_count=len(revision.content.actions or []),
+            script_duration_ms=min(600000, max((e.get("consumedTick",0)*200 for e in plan),default=0)),
+            timings=[dict(actionId=e["action"]["id"],estimatedStartMs=e["consumedTick"]*200 if "consumedTick" in e else None,
+                estimatedEndMs=e["terminalTick"]*200 if "terminalTick" in e else None,afterActionId=e["action"].get("afterActionId"),
+                delayMs=e["action"].get("delayMs"),nominalState=e["state"]) for e in plan],
             counts=ScenarioCounts(total=len(units), friendly=sum(u.category == "friendly" for u in units),
                 hostile=sum(u.category == "hostile" for u in units), unknown=sum(u.category == "unknown" for u in units),
                 controlled=controlled, observation_only=len(units) - controlled),
-            motion_preset=ScenarioMotionPreset(template_id=TEMPLATE, model_id="local-horizontal-v1", speed_mps=cruise_speed(TEMPLATE)),
+            motion_preset=ScenarioMotionPreset(template_id=TEMPLATE, model_id="local-horizontal-v1", speed_mps=cruise_speed(TEMPLATE), unit_profiles={u.id:profile(u.profile_id) for u in revision.content.units if u.profile_id}),
             issues=issues, active_mission_id=active, can_run=not issues)
 
     def lookup(self, identity, definition_id=None):
@@ -78,10 +85,10 @@ class ScenarioService:
                 code = "NOT_FOUND" if current is None else "REVISION_CONFLICT" if request.expected_revision != current else "OK"
                 result = None
                 if code == "OK":
-                    result = ScenarioRevision(schema_version="1.1" if request.content.boundaries is not None else "1.0", definition_id=definition_id or str(uuid4()), revision=current + 1,
+                    result = ScenarioRevision(schema_version=content_version(request.content), definition_id=definition_id or str(uuid4()), revision=current + 1,
                         content_hash=hashlib.sha256(canonical(request.content).encode()).hexdigest(), created_at=self.authority.clock(), content=request.content)
                     self.repository.db.execute("INSERT INTO scenario_revisions VALUES (?,?,?)", (result.definition_id, result.revision, canonical(result)))
-                receipt = ScenarioReceipt(schema_version="1.1" if request.content.boundaries is not None else "1.0", request_id=request.request_id, accepted=code == "OK", code=code, result=result,
+                receipt = ScenarioReceipt(schema_version=content_version(request.content), request_id=request.request_id, accepted=code == "OK", code=code, result=result,
                     message="Saved immutable revision." if code == "OK" else "Scenario changed. Your edits are retained; reload the latest revision or save as a new scenario." if code == "REVISION_CONFLICT" else "Scenario not found.")
                 self.repository.db.execute("INSERT INTO scenario_receipts VALUES (?,?,?,?)", (scope, request.request_id, payload, canonical(receipt)))
                 return receipt
@@ -94,7 +101,8 @@ def instantiate(revision, at):
     if not revision.content.units:
         raise CommandError("INVALID_REQUEST", "Place at least one entity before running the scenario.")
     from app.commands.zone_rules import scenario_issues
-    issues = scenario_issues(revision.content)
+    from app.commands.scheduler import scenario_issues as script_issues, freeze
+    issues = scenario_issues(revision.content) + script_issues(revision.content)
     if issues:
         raise CommandError("INVALID_REQUEST", issues[0]["message"])
     mission, frame = new_template(at)
@@ -105,10 +113,14 @@ def instantiate(revision, at):
         frame[key] = {}
     run["controls"] = []
     mapping = {}
+    frame["unitProfiles"] = {}
     for unit in revision.content.units:
         eid = f'{run["runId"]}:{unit.id}'
         tid, aid = f'{eid}:control', f'{eid}:asset'
         mapping[unit.id] = eid
+        if unit.profile_id:
+            from app.commands.unit_profiles import profile
+            frame["unitProfiles"][eid] = profile(unit.profile_id)
         frame["entities"][eid] = dict(id=eid, missionId=mission.id, label=unit.label, kind="virtual-object",
             classification={"scheme": "sentinel-demo", "code": "unknown-entity" if unit.category == "unknown" else "drone", "label": "Unknown entity" if unit.category == "unknown" else "Drone"},
             affiliation=unit.category, condition="operational", presence="present", provenance=provenance)
@@ -120,7 +132,8 @@ def instantiate(revision, at):
                 source_id=source["id"], grant_id=run["grantId"], binding_revision=1, capabilities=["move-horizontal"], position_reference="ELLIPSOID/WGS84", reason="Start the source to move.")
             run["controls"].append(json.loads(canonical(control)))
     frame["scenario"] = dict(definitionId=revision.definition_id, revision=revision.revision, contentHash=revision.content_hash, name=revision.content.name, entityIds=mapping)
-    frame["mission"]["extensions"] = {"sentinel.interactive": {"templateId": run["templateId"], "synthetic": True}}
+    frame["mission"]["extensions"] = {"sentinel.interactive": {"templateId": run["templateId"], "synthetic": True},
+        "sentinel.scenario": dict(name=revision.content.name, revision=revision.revision, definitionId=revision.definition_id)}
     if revision.content.boundaries is not None:
         frame["zones"] = {}
         rules = {}
@@ -132,5 +145,8 @@ def instantiate(revision, at):
             rules[zid] = boundary.type
         frame["boundaryRules"] = dict(ruleVersion="local-boundary-v1", zones=rules)
         frame["mission"]["zoneIds"] = list(rules)
+    schedule = freeze(revision.content, frame)
+    if schedule is not None:
+        frame["scenarioSchedule"] = schedule
     mission = Mission.model_validate(frame["mission"])
     return mission, frame

@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import rawDemo from '../../../contracts/sentinel/v1.7/demo.world.json';
+import rawDemo from '../../../contracts/sentinel/v1.11/demo.world.json';
 import { validateFrame } from '../../src/contracts/decode';
 import {
   decodeRunRead,
@@ -80,7 +80,7 @@ function state() {
       holderId: 'Operator',
       now: frame.recordedAt,
       current: {
-        schemaVersion: '1.3',
+        schemaVersion: '1.7',
         serverTime: frame.recordedAt,
         run,
         ownsControl: true,
@@ -251,7 +251,7 @@ it('HTTP acknowledgement cannot replace presented positions or mark an execution
   s.interactive = {
     ...s.interactive,
     movementReceipt: {
-      schemaVersion: '1.2',
+      schemaVersion: '1.3',
       requestId: 'move',
       operation: 'move',
       accepted: true,
@@ -376,7 +376,8 @@ it('persists exact Move before sending and reconciles a lost reply after reload 
     id = 'opaque /?#% request';
   let body = '';
   const receipt = {
-    schemaVersion: '1.2',
+    schemaVersion: '1.6',
+    movementOrder: 1,
     requestId: id,
     operation: 'move',
     accepted: true,

@@ -7,7 +7,7 @@ import type { CameraIntent } from '../../src/renderers/contracts';
 
 test.use({ trace: 'off' });
 const evidence = resolve(
-  '../docs/d2/regressions/evidence/regressions/regressions',
+  '../docs/d4-refinement/regressions/d4/regressions/rts-gestures',
 );
 type Mode = 'tactical' | 'three-d';
 type Probe = {

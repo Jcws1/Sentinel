@@ -42,7 +42,7 @@ def test_direct_completion_duplicate_reconciliation_and_conflicting_payload():
         mid = await started(h)
         request = direct(h, mid, longitude=103.8503, latitude=1.29)
         receipt = await issue(h, mid, request)
-        assert receipt.accepted and receipt.schema_version == '1.2'
+        assert receipt.accepted and receipt.schema_version == '1.6'
         assert receipt.member_outcomes[0].outcome == 'accepted'
         eid = receipt.execution_ids[0]
         assert execution(h, mid, eid).state == 'Accepted'
@@ -161,7 +161,7 @@ def test_replacement_uses_current_position_and_subset_leaves_others_moving():
         new = execution(h, mid, replacement.execution_ids[0])
         assert canonical(new.origin) == canonical(current)
         assert execution(h, mid, old_a.id).state == 'Cancelled'
-        assert execution(h, mid, old_a.id).reason == 'Superseded by order 2.'
+        assert execution(h, mid, old_a.id).reason == 'Superseded by behavior order 2.'
         assert execution(h, mid, old_b.id) == old_b
         assert canonical(new.destination.altitude) == canonical(current.altitude)
         await ticks(h, 1)
@@ -399,7 +399,7 @@ def test_schema_two_migration_aliases_and_v12_bytes_remain_unchanged(tmp_path):
     migrated = Harness(path)
     assert migrated.repo.db.execute('PRAGMA user_version').fetchone()[0] == 4
     projected = migrated.authority.read(frame.mission.id)
-    assert projected.schema_version == '1.6' and projected.interactive.schema_version == '1.3'
+    assert projected.schema_version == '1.10' and projected.interactive.schema_version == '1.7'
     assert projected.mission.name == 'Demo 001'
     assert migrated.repo.list_missions()[0].name == 'Demo 001'
     assert migrated.repo.latest_text(frame.mission.id) == raw
@@ -415,6 +415,7 @@ def test_legacy_v11_receipt_unchanged_and_direct_http_opaque_lookup():
         value = json.loads(current)
         value['schemaVersion'] = '1.1'
         value.pop('memberOutcomes')
+        value.pop('controlOutcomes');value.pop('behaviorOutcomes');value.pop('targetScope')
         raw = json.dumps(value, indent=2)
         h.repo.db.execute('UPDATE creation_receipts SET receipt_json=? WHERE creation_id=?', (raw, 'old'))
         assert json.loads(canonical(h.service.lookup('old'))) == value

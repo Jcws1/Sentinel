@@ -6,7 +6,7 @@ import {
   decodeRunRead,
 } from '../../src/contracts/interactive';
 import { validateFrame } from '../../src/contracts/decode';
-import rawFrame from '../../../contracts/sentinel/v1.7/fixture.world.json';
+import rawFrame from '../../../contracts/sentinel/v1.11/fixture.world.json';
 import type { CommandRequest } from '../../src/contracts/generated';
 
 const cleanup: (() => void)[] = [];

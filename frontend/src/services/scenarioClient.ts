@@ -1,3 +1,9 @@
+import {
+  buildActionEdits,
+  draftWithActions,
+  batchAnchor,
+} from '../world/scriptAuthoring';
+import { actionTime, scriptPlan } from '../world/scriptPlan';
 import type {
   ScenarioContent,
   ScenarioRevision,
@@ -5,6 +11,7 @@ import type {
   UnitPlacement,
   ScenarioReview,
   BoundaryDefinition,
+  ScheduledAction,
 } from '../contracts/generated';
 import {
   validateBoundary,
@@ -80,7 +87,26 @@ export interface BoundaryEdit {
   viewId?: string;
   selectedVertex?: number;
 }
+export interface ActionEdit {
+  timingMode?: 'absolute' | 'after' | 'keep';
+  predecessorId?: string;
+  delaySeconds?: string;
+  batch?: { id: string; unitId: string; originalId?: string }[];
+  id: string;
+  originalId?: string;
+  unitId: string;
+  seconds: string;
+  longitude: string;
+  latitude: string;
+  ordinal: number;
+  viewId?: string;
+}
 export interface ScenarioState {
+  actionEdit?: ActionEdit;
+  selectedActionId?: string;
+  selectedActionIds?: string[];
+  planFilter?: 'all' | 'selected';
+  planLabels?: 'all' | 'selected';
   boundaryEdit?: BoundaryEdit;
   boundaryMenu?: { ids: string[]; viewId: string; x: number; y: number };
   active: boolean;
@@ -98,6 +124,7 @@ export interface ScenarioState {
   reviewing: boolean;
   locate?: { id: string; viewId: string; serial: number };
   placement?: {
+    profileId?: UnitPlacement['profileId'];
     category: UnitPlacement['category'];
     replaceId?: string;
     duplicateId?: string;
@@ -110,6 +137,7 @@ function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
   if (value && typeof value === 'object')
     return `{${Object.entries(value)
+      .filter(([, v]) => v !== undefined)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`)
       .join(',')}}`;
@@ -134,6 +162,87 @@ function readBoundaryEdit(value: BoundaryEdit): BoundaryEdit {
   )
     throw new Error('Invalid recovered boundary edit.');
   return { ...value, viewId: undefined };
+}
+function readActionEdit(
+  value: ActionEdit,
+  content: ScenarioContent,
+): ActionEdit {
+  if (
+    !value ||
+    !['id', 'unitId', 'seconds', 'longitude', 'latitude'].every(
+      (k) =>
+        typeof Reflect.get(value, k) === 'string' &&
+        Reflect.get(value, k).length <= 64,
+    ) ||
+    !Number.isInteger(value.ordinal) ||
+    value.ordinal < 0 ||
+    value.ordinal > 127 ||
+    !content.units.some(
+      (u) => u.id === value.unitId && u.category !== 'unknown',
+    ) ||
+    (value.originalId &&
+      !content.actions?.some((a) => a.id === value.originalId)) ||
+    (value.timingMode &&
+      !['absolute', 'after', 'keep'].includes(value.timingMode)) ||
+    (value.delaySeconds != null &&
+      (typeof value.delaySeconds !== 'string' ||
+        value.delaySeconds.length > 64)) ||
+    (value.predecessorId != null &&
+      (typeof value.predecessorId !== 'string' ||
+        value.predecessorId.length > 64)) ||
+    (value.batch &&
+      (!Array.isArray(value.batch) ||
+        value.batch.length < 1 ||
+        value.batch.length > 32 ||
+        new Set(value.batch.map((m) => m.id)).size !== value.batch.length ||
+        new Set(value.batch.map((m) => m.unitId)).size !== value.batch.length ||
+        value.batch.some(
+          (m) =>
+            typeof m.id !== 'string' ||
+            m.id.length > 64 ||
+            !content.units.some(
+              (u) => u.id === m.unitId && u.category !== 'unknown',
+            ) ||
+            (m.originalId &&
+              !content.actions?.some(
+                (a) => a.id === m.originalId && a.unitId === m.unitId,
+              )),
+        )))
+  )
+    throw new Error('Invalid recovered action editor.');
+  return { ...value, viewId: undefined };
+}
+/** Raw name entry may be empty between keystrokes; saved content may not. */
+function readDraft(value: ScenarioContent): ScenarioContent {
+  if (!value || typeof value.name !== 'string' || value.name.length > 80)
+    throw new Error('Enter an arrangement name of at most 80 characters.');
+  const content = decodeScenarioWrite({
+    requestId: 'validate-draft',
+    expectedRevision: 0,
+    content: {
+      ...value,
+      name: value.name.trim() ? value.name : 'Untitled draft',
+    },
+  }).content;
+  return { ...content, name: value.name };
+}
+// Python dispatch compares Unicode code points, independent of browser locale.
+function compareActionIds(a: string, b: string) {
+  const left = [...a],
+    right = [...b];
+  for (let i = 0; i < Math.min(left.length, right.length); i++) {
+    const difference = left[i].codePointAt(0)! - right[i].codePointAt(0)!;
+    if (difference) return difference;
+  }
+  return left.length - right.length;
+}
+export function orderedActions(actions: readonly ScheduledAction[]) {
+  return [...actions].sort(
+    (a, b) =>
+      (a.offsetMs ?? Infinity) - (b.offsetMs ?? Infinity) ||
+      a.ordinal - b.ordinal ||
+      compareActionIds(a.id, b.id),
+  );
 }
 export function createScenarioClient(options: {
   base: string;
@@ -163,12 +272,9 @@ export function createScenarioClient(options: {
         saved?: ScenarioRevision;
         edit?: ScenarioUnitEdit;
         boundaryEdit?: BoundaryEdit;
+        actionEdit?: ActionEdit;
       };
-      const content = decodeScenarioWrite({
-        requestId: 'restore',
-        expectedRevision: 0,
-        content: value.content,
-      }).content;
+      const content = readDraft(value.content);
       const saved = value.saved
         ? decodeScenarioRevision(value.saved)
         : undefined;
@@ -178,6 +284,9 @@ export function createScenarioClient(options: {
         saved,
         dirty: !saved || canonical(content) !== canonical(saved.content),
         edit: value.edit ? readEdit(value.edit, content) : undefined,
+        actionEdit: value.actionEdit
+          ? readActionEdit(value.actionEdit, content)
+          : undefined,
         boundaryEdit: value.boundaryEdit
           ? readBoundaryEdit(value.boundaryEdit)
           : undefined,
@@ -206,6 +315,7 @@ export function createScenarioClient(options: {
       'saved' in update ||
       'edit' in update ||
       'boundaryEdit' in update ||
+      'actionEdit' in update ||
       update.active === false ||
       update.placement
     ) {
@@ -227,6 +337,7 @@ export function createScenarioClient(options: {
             saved: state.saved,
             edit: state.edit,
             boundaryEdit: state.boundaryEdit,
+            actionEdit: state.actionEdit,
           }),
         );
       } catch {
@@ -368,6 +479,7 @@ export function createScenarioClient(options: {
     editUnit(edit: ScenarioUnitEdit) {
       if (
         !state.active ||
+        state.actionEdit ||
         state.boundaryEdit ||
         state.blocked ||
         state.pending ||
@@ -379,6 +491,8 @@ export function createScenarioClient(options: {
         {
           edit: readEdit(edit, state.draft),
           placement: undefined,
+          selectedActionId: undefined,
+          selectedActionIds: [],
           error: undefined,
           message: undefined,
         },
@@ -392,6 +506,7 @@ export function createScenarioClient(options: {
     applyEdit() {
       if (
         !state.edit ||
+        state.actionEdit ||
         state.boundaryEdit ||
         state.blocked ||
         state.pending ||
@@ -426,11 +541,7 @@ export function createScenarioClient(options: {
                 headingTrueDeg: Number(edit.heading),
               },
         );
-        decodeScenarioWrite({
-          requestId: 'validate-edit',
-          expectedRevision: 0,
-          content: draft,
-        });
+        readDraft(draft);
         emit(
           {
             draft,
@@ -456,6 +567,9 @@ export function createScenarioClient(options: {
       emit(
         {
           active: false,
+          actionEdit: state.actionEdit
+            ? { ...state.actionEdit, viewId: undefined }
+            : undefined,
           placement: undefined,
           boundaryMenu: undefined,
           boundaryEdit: state.boundaryEdit
@@ -467,6 +581,7 @@ export function createScenarioClient(options: {
     newDraft() {
       if (
         !state.edit &&
+        !state.actionEdit &&
         !state.boundaryEdit &&
         !state.blocked &&
         !state.pending &&
@@ -479,6 +594,8 @@ export function createScenarioClient(options: {
             saved: undefined,
             dirty: true,
             placement: undefined,
+            selectedActionId: undefined,
+            selectedActionIds: [],
             error: undefined,
             message: undefined,
           },
@@ -489,20 +606,33 @@ export function createScenarioClient(options: {
       if (
         state.active &&
         !state.edit &&
+        !state.actionEdit &&
         !state.boundaryEdit &&
         !state.blocked &&
         !state.pending &&
         !state.busy
-      )
-        emit(
-          { draft, dirty: true, message: undefined, error: undefined },
-          true,
-        );
+      ) {
+        try {
+          readDraft(draft);
+          emit(
+            { draft, dirty: true, message: undefined, error: undefined },
+            true,
+          );
+        } catch (error) {
+          emit({
+            error:
+              error instanceof Error
+                ? error.message
+                : 'Invalid arrangement. Remove referencing actions in Conductor before deleting this unit.',
+          });
+        }
+      }
     },
     arm(placement?: ScenarioState['placement']) {
       if (
         !placement ||
         (!state.edit &&
+          !state.actionEdit &&
           !state.boundaryEdit &&
           !state.blocked &&
           !state.pending &&
@@ -516,6 +646,7 @@ export function createScenarioClient(options: {
     async load(id: string) {
       if (
         state.edit ||
+        state.actionEdit ||
         state.boundaryEdit ||
         state.blocked ||
         state.pending ||
@@ -533,6 +664,8 @@ export function createScenarioClient(options: {
               saved,
               draft: saved.content,
               dirty: false,
+              selectedActionId: undefined,
+              selectedActionIds: [],
               error: undefined,
               message: `Loaded revision ${saved.revision}`,
             },
@@ -550,6 +683,7 @@ export function createScenarioClient(options: {
     async save(asNew = false) {
       if (
         state.edit ||
+        state.actionEdit ||
         state.boundaryEdit ||
         state.blocked ||
         state.pending ||
@@ -558,17 +692,36 @@ export function createScenarioClient(options: {
         return;
       try {
         if (!storage) throw new Error('Session storage unavailable.');
+        if (!state.draft.name.trim())
+          throw new Error('Enter an arrangement name before saving.');
         const content = structuredClone(state.draft);
         if (asNew && content.boundaries)
           content.boundaries = content.boundaries.map((b) => ({
             ...b,
             id: crypto.randomUUID(),
           })) as ScenarioContent['boundaries'];
-        if (asNew)
+        if (asNew) {
+          const mapping = new Map(
+            content.units.map((u) => [u.id, crypto.randomUUID()]),
+          );
           content.units = content.units.map((u) => ({
             ...u,
-            id: crypto.randomUUID(),
+            id: mapping.get(u.id)!,
           }));
+          if (content.actions) {
+            const actionIds = new Map(
+              content.actions.map((a) => [a.id, crypto.randomUUID()]),
+            );
+            content.actions = content.actions.map((a) => ({
+              ...a,
+              id: actionIds.get(a.id)!,
+              unitId: mapping.get(a.unitId)!,
+              ...(a.afterActionId
+                ? { afterActionId: actionIds.get(a.afterActionId)! }
+                : {}),
+            }));
+          }
+        }
         const pending: Pending = {
           definitionId: asNew ? undefined : state.saved?.definitionId,
           body: {
@@ -599,6 +752,7 @@ export function createScenarioClient(options: {
         !state.saved ||
         state.dirty ||
         state.edit ||
+        state.actionEdit ||
         state.boundaryEdit ||
         state.pending ||
         state.busy ||
@@ -631,6 +785,340 @@ export function createScenarioClient(options: {
           emit({ reviewing: false });
       }
     },
+    setPlanPresentation(
+      update: Pick<ScenarioState, 'planFilter' | 'planLabels'>,
+    ) {
+      emit(update);
+    },
+    selectAction(id?: string, additive = false) {
+      if (
+        !state.actionEdit &&
+        (!state.active || !id || state.draft.actions?.some((a) => a.id === id))
+      )
+        emit({
+          selectedActionId: id,
+          selectedActionIds: id
+            ? additive
+              ? (state.selectedActionIds ?? []).includes(id)
+                ? (state.selectedActionIds ?? []).filter((x) => x !== id)
+                : [...(state.selectedActionIds ?? []), id]
+              : [id]
+            : [],
+        });
+    },
+    beginAction(id?: string, duplicate = false) {
+      if (
+        !state.active ||
+        state.edit ||
+        state.boundaryEdit ||
+        state.actionEdit ||
+        state.pending ||
+        state.busy ||
+        state.blocked
+      )
+        return;
+      const source = state.draft.actions?.find((a) => a.id === id);
+      if ((!source || duplicate) && (state.draft.actions?.length ?? 0) >= 128) {
+        emit({ error: 'At most 128 actions are supported.' });
+        return;
+      }
+      const unit =
+        state.draft.units.find((u) => u.id === source?.unitId) ??
+        state.draft.units.find((u) => u.category !== 'unknown');
+      if (!unit) {
+        emit({
+          error:
+            'Place a friendly or hostile actor in Units first. Unknown entities remain stationary.',
+        });
+        return;
+      }
+      const identity = source && !duplicate ? source.id : crypto.randomUUID();
+      emit(
+        {
+          placement: undefined,
+          boundaryMenu: undefined,
+          error: undefined,
+          review: undefined,
+          selectedActionId: source?.id,
+          actionEdit: {
+            id: identity,
+            originalId: source && !duplicate ? source.id : undefined,
+            unitId: unit.id,
+            timingMode: source?.afterActionId ? 'after' : 'absolute',
+            predecessorId: source?.afterActionId ?? undefined,
+            delaySeconds: String((source?.delayMs ?? 0) / 1000),
+            seconds: String(
+              (source?.offsetMs ?? 0) / 1000 + (duplicate ? 0.2 : 0),
+            ),
+            longitude: String(
+              source?.destination.longitudeDeg ?? unit.position.longitudeDeg,
+            ),
+            latitude: String(
+              source?.destination.latitudeDeg ?? unit.position.latitudeDeg,
+            ),
+            ordinal:
+              source && !duplicate
+                ? source.ordinal
+                : Math.min(127, state.draft.actions?.length ?? 0),
+          },
+        },
+        true,
+      );
+    },
+    beginBatch(unitIds: string[], actionIds: string[] = []) {
+      if (
+        !state.active ||
+        state.edit ||
+        state.boundaryEdit ||
+        state.actionEdit ||
+        state.pending ||
+        state.busy ||
+        state.blocked
+      )
+        return;
+      const units = [...new Set(unitIds)].map((id) =>
+        state.draft.units.find((u) => u.id === id),
+      );
+      if (
+        !units.length ||
+        units.some((u) => !u || u.category === 'unknown') ||
+        new Set(units.map((u) => u?.category)).size !== 1
+      ) {
+        emit({
+          error:
+            'Select friendly or hostile actors from one category. Unknown entities cannot be scripted.',
+        });
+        return;
+      }
+      const sources = (state.draft.actions ?? []).filter((a) =>
+        actionIds.includes(a.id),
+      );
+      if (
+        sources.length &&
+        new Set(sources.map((a) => a.unitId)).size !== sources.length
+      ) {
+        emit({
+          error:
+            'Batch edits support one selected action per actor. Revise the selection.',
+        });
+        return;
+      }
+      if (
+        (state.draft.actions?.length ?? 0) +
+          (sources.length ? 0 : units.length) >
+        128
+      ) {
+        emit({
+          error:
+            'This complete batch would exceed 128 actions. No actions were added.',
+        });
+        return;
+      }
+      const batch = units.map((u) => {
+        const a = sources.find((a) => a.unitId === u!.id);
+        return {
+          id: a?.id ?? crypto.randomUUID(),
+          unitId: u!.id,
+          originalId: a?.id,
+        };
+      });
+      emit(
+        {
+          actionEdit: {
+            ...batch[0],
+            batch,
+            timingMode: sources.length ? 'keep' : 'absolute',
+            seconds: '0',
+            delaySeconds: '0',
+            ordinal: Math.min(127, state.draft.actions?.length ?? 0),
+            ...batchAnchor(state.draft, unitIds, actionIds),
+          },
+          placement: undefined,
+          boundaryMenu: undefined,
+          error: undefined,
+        },
+        true,
+      );
+    },
+    editAction(update: Partial<ActionEdit>) {
+      if (state.actionEdit && !state.pending && !state.busy)
+        emit(
+          { actionEdit: { ...state.actionEdit, ...update }, error: undefined },
+          true,
+        );
+    },
+    snapActionTime() {
+      const edit = state.actionEdit;
+      const field = edit?.timingMode === 'after' ? 'delaySeconds' : 'seconds';
+      if (!edit || !(edit[field] ?? '').trim()) return;
+      const seconds = Number(edit[field]);
+      if (Number.isFinite(seconds) && seconds >= 0 && seconds <= 600)
+        emit(
+          {
+            actionEdit: {
+              ...edit,
+              [field]: String(Math.round(seconds * 5) / 5),
+            },
+          },
+          true,
+        );
+    },
+    armAction(viewId?: string) {
+      if (state.actionEdit && state.active && !state.pending && !state.busy)
+        emit(
+          {
+            actionEdit: { ...state.actionEdit, viewId },
+            placement: undefined,
+            boundaryMenu: undefined,
+          },
+          true,
+        );
+    },
+    disarmAction(viewId?: string) {
+      if (state.actionEdit && (!viewId || state.actionEdit.viewId === viewId))
+        emit({ actionEdit: { ...state.actionEdit, viewId: undefined } }, true);
+    },
+    actionDestination(longitude: number, latitude: number, viewId: string) {
+      if (
+        !state.actionEdit ||
+        state.actionEdit.viewId !== viewId ||
+        !state.active ||
+        state.pending ||
+        state.busy
+      )
+        return false;
+      emit(
+        {
+          actionEdit: {
+            ...state.actionEdit,
+            longitude: String(longitude),
+            latitude: String(latitude),
+            viewId: undefined,
+          },
+          error: undefined,
+        },
+        true,
+      );
+      return true;
+    },
+    cancelAction() {
+      if (!state.pending && !state.busy)
+        emit({ actionEdit: undefined, error: undefined }, true);
+    },
+    applyAction() {
+      const edit = state.actionEdit;
+      if (!edit || state.pending || state.busy || state.blocked) return false;
+      try {
+        const proposed = draftWithActions(state.draft, edit);
+        const draft = readDraft(proposed);
+        const edited = buildActionEdits(state.draft, edit);
+        const action = edited[0];
+        if (edit.batch) {
+          const failures = scriptPlan(draft).filter((l) =>
+            ['Failed', 'Skipped', 'Pending'].includes(l.state),
+          );
+          if (failures.length)
+            throw new Error(
+              failures
+                .map(
+                  (l) =>
+                    `${draft.units.find((u) => u.id === l.action.unitId)?.label}: ${l.reason ?? 'Unresolved movement'}`,
+                )
+                .join(' '),
+            );
+        }
+        emit(
+          {
+            draft,
+            dirty: true,
+            actionEdit: undefined,
+            selectedActionId: action.id,
+            selectedActionIds: edited.map((a) => a.id),
+            error: undefined,
+            message: `${edited.length > 1 ? `${edited.length} actions applied together` : `Action applied: ${actionTime(action)}`}. Save the new revision.`,
+          },
+          true,
+        );
+        return true;
+      } catch (error) {
+        emit({
+          error: error instanceof Error ? error.message : 'Invalid action.',
+        });
+        return false;
+      }
+    },
+    deleteAction(id: string) {
+      if (
+        state.actionEdit ||
+        state.edit ||
+        state.boundaryEdit ||
+        state.pending ||
+        state.busy ||
+        state.blocked ||
+        !state.active
+      )
+        return;
+      if (state.draft.actions?.some((a) => a.afterActionId === id)) {
+        emit({
+          error:
+            'Change or delete the dependent movement before deleting its predecessor.',
+        });
+        return;
+      }
+      emit(
+        {
+          draft: {
+            ...state.draft,
+            actions: (state.draft.actions ?? []).filter((a) => a.id !== id),
+            scheduleRuleVersion:
+              state.draft.scheduleRuleVersion ?? 'local-schedule-v1',
+          },
+          dirty: true,
+          selectedActionId: undefined,
+          error: undefined,
+        },
+        true,
+      );
+    },
+    reorderAction(id: string, direction: -1 | 1) {
+      if (
+        state.actionEdit ||
+        state.edit ||
+        state.boundaryEdit ||
+        state.pending ||
+        state.busy ||
+        state.blocked ||
+        !state.active
+      )
+        return;
+      const actions = orderedActions(state.draft.actions ?? []),
+        i = actions.findIndex((a) => a.id === id),
+        next = actions[i + direction];
+      if (
+        i < 0 ||
+        !next ||
+        actions[i].offsetMs == null ||
+        next.offsetMs !== actions[i].offsetMs
+      )
+        return;
+      [actions[i], actions[i + direction]] = [
+        actions[i + direction],
+        actions[i],
+      ];
+      emit(
+        {
+          draft: {
+            ...state.draft,
+            actions: actions.map((a, ordinal) => ({ ...a, ordinal })),
+            scheduleRuleVersion:
+              state.draft.scheduleRuleVersion ?? 'local-schedule-v1',
+          },
+          dirty: true,
+          error: undefined,
+        },
+        true,
+      );
+    },
     beginBoundary(viewId: string, id?: string) {
       if (
         !state.active ||
@@ -638,7 +1126,8 @@ export function createScenarioClient(options: {
         state.pending ||
         state.busy ||
         state.blocked ||
-        state.boundaryEdit
+        state.boundaryEdit ||
+        state.actionEdit
       )
         return;
       const source = state.draft.boundaries?.find((b) => b.id === id);
@@ -776,11 +1265,7 @@ export function createScenarioClient(options: {
           boundaries,
           boundaryRuleVersion: 'local-boundary-v1',
         } as ScenarioContent;
-        decodeScenarioWrite({
-          requestId: 'validate-boundary',
-          expectedRevision: 0,
-          content: draft,
-        });
+        readDraft(draft);
         emit(
           {
             draft,
@@ -804,6 +1289,7 @@ export function createScenarioClient(options: {
     setBoundaryType(id: string, type: BoundaryDefinition['type']) {
       if (
         state.edit ||
+        state.actionEdit ||
         state.boundaryEdit ||
         state.pending ||
         state.busy ||
@@ -839,6 +1325,7 @@ export function createScenarioClient(options: {
     deleteBoundary(id: string) {
       if (
         state.edit ||
+        state.actionEdit ||
         state.boundaryEdit ||
         state.pending ||
         state.busy ||
@@ -869,6 +1356,10 @@ export function createScenarioClient(options: {
       y: number,
     ) {
       if (!state.active) return;
+      if (state.actionEdit) {
+        emit({ actionEdit: { ...state.actionEdit, viewId: undefined } }, true);
+        return;
+      }
       if (state.placement) {
         emit({ placement: undefined });
         return;

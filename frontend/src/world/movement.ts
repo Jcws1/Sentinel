@@ -77,6 +77,8 @@ export function movementReason(
   state: RuntimeSnapshot,
   id: string,
 ): string | undefined {
+  if (state.scenario.active || state.presentation.mode !== 'live')
+    return 'Return to the live demo to issue movement.';
   const frame = state.presentation.frame,
     run = frame?.interactive,
     current = state.interactive.current;

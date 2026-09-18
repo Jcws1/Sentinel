@@ -170,6 +170,7 @@
 }
 .units-pane .units-primary:hover:enabled {
   background: #d1e5e3;
+  color: #122120;
   border-color: #d1e5e3;
 }
 .units-revision,
@@ -484,4 +485,28 @@
   font-size: 11px;
   color: #d8e5e8;
   pointer-events: none;
+}
+.units-subtypes {
+  display: grid;
+  gap: 4px;
+  margin: 4px 0 10px 12px;
+  padding-left: 10px;
+  border-left: 1px solid var(--border, #303a42);
+}
+.units-subtypes button {
+  display: grid;
+  gap: 3px;
+  text-align: left;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  background: #141c22;
+  color: #cad4dc;
+}
+.units-subtypes button[aria-pressed='true'] {
+  border-color: #6b969b;
+  background: #233338;
+}
+.units-subtypes small {
+  color: #9caab4;
+  font-size: 11px;
 }

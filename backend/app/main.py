@@ -36,13 +36,16 @@ def create_app(db_path: str | None = None, fixtures_enabled: bool | None = None,
         application.state.interactive = InteractiveService(application.state.service, demo)
         application.state.scenarios = ScenarioService(application.state.service, demo)
         async def source_loop():
+            loop = asyncio.get_running_loop()
             while True:
-                await asyncio.sleep(.2)
+                started = loop.time()
                 try:
                     await application.state.interactive.tick()
                 except sqlite3.Error:
                     # No candidate was adopted. Existing lastReportAt exposes the stall.
-                    continue
+                    pass
+                # Fixed simulation steps, compensated wall cadence, no catch-up burst.
+                await asyncio.sleep(max(.001, .2 - (loop.time() - started)))
         runner = None
         try:
             await application.state.interactive.recover()
@@ -57,7 +60,7 @@ def create_app(db_path: str | None = None, fixtures_enabled: bool | None = None,
                     await runner
             repository.close()
 
-    application = FastAPI(title="Sentinel world authority", version="1.6.0", lifespan=lifespan)
+    application = FastAPI(title="Sentinel world authority", version="1.10.0", lifespan=lifespan)
     application.include_router(missions.router)
     application.include_router(stream.router)
     application.include_router(interactive.router)

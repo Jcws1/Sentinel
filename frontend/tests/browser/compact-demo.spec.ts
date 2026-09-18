@@ -9,7 +9,9 @@ import {
   endDemo,
 } from './rtsActions';
 
-const evidence = resolve('../docs/d2/regressions/evidence/regressions');
+const evidence = resolve(
+  '../docs/d4-refinement/regressions/d4/regressions/compact-demo',
+);
 test.use({ trace: 'off' });
 test.afterEach(async ({ page }) => {
   // Keep each real UI scenario independent if an assertion fails mid-demo.
@@ -48,7 +50,7 @@ test('compact chrome preserves direct commands, measured cruise, partial groups 
     true,
   );
   const run = await readWorld(page);
-  expect(run.schemaVersion).toBe('1.6');
+  expect(run.schemaVersion).toBe('1.10');
   expect(run.interactive?.templateId).toBe('singapore-local-v2');
   await directClick(page, 0.76, 0.3);
   await expect
@@ -63,8 +65,9 @@ test('compact chrome preserves direct commands, measured cruise, partial groups 
   await expect(page.locator('.operational-attention')).toHaveCount(0);
   await page.screenshot({ path: resolve(evidence, 'desktop-moving.png') });
 
-  await details
-    .getByRole('button', { name: 'Cancel F-01', exact: true })
+  await page
+    .locator('.fleet-sidebar')
+    .getByRole('button', { name: 'Stop selected', exact: true })
     .click();
   await expect
     .poll(async () => (await readWorld(page)).interactive!.executions![0].state)

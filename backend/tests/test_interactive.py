@@ -339,7 +339,7 @@ def test_legacy_migration_keeps_original_bytes_and_history_readable(tmp_path):
     assert migrated.repo.db.execute("PRAGMA user_version").fetchone()[0] == 4
     assert migrated.repo.latest_text(frame.mission.id) == raw
     projected = migrated.authority.read(frame.mission.id)
-    assert projected.schema_version == "1.6" and projected.frame_id == frame.frame_id
+    assert projected.schema_version == "1.10" and projected.frame_id == frame.frame_id
     history = migrated.repo.observed_history(frame.mission.id, next(iter(frame.entities)), frame.frame_id, 60)
     assert history.segments and migrated.repo.latest_text(frame.mission.id) == raw
     legacy_schema = json.loads((Path(__file__).parents[2] / "contracts/sentinel/v1/world.schema.json").read_text())

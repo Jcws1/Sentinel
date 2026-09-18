@@ -103,6 +103,8 @@ export function entityRows(
           ? 'stale'
           : track.state;
       const visible =
+        (!filters.conditions?.length ||
+          filters.conditions.includes(entity.condition)) &&
         (!filters.affiliations.length ||
           filters.affiliations.includes(entity.affiliation)) &&
         (!filters.classificationCodes.length ||

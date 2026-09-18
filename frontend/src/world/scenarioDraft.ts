@@ -1,3 +1,4 @@
+import { draftScriptDestinations } from './scriptScene';
 import type { DeepReadonly } from '../contracts/types';
 import type { ScenarioState } from '../services/scenarioClient';
 import type { SceneProjection } from '../renderers/contracts';
@@ -7,6 +8,7 @@ export function scenarioScene(
   session: DeepReadonly<SessionState>,
 ): SceneProjection {
   return {
+    destinations: draftScriptDestinations(scenario, session),
     context: 'authoring',
     // Renderer camera bookmark scope only; never an operational mission identity.
     // Saving or revising a definition must not reset any pane's camera.
@@ -50,9 +52,10 @@ export function scenarioScene(
       },
       affiliation: unit.category,
       label: unit.label,
-      selected:
-        session.selection.primary?.kind === 'scenario-unit' &&
-        session.selection.primary.id === unit.id,
+      profileId: unit.profileId ?? undefined,
+      selected: session.selection.items.some(
+        (i) => i.kind === 'scenario-unit' && i.id === unit.id,
+      ),
       stale: false,
     })),
     selection: {

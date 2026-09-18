@@ -17,13 +17,14 @@ export const modules = [
   { id: 'home', label: 'Home', icon: House },
   { id: 'map', label: 'Map', icon: Map, view: 'tactical' },
   { id: 'units', label: 'Units', icon: Box, view: 'units' },
+  { id: 'conductor', label: 'Conductor', icon: Clock3, view: 'conductor' },
   { id: 'tracks', label: 'Tracks', icon: ScanSearch, view: 'tracks' },
   { id: 'sensors', label: 'Sensors', icon: Radar },
   { id: 'command', label: 'Command Picture', icon: Crosshair, view: 'command' },
   { id: 'timeline', label: 'Timeline', icon: Clock3, view: 'timeline' },
   { id: 'reports', label: 'Reports', icon: Files },
   { id: 'events', label: 'Events', icon: ListFilter },
-  { id: 'settings', label: 'Settings', icon: Settings2, view: 'credits' },
+  { id: 'settings', label: 'Settings', icon: Settings2, view: 'settings' },
 ] satisfies { id: string; label: string; icon: typeof House; view?: ViewId }[];
 
 export function moduleForView(view?: ViewId) {

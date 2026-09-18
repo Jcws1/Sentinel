@@ -7,7 +7,7 @@ import { resolve } from 'node:path';
 const product = 'http://127.0.0.1:5181';
 const harness = 'http://127.0.0.1:5182/tests/harness/index.html';
 const evidence = resolve(
-  '../docs/d2/regressions/evidence/regressions/regressions/regressions',
+  '../docs/d4-refinement/regressions/d4/regressions/workspace',
 );
 const failures = new WeakMap<Page, string[]>();
 test.beforeAll(async ({ browser }) => {
@@ -175,6 +175,10 @@ test('keyboard focus, tab activation and closure, menus, dialog and divider resi
   await page.keyboard.press('ArrowDown');
   await expect(
     page.getByRole('button', { name: 'Open Units', exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(
+    page.getByRole('button', { name: 'Open Conductor', exact: true }),
   ).toBeFocused();
   await page.keyboard.press('ArrowDown');
   await expect(

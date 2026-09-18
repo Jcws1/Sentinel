@@ -1,4 +1,5 @@
 .tactical-view {
+  position: relative;
   display: flex;
   flex: 1;
   min-height: 0;
@@ -355,4 +356,58 @@
   .map-tool {
     transition: none;
   }
+}
+.live-boundary-flyout.units-pane {
+  height: auto;
+  position: absolute;
+  z-index: 15;
+  top: 52px;
+  right: 10px;
+  bottom: 36px;
+  width: min(350px, calc(100% - 24px));
+  border: 1px solid #46535b;
+  box-shadow: 0 8px 30px #0009;
+  background: #121a20;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.live-boundary-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid #34424b;
+  font-size: 12px;
+}
+.live-boundary-heading button {
+  color: #cbd9df;
+  background: transparent;
+  border: 0;
+  font-size: 20px;
+  cursor: pointer;
+}
+.live-boundary-flyout .units-body {
+  padding: 12px;
+  min-height: 0;
+  overflow: auto;
+}
+.live-boundary-flyout .boundary-vertices {
+  max-height: 250px;
+  overflow: auto;
+}
+
+.map-intercept-mode {
+  position: absolute;
+  z-index: 3;
+  bottom: 37px;
+  left: 12px;
+  max-width: calc(100% - 24px);
+  padding: 5px 8px;
+  border: 1px solid #7e9fa9;
+  border-radius: 3px;
+  color: #d8e4e8;
+  background: #10191eee;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  pointer-events: none;
 }

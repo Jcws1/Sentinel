@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useOperationalRuntime } from '../../app/OperationalContext';
 import { boundaryLabels } from '../../world/boundaryGeometry';
 import type { BoundaryDefinition } from '../../contracts/generated';
+import { boundaryEditorContext } from '../../world/boundaryContext';
 export function BoundaryMapMenu({
   viewId,
   width,
@@ -13,7 +14,8 @@ export function BoundaryMapMenu({
 }) {
   const runtime = useOperationalRuntime()!,
     state = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);
-  const menu = state.scenario.boundaryMenu,
+  const scenario = boundaryEditorContext(state);
+  const menu = scenario.boundaryMenu,
     ref = useRef<HTMLDivElement>(null);
   const [chosen, setChosen] = useState<string>();
   useEffect(() => {
@@ -41,8 +43,8 @@ export function BoundaryMapMenu({
       ?.focus();
   };
   const id = chosen ?? (menu.ids.length === 1 ? menu.ids[0] : undefined),
-    boundary = state.scenario.draft.boundaries?.find((b) => b.id === id);
-  const edit = state.scenario.boundaryEdit;
+    boundary = scenario.draft.boundaries?.find((b) => b.id === id);
+  const edit = scenario.boundaryEdit;
   return (
     <div
       className="boundary-menu"
@@ -118,7 +120,7 @@ export function BoundaryMapMenu({
           <small>Choose overlapping boundary</small>
           {menu.ids.map((id) => (
             <button key={id} onClick={() => setChosen(id)}>
-              {state.scenario.draft.boundaries?.find((b) => b.id === id)?.name}
+              {scenario.draft.boundaries?.find((b) => b.id === id)?.name}
             </button>
           ))}
         </>

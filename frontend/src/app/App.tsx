@@ -217,7 +217,7 @@ export function App({
     window.addEventListener('resize', resize);
     return () => window.removeEventListener('resize', resize);
   }, [bridge]);
-  const openedCredits = useRef(false);
+  const openedSettings = useRef<'credits' | 'settings' | undefined>(undefined);
   const activeModule = moduleForView(workspace.activeViewId);
   function navigateActivity(event: KeyboardEvent<HTMLElement>) {
     if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
@@ -259,10 +259,11 @@ export function App({
                 align="end"
                 sideOffset={6}
                 onCloseAutoFocus={(event) => {
-                  if (openedCredits.current) {
-                    openedCredits.current = false;
+                  if (openedSettings.current) {
+                    const destination = openedSettings.current;
+                    openedSettings.current = undefined;
                     event.preventDefault();
-                    bridge.focus('credits');
+                    bridge.focus(destination);
                   }
                 }}
               >
@@ -270,7 +271,17 @@ export function App({
                 <Menu.Item
                   className="menu-item"
                   onSelect={() => {
-                    openedCredits.current = true;
+                    openedSettings.current = 'settings';
+                    bridge.open('settings');
+                  }}
+                >
+                  <Icon size={15} />
+                  Map display
+                </Menu.Item>
+                <Menu.Item
+                  className="menu-item"
+                  onSelect={() => {
+                    openedSettings.current = 'credits';
                     bridge.open('credits');
                   }}
                 >
@@ -281,7 +292,7 @@ export function App({
             </Menu.Portal>
           </Menu.Root>
           <span className="activity-tooltip" role="tooltip">
-            Settings<span>Credits</span>
+            Settings<span>Map display · Credits</span>
           </span>
         </div>
       );
@@ -330,7 +341,7 @@ export function App({
             Sentinel <span className="version">v3</span>
           </span>
         </div>
-        <MissionControls />
+        <MissionControls bridge={bridge} />
         <OperationalChrome bridge={bridge} />
         <WallClock />
         <span className="sr-only">

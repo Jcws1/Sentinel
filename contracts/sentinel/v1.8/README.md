@@ -1,0 +1,17 @@
+# Contract package 1.8 — D3 Conductor and source execution
+
+World/stream **1.7** adds `scenarioSchedule`. Scheduled scenario content/revisions/receipts and exact-revision review use **1.2**; interactive/status is **1.4** and command receipts **1.3**. Backend and frontend deploy together. SQLite remains **4**: existing immutable JSON records and atomic checkpoints carry the new data, with checkpoint format **1.4**. Published packages 1.0–1.7 remain unchanged.
+
+`ScenarioContent` optionally pairs `actions` with `scheduleRuleVersion: local-schedule-v1`. An action has a stable draft ID, actor reference, horizontal destination, ordinal and nonnegative offset in 200 ms increments, through 600,000 ms inclusive. There are at most 128 actions. An actor may start once per tick. Friendly and hostile scenario actors may have source motion; Unknown actors cannot. Affiliation and source scripting grant no live control. Copies remap actor/action identities before persisting an exact pending request.
+
+The frozen `scenarioSchedule` is a bounded source-execution ledger, separate from operator movement retention. It retains all action outcomes, source bindings, dispatch and terminal ticks/sequences, committed movement and arrival evidence, Start accounting and controlled-actor Manual overrides. Its states are Pending, Accepted, Running, Completed, Skipped, Failed, Cancelled and Interrupted. Only the existing simulation writer commits it, together with positions, events and checkpoint. Tick-zero dispatch occurs in Start without moving positions. Later dispatch sorts by due tick, ordinal and action ID. Fixed source steps do not catch up to wall time.
+
+`stop` and `return-to-script` use fresh nonpositional intents with explicit selected control bindings and an order from the same client counter used by direct Move. Their receipts identify `controlOrder` and per-member `controlOutcomes`, without fabricating movement execution IDs. Stop holds the committed position and establishes Manual override. Return ends manual work and enables only still-Pending actions strictly after the current tick. Old orders cannot undo newer control; execution-specific Cancel remains separate. Live Move also establishes per-actor override. Hostile and observation-only source actors cannot submit live Move/Stop/Return.
+
+Pause freezes ticks and dispatch. Lease expiry or navigation does not cancel accepted source work. End/revocation cancel unfinished script work. Restart preserves committed positions and completed outcomes, advances the executor epoch, clears credentials, pauses the source (or retains ready state), and marks active and pending script work Interrupted. Resume never rearms it; a fresh Run is required to restart the script.
+
+Frozen D2 `local-boundary-v1` rules apply to script admission and every source step, including whole-segment and inclusive contact checks. A refused replacement preserves prior valid motion. Nominal authored-path validation is advisory evidence for a specific saved revision; Run repeats authoritative admission. Supplied operational height and existing notional movement presets remain unchanged.
+
+Strict scenario 1.0/1.1, world 1.0–1.6 and historical receipt readers run before adaptation. Loading old definitions does not add scripts or rewrite hashes; recorded frames, receipt bytes, old profiles and source specifications are preserved. The existing SQLite migration chain remains applicable.
+
+See [D3 decisions](../../../docs/d3/CONTRACT_DECISIONS.md) and [verification](../../../docs/d3/REVIEW.md).

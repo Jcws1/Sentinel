@@ -4,7 +4,9 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { rtsOrigin, readWorld, endDemo } from './rtsActions';
 import type { CameraIntent } from '../../src/renderers/contracts';
-const evidence = resolve('../docs/d2/regressions/evidence/workflow');
+const evidence = resolve(
+  '../docs/d4-refinement/regressions/d4/regressions/scenario-authoring',
+);
 const units = (page: Page) => page.locator('.units-pane');
 const map = (page: Page, id = 'tactical') =>
   page.locator(`.tactical-view[data-view-id="${id}"]`);

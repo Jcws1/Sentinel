@@ -6,12 +6,9 @@ import { observedSegments } from '../../world/observedSegments';
 import type { ApplicationRuntime, RuntimeSnapshot } from '../../app/runtime';
 import { inspectorIdentity, type ViewId } from '../workspace/viewRegistry';
 import type { WorkspaceBridge } from '../workspace/workspaceBridge';
-import {
-  MovementDetails,
-  MovementToolbar,
-  executionLabel,
-} from '../movement/MovementPane';
+import { MovementDetails, executionLabel } from '../movement/MovementPane';
 import { terminalExecution } from '../../world/movement';
+import { behaviorLabel } from '../../world/behavior';
 import { observationText, freshness, countText } from './values';
 import {
   sourceLabel,
@@ -184,6 +181,14 @@ export function EntityDetails({
   ).length;
   const displayedDifferent =
     !!source && bindings.some((b) => b.sourceId !== source.id);
+  const behavior =
+    frame && entityId ? behaviorLabel(frame, entityId) : undefined;
+  const policy = frame?.fleetBehavior?.members?.find(
+    (m) => m.entityId === entityId,
+  );
+  const outcome = frame?.fleetBehavior?.outcomes?.find((o) =>
+    o.participants.some((p) => p.entityId === entityId),
+  );
   return (
     <article
       className={`entity-details ${pinned ? 'entity-inspector' : 'selection-details'}`}
@@ -271,6 +276,20 @@ export function EntityDetails({
               ? ` · ${observationText(row)}`
               : ''}
           </p>
+          {frame.unitProfiles?.[row.entity.id] && (
+            <p className="entity-notice">
+              {frame.unitProfiles[row.entity.id].variant} · notional simulation
+              profile
+              <br />
+              Cruise{' '}
+              {Math.round(
+                frame.unitProfiles[row.entity.id].cruiseMps * 3.6,
+              )}{' '}
+              km/h
+              {row.entity.affiliation === 'friendly' &&
+                ` · pursuit ${Math.round(frame.unitProfiles[row.entity.id].pursuitMps * 3.6)} km/h`}
+            </p>
+          )}
           {!row.visible && (
             <p className="entity-notice">
               Hidden by shared filters.{' '}
@@ -400,8 +419,21 @@ export function EntityDetails({
               </span>
             </p>
           </section>
-          {!pinned && (
-            <MovementToolbar state={state} runtime={runtime} bridge={bridge} />
+          {(behavior || outcome) && (
+            <section
+              className="detail-section behavior-details"
+              aria-label="Current behavior and condition"
+            >
+              <strong>{behavior}</strong>
+              {policy && <p>{policy.reason}</p>}
+              {outcome && (
+                <p>
+                  SIMULATED ENGAGEMENT · both participants NON-OP. Local demo
+                  rule {outcome.ruleVersion}. Recorded at source tick{' '}
+                  {outcome.tick}; supplied heights preserved.
+                </p>
+              )}
+            </section>
           )}
           {frame.interactive && !state.interactive.current?.ownsControl && (
             <p className="entity-note">
@@ -424,6 +456,7 @@ export function EntityDetails({
               runtime={runtime}
               entityId={entityId}
               expanded
+              readOnly
             />
           )}
           <details className="detail-section">
@@ -496,7 +529,7 @@ export function EntityDetails({
               </p>
             )}
           </details>
-          {profile && <DemoProfile />}
+          {profile && !frame.unitProfiles?.[row.entity.id] && <DemoProfile />}
           <Trail state={state} runtime={runtime} row={row} />
         </>
       )}

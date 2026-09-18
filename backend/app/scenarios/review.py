@@ -3,6 +3,7 @@ from typing import Literal
 from pydantic import Field, model_validator
 from app.domain.base import Model, Finite, Id, UtcInstant
 from app.scenarios.contracts import ScenarioRef
+from app.commands.unit_profiles import UnitProfile
 
 
 class ScenarioCounts(Model):
@@ -24,21 +25,35 @@ class ScenarioMotionPreset(Model):
     template_id: Literal["singapore-local-v2"]
     model_id: Literal["local-horizontal-v1"]
     speed_mps: Finite = Field(gt=0)
+    unit_profiles: dict[Id, UnitProfile] = Field(default_factory=dict)
 
 
 class ScenarioReviewIssue(Model):
-    code: Literal["EMPTY_ARRANGEMENT", "DEMO_DISABLED", "ACTIVE_RUN_EXISTS", "UNTYPED_BOUNDARY", "RESTRICTED_OCCUPANT"]
+    code: Literal["EMPTY_ARRANGEMENT", "DEMO_DISABLED", "ACTIVE_RUN_EXISTS", "UNTYPED_BOUNDARY", "RESTRICTED_OCCUPANT", "SCRIPT_PATH_BLOCKED", "SCRIPT_TIMING_INVALID"]
     message: str
     boundary_id: Id | None = None
     unit_id: Id | None = None
+    action_id: Id | None = None
+
+
+class ScriptTimingReview(Model):
+    action_id: Id
+    estimated_start_ms: int | None = Field(default=None, ge=0)
+    estimated_end_ms: int | None = Field(default=None, ge=0)
+    after_action_id: Id | None = None
+    delay_ms: int | None = Field(default=None, ge=0)
+    nominal_state: str
 
 
 class ScenarioReview(Model):
-    schema_version: Literal["1.1"] = "1.1"
+    schema_version: Literal["1.4"] = "1.4"
     reference: ScenarioRef
     name: str
     checked_at: UtcInstant
     boundary_count: int = Field(ge=0, le=16)
+    action_count: int = Field(ge=0, le=128)
+    script_duration_ms: int = Field(ge=0, le=600000, multiple_of=200)
+    timings: list[ScriptTimingReview] = Field(default_factory=list, max_length=128)
     counts: ScenarioCounts
     motion_preset: ScenarioMotionPreset
     issues: list[ScenarioReviewIssue]

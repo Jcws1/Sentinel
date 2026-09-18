@@ -5,8 +5,15 @@ from pydantic import Field, model_validator
 from app.domain.base import Model, Id, Sequence, UtcInstant, Finite, Longitude, Latitude
 from app.commands.legacy import LegacyReceipt
 from app.commands.legacy_movement import LegacyM12Receipt
+from app.commands.legacy_d2 import LegacyD2Receipt
+from app.commands.legacy_d3 import LegacyD3Receipt
+from app.commands.boundary_contracts import BoundaryMutation
+from app.commands.legacy_d3a import LegacyD3aReceipt, LegacyD3aRunRead
+from app.commands.behavior_contracts import BehaviorPolicy, BehaviorMemberOutcome
+from app.commands.legacy_d4 import LegacyD4Receipt, LegacyD4RunRead
+from app.commands.unit_profiles import UnitProfile
 
-Action = Literal["acquire", "renew", "reclaim", "revoke", "start", "pause", "resume", "end", "cancel"]
+Action = Literal["acquire", "renew", "reclaim", "revoke", "start", "pause", "resume", "end", "cancel", "stop", "return-to-script", "boundary-edit", "behavior"]
 RunState = Literal["ready", "running", "paused", "ended"]
 Code = Literal["OK", "NOT_INTERACTIVE", "DEMO_DISABLED", "ACTIVE_RUN_EXISTS", "IDENTITY_CONFLICT",
                "INTENT_INVALID", "INTENT_EXPIRED", "OBSOLETE_INTENT", "REFERENCE_MISMATCH", "CONTROL_HELD",
@@ -14,7 +21,7 @@ Code = Literal["OK", "NOT_INTERACTIVE", "DEMO_DISABLED", "ACTIVE_RUN_EXISTS", "I
                "INVALID_REQUEST", "NOT_FOUND", "SOURCE_UNHEALTHY", "FRAME_INVALID", "MOVE_EXPIRED",
                "SELECTION_INVALID", "BINDING_CHANGED", "ASSET_BUSY", "POSITION_UNAVAILABLE",
                "UNSUPPORTED_REFERENCE", "OUTSIDE_EXTENT", "ENDPOINT_INVALID", "EXECUTION_TERMINAL",
-               "NO_AVAILABLE_ASSETS", "ORDER_SUPERSEDED"]
+               "NO_AVAILABLE_ASSETS", "ORDER_SUPERSEDED", "BOUNDARY_CONFLICT"]
 
 
 class MoveAnchor(Model):
@@ -63,6 +70,7 @@ class MoveRequest(Model):
     command_id: Id
     holder_id: Id
     move: MoveIntent
+    order: int | None = Field(default=None, ge=1, le=9007199254740991, strict=True)
 
 
 class DirectMoveMember(Model):
@@ -76,6 +84,7 @@ class DirectMoveMember(Model):
 
 
 class DirectMoveIntent(Model):
+    intercept: Literal[True] | None = None
     model_id: Literal["local-horizontal-v1"] = "local-horizontal-v1"
     mission_id: Id
     run_id: Id
@@ -121,6 +130,20 @@ class DirectMemberOutcome(Model):
         return self
 
 
+class ControlMemberOutcome(Model):
+    asset_id: Id
+    entity_id: Id
+    outcome: Literal["accepted", "skipped"]
+    code: Literal["OK", "ORDER_SUPERSEDED", "UNAVAILABLE"]
+    reason: str
+
+    @model_validator(mode="after")
+    def evidence(self):
+        if (self.outcome == "accepted") != (self.code == "OK"):
+            raise ValueError("Control outcome and code disagree")
+        return self
+
+
 class CompletionSample(Model):
     sequence: Sequence
     track_id: Id
@@ -148,7 +171,8 @@ class MovementExecution(MoveMember):
     completion_sample: CompletionSample | None = None
     travelled_metres: Finite = Field(ge=0)
     remaining_metres: Finite = Field(ge=0)
-    speed_mps: Literal[20.0, 43.05555555555556] = 20.0
+    speed_mps: Finite = Field(default=20.0, gt=0, le=280/3.6)
+    suspended_by: Id | None = None
     reason: str | None = None
     direct_order: int | None = Field(default=None, ge=1, le=9007199254740991, strict=True)
 
@@ -189,7 +213,7 @@ class AssetControl(Model):
     source_id: Id
     grant_id: Id
     binding_revision: Sequence
-    capabilities: list[Literal["move-horizontal"]]
+    capabilities: list[Literal["move-horizontal", "demo-intercept"]]
     position_reference: Literal["ELLIPSOID/WGS84"]
     busy_revision: Sequence = 0
     eligible: bool = False
@@ -198,7 +222,7 @@ class AssetControl(Model):
 
 
 class InteractiveRun(Model):
-    schema_version: Literal["1.3"] = "1.3"
+    schema_version: Literal["1.7"] = "1.7"
     mission_id: Id
     run_id: Id
     template_id: Literal["singapore-local-v1", "singapore-local-v2"] = "singapore-local-v2"
@@ -209,7 +233,7 @@ class InteractiveRun(Model):
     run_revision: Sequence
     grant_id: Id
     grant_revision: Sequence
-    capabilities: list[Literal["run-control", "scenario-pair"]]
+    capabilities: list[Literal["run-control", "scenario-pair", "boundary-edit", "fleet-policy", "demo-outcome"]]
     supported_actions: list[Action]
     lease: Lease
     tick: Sequence
@@ -218,15 +242,10 @@ class InteractiveRun(Model):
     movement_model: Literal["local-horizontal-v1"] = "local-horizontal-v1"
     executions: list[MovementExecution] = Field(default_factory=list, max_length=64)
 
-    @model_validator(mode="after")
-    def profile_speed(self):
-        from app.commands.kinematics import cruise_speed
-        if any(e.speed_mps != cruise_speed(self.template_id) for e in self.executions):
-            raise ValueError("execution speed differs from the run profile")
-        return self
 
 
 class Intent(Model):
+    policy: BehaviorPolicy | None = None
     id: Id
     mission_id: Id
     run_id: Id
@@ -237,13 +256,23 @@ class Intent(Model):
     run_revision: Sequence
     lease_revision: Sequence
     action: Action
+    boundary: BoundaryMutation | None = None
     issued_at: UtcInstant
     expires_at: UtcInstant
     execution_id: Id | None = None
     execution_revision: Sequence | None = None
+    members: list[DirectMoveMember] | None = Field(default=None, min_length=1, max_length=32)
+    order: int | None = Field(default=None, ge=1, le=9007199254740991, strict=True)
 
     @model_validator(mode="after")
     def target(self):
+        if (self.action == "behavior") != (self.policy is not None):
+            raise ValueError("Behavior requires its exact policy")
+        if (self.action == "boundary-edit") != (self.boundary is not None):
+            raise ValueError("Boundary editing requires its exact versioned mutation")
+        selected = self.action in {"stop", "return-to-script", "behavior"}
+        if selected != (self.members is not None and self.order is not None) or (not selected and (self.members is not None or self.order is not None)):
+            raise ValueError("Selected control requires exact members and logical order")
         if self.action == "cancel":
             if self.execution_id is None or self.execution_revision is None:
                 raise ValueError("cancel intent requires execution revision")
@@ -253,8 +282,25 @@ class Intent(Model):
 
 
 class IntentRequest(Model):
+    policy: BehaviorPolicy | None = None
     action: Action
+    boundary: BoundaryMutation | None = None
     execution_id: Id | None = None
+    members: list[DirectMoveMember] | None = Field(default=None, min_length=1, max_length=32)
+    order: int | None = Field(default=None, ge=1, le=9007199254740991, strict=True)
+
+    @model_validator(mode="after")
+    def selection(self):
+        if (self.action == "behavior") != (self.policy is not None):
+            raise ValueError("Behavior requires its exact policy")
+        if (self.action == "boundary-edit") != (self.boundary is not None):
+            raise ValueError("Boundary editing requires its exact versioned mutation")
+        selected = self.action in {"stop", "return-to-script", "behavior"}
+        if selected != (self.members is not None and self.order is not None) or (not selected and (self.members is not None or self.order is not None)):
+            raise ValueError("Selected control requires exact members and logical order")
+        if self.action != "cancel" and self.execution_id is not None:
+            raise ValueError("Only Cancel targets a specific execution")
+        return self
 
 
 class CommandRequest(Model):
@@ -276,9 +322,14 @@ class CreateRunRequest(Model):
 
 
 class Receipt(Model):
-    schema_version: Literal["1.2"] = "1.2"
+    movement_order: int | None = Field(default=None, ge=1, le=9007199254740991, strict=True)
+    behavior_order: int | None = Field(default=None, ge=1, le=9007199254740991, strict=True)
+    behavior_outcomes: list[BehaviorMemberOutcome] = Field(default_factory=list, max_length=32)
+    target_scope: list[Id] = Field(default_factory=list, max_length=32)
+    schema_version: Literal["1.6"] = "1.6"
     request_id: Id
-    operation: Literal["create", "acquire", "renew", "reclaim", "revoke", "start", "pause", "resume", "end", "move", "cancel", "direct-move"]
+    operation: Literal["create", "acquire", "renew", "reclaim", "revoke", "start", "pause", "resume", "end", "move", "cancel", "direct-move", "stop", "return-to-script", "boundary-edit", "behavior", "intercept-approach"]
+    boundary_revision: Sequence | None = None
     accepted: bool
     code: Code
     message: str
@@ -291,9 +342,23 @@ class Receipt(Model):
     execution_ids: list[Id] = Field(default_factory=list, max_length=32)
     direct_order: int | None = Field(default=None, ge=1, le=9007199254740991, strict=True)
     member_outcomes: list[DirectMemberOutcome] = Field(default_factory=list, max_length=32)
+    control_order: int | None = Field(default=None, ge=1, le=9007199254740991, strict=True)
+    control_outcomes: list[ControlMemberOutcome] = Field(default_factory=list, max_length=32)
 
     @model_validator(mode="after")
     def result(self):
+        if self.movement_order is not None and self.operation != "move":
+            raise ValueError("Reviewed movement order attached to another operation")
+        if self.operation in {"behavior", "intercept-approach"}:
+            if self.behavior_order is None or self.execution_ids:
+                raise ValueError("Behavior receipt requires order without fabricated movement")
+            accepted = [o for o in self.behavior_outcomes if o.outcome == "accepted"]
+            if self.accepted != bool(accepted) or len({o.asset_id for o in self.behavior_outcomes}) != len(self.behavior_outcomes) or len({o.entity_id for o in self.behavior_outcomes}) != len(self.behavior_outcomes):
+                raise ValueError("Behavior receipt evidence disagrees")
+        elif self.behavior_order is not None or self.behavior_outcomes or self.target_scope:
+            raise ValueError("Behavior result attached to another operation")
+        if (self.operation == "boundary-edit" and self.accepted) != (self.boundary_revision is not None):
+            raise ValueError("Accepted boundary receipt requires committed effective revision")
         if self.accepted != (self.code == "OK"):
             raise ValueError("receipt result and code disagree")
         if self.accepted and any(v is None for v in (self.mission_id, self.run_id, self.recording_id, self.frame_id, self.sequence)):
@@ -308,11 +373,20 @@ class Receipt(Model):
                 raise ValueError("direct receipt member evidence disagrees")
         elif self.direct_order is not None or self.member_outcomes:
             raise ValueError("direct result attached to another operation")
+        if self.operation in {"stop", "return-to-script"}:
+            if self.control_order is None or self.execution_ids:
+                raise ValueError("Selected control requires order, without fabricated executions")
+            accepted = [o for o in self.control_outcomes if o.outcome == "accepted"]
+            if self.accepted != bool(accepted) or len({o.asset_id for o in self.control_outcomes}) != len(self.control_outcomes) or len({o.entity_id for o in self.control_outcomes}) != len(self.control_outcomes):
+                raise ValueError("Selected control receipt evidence disagrees")
+        elif self.control_order is not None or self.control_outcomes:
+            raise ValueError("Selected control result attached to another operation")
         return self
 
 
 class RunRead(Model):
-    schema_version: Literal["1.3"] = "1.3"
+    unit_profiles: dict[Id, UnitProfile] = Field(default_factory=dict)
+    schema_version: Literal["1.7"] = "1.7"
     server_time: UtcInstant
     frame_id: Id
     sequence: Sequence
@@ -321,11 +395,11 @@ class RunRead(Model):
     lease_state: Literal["unclaimed", "held", "expired"]
 
 
-ReceiptRead = Receipt | LegacyM12Receipt | LegacyReceipt
+ReceiptRead = Receipt | LegacyD4Receipt | LegacyD3aReceipt | LegacyD3Receipt | LegacyD2Receipt | LegacyM12Receipt | LegacyReceipt
 
 
 class ExecutionRead(Model):
-    schema_version: Literal["1.2"] = "1.2"
+    schema_version: Literal["1.3"] = "1.3"
     mission_id: Id
     frame_id: Id
     sequence: Sequence
@@ -346,6 +420,8 @@ class CommandContracts(Model):
     creation: CreateRunRequest
     receipt: ReceiptRead
     status: RunRead
+    legacy_d4_status: LegacyD4RunRead
+    legacy_d3a_status: LegacyD3aRunRead
     entry: DemoEntry
     move: MoveRequest
     direct_move: DirectMoveRequest

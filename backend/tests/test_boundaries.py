@@ -171,7 +171,7 @@ def test_legacy_bytes_and_strict_versions_remain_readable():
         assert await service.write(req)==saved
         archived=(Path(__file__).parents[2]/'contracts/sentinel/v1.5/demo.world.json').read_text(encoding='utf-8')
         adapted=read_frame(archived)
-        assert adapted.schema_version=='1.6' and adapted.boundary_rules is None
+        assert adapted.schema_version=='1.10' and adapted.boundary_rules is None
         assert blocked(json.loads(canonical(adapted)),geographic(0,0),geographic(800,0)) is None
     asyncio.run(run())
 

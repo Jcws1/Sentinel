@@ -326,18 +326,31 @@ def test_v11_record_and_v10_receipt_are_read_without_rewriting():
         value['interactive'].pop('movementModel')
         value['interactive'].pop('executions')
         value['interactive']['supportedActions'].remove('cancel')
+        value['interactive']['supportedActions'].remove('stop')
+        value['interactive']['supportedActions'].remove('boundary-edit')
+        value['interactive']['capabilities'].remove('boundary-edit')
+        value.pop('fleetBehavior')
+        value.pop('unitProfiles', None)
+        value['interactive']['supportedActions'].remove('behavior')
+        value['interactive']['capabilities'].remove('fleet-policy')
+        value['interactive']['capabilities'].remove('demo-outcome')
         for c in value['interactive']['controls']:
             c.pop('busyRevision')
+            if 'demo-intercept' in c['capabilities']:
+                c['capabilities'].remove('demo-intercept')
         original = json.dumps(value, indent=2)
         h.repo.db.execute('UPDATE frames SET frame_json=? WHERE frame_id=?', (original, value['frameId']))
         projected = h.authority.read(mid)
-        assert projected.schema_version == '1.6' and projected.interactive.schema_version == '1.3'
+        assert projected.schema_version == '1.10' and projected.interactive.schema_version == '1.7'
         assert h.repo.latest_text(mid) == original
         payload, receipt = h.repo.receipt('old-creation')
         legacy = json.loads(receipt)
         legacy['schemaVersion'] = '1.0'
         legacy.pop('executionIds')
         legacy.pop('memberOutcomes')
+        legacy.pop('controlOutcomes')
+        legacy.pop('behaviorOutcomes')
+        legacy.pop('targetScope')
         old_receipt = json.dumps(legacy, indent=2)
         h.repo.db.execute('UPDATE creation_receipts SET receipt_json=? WHERE creation_id=?', (old_receipt, 'old-creation'))
         assert json.loads(canonical(h.service.lookup('old-creation'))) == legacy

@@ -8,6 +8,8 @@ import { UnitEditor } from './UnitEditor';
 import { PlacementForm } from './PlacementForm';
 import type { WorkspaceBridge } from '../workspace/workspaceBridge';
 import { viewKind, type ViewId } from '../workspace/viewRegistry';
+import { missionDisplayName } from '../mission/MissionControls';
+import { profileOptions, unitProfiles } from '../../world/unitProfiles';
 const categories = [
   {
     id: 'friendly',
@@ -33,6 +35,7 @@ export function UnitsPane({ bridge }: { bridge: WorkspaceBridge }) {
   const state = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot),
     scenario = state.scenario;
   const [query, setQuery] = useState('');
+  const [expanded, setExpanded] = useState<'friendly' | 'hostile'>();
   const [loadId, setLoadId] = useState('');
   const [confirm, setConfirm] = useState<'new' | 'load'>();
   const workspace = useSyncExternalStore(bridge.subscribe, bridge.getSnapshot);
@@ -78,6 +81,7 @@ export function UnitsPane({ bridge }: { bridge: WorkspaceBridge }) {
   const documentLocked =
     locked ||
     !!scenario.edit ||
+    !!scenario.actionEdit ||
     !!scenario.boundaryEdit ||
     !!scenario.placement ||
     scenario.reviewing;
@@ -106,7 +110,11 @@ export function UnitsPane({ bridge }: { bridge: WorkspaceBridge }) {
   }
   function arm(
     category: 'friendly' | 'hostile' | 'unknown',
-    operation?: { replaceId?: string; duplicateId?: string },
+    operation?: {
+      replaceId?: string;
+      duplicateId?: string;
+      profileId?: keyof typeof unitProfiles;
+    },
   ) {
     if (!targetMap) return;
     returnFocus.current = paneRef.current?.ownerDocument
@@ -181,15 +189,17 @@ export function UnitsPane({ bridge }: { bridge: WorkspaceBridge }) {
                     : 'Unsaved arrangement'}
                 </span>
                 <span>
-                  {scenario.boundaryEdit
-                    ? 'Unapplied boundary edits'
-                    : scenario.edit
-                      ? 'Unapplied unit edits'
-                      : scenario.dirty
-                        ? 'Unsaved changes'
-                        : scenario.saved
-                          ? 'Saved'
-                          : 'Draft'}
+                  {scenario.actionEdit
+                    ? 'Unapplied Conductor edit'
+                    : scenario.boundaryEdit
+                      ? 'Unapplied boundary edits'
+                      : scenario.edit
+                        ? 'Unapplied unit edits'
+                        : scenario.dirty
+                          ? 'Unsaved changes'
+                          : scenario.saved
+                            ? 'Saved'
+                            : 'Draft'}
                 </span>
               </div>
               <div className="units-actions">
@@ -334,34 +344,80 @@ export function UnitsPane({ bridge }: { bridge: WorkspaceBridge }) {
                   c.name.toLowerCase().includes(query.toLowerCase()),
                 )
                 .map((c) => (
-                  <button
-                    key={c.id}
-                    className={`units-category units-${c.id}`}
-                    disabled={
-                      locked ||
-                      !!scenario.edit ||
-                      !!scenario.boundaryEdit ||
-                      scenario.reviewing ||
-                      !targetMap ||
-                      scenario.draft.units.length >= 32
-                    }
-                    aria-pressed={
-                      scenario.placement?.category === c.id &&
-                      !scenario.placement.replaceId
-                    }
-                    onClick={() => arm(c.id)}
-                  >
-                    <c.icon size={21} />
-                    <span>
-                      <strong>{c.name}</strong>
-                      <small>{c.detail}</small>
-                    </span>
-                    <Plus size={14} />
-                  </button>
+                  <div key={c.id}>
+                    <button
+                      className={`units-category units-${c.id}`}
+                      disabled={
+                        locked ||
+                        !!scenario.edit ||
+                        !!scenario.actionEdit ||
+                        !!scenario.boundaryEdit ||
+                        scenario.reviewing ||
+                        !targetMap ||
+                        scenario.draft.units.length >= 32
+                      }
+                      aria-pressed={
+                        scenario.placement?.category === c.id &&
+                        !scenario.placement.replaceId
+                      }
+                      aria-expanded={
+                        c.id === 'unknown' ? undefined : expanded === c.id
+                      }
+                      onClick={() => {
+                        if (c.id === 'unknown') arm(c.id);
+                        else {
+                          runtime.armPlacement();
+                          setExpanded(expanded === c.id ? undefined : c.id);
+                        }
+                      }}
+                    >
+                      <c.icon size={21} />
+                      <span>
+                        <strong>{c.name}</strong>
+                        <small>{c.detail}</small>
+                      </span>
+                      <Plus size={14} />
+                    </button>
+                    {expanded === c.id && (
+                      <div
+                        className="units-subtypes"
+                        aria-label={`${c.id} unit types`}
+                      >
+                        {profileOptions[c.id].map((id) => (
+                          <button
+                            key={id}
+                            disabled={
+                              locked ||
+                              !!scenario.edit ||
+                              !!scenario.actionEdit ||
+                              !!scenario.boundaryEdit ||
+                              scenario.reviewing ||
+                              !targetMap ||
+                              scenario.draft.units.length >= 32
+                            }
+                            aria-pressed={
+                              scenario.placement?.profileId === id &&
+                              scenario.placement.category === c.id
+                            }
+                            onClick={() => arm(c.id, { profileId: id })}
+                          >
+                            <span>{unitProfiles[id].label}</span>
+                            <small>
+                              {unitProfiles[id].cruiseKmh} km/h
+                              {c.id === 'friendly'
+                                ? ` · pursuit ${unitProfiles[id].pursuitKmh}`
+                                : ''}
+                            </small>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 ))}
               <p className="units-hint">
-                Choose a category, then click the authoring map. One click
-                places one unit at 150 m ellipsoid height.
+                Choose a category and type, then click the authoring map. Speeds
+                are notional simulation profiles. One click places one unit at
+                150 m ellipsoid height.
               </p>
               {scenario.placement && (
                 <div className="units-placement" aria-label="Placement tool">
@@ -372,6 +428,8 @@ export function UnitsPane({ bridge }: { bridge: WorkspaceBridge }) {
                         ? 'Reposition'
                         : 'Place'}{' '}
                     · {scenario.placement.category}
+                    {scenario.placement.profileId &&
+                      ` · ${unitProfiles[scenario.placement.profileId].label}`}
                   </strong>
                   <p>
                     Click{' '}
@@ -420,6 +478,9 @@ export function UnitsPane({ bridge }: { bridge: WorkspaceBridge }) {
                 </div>
               )}
             </section>
+            <button onClick={() => bridge.open('conductor')}>
+              Conductor · {scenario.draft.actions?.length ?? 0} timed actions
+            </button>
             <section className="units-arrangement" aria-label="Placed units">
               <div className="units-section-title">
                 <h2>Arrangement</h2>
@@ -458,6 +519,8 @@ export function UnitsPane({ bridge }: { bridge: WorkspaceBridge }) {
                         <strong>{u.label}</strong>
                         <small>
                           {u.category} ·{' '}
+                          {u.profileId &&
+                            `${unitProfiles[u.profileId].label} · `}
                           {u.commandRole === 'sentinel'
                             ? 'Sentinel control'
                             : 'Observation only'}
@@ -474,6 +537,7 @@ export function UnitsPane({ bridge }: { bridge: WorkspaceBridge }) {
                 edit={scenario.edit}
                 disabled={
                   locked ||
+                  !!scenario.actionEdit ||
                   !!scenario.boundaryEdit ||
                   !!scenario.placement ||
                   scenario.reviewing
@@ -495,6 +559,16 @@ export function UnitsPane({ bridge }: { bridge: WorkspaceBridge }) {
                   arm(selected.category, { replaceId: selected.id })
                 }
                 onDelete={() => {
+                  if (
+                    scenario.draft.actions?.some(
+                      (a) => a.unitId === selected.id,
+                    )
+                  ) {
+                    runtime.reportScenarioError(
+                      'Remove this unit’s actions in Conductor before deleting it.',
+                    );
+                    return;
+                  }
                   runtime.updateScenario({
                     ...structuredClone(scenario.draft),
                     units: scenario.draft.units.filter(
@@ -533,8 +607,19 @@ export function UnitsPane({ bridge }: { bridge: WorkspaceBridge }) {
                 </p>
                 <p>
                   Notional horizontal motion ·{' '}
-                  {(scenario.review.motionPreset.speedMps * 3.6).toFixed(0)}{' '}
-                  km/h. Observations remain stationary.
+                  {Object.keys(scenario.review.motionPreset.unitProfiles ?? {})
+                    .length
+                    ? 'per unit profile'
+                    : `${(scenario.review.motionPreset.speedMps * 3.6).toFixed(0)} km/h`}
+                  . Supplied height is preserved. Unknown entities remain
+                  stationary.
+                </p>
+                <p>
+                  {scenario.review.actionCount} scripted actions · last authored
+                  start at{' '}
+                  {(scenario.review.scriptDurationMs / 1000).toFixed(1)} s.
+                  Friendly observation-only and hostile motion does not grant
+                  live control.
                 </p>
                 <details>
                   <summary>Revision and model</summary>
@@ -599,7 +684,7 @@ export function UnitsPane({ bridge }: { bridge: WorkspaceBridge }) {
               {scenario.edit
                 ? 'Unapplied unit edits · Apply or Discard before Save or Run.'
                 : activeRun
-                  ? 'End the active demo before starting another.'
+                  ? `End the active demo (${missionDisplayName(state.catalog.missions.find((m) => m.id === activeRun))}) before starting another.`
                   : scenario.dirty || !scenario.saved
                     ? 'Save your arrangement to enable Run.'
                     : !scenario.review?.canRun

@@ -1,9 +1,11 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { createInteractiveClient } from '../../src/services/interactiveClient';
+import demo from '../../../contracts/sentinel/v1.11/demo.world.json';
 import type {
   DirectMoveIntent,
   DirectMoveRequest,
   Receipt,
+  InteractiveRun,
 } from '../../src/contracts/generated';
 
 const cleanup: (() => void)[] = [];
@@ -36,7 +38,7 @@ const intent: Omit<DirectMoveIntent, 'order'> = {
 };
 function receipt(body: DirectMoveRequest): Receipt {
   return {
-    schemaVersion: '1.2',
+    schemaVersion: '1.6',
     requestId: body.commandId,
     operation: 'direct-move',
     accepted: true,
@@ -201,4 +203,114 @@ it('does not send when pending storage cannot retain a new order', async () => {
     ),
   ).toBe(false);
   expect(client.get().directFeedback?.message).toContain('Storage full');
+});
+
+it('keeps lease renewal and status polling responsive with a stalled receipt backlog', async () => {
+  vi.useFakeTimers();
+  const run = structuredClone(demo.interactive!) as InteractiveRun;
+  run.missionId = 'mission';
+  run.state = 'running';
+  const serverTime = '2026-09-16T00:00:00.000Z';
+  run.lease = {
+    holderId: 'operator',
+    revision: 1,
+    expiresAt: '2026-09-16T00:00:15.000Z',
+  };
+  const sent = new Map<string, DirectMoveRequest>();
+  const stalled: { body: DirectMoveRequest; reply: (r: Response) => void }[] =
+    [];
+  let renewals = 0,
+    statuses = 0;
+  const client = createInteractiveClient({
+    base: '/api',
+    publish: () => {},
+    loadMission: () => {},
+    storage: sessionStorage,
+    fetcher: async (url, init) => {
+      if (url.endsWith('/entry')) return Response.json(entry);
+      if (url.endsWith('/status')) {
+        statuses++;
+        return Response.json({
+          schemaVersion: '1.7',
+          run,
+          serverTime,
+          frameId: 'frame',
+          sequence: 1,
+          ownsControl: true,
+          leaseState: 'held',
+        });
+      }
+      if (url.endsWith('/direct-moves')) {
+        const body = JSON.parse(String(init?.body)) as DirectMoveRequest;
+        sent.set(body.commandId, body);
+        throw Error('Response lost');
+      }
+      if (url.includes('/receipts?')) {
+        const id = new URL(url, 'http://local').searchParams.get('identity')!;
+        return new Promise<Response>((reply) =>
+          stalled.push({ body: sent.get(id)!, reply }),
+        );
+      }
+      if (url.endsWith('/intents'))
+        return Response.json({
+          ...JSON.parse(String(init?.body)),
+          id: 'renew',
+          missionId: 'mission',
+          runId: run.runId,
+          executorEpoch: run.executorEpoch,
+          sourceId: run.sourceId,
+          grantId: run.grantId,
+          grantRevision: run.grantRevision,
+          runRevision: run.runRevision,
+          leaseRevision: 1,
+          issuedAt: serverTime,
+          expiresAt: '2026-09-16T00:00:30.000Z',
+        });
+      if (url.endsWith('/commands')) {
+        const body = JSON.parse(String(init?.body));
+        expect(body.intent.action).toBe('renew');
+        renewals++;
+        run.lease.expiresAt = '2026-09-16T00:00:30.000Z';
+        return Response.json({
+          schemaVersion: '1.6',
+          requestId: body.commandId,
+          operation: 'renew',
+          accepted: true,
+          code: 'OK',
+          message: 'Renewed',
+          recordedAt: serverTime,
+          missionId: 'mission',
+          runId: run.runId,
+          recordingId: 'recording',
+          frameId: 'renewed',
+          sequence: 2,
+        });
+      }
+      throw Error(`Unexpected test route ${url}`);
+    },
+  });
+  cleanup.push(client.dispose);
+  client.setMission('mission');
+  for (let i = 0; i < 8; i++) await client.submitDirect(intent);
+  client.start();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(stalled).toHaveLength(4);
+  expect(renewals).toBe(1);
+  const before = statuses;
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(statuses).toBeGreaterThan(before);
+  expect(stalled).toHaveLength(4);
+  expect(client.get().directPending).toHaveLength(8);
+  stalled
+    .splice(0)
+    .forEach(({ body, reply }) => reply(Response.json(receipt(body))));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(client.get().directPending).toHaveLength(4);
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(stalled).toHaveLength(4);
+  stalled
+    .splice(0)
+    .forEach(({ body, reply }) => reply(Response.json(receipt(body))));
+  await vi.advanceTimersByTimeAsync(0);
+  expect(client.get().directPending).toHaveLength(0);
 });

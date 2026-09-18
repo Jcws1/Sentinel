@@ -78,6 +78,7 @@ def terminate(frame, execution, state, reason):
     if execution["state"] in TERMINAL:
         return
     transition(execution, state, reason)
+    execution.pop("suspendedBy", None)
     execution["terminalSequence"] = frame["sequence"] + 1
     control = next((c for c in frame["interactive"]["controls"] if c["assetId"] == execution["assetId"]), None)
     if control:
@@ -130,6 +131,8 @@ def advance(frame, checkpoint, now):
                 terminate(frame, e, "Cancelled", "Capability explicitly revoked.")
             elif reason or not control or (e["bindingRevision"], e["reservationRevision"], e["controlTrackId"], e["sourceId"]) != (control["bindingRevision"], control["busyRevision"], control.get("controlTrackId"), control["sourceId"]):
                 terminate(frame, e, "Failed", reason[1] if reason else "Binding or reservation changed.")
+            elif e.get("suspendedBy"):
+                continue
             else:
                 if not e.get("startedAt"):
                     e.update(startedAt=frame["effectiveAt"], startedTick=run["tick"])
@@ -147,6 +150,11 @@ def advance(frame, checkpoint, now):
                     terminate(frame, e, "Completed", "Destination reached in a committed source sample.")
                     e["completionSample"] = {"sequence": frame["sequence"] + 1, "trackId": e["controlTrackId"], "timestamp": frame["effectiveAt"], "position": position}
         if e["state"] != before:
+            if checkpoint.get("fleetBehavior", {}).get("ruleVersion") == "local-fleet-v2":
+                member = next((m for m in checkpoint["fleetBehavior"]["members"] if m.get("movementExecutionId") == e["id"]), None)
+                if member and control and e["state"] in TERMINAL:
+                    member["reservationRevision"] = control["busyRevision"]
+                    member.pop("movementExecutionId", None)
             events.append({"effectiveAt": frame["effectiveAt"], "type": f'movement.{e["state"].lower()}', "severity": "info",
                            "entityIds": [e["entityId"]], "source": {"id": run["sourceId"], "kind": "simulation", "mode": "simulated"},
                            "extensions": {"sentinel.movement": {"executionId": e["id"], "commandId": e["commandId"], "reason": e.get("reason")}}})

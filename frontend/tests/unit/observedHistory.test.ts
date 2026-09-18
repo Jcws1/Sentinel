@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import raw from '../../../contracts/sentinel/v1.7/fixture.world.json';
+import raw from '../../../contracts/sentinel/v1.11/fixture.world.json';
 import {
   decodeObservedHistory,
   validateFrame,

@@ -33,6 +33,9 @@ export interface SelectionState {
   revision: number;
 }
 export interface FilterState {
+  conditions?: readonly (
+    'operational' | 'degraded' | 'non-operational' | 'unknown'
+  )[];
   search?: string;
   observationStates?: readonly ('tracking' | 'stale' | 'ended' | 'unlocated')[];
   affiliations: readonly Entity['affiliation'][];

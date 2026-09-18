@@ -12,7 +12,7 @@ import {
 import type { DirectMoveRequest } from '../../src/contracts/generated';
 test.use({ trace: 'off' });
 const evidence = resolve(
-  '../docs/d2/regressions/evidence/regressions/regressions',
+  '../docs/d4-refinement/regressions/d4/regressions/movement',
 );
 test.beforeEach(async () => {
   await mkdir(evidence, { recursive: true });
@@ -85,8 +85,10 @@ test('direct group movement skips unavailable members, redirects a subset and pr
   await expect
     .poll(
       async () =>
-        (await readWorld(page)).interactive!.executions!.filter((e) =>
-          e.reason?.startsWith('Superseded by order'),
+        (await readWorld(page)).interactive!.executions!.filter(
+          (e) =>
+            e.state === 'Cancelled' &&
+            old.some((previous) => previous.id === e.id),
         ).length,
     )
     .toBe(1);

@@ -7,6 +7,13 @@ import type {
   RunRead,
   LegacyReceipt,
   LegacyM12Receipt,
+  LegacyD2Receipt,
+  LegacyD3Receipt,
+  LegacyD3AReceipt,
+  LegacyD4Receipt,
+  BehaviorPolicy,
+  BoundaryMutation,
+  DirectMoveMember,
   MoveIntent,
   MoveRequest,
   DirectMoveIntent,
@@ -39,8 +46,20 @@ export interface DirectFeedback {
 }
 export interface InteractiveState {
   directPending: readonly DirectPending[];
-  directReceipt?: DeepReadonly<Receipt>;
-  directReceipts: readonly DeepReadonly<Receipt>[];
+  directReceipt?: DeepReadonly<
+    | Receipt
+    | LegacyD4Receipt
+    | LegacyD3AReceipt
+    | LegacyD3Receipt
+    | LegacyD2Receipt
+  >;
+  directReceipts: readonly DeepReadonly<
+    | Receipt
+    | LegacyD4Receipt
+    | LegacyD3AReceipt
+    | LegacyD3Receipt
+    | LegacyD2Receipt
+  >[];
   directFeedback?: DirectFeedback;
   startingDemo: boolean;
   entry?: DeepReadonly<DemoEntry>;
@@ -48,8 +67,24 @@ export interface InteractiveState {
   pending?: DeepReadonly<Pending>;
   busy: boolean;
   error?: string;
-  receipt?: DeepReadonly<Receipt | LegacyReceipt | LegacyM12Receipt>;
-  movementReceipt?: DeepReadonly<Receipt | LegacyReceipt | LegacyM12Receipt>;
+  receipt?: DeepReadonly<
+    | Receipt
+    | LegacyD4Receipt
+    | LegacyD3AReceipt
+    | LegacyD3Receipt
+    | LegacyD2Receipt
+    | LegacyReceipt
+    | LegacyM12Receipt
+  >;
+  movementReceipt?: DeepReadonly<
+    | Receipt
+    | LegacyD4Receipt
+    | LegacyD3AReceipt
+    | LegacyD3Receipt
+    | LegacyD2Receipt
+    | LegacyReceipt
+    | LegacyM12Receipt
+  >;
   now?: string;
   holderId: string;
 }
@@ -62,6 +97,16 @@ const releaseKey = 'sentinel.interactive.released.v1';
 export interface PrivateSession {
   holderId: string;
   credential: string;
+}
+function canonicalCommand(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalCommand).join(',')}]`;
+  if (value && typeof value === 'object')
+    return `{${Object.entries(value)
+      .filter(([, v]) => v != null)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${JSON.stringify(k)}:${canonicalCommand(v)}`)
+      .join(',')}}`;
+  return JSON.stringify(value);
 }
 
 /** One shared session owner. Credentials never enter its public snapshot. */
@@ -272,6 +317,57 @@ export function createInteractiveClient(options: {
       (sent.missionId && receipt.missionId !== sent.missionId)
     )
       throw new Error('Receipt identity mismatch');
+    if (
+      'move' in sent.body &&
+      sent.body.order != null &&
+      ((receipt.schemaVersion !== '1.5' && receipt.schemaVersion !== '1.6') ||
+        receipt.movementOrder !== sent.body.order)
+    )
+      throw new Error('Reviewed Move receipt order mismatch');
+    if (
+      'intent' in sent.body &&
+      ['stop', 'return-to-script'].includes(sent.body.intent.action)
+    ) {
+      const intent = sent.body.intent;
+      if (
+        (receipt.schemaVersion !== '1.3' &&
+          receipt.schemaVersion !== '1.4' &&
+          receipt.schemaVersion !== '1.5' &&
+          receipt.schemaVersion !== '1.6') ||
+        receipt.controlOrder !== intent.order
+      )
+        throw new Error('Selected control receipt order mismatch');
+      const outcomes = receipt.controlOutcomes ?? [];
+      if (
+        (receipt.accepted && outcomes.length !== intent.members?.length) ||
+        outcomes.some(
+          (o) =>
+            !intent.members?.some(
+              (m) => m.assetId === o.assetId && m.entityId === o.entityId,
+            ),
+        )
+      )
+        throw new Error('Selected control receipt membership mismatch');
+    }
+    if ('intent' in sent.body && sent.body.intent.action === 'behavior') {
+      const intent = sent.body.intent;
+      if (
+        (receipt.schemaVersion !== '1.5' && receipt.schemaVersion !== '1.6') ||
+        receipt.behaviorOrder !== intent.order
+      )
+        throw new Error('Behavior receipt order mismatch');
+      const outcomes = receipt.behaviorOutcomes ?? [];
+      if (
+        (receipt.accepted && outcomes.length !== intent.members?.length) ||
+        outcomes.some(
+          (o) =>
+            !intent.members?.some(
+              (m) => m.assetId === o.assetId && m.entityId === o.entityId,
+            ),
+        )
+      )
+        throw new Error('Behavior receipt membership mismatch');
+    }
     if (disposed || gen !== generation) return;
     if (receipt.accepted && sent.missionId) {
       if (receipt.operation === 'revoke')
@@ -320,6 +416,9 @@ export function createInteractiveClient(options: {
     action: Action | 'create',
     executionId?: string,
     scenario?: ScenarioRef,
+    members?: DirectMoveMember[],
+    boundary?: BoundaryMutation,
+    policy?: BehaviorPolicy,
   ) {
     if (disposed || state.busy || pending) return;
     const gen = generation,
@@ -338,17 +437,36 @@ export function createInteractiveClient(options: {
         });
       } else {
         if (!mid) throw new Error('Load a local demo run.');
+        const selection = members
+          ? { members, order: allocateOrder() }
+          : undefined;
         const intent = decodeIntent(
           await request(`/${encodeURIComponent(mid)}/intents`, 'POST', {
             action,
             ...(executionId ? { executionId } : {}),
+            ...selection,
+            ...(boundary ? { boundary } : {}),
+            ...(policy ? { policy } : {}),
           }),
         );
         if (disposed || gen !== generation) return;
         if (
           intent.missionId !== mid ||
           intent.action !== action ||
-          (action === 'cancel' && intent.executionId !== executionId)
+          (policy &&
+            canonicalCommand(intent.policy) !== canonicalCommand(policy)) ||
+          (boundary &&
+            canonicalCommand(intent.boundary) !== canonicalCommand(boundary)) ||
+          (action === 'cancel' && intent.executionId !== executionId) ||
+          (selection &&
+            (intent.order !== selection.order ||
+              !intent.members ||
+              intent.members.length !== selection.members.length ||
+              intent.members.some((m, i) =>
+                Object.entries(m).some(
+                  ([k, v]) => Reflect.get(selection.members[i], k) !== v,
+                ),
+              )))
         )
           throw new Error('Intent context mismatch');
         remember({
@@ -410,7 +528,12 @@ export function createInteractiveClient(options: {
       const session = identity();
       remember({
         missionId,
-        body: { commandId, holderId: session.holderId, move },
+        body: {
+          commandId,
+          holderId: session.holderId,
+          move,
+          order: allocateOrder(),
+        },
       });
       await transmit(pending!, gen);
     } catch (e) {
@@ -454,24 +577,43 @@ export function createInteractiveClient(options: {
   async function acceptDirect(value: unknown, sent: DirectPending) {
     const decoded = decodeReceipt(value);
     if (
-      decoded.schemaVersion !== '1.2' ||
+      (decoded.schemaVersion !== '1.2' &&
+        decoded.schemaVersion !== '1.3' &&
+        decoded.schemaVersion !== '1.4' &&
+        decoded.schemaVersion !== '1.5' &&
+        decoded.schemaVersion !== '1.6') ||
       decoded.requestId !== sent.body.commandId ||
-      decoded.operation !== 'direct-move' ||
+      decoded.operation !==
+        (sent.body.direct.intercept ? 'intercept-approach' : 'direct-move') ||
       decoded.missionId !== sent.missionId ||
-      decoded.directOrder !== sent.body.direct.order
+      ((decoded.schemaVersion === '1.5' || decoded.schemaVersion === '1.6') &&
+      sent.body.direct.intercept
+        ? decoded.behaviorOrder
+        : decoded.directOrder) !== sent.body.direct.order
     )
       throw new Error('Direct movement receipt context mismatch.');
     if (decoded.accepted && decoded.runId !== sent.body.direct.runId)
       throw new Error('Direct receipt run mismatch.');
     const captured = sent.body.direct.members,
-      outcomes = decoded.memberOutcomes ?? [];
+      outcomes =
+        ((decoded.schemaVersion === '1.5' || decoded.schemaVersion === '1.6') &&
+        sent.body.direct.intercept
+          ? decoded.behaviorOutcomes
+          : decoded.memberOutcomes) ?? [];
     if (
-      (decoded.accepted || outcomes.length > 0) &&
-      (outcomes.length !== captured.length ||
+      (decoded.accepted &&
+        (outcomes.length !== captured.length ||
+          outcomes.some(
+            (o, i) =>
+              o.assetId !== captured[i].assetId ||
+              o.entityId !== captured[i].entityId,
+          ))) ||
+      (!decoded.accepted &&
         outcomes.some(
-          (o, i) =>
-            o.assetId !== captured[i].assetId ||
-            o.entityId !== captured[i].entityId,
+          (o) =>
+            !captured.some(
+              (m) => m.assetId === o.assetId && m.entityId === o.entityId,
+            ),
         ))
     )
       throw new Error('Direct receipt membership mismatch.');
@@ -490,17 +632,27 @@ export function createInteractiveClient(options: {
       sent.body.commandId === latestDirectId &&
       sent.body.direct.order >= latestDirectOrder
     ) {
-      const outcomes = receipt.memberOutcomes ?? [];
+      const outcomes =
+        ((receipt.schemaVersion === '1.5' || receipt.schemaVersion === '1.6') &&
+        sent.body.direct.intercept
+          ? receipt.behaviorOutcomes
+          : receipt.memberOutcomes) ?? [];
       const accepted = outcomes.filter((m) => m.outcome === 'accepted').length;
       const skipped = outcomes.length - accepted;
       const superseded = outcomes.some((m) => m.code === 'ORDER_SUPERSEDED');
+      const interceptMessage =
+        (receipt.schemaVersion === '1.5' || receipt.schemaVersion === '1.6') &&
+        sent.body.direct.intercept
+          ? `Intercept · ${receipt.targetScope?.length ?? 0} eligible targets · ${receipt.behaviorOutcomes?.filter((o) => o.state === 'pursuing').length ?? 0} assigned · ${receipt.behaviorOutcomes?.filter((o) => o.state === 'reserve').length ?? 0} held reserves${!receipt.targetScope?.length ? ' · No eligible targets' : ''}${skipped ? ` · ${skipped} skipped` : ''}`
+          : undefined;
       const message = !receipt.accepted
         ? receipt.message
-        : accepted
-          ? `${accepted} commanded${skipped ? ` · ${skipped} skipped` : ''}`
-          : superseded
-            ? 'A newer destination is already accepted.'
-            : 'No available drones.';
+        : (interceptMessage ??
+          (accepted
+            ? `${accepted} commanded${skipped ? ` · ${skipped} skipped` : ''}`
+            : superseded
+              ? 'A newer destination is already accepted.'
+              : 'No available drones.'));
       update.directReceipt = receipt;
       update.directFeedback = {
         id: sent.body.commandId,
@@ -545,27 +697,33 @@ export function createInteractiveClient(options: {
       directSending.delete(id);
     }
   }
+  function allocateOrder() {
+    const session = identity(),
+      run = state.current?.run;
+    const known =
+      run?.controls.flatMap((c) =>
+        c.lastDirectOrder &&
+        c.lastDirectOrder.holderId === session.holderId &&
+        c.lastDirectOrder.executorEpoch === run.executorEpoch &&
+        c.lastDirectOrder.grantId === run.grantId &&
+        c.lastDirectOrder.grantRevision === run.grantRevision
+          ? [c.lastDirectOrder.order]
+          : [],
+      ) ?? [];
+    const order = Math.max(nextOrder, ...known, 0) + 1;
+    if (!Number.isSafeInteger(order))
+      throw new Error('Operator order unavailable.');
+    storage!.setItem(orderKey, String(order));
+    nextOrder = order;
+    return order;
+  }
   async function submitDirect(direct: Omit<DirectMoveIntent, 'order'>) {
     if (disposed || direct.missionId !== missionId) return;
     try {
       if (directPending.length >= 64)
         throw new Error('Waiting for outstanding destinations to reconcile.');
       const session = identity();
-      const known =
-        state.current?.run.controls.flatMap((c) =>
-          c.lastDirectOrder &&
-          c.lastDirectOrder.holderId === session.holderId &&
-          c.lastDirectOrder.executorEpoch === direct.executorEpoch &&
-          c.lastDirectOrder.grantId === direct.grantId &&
-          c.lastDirectOrder.grantRevision === direct.grantRevision
-            ? [c.lastDirectOrder.order]
-            : [],
-        ) ?? [];
-      const order = Math.max(nextOrder, ...known, 0) + 1;
-      if (!Number.isSafeInteger(order))
-        throw new Error('Movement order unavailable.');
-      storage!.setItem(orderKey, String(order));
-      nextOrder = order;
+      const order = allocateOrder();
       const sent: DirectPending = {
         missionId: direct.missionId,
         body: {
@@ -584,7 +742,9 @@ export function createInteractiveClient(options: {
           ...direct.anchor,
           stage: 'pending',
           acknowledgedAt: Date.now(),
-          message: 'Destination requested',
+          message: direct.intercept
+            ? 'Intercept approach requested · 250 m area'
+            : 'Destination requested',
         },
       });
       await transmitDirect(sent);
@@ -596,25 +756,44 @@ export function createInteractiveClient(options: {
       );
     }
   }
+  let reconcilingDirect = false;
+  let reconcileCursor = 0;
   async function reconcileDirect() {
-    for (const sent of [...directPending]) {
-      if (disposed || directSending.has(sent.body.commandId)) continue;
-      directSending.add(sent.body.commandId);
-      let missing = false;
-      try {
-        await acceptDirect(
-          await request(
-            `/${encodeURIComponent(sent.missionId)}/receipts?identity=${encodeURIComponent(sent.body.commandId)}`,
-          ),
-          sent,
-        );
-      } catch (e) {
-        missing = (e as { status?: number }).status === 404;
-      } finally {
-        directSending.delete(sent.body.commandId);
-      }
-      // Retries keep the original order, identity, content and admission deadline.
-      if (missing && !disposed) await transmitDirect(sent);
+    if (reconcilingDirect) return;
+    reconcilingDirect = true;
+    const candidates = directPending.filter(
+      (p) => !directSending.has(p.body.commandId),
+    );
+    const start = candidates.length ? reconcileCursor % candidates.length : 0;
+    const batch = [
+      ...candidates.slice(start),
+      ...candidates.slice(0, start),
+    ].slice(0, 4);
+    reconcileCursor = start + batch.length;
+    try {
+      await Promise.all(
+        batch.map(async (sent) => {
+          if (disposed || directSending.has(sent.body.commandId)) return;
+          directSending.add(sent.body.commandId);
+          let missing = false;
+          try {
+            await acceptDirect(
+              await request(
+                `/${encodeURIComponent(sent.missionId)}/receipts?identity=${encodeURIComponent(sent.body.commandId)}`,
+              ),
+              sent,
+            );
+          } catch (e) {
+            missing = (e as { status?: number }).status === 404;
+          } finally {
+            directSending.delete(sent.body.commandId);
+          }
+          // Retries keep the original order, identity, content and admission deadline.
+          if (missing && !disposed) await transmitDirect(sent);
+        }),
+      );
+    } finally {
+      reconcilingDirect = false;
     }
   }
   async function manageControl() {
@@ -707,7 +886,7 @@ export function createInteractiveClient(options: {
       if (pending && state.error?.startsWith('No committed receipt yet.'))
         await reconcile(true);
     }
-    await reconcileDirect();
+    void reconcileDirect();
     await manageControl();
     const current = state.current;
     if (
@@ -731,7 +910,21 @@ export function createInteractiveClient(options: {
   }
   return {
     get: () => immutableCopy(state),
+    reportControlError: (error: string) => emit({ error }),
     perform,
+    selectedControl: (
+      action: 'stop' | 'return-to-script',
+      members: DirectMoveMember[],
+    ) => perform(action, undefined, undefined, structuredClone(members)),
+    applyBehavior: (members: DirectMoveMember[], policy: BehaviorPolicy) =>
+      perform(
+        'behavior',
+        undefined,
+        undefined,
+        structuredClone(members),
+        undefined,
+        structuredClone(policy),
+      ),
     submitMove,
     submitDirect,
     rejectDirect,

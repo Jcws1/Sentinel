@@ -6,16 +6,28 @@ import { observedSegments } from '../world/observedSegments';
 import { activeZones, entityRows, selectionStatus } from '../world/entityRows';
 import type { SceneObject, SceneProjection } from './contracts';
 import { regionalMissions } from './regions';
-import { reviewMovement, terminalExecution } from '../world/movement';
+import { reviewMovement } from '../world/movement';
 import type { InteractiveState } from '../services/interactiveClient';
 import type { SceneDestination } from './contracts';
+import { scenarioScene } from '../world/scenarioDraft';
+import type { DemoOutcome } from '../contracts/generated';
+import type { ScenarioState } from '../services/scenarioClient';
+import { activePlans } from '../world/activePlans';
+import {
+  defaultDisplayPreferences,
+  type DisplayPreferences,
+} from '../state/displayPreferences';
 
 export function createScene(
   presentation: PresentationFrame,
   session: DeepReadonly<SessionState>,
   observed?: ObservedState,
   interactive?: DeepReadonly<InteractiveState>,
+  scenario?: DeepReadonly<ScenarioState>,
+  cues: readonly DeepReadonly<DemoOutcome>[] = [],
+  preferences: Readonly<DisplayPreferences> = defaultDisplayPreferences,
 ): SceneProjection {
+  if (scenario?.active) return scenarioScene(scenario, session);
   const frame =
     presentation.frame?.mission.id === session.missionId
       ? presentation.frame
@@ -65,7 +77,9 @@ export function createScene(
         trackId: r.track!.id,
         position: r.track!.latest.position,
         affiliation: r.entity.affiliation,
+        condition: r.entity.condition,
         label: r.entity.label,
+        profileId: frame.unitProfiles?.[r.entity.id]?.id,
         selected: session.selection.items.some(
           (i) => i.kind === 'entity' && i.id === r.entity.id,
         ),
@@ -73,7 +87,7 @@ export function createScene(
         managed: assets.length > 0,
         unavailable:
           r.entity.condition === 'non-operational'
-            ? 'Down'
+            ? 'NON-OP'
             : r.entity.presence !== 'present' ||
                 r.track!.state !== 'tracking' ||
                 noControlResponse
@@ -85,28 +99,31 @@ export function createScene(
       });
     });
   const selected = rows.find((r) => r.entity.id === selectedId);
-  const destinations: SceneDestination[] = (frame.interactive?.executions ?? [])
-    .filter(
-      (e) =>
-        !terminalExecution(e) &&
-        session.selection.items.some(
-          (i) => i.kind === 'entity' && i.id === e.entityId,
-        ),
-    )
-    .map((e) => ({
-      id: e.id,
-      entityId: e.entityId,
+  const plans = activePlans(
+    frame,
+    objects,
+    preferences,
+    presentation.status !== 'current',
+  );
+  const destinations: SceneDestination[] = [...plans.destinations];
+  for (const cue of cues) {
+    const p = cue.participants[0];
+    destinations.push({
+      id: `engagement:${cue.id}`,
+      entityId: p.entityId,
       position: {
-        ...e.destination,
+        ...p.evaluated,
         altitude: {
-          ...e.destination.altitude,
+          ...p.evaluated.altitude,
           reference: 'ELLIPSOID',
           datumId: 'WGS84',
         },
       },
       stage: 'accepted',
-      label: frame.entities[e.entityId]?.label ?? 'Destination',
-    }));
+      label: 'SIMULATED ENGAGEMENT',
+      outcome: 'simulated-engagement',
+    });
+  }
   const draft = session.movementDraft;
   if (draft && draft.context.missionId === frame.mission.id) {
     let intent = draft.intent;
@@ -174,12 +191,21 @@ export function createScene(
         )
       : [];
   return Object.freeze({
+    display: preferences,
+    routes: Object.freeze(plans.routes),
     missionId: frame.mission.id,
     frameId: frame.frameId,
     sequence: frame.sequence,
     effectiveAt: frame.effectiveAt,
     stale: presentation.status !== 'current',
-    objects: Object.freeze(objects),
+    objects: Object.freeze(
+      objects.map((o) =>
+        Object.freeze({
+          ...o,
+          planLabel: plans.routes.find((r) => r.entityId === o.ref.id)?.label,
+        }),
+      ),
+    ),
     paths: Object.freeze(paths),
     destinations: Object.freeze(destinations),
     zones: Object.freeze(

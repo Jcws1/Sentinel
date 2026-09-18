@@ -39,9 +39,17 @@ from app.commands.contracts import InteractiveRun
 
 from app.scenarios.contracts import ScenarioBinding
 from app.scenarios.boundaries import BoundaryRules
+from app.commands.schedule_contracts import ScenarioSchedule
+from app.commands.boundary_contracts import LiveBoundaries
+from app.commands.behavior_contracts import FleetBehavior
+from app.commands.unit_profiles import UnitProfile
 
 
 class WorldChanges(Model):
+    unit_profiles: dict[Id, UnitProfile] = Field(default_factory=dict)
+    fleet_behavior: FleetBehavior | None = None
+    live_boundaries: LiveBoundaries | None = None
+    scenario_schedule: ScenarioSchedule | None = None
     scenario: ScenarioBinding | None = None
     boundary_rules: BoundaryRules | None = None
     interactive: InteractiveRun | None = None
@@ -57,7 +65,7 @@ class WorldChanges(Model):
 
 class SnapshotMessage(Model):
     type: Literal["snapshot"]
-    schema_version: Literal["1.6"]
+    schema_version: Literal["1.10"]
     mission_id: Id
     stream_epoch: Id
     sequence: Sequence
@@ -66,7 +74,7 @@ class SnapshotMessage(Model):
 
 class DeltaMessage(Model):
     type: Literal["delta"]
-    schema_version: Literal["1.6"]
+    schema_version: Literal["1.10"]
     mission_id: Id
     stream_epoch: Id
     sequence: Sequence
@@ -80,7 +88,7 @@ class DeltaMessage(Model):
 
 class HeartbeatMessage(Model):
     type: Literal["heartbeat"]
-    schema_version: Literal["1.6"]
+    schema_version: Literal["1.10"]
     mission_id: Id
     stream_epoch: Id
     sequence: Sequence
@@ -89,7 +97,7 @@ class HeartbeatMessage(Model):
 
 class ResyncRequiredMessage(Model):
     type: Literal["resync-required"]
-    schema_version: Literal["1.6"]
+    schema_version: Literal["1.10"]
     mission_id: Id
     reason: str
 

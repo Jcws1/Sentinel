@@ -3,15 +3,16 @@ import { Pentagon, Pencil, Trash2 } from 'lucide-react';
 import { useOperationalRuntime } from '../../app/OperationalContext';
 import { boundaryLabels, boundaryContains } from '../../world/boundaryGeometry';
 import type { BoundaryDefinition } from '../../contracts/generated';
+import { boundaryEditorContext } from '../../world/boundaryContext';
 
 export function BoundaryPanel({ viewId }: { viewId?: string }) {
   const runtime = useOperationalRuntime()!;
   const state = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot),
-    scenario = state.scenario;
+    scenario = boundaryEditorContext(state);
   const edit = scenario.boundaryEdit,
     error = useRef<HTMLDivElement>(null),
     pane = useRef<HTMLElement>(null),
-    previous = useRef(edit);
+    previous = useRef<typeof edit>(undefined);
   const locked =
     !!scenario.pending ||
     scenario.busy ||
@@ -46,7 +47,9 @@ export function BoundaryPanel({ viewId }: { viewId?: string }) {
   return (
     <section
       className="boundary-panel"
-      aria-label="Scenario boundaries"
+      aria-label={
+        state.scenario.active ? 'Scenario boundaries' : 'Live demo boundaries'
+      }
       ref={pane}
       onKeyDown={(e) => {
         if (e.key === 'Escape' && edit) {
@@ -59,6 +62,48 @@ export function BoundaryPanel({ viewId }: { viewId?: string }) {
         <h2>Boundaries</h2>
         <span>{boundaries.length}/16</span>
       </div>
+      {!state.scenario.active && (
+        <div className="units-notice">
+          <strong>
+            LIVE DEMO ·{' '}
+            {state.presentation.frame?.scenario?.name ??
+              state.presentation.frame?.mission.name}
+          </strong>
+          <p>
+            Effective revision{' '}
+            {state.presentation.frame?.liveBoundaries?.revision ?? 0}. Typed
+            changes apply to this run; the saved scenario stays unchanged.
+          </p>
+          {state.liveBoundaryView?.reason && (
+            <p>{state.liveBoundaryView.reason}</p>
+          )}
+          {state.liveBoundary?.message && (
+            <p role="status">{state.liveBoundary.message}</p>
+          )}
+          {!edit && scenario.error && <p role="alert">{scenario.error}</p>}
+          {state.interactive.pending && (
+            <div className="units-actions">
+              <button
+                disabled={state.interactive.busy}
+                onClick={() => void runtime.reconcileInteractive()}
+              >
+                Check boundary request
+              </button>
+              <button
+                disabled={state.interactive.busy}
+                onClick={() => void runtime.reconcileInteractive(true)}
+              >
+                Retry saved boundary request
+              </button>
+            </div>
+          )}
+          {scenario.error?.includes('BOUNDARY_CONFLICT') && (
+            <button onClick={() => runtime.refreshLiveBoundaryRevision()}>
+              Review current revision
+            </button>
+          )}
+        </div>
+      )}
       <p className="units-hint">
         Horizontal footprints at all demo heights. Restricted areas block entry
         and crossing.
@@ -91,6 +136,10 @@ export function BoundaryPanel({ viewId }: { viewId?: string }) {
             >
               <strong>{b.name}</strong>
               <small>{boundaryLabels[b.type]}</small>
+              {!state.scenario.active &&
+                state.liveBoundary?.provisional.some((p) => p.id === b.id) && (
+                  <small>PROVISIONAL · NOT ACTIVE</small>
+                )}
             </button>
             <select
               aria-label={`Type of ${b.name}`}
@@ -106,7 +155,7 @@ export function BoundaryPanel({ viewId }: { viewId?: string }) {
               <option value="untyped">Untyped boundary</option>
               <option value="annotation">Annotation only</option>
               <option value="friendly">Friendly</option>
-              <option value="patrol">Patrol · not active</option>
+              <option value="patrol">Patrol area</option>
               <option value="restricted">Restricted</option>
             </select>
             <div className="units-actions">
@@ -262,8 +311,9 @@ export function BoundaryPanel({ viewId }: { viewId?: string }) {
         </div>
       )}
       <p className="units-hint">
-        Friendly: no-engagement intent. Patrol: footprint only; automatic patrol
-        is unavailable.
+        Friendly blocks Intercept pursuit and engagement. Assign selected drones
+        to a named Patrol area from Fleet; its inset loop and ingress must be
+        valid.
       </p>
     </section>
   );
@@ -276,7 +326,10 @@ export function LiveBoundaryList() {
   if (!frame?.boundaryRules) return null;
   return (
     <section className="boundary-panel" aria-label="Run boundaries">
-      <h2>Run boundaries · frozen</h2>
+      <h2>
+        Run boundaries · effective revision{' '}
+        {frame.liveBoundaries?.revision ?? 0}
+      </h2>
       <p>
         Horizontal rules at all demo heights. Hidden overlays still enforce
         restrictions.
@@ -316,8 +369,9 @@ export function LiveBoundaryList() {
             )),
         )}
       <p>
-        Friendly records protection intent; automatic patrol and engagement are
-        unavailable.
+        Friendly protects participants from Intercept pursuit and engagement.
+        Apply Patrol in Fleet. Changed Patrol geometry holds affected drones
+        until explicitly reapplied.
       </p>
     </section>
   );

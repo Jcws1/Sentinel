@@ -1,3 +1,4 @@
+import { ConductorPane } from '../conductor/ConductorPane';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { TabNode } from 'flexlayout-react';
 import type { WorkspaceBridge } from './workspaceBridge';
@@ -11,6 +12,7 @@ import { EntityInspector } from '../entities/EntityInspector';
 import { EntityDetails } from '../entities/EntityDetails';
 import { MovementPane } from '../movement/MovementPane';
 import { UnitsPane } from '../units/UnitsPane';
+import { DisplaySettings } from '../settings/DisplaySettings';
 
 export type PaneLifecycleEvent =
   | { type: 'mount' | 'dispose'; viewId: ViewId }
@@ -102,8 +104,12 @@ export function PaneHost({
         }
       }}
     >
-      {kind === 'credits' ? (
+      {kind === 'settings' && runtime ? (
+        <DisplaySettings bridge={bridge} />
+      ) : kind === 'credits' ? (
         <Credits />
+      ) : kind === 'conductor' && runtime ? (
+        <ConductorPane bridge={bridge} visible={visible} />
       ) : kind === 'units' && runtime ? (
         <UnitsPane bridge={bridge} />
       ) : kind === 'movement' && runtime ? (

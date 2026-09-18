@@ -6,7 +6,7 @@ export const boundaryLabels = {
   untyped: 'UNTYPED',
   annotation: 'ANNOTATION ONLY',
   friendly: 'FRIENDLY · NO ENGAGEMENT',
-  patrol: 'PATROL · NOT ACTIVE',
+  patrol: 'PATROL AREA',
   restricted: 'RESTRICTED · NO ENTRY',
 } as const;
 export const boundaryColors = {
@@ -63,6 +63,20 @@ export function boundaryContains(v: Vertex, vertices: readonly Vertex[]) {
       inside = !inside;
   }
   return inside;
+}
+export function boundaryCrosses(
+  a: Vertex,
+  b: Vertex,
+  vertices: readonly Vertex[],
+) {
+  if (boundaryContains(a, vertices) || boundaryContains(b, vertices))
+    return true;
+  const left = metricVertex(a),
+    right = metricVertex(b),
+    ring = vertices.map(metricVertex);
+  return ring.some((v, i) =>
+    touches(left, right, v, ring[(i + 1) % ring.length]),
+  );
 }
 export function validateBoundary(b: BoundaryDefinition) {
   if (!b.name.trim() || b.name.length > 64)

@@ -1,3 +1,16 @@
+import { captureScriptControl } from '../world/scriptControl';
+import { captureBehavior, interceptSelection } from '../world/behavior';
+import { createEngagementCues } from '../world/engagementCues';
+import { createMotionPresentation } from '../world/motionPresentation';
+import {
+  createDisplayPreferences,
+  type DisplayPreferences,
+} from '../state/displayPreferences';
+import type { BehaviorPolicy, DemoOutcome } from '../contracts/generated';
+import {
+  createLiveBoundaryEditor,
+  type LiveBoundaryState,
+} from '../services/liveBoundaryEditor';
 import {
   createInteractiveClient,
   type InteractiveState,
@@ -48,6 +61,9 @@ import {
 } from '../world/observedHistory';
 
 export interface RuntimeSnapshot {
+  display?: Readonly<DisplayPreferences>;
+  displayPersistence?: 'local' | 'session';
+  engagementCues?: readonly DeepReadonly<DemoOutcome>[];
   catalog: {
     status: 'idle' | 'loading' | 'ready' | 'error';
     missions: readonly DeepReadonly<Mission>[];
@@ -65,8 +81,13 @@ export interface RuntimeSnapshot {
   interactive: DeepReadonly<InteractiveState>;
   browserMode: 'all' | 'fleet';
   scenario: DeepReadonly<ScenarioState>;
+  liveBoundary?: DeepReadonly<LiveBoundaryState>;
+  liveBoundaryView?: DeepReadonly<
+    ReturnType<ReturnType<typeof createLiveBoundaryEditor>['view']>
+  >;
 }
 export interface RuntimeDependencies {
+  displayStorage?: Pick<Storage, 'getItem' | 'setItem'> | null;
   apiBase?: string;
   pageUrl?: string;
   fetcher?: Fetcher;
@@ -99,6 +120,9 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
   const world = createWorldStore();
   const session = createSessionStore();
   const history = createHistoryCache();
+  const engagementCues = createEngagementCues();
+  const motion = createMotionPresentation();
+  const display = createDisplayPreferences(dependencies.displayStorage);
   const listeners = new Set<() => void>();
   let catalog: RuntimeSnapshot['catalog'] = { status: 'idle', missions: [] };
   let advancing = false;
@@ -140,6 +164,19 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
     publish,
     timeoutMs: requestTimeout,
   });
+  const liveBoundaries = createLiveBoundaryEditor({
+    publish,
+    submit: (mutation) =>
+      interactive.perform(
+        'boundary-edit',
+        undefined,
+        undefined,
+        undefined,
+        mutation,
+      ),
+  });
+  const boundaryOwner = () =>
+    scenarios.get().active ? scenarios : liveBoundaries;
   function publish() {
     const cache = world.getState();
     const operational = session.getState();
@@ -150,6 +187,12 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       history,
       commandState.now,
     );
+    liveBoundaries.sync(
+      presentation.mode === 'live' && cache.connection === 'connected'
+        ? presentation.frame
+        : undefined,
+      commandState,
+    );
     observed.sync(
       presentation.frame,
       operational.selection.primary?.kind === 'entity'
@@ -159,19 +202,33 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       operational.overlays.historyWindowSeconds ?? 60,
     );
     snapshot = Object.freeze({
+      display: display.get(),
+      displayPersistence: display.persistence(),
       catalog: immutableCopy(catalog),
       connection: cache.connection,
       error: cache.error,
       missionId: operational.missionId,
       presentation: Object.freeze(presentation),
+      engagementCues: engagementCues(
+        presentation,
+        cache.connection === 'connected',
+        scenarios.get().active,
+      ),
       observed: observed.get(),
       interactive: commandState,
       scenario: scenarios.get(),
+      liveBoundary: liveBoundaries.get(),
+      liveBoundaryView: immutableCopy(liveBoundaries.view()),
       browserMode,
       session: immutableCopy(operational),
       advancing,
       advanceError,
     });
+    motion.update(
+      presentation,
+      cache.connection === 'connected',
+      scenarios.get().active,
+    );
     for (const listener of listeners) listener();
   }
   function cancelCatalog() {
@@ -353,6 +410,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
 
   publish();
   const owner = {
+    motion,
     getSnapshot: () => snapshot,
     getPresentationFrame: () => snapshot.presentation,
     subscribe(listener: () => void) {
@@ -442,7 +500,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
     selectEntity(id?: string, additive = false) {
       if (disposed) return;
       if (scenarios.get().active) {
-        owner.selectScenarioUnit(id);
+        owner.selectScenarioUnit(id, additive);
         return;
       }
       const current = session.getState();
@@ -486,7 +544,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
     selectEntities(ids: string[], additive = false) {
       if (disposed) return;
       if (scenarios.get().active) {
-        owner.selectScenarioUnit(ids[0]);
+        owner.selectScenarioUnits(ids, additive);
         return;
       }
       const current = session.getState(),
@@ -537,6 +595,16 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       });
       publish();
     },
+    setDisplayPreferences(update: Partial<DisplayPreferences>) {
+      if (disposed) return;
+      display.update(update);
+      publish();
+    },
+    resetDisplayPreferences() {
+      if (disposed) return;
+      display.update({}, true);
+      publish();
+    },
     setBrowserMode(mode: 'all' | 'fleet') {
       browserMode = mode;
       publish();
@@ -551,6 +619,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       )
         return;
       owner.unloadMission();
+      liveBoundaries.disarmBoundary();
       scenarios.enter();
       if (scenarios.get().edit)
         owner.selectScenarioUnit(scenarios.get().edit!.id);
@@ -564,6 +633,38 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       if (scenarios.get().active) scenarios.newDraft();
     },
     loadScenario: (id: string) => scenarios.load(id),
+    refreshScenarios: () => scenarios.refresh(),
+    async openSavedScenario(id: string, discard = false) {
+      const s = scenarios.get();
+      if (
+        s.edit ||
+        s.actionEdit ||
+        s.boundaryEdit ||
+        s.pending ||
+        s.busy ||
+        s.blocked ||
+        interactive.get().pending ||
+        interactive.get().startingDemo
+      ) {
+        scenarios.report(
+          'Finish the current edit or reconcile its pending request before loading another saved scenario.',
+        );
+        return false;
+      }
+      if (s.dirty && !discard) {
+        scenarios.report(
+          'Save or explicitly discard your unsaved arrangement before loading another.',
+        );
+        return false;
+      }
+      owner.enterAuthoring();
+      if (!scenarios.get().active) return false;
+      await scenarios.load(id);
+      owner.selectScenarioUnit();
+      return (
+        scenarios.get().saved?.definitionId === id && !scenarios.get().error
+      );
+    },
     updateScenario: (content: ScenarioContent) => scenarios.update(content),
     editScenarioUnit: (edit: ScenarioUnitEdit) => scenarios.editUnit(edit),
     applyScenarioUnitEdit: () => scenarios.applyEdit(),
@@ -580,23 +681,54 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       if (id && !scenarios.get().draft.units.some((u) => u.id === id))
         owner.selectScenarioUnit();
     },
-    beginBoundary: (viewId: string, id?: string) =>
-      scenarios.beginBoundary(viewId, id),
-    editBoundary: scenarios.editBoundary,
-    disarmBoundary: scenarios.disarmBoundary,
-    cancelBoundary: scenarios.cancelBoundary,
-    boundaryPoint: scenarios.boundaryPoint,
-    removeBoundaryVertex: scenarios.removeBoundaryVertex,
-    applyBoundary: scenarios.applyBoundary,
-    setBoundaryType: scenarios.setBoundaryType,
-    deleteBoundary: scenarios.deleteBoundary,
-    boundaryContext: scenarios.boundaryContext,
-    closeBoundaryMenu: scenarios.closeBoundaryMenu,
+    beginAction: scenarios.beginAction,
+    beginActionBatch: scenarios.beginBatch,
+    setPlanPresentation: scenarios.setPlanPresentation,
+    editAction: scenarios.editAction,
+    applyAction: scenarios.applyAction,
+    cancelAction: scenarios.cancelAction,
+    snapActionTime: scenarios.snapActionTime,
+    armAction: scenarios.armAction,
+    disarmAction: scenarios.disarmAction,
+    actionDestination: scenarios.actionDestination,
+    selectAction: scenarios.selectAction,
+    deleteAction: scenarios.deleteAction,
+    reorderAction: scenarios.reorderAction,
+    beginBoundary(viewId: string, id?: string) {
+      if (
+        !scenarios.get().active &&
+        !snapshot.presentation.frame &&
+        !interactive.get().entry?.activeMissionId
+      )
+        owner.enterAuthoring();
+      owner.armDirectMove();
+      owner.pickDestination();
+      boundaryOwner().beginBoundary(viewId, id);
+    },
+    editBoundary: (...args: Parameters<typeof scenarios.editBoundary>) =>
+      boundaryOwner().editBoundary(...args),
+    disarmBoundary: (viewId?: string) => boundaryOwner().disarmBoundary(viewId),
+    cancelBoundary: () => boundaryOwner().cancelBoundary(),
+    boundaryPoint: (...args: Parameters<typeof scenarios.boundaryPoint>) =>
+      boundaryOwner().boundaryPoint(...args),
+    removeBoundaryVertex: (index?: number) =>
+      boundaryOwner().removeBoundaryVertex(index),
+    applyBoundary: () => boundaryOwner().applyBoundary(),
+    setBoundaryType: (...args: Parameters<typeof scenarios.setBoundaryType>) =>
+      boundaryOwner().setBoundaryType(...args),
+    deleteBoundary: (id: string) => boundaryOwner().deleteBoundary(id),
+    boundaryContext: (...args: Parameters<typeof scenarios.boundaryContext>) =>
+      boundaryOwner().boundaryContext(...args),
+    closeBoundaryMenu: () => boundaryOwner().closeBoundaryMenu(),
+    openLiveBoundaries: liveBoundaries.open,
+    closeLiveBoundaries: liveBoundaries.close,
+    refreshLiveBoundaryRevision: liveBoundaries.refreshRevision,
     selectBoundary(id?: string) {
       if (
         !scenarios.get().active ||
         scenarios.get().edit ||
-        scenarios.get().boundaryEdit
+        scenarios.get().boundaryEdit ||
+        scenarios.get().actionEdit
       )
         return;
       const ref = id ? { kind: 'scenario-boundary' as const, id } : undefined;
@@ -623,8 +755,24 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
             : undefined,
         );
     },
-    selectScenarioUnit(id?: string) {
-      if (scenarios.get().boundaryEdit) return;
+    selectScenarioUnit(id?: string, additive = false) {
+      const current = session
+        .getState()
+        .selection.items.filter((i) => i.kind === 'scenario-unit')
+        .map((i) => i.id);
+      owner.selectScenarioUnits(
+        id
+          ? additive
+            ? current.includes(id)
+              ? current.filter((x) => x !== id)
+              : [...current, id]
+            : [id]
+          : [],
+      );
+    },
+    selectScenarioUnits(ids: string[], additive = false) {
+      const id = ids[0];
+      if (scenarios.get().boundaryEdit || scenarios.get().actionEdit) return;
       if (scenarios.get().edit && scenarios.get().edit!.id !== id) {
         scenarios.report(
           'Apply or discard selected unit edits before changing selection.',
@@ -636,10 +784,32 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
         (id && !scenarios.get().draft.units.some((u) => u.id === id))
       )
         return;
-      const ref = id ? { kind: 'scenario-unit' as const, id } : undefined;
+      const units = scenarios.get().draft.units;
+      const previous = additive
+        ? session
+            .getState()
+            .selection.items.filter((i) => i.kind === 'scenario-unit')
+            .map((i) => i.id)
+        : [];
+      const valid = [...new Set([...previous, ...ids])].filter((id) =>
+        units.some((u) => u.id === id),
+      );
+      const category = units.find((u) => u.id === valid[0])?.category;
+      if (
+        valid.some(
+          (id) => units.find((u) => u.id === id)?.category !== category,
+        )
+      ) {
+        scenarios.report(
+          'Select actors from one category for group authoring.',
+        );
+        return;
+      }
+      const items = valid.map((id) => ({ kind: 'scenario-unit' as const, id }));
+      const ref = items[0];
       session.setState({
         selection: {
-          items: ref ? [ref] : [],
+          items,
           primary: ref,
           revision: session.getState().selection.revision + 1,
         },
@@ -661,6 +831,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
         !state.active ||
         !placement ||
         state.edit ||
+        state.actionEdit ||
         state.boundaryEdit ||
         state.blocked ||
         state.busy ||
@@ -700,6 +871,9 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
             ? `${source.label.slice(0, 59)} copy`
             : `${placement.category === 'friendly' ? 'Friendly' : placement.category === 'hostile' ? 'Hostile' : 'Unknown'} ${draft.units.length + 1}`,
           category: placement.category,
+          ...(source?.profileId || placement.profileId
+            ? { profileId: source?.profileId ?? placement.profileId }
+            : {}),
           commandRole:
             source?.commandRole ??
             (placement.category === 'friendly' ? 'sentinel' : 'observation'),
@@ -744,6 +918,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
         !state.saved ||
         !state.active ||
         state.edit ||
+        state.actionEdit ||
         state.boundaryEdit ||
         state.blocked ||
         state.dirty ||
@@ -766,6 +941,15 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       session.setState({ directDestinationView: undefined });
       try {
         const intent = captureDirectMove(snapshot, longitude, latitude);
+        const mode = interceptSelection(snapshot);
+        const rts =
+          snapshot.presentation.frame?.fleetBehavior?.ruleVersion ===
+          'local-fleet-v2';
+        if (mode.mixed && !rts)
+          throw new Error(
+            'Mixed behaviors. Apply Intercept or Hold / Manual to the selection first.',
+          );
+        if (mode.armed && !rts) intent.intercept = true;
         publish();
         await interactive.submitDirect(intent);
       } catch (e) {
@@ -773,6 +957,28 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
           longitude,
           latitude,
           e instanceof Error ? e.message : 'Destination unavailable.',
+        );
+      }
+    },
+    selectedControl: (action: 'stop' | 'return-to-script') => {
+      try {
+        return interactive.selectedControl(
+          action,
+          captureScriptControl(snapshot),
+        );
+      } catch (error) {
+        interactive.reportControlError(
+          error instanceof Error ? error.message : 'Control unavailable.',
+        );
+      }
+    },
+    applyBehavior: (kind: BehaviorPolicy['kind'], boundaryId?: string) => {
+      try {
+        const { members, policy } = captureBehavior(snapshot, kind, boundaryId);
+        return interactive.applyBehavior(members, policy);
+      } catch (error) {
+        interactive.reportControlError(
+          error instanceof Error ? error.message : 'Behavior unavailable.',
         );
       }
     },
@@ -928,6 +1134,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       }
     },
     dispose() {
+      motion.dispose();
       if (disposed) return;
       disposed = true;
       interactive.dispose();

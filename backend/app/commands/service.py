@@ -7,10 +7,12 @@ from datetime import datetime, timedelta
 from uuid import uuid4
 
 from app.commands.contracts import (CommandRequest, CreateRunRequest, DemoEntry, Intent, InteractiveRun,
-                                    Receipt, RunRead, LegacyReceipt, LegacyM12Receipt, MoveRequest,
-                                    DirectMoveRequest, MoveMember, MovementExecution, ExecutionRead)
+                                    Receipt, RunRead, LegacyReceipt, LegacyM12Receipt, LegacyD2Receipt, MoveRequest,
+                                    DirectMoveRequest, MoveMember, MovementExecution, ExecutionRead, LegacyD3Receipt, LegacyD3aReceipt)
 from app.commands.errors import CommandError
-from app.commands import movement
+from app.commands import movement, scheduler, selected_control, live_boundaries, behaviors, engagements, rts_behavior
+from app.commands.unit_profiles import entity_speed
+from app.commands.legacy_d4 import LegacyD4Receipt
 from app.commands.kinematics import endpoints, distance, in_extent, cruise_speed
 from app.commands.policy import TRANSITIONS
 from app.commands.template import TEMPLATE, LEGACY_TEMPLATE, new_template
@@ -52,10 +54,10 @@ class InteractiveService:
         frame = self._run(mid)
         run, now = frame.interactive, self.authority.clock()
         lease_state = "unclaimed" if not run.lease.holder_id else "expired" if now >= run.lease.expires_at else "held"
-        return RunRead(server_time=now, frame_id=frame.frame_id, sequence=frame.sequence, run=run,
+        return RunRead(server_time=now, frame_id=frame.frame_id, sequence=frame.sequence, run=run, unit_profiles=frame.unit_profiles,
                        owns_control=lease_state == "held" and self._owns(mid, credential), lease_state=lease_state)
 
-    async def issue_intent(self, mid, action, execution_id=None):
+    async def issue_intent(self, mid, action, execution_id=None, members=None, order=None, boundary=None, policy=None):
         self._enabled()
         async with self.authority._lock(mid):
             run, now = self._run(mid).interactive, self.authority.clock()
@@ -72,7 +74,7 @@ class InteractiveService:
                             source_id=run.source_id, grant_id=run.grant_id, grant_revision=run.grant_revision,
                             run_revision=run.run_revision, lease_revision=run.lease.revision, action=action,
                             issued_at=now, expires_at=plus(now, 30), execution_id=execution_id,
-                            execution_revision=execution.revision if execution else None)
+                            execution_revision=execution.revision if execution else None, members=members, order=order, boundary=boundary, policy=policy)
             self._intents[intent.id] = canonical(intent)
             return intent
 
@@ -92,10 +94,10 @@ class InteractiveService:
 
     @staticmethod
     def _read_receipt(text):
-        versions = {"1.0": LegacyReceipt, "1.1": LegacyM12Receipt, "1.2": Receipt}
+        versions = {"1.0": LegacyReceipt, "1.1": LegacyM12Receipt, "1.2": LegacyD2Receipt, "1.3": LegacyD3Receipt, "1.4": LegacyD3aReceipt, "1.5": LegacyD4Receipt, "1.6": Receipt}
         return versions[json.loads(text).get("schemaVersion")].model_validate_json(text)
 
-    def _receipt(self, identity, operation, frame=None, error=None, mid=None, execution_ids=None, direct_order=None, member_outcomes=None):
+    def _receipt(self, identity, operation, frame=None, error=None, mid=None, execution_ids=None, direct_order=None, member_outcomes=None, control_order=None, control_outcomes=None, behavior_order=None, behavior_outcomes=None, target_scope=None, movement_order=None):
         return Receipt(request_id=identity, operation=operation, accepted=error is None,
                        code=error.code if error else "OK", message=error.message if error else "Committed",
                        recorded_at=frame.recorded_at if frame else self.authority.clock(),
@@ -103,7 +105,9 @@ class InteractiveService:
                        run_id=frame.interactive.run_id if frame else None,
                        recording_id=frame.recording_id if frame else None,
                        frame_id=frame.frame_id if frame else None, sequence=frame.sequence if frame else None,
-                       execution_ids=execution_ids or [], direct_order=direct_order, member_outcomes=member_outcomes or [])
+                       boundary_revision=frame.live_boundaries.revision if frame and operation == "boundary-edit" else None,
+                       execution_ids=execution_ids or [], direct_order=direct_order, member_outcomes=member_outcomes or [], control_order=control_order, control_outcomes=control_outcomes or [],
+                       behavior_order=behavior_order, behavior_outcomes=behavior_outcomes or [], target_scope=target_scope or [], movement_order=movement_order)
 
     def _event(self, frame, operation, identity=None, holder=None):
         return {"effectiveAt": frame["effectiveAt"], "type": f"interactive.{operation}", "severity": "info",
@@ -113,6 +117,8 @@ class InteractiveService:
     def _commit(self, mid, proposed, events, checkpoint, receipt_factory=None):
         previous = json.loads(canonical(self.authority.read(mid)))
         movement.project(proposed, checkpoint, max(self.authority.clock(), previous["recordedAt"]))
+        scheduler.project(proposed, checkpoint)
+        behaviors.project(proposed, checkpoint)
         receipt = None
         def effects(frame):
             nonlocal receipt
@@ -161,8 +167,14 @@ class InteractiveService:
                 with self.repository.transaction():
                     self.repository.establish(mission, str(uuid4()), str(uuid4()), self.authority.clock())
                     proposed["mission"]["name"] = self.repository.assign_demo_alias(mission.id)
+                    checkpoint = {"schemaVersion": "1.5", "executions": [], "directOrders": {}}
+                    if "scenarioSchedule" in proposed:
+                        checkpoint["scenarioSchedule"] = proposed["scenarioSchedule"]
+                    scheduler.project(proposed, checkpoint)
+                    behaviors.initialize(proposed, checkpoint)
                     frame = self.authority.commit_locked(mission.id, lambda _: (proposed, [self._event(proposed, "created")]), publish=False)
-                    self.repository.save_checkpoint(mission.id, {"schemaVersion": "1.3", "run": json.loads(canonical(frame.interactive)), "executions": [], "directOrders": {}})
+                    checkpoint["run"] = json.loads(canonical(frame.interactive))
+                    self.repository.save_checkpoint(mission.id, checkpoint)
                     receipt = self._receipt(request.creation_id, "create", frame)
                     self.repository.save_receipt(request.creation_id, payload, canonical(receipt))
                     if revision:
@@ -208,7 +220,7 @@ class InteractiveService:
                 raise CommandError("EXECUTION_TERMINAL", "Execution is already terminal or outside the current projection.")
             if execution.revision != intent.execution_revision:
                 raise CommandError("OBSOLETE_INTENT", "Execution changed; request fresh cancellation evidence.")
-        elif action not in ("renew", "revoke") and (run.state, action) not in TRANSITIONS:
+        elif action not in ("renew", "revoke", "stop", "return-to-script", "boundary-edit", "behavior") and (run.state, action) not in TRANSITIONS:
             raise CommandError("INVALID_TRANSITION", f"{action.title()} is unavailable while the run is {run.state}.")
 
     async def command(self, mid, request: CommandRequest, credential):
@@ -220,10 +232,33 @@ class InteractiveService:
             self._enabled()
             frame = self._run(mid)
             run, now = frame.interactive, self.authority.clock()
+            checkpoint = self.repository.checkpoint(mid)
+            outcomes, control_context = [], None
+            behavior_outcomes, routes = [], {}
             try:
                 self._validate(mid, request, credential, run, now)
+                if request.intent.action == "boundary-edit":
+                    live_boundaries.candidate(json.loads(canonical(frame)), request.intent.boundary)
+                if request.intent.action in {"stop", "return-to-script", "behavior"}:
+                    outcomes, control_context = selected_control.validate(request, run, checkpoint)
+                    if not any(o["outcome"] == "accepted" for o in outcomes):
+                        if request.intent.action == "behavior":
+                            behavior_outcomes = outcomes
+                        outdated = all(o["code"] == "ORDER_SUPERSEDED" for o in outcomes)
+                        raise CommandError("ORDER_SUPERSEDED" if outdated else "NO_AVAILABLE_ASSETS",
+                                           "A newer operator order is already accepted." if outdated else "No available controlled members.")
+                if request.intent.action == "behavior":
+                    if request.intent.policy.kind == "patrol":
+                        self._validate_behavior_position(mid, request.intent, frame, now)
+                    behavior_outcomes, routes = behaviors.validate_policy(json.loads(canonical(frame)), checkpoint, request.intent.policy, outcomes)
+                    if not any(o["outcome"] == "accepted" for o in behavior_outcomes):
+                        raise CommandError("NO_AVAILABLE_ASSETS", "No available controlled drones for this behavior.")
             except CommandError as error:
-                receipt = self._receipt(request.command_id, request.intent.action, error=error, mid=mid)
+                if request.intent.action == "behavior":
+                    receipt = self._receipt(request.command_id, "behavior", error=error, mid=mid, behavior_order=request.intent.order,
+                        behavior_outcomes=[o for o in behavior_outcomes if o["outcome"] == "skipped"])
+                else:
+                    receipt = self._receipt(request.command_id, request.intent.action, error=error, mid=mid, control_order=request.intent.order, control_outcomes=outcomes)
                 self.repository.save_receipt(request.command_id, payload, canonical(receipt), mid)
                 return receipt
             proposed = json.loads(canonical(frame))
@@ -234,14 +269,14 @@ class InteractiveService:
                     updated["lease"].update(holderId=request.holder_id, expiresAt=plus(now, 30))
                 if action == "revoke":
                     updated["grantRevision"] += 1
-            elif action != "cancel":
+            elif action not in {"cancel", "stop", "return-to-script", "boundary-edit", "behavior"}:
                 updated["state"] = TRANSITIONS[(run.state, action)]
                 updated["runRevision"] += 1
                 proposed["mission"]["lifecycle"] = "completed" if action == "end" else "active"
                 proposed["mission"]["updatedAt"] = max(proposed["mission"]["updatedAt"], now)
                 if action == "end":
                     updated["lease"] = {"revision": run.lease.revision + 1}
-            checkpoint = self.repository.checkpoint(mid)
+            events = []
             for execution in checkpoint["executions"]:
                 if execution["state"] in movement.TERMINAL:
                     continue
@@ -254,12 +289,31 @@ class InteractiveService:
                     movement.transition(execution, "Suspended", "Run paused.")
                 elif execution.get("kind") == "move" and action == "resume":
                     execution.pop("reason", None)
-                    movement.transition(execution, "Running" if execution.get("startedAt") else "Accepted")
+                    if execution.get("suspendedBy"):
+                        movement.transition(execution, "Suspended", "Destination retained while Intercept pursues.")
+                    else:
+                        movement.transition(execution, "Running" if execution.get("startedAt") else "Accepted")
+            if action == "start":
+                events.extend(scheduler.dispatch(proposed, checkpoint, start=True))
+            elif action in {"end", "revoke"}:
+                events.extend(scheduler.terminate_all(proposed, checkpoint, "Cancelled", f"run-{action}"))
+                events.extend(behaviors.terminate_all(proposed, checkpoint, f"run-{action}"))
+            elif action in {"stop", "return-to-script"}:
+                for o in outcomes:
+                    if o["outcome"] == "accepted":
+                        events.extend(behaviors.halt(proposed, checkpoint, o["assetId"], f"Operator {action}; Intercept disarmed."))
+                events.extend(selected_control.apply(proposed, checkpoint, action, outcomes, control_context))
+            elif action == "behavior":
+                events.extend(behaviors.apply_policy(proposed, checkpoint, request, behavior_outcomes, control_context, routes))
+            elif action == "boundary-edit":
+                events.extend(live_boundaries.apply(proposed, checkpoint, request.intent.boundary, request.command_id))
+                events.extend(behaviors.revalidate(proposed, checkpoint))
             def receipt_factory(committed):
-                receipt = self._receipt(request.command_id, action, committed)
+                receipt = self._receipt(request.command_id, action, committed,
+                    **(dict(behavior_order=request.intent.order, behavior_outcomes=behavior_outcomes) if action == "behavior" else dict(control_order=request.intent.order, control_outcomes=outcomes)))
                 self.repository.save_receipt(request.command_id, payload, canonical(receipt), mid)
                 return receipt
-            result = self._commit(mid, proposed, [self._event(proposed, action, request.command_id, request.holder_id)], checkpoint, receipt_factory)
+            result = self._commit(mid, proposed, [self._event(proposed, action, request.command_id, request.holder_id)] + events, checkpoint, receipt_factory)
             if action in ("acquire", "reclaim"):
                 self._credentials[mid] = hashlib.sha256(credential.encode()).hexdigest()
             elif action in ("revoke", "end"):
@@ -284,7 +338,14 @@ class InteractiveService:
                         track["latest"]["timestamp"] = effective
                         track["latest"]["discontinuity"] = False
             checkpoint = self.repository.checkpoint(mid)
-            events = movement.advance(proposed, checkpoint, now)
+            before = json.loads(canonical(frame))
+            events = rts_behavior.prepare(proposed, checkpoint, before, now)
+            if rts_behavior.enabled(checkpoint):
+                events.extend(behaviors.revalidate(proposed, checkpoint))
+            events.extend(scheduler.advance(proposed, checkpoint))
+            events.extend(movement.advance(proposed, checkpoint, now))
+            events.extend(behaviors.advance(proposed, checkpoint, before, now))
+            engagements.resolve(proposed, checkpoint, before, events)
             if frame.interactive.state != "running" and not events:
                 return
             # The template's second observation reports the same synthetic object;
@@ -319,7 +380,9 @@ class InteractiveService:
                         movement.terminate(proposed, execution, "Interrupted", "backend-restart")
                     else:
                         execution.update(state="Interrupted", reason="backend-restart")
-            self._commit(mid, proposed, [self._event(proposed, "restarted-paused")], checkpoint)
+            events = scheduler.terminate_all(proposed, checkpoint, "Interrupted", "Backend restart: script interrupted. Create a fresh Run to restart it.")
+            events.extend(behaviors.terminate_all(proposed, checkpoint, "Backend restart: behavior interrupted and disarmed. Reapply explicitly.", interrupted=True))
+            self._commit(mid, proposed, [self._event(proposed, "restarted-paused")] + events, checkpoint)
 
     def frame_at(self, mid, frame_id):
         row = self.repository.db.execute("""SELECT f.frame_json FROM frames f JOIN recordings r ON r.id=f.recording_id
@@ -327,6 +390,23 @@ class InteractiveService:
         if not row:
             raise CommandError("FRAME_INVALID", "Reviewed frame is not a committed frame of this mission.")
         return self.repository.display_frame(read_frame(row[0]))
+
+    def _validate_behavior_position(self, mid, intent, frame, now):
+        policy, run = intent.policy, frame.interactive
+        if run.state != "running":
+            raise CommandError("INVALID_TRANSITION", "Resume the demo before starting Patrol.")
+        if not run.last_report_at or movement.age(now, run.last_report_at) > 2:
+            raise CommandError("SOURCE_UNHEALTHY", "Wait for a current source report before Patrol.")
+        anchor = self.frame_at(mid, policy.reviewed_frame_id)
+        r = anchor.interactive
+        if not r or r.state != "running" or (r.run_id, r.executor_epoch, r.grant_revision, r.source_id) != (run.run_id, run.executor_epoch, run.grant_revision, run.source_id):
+            raise CommandError("FRAME_INVALID", "Patrol needs a running frame from this control context.")
+        if policy.deadline != plus(anchor.recorded_at, 30) or now >= policy.deadline:
+            raise CommandError("MOVE_EXPIRED", "Patrol positional evidence expired. Apply a fresh decision.")
+        for m in intent.members:
+            c = next((c for c in r.controls if c.asset_id == m.asset_id), None)
+            if not c or any(getattr(c, k) != getattr(m, k) for k in ("entity_id", "control_track_id", "source_id", "executor_id", "grant_id", "binding_revision")):
+                raise CommandError("BINDING_CHANGED", "Patrol reviewed binding changed.")
 
     def executions(self, mid, frame_id=None):
         frame = self.frame_at(mid, frame_id) if frame_id else self._run(mid)
@@ -396,28 +476,41 @@ class InteractiveService:
             now = max(self.authority.clock(), frame.recorded_at)
             try:
                 self._validate_move(mid, request, credential, frame, now)
+                checkpoint = self.repository.checkpoint(mid)
+                context = dict(holderId=request.holder_id, executorEpoch=frame.interactive.executor_epoch, grantId=frame.interactive.grant_id, grantRevision=frame.interactive.grant_revision)
+                if request.order is not None:
+                    for member in request.move.members:
+                        previous = checkpoint.get("directOrders", {}).get(member.asset_id)
+                        if previous and all(previous.get(k) == v for k, v in context.items()) and request.order <= previous["order"]:
+                            raise CommandError("ORDER_SUPERSEDED", "A newer operator order is already accepted.")
             except CommandError as error:
-                receipt = self._receipt(request.command_id, "move", error=error, mid=mid)
+                receipt = self._receipt(request.command_id, "move", error=error, mid=mid, movement_order=request.order)
                 self.repository.save_receipt(request.command_id, payload, canonical(receipt), mid)
                 return receipt
             proposed, checkpoint = json.loads(canonical(frame)), self.repository.checkpoint(mid)
-            ids = []
+            ids, events = [], []
             for member in request.move.members:
+                events.extend(behaviors.halt(proposed, checkpoint, member.asset_id, "Ordinary Move; Intercept disarmed."))
+                events.extend(scheduler.override(proposed, checkpoint, member.entity_id))
                 control = next(c for c in proposed["interactive"]["controls"] if c["assetId"] == member.asset_id)
                 control["busyRevision"] += 1
+                if request.order is not None:
+                    checkpoint.setdefault("directOrders", {})[member.asset_id] = {**context, "order":request.order}
+                else:
+                    checkpoint.setdefault("legacyReviewedFences", {})[member.asset_id] = frame.sequence + 1
                 execution = MovementExecution(**member.model_dump(), id=str(uuid4()), command_id=request.command_id,
                     mission_id=mid, run_id=frame.interactive.run_id, executor_epoch=frame.interactive.executor_epoch,
                     grant_revision=frame.interactive.grant_revision, reservation_revision=control["busyRevision"],
                     state="Accepted", revision=0, accepted_at=now, accepted_sequence=frame.sequence + 1,
-                    deadline=request.move.deadline, travelled_metres=0.0, speed_mps=cruise_speed(frame.interactive.template_id),
+                    deadline=request.move.deadline, travelled_metres=0.0, speed_mps=entity_speed(proposed, member.entity_id),
                     remaining_metres=distance(json.loads(canonical(member.origin)), json.loads(canonical(member.destination))))
                 checkpoint["executions"].append(json.loads(canonical(execution)))
                 ids.append(execution.id)
             def receipt_factory(committed):
-                receipt = self._receipt(request.command_id, "move", committed, execution_ids=ids)
+                receipt = self._receipt(request.command_id, "move", committed, execution_ids=ids, movement_order=request.order)
                 self.repository.save_receipt(request.command_id, payload, canonical(receipt), mid)
                 return receipt
-            return self._commit(mid, proposed, [self._event(proposed, "move-accepted", request.command_id, request.holder_id)], checkpoint, receipt_factory)
+            return self._commit(mid, proposed, [self._event(proposed, "move-accepted", request.command_id, request.holder_id)] + events, checkpoint, receipt_factory)
 
     def _validate_direct(self, mid, request, credential, frame, checkpoint, now):
         """Resolve every binding before computing available-only current-position geometry."""
@@ -461,7 +554,7 @@ class InteractiveService:
         for member, control in zip(intent.members, controls):
             previous = checkpoint.get("directOrders", {}).get(member.asset_id)
             reason = None
-            if previous and all(previous.get(key) == value for key, value in context.items()) and intent.order <= previous["order"]:
+            if (previous and all(previous.get(key) == value for key, value in context.items()) and intent.order <= previous["order"]) or anchor_frame.sequence < checkpoint.get("legacyReviewedFences", {}).get(member.asset_id, 0):
                 reason = ("ORDER_SUPERSEDED", "A newer destination is already accepted.")
             if reason is None:
                 reason = movement.direct_member_reason(current, control)
@@ -470,10 +563,13 @@ class InteractiveService:
             else:
                 accepted.append((member, control, current["tracks"][member.control_track_id]["latest"]["position"]))
         # Geometry validation is deliberately before any supersession or reservation.
-        targets = endpoints([origin for _, _, origin in accepted], anchor) if accepted else []
+        legacy_approach = bool(intent.intercept and not rts_behavior.enabled(checkpoint))
+        targets = [origin for _, _, origin in accepted] if legacy_approach else endpoints([origin for _, _, origin in accepted], anchor) if accepted else []
         from app.commands.zone_rules import blocked
         for (member, _, origin), target in zip(accepted, targets):
-            zone_reason = blocked(current, origin, target)
+            if legacy_approach and (not in_extent(origin) or behaviors.source_track(current, member.entity_id, "friendly") is None):
+                raise CommandError("POSITION_UNAVAILABLE", "Intercept requires a fresh source-owned friendly position inside the local extent.")
+            zone_reason = None if legacy_approach else blocked(current, origin, target)
             if zone_reason:
                 raise CommandError("ENDPOINT_INVALID", f"{current['entities'][member.entity_id]['label']}: {zone_reason}")
         members = [MoveMember(**member.model_dump(), busy_revision=control["busyRevision"], origin=origin, destination=target)
@@ -491,6 +587,8 @@ class InteractiveService:
             now = max(self.authority.clock(), frame.recorded_at)
             checkpoint = self.repository.checkpoint(mid)
             outcomes = []
+            legacy_approach = bool(request.direct.intercept and not rts_behavior.enabled(checkpoint))
+            operation = "intercept-approach" if legacy_approach else "direct-move"
             try:
                 members, outcomes, context = self._validate_direct(mid, request, credential, frame, checkpoint, now)
                 if not members:
@@ -498,13 +596,33 @@ class InteractiveService:
                     raise CommandError("ORDER_SUPERSEDED" if outdated else "NO_AVAILABLE_ASSETS",
                                        "A newer destination is already accepted." if outdated else "No available drones.")
             except CommandError as error:
-                receipt = self._receipt(request.command_id, "direct-move", error=error, mid=mid,
-                                        direct_order=request.direct.order, member_outcomes=outcomes)
+                receipt = self._receipt(request.command_id, operation, error=error, mid=mid,
+                    **(dict(behavior_order=request.direct.order, behavior_outcomes=outcomes) if legacy_approach else dict(direct_order=request.direct.order, member_outcomes=outcomes)))
                 self.repository.save_receipt(request.command_id, payload, canonical(receipt), mid)
                 return receipt
             proposed = json.loads(canonical(frame))
-            ids = []
+            if legacy_approach:
+                try:
+                    events, outcomes, scope = behaviors.approach(proposed, checkpoint, request, members, outcomes, context)
+                except CommandError as error:
+                    receipt = self._receipt(request.command_id, operation, error=error, mid=mid, behavior_order=request.direct.order,
+                        behavior_outcomes=[o for o in outcomes if o["outcome"] == "skipped"])
+                    self.repository.save_receipt(request.command_id, payload, canonical(receipt), mid)
+                    return receipt
+                def receipt_factory(committed):
+                    receipt = self._receipt(request.command_id, operation, committed, behavior_order=request.direct.order, behavior_outcomes=outcomes, target_scope=scope)
+                    self.repository.save_receipt(request.command_id, payload, canonical(receipt), mid)
+                    return receipt
+                return self._commit(mid, proposed, events, checkpoint, receipt_factory)
+            ids, events = [], []
             for member in members:
+                rts_member = None
+                if rts_behavior.enabled(checkpoint):
+                    rts_member, changes = rts_behavior.redirect(proposed, checkpoint, member.asset_id, request.command_id, context)
+                    events.extend(changes)
+                else:
+                    events.extend(behaviors.halt(proposed, checkpoint, member.asset_id, "Ordinary Move; Intercept disarmed."))
+                events.extend(scheduler.override(proposed, checkpoint, member.entity_id))
                 for previous in checkpoint["executions"]:
                     if previous.get("kind") == "move" and previous["assetId"] == member.asset_id and previous["state"] not in movement.TERMINAL:
                         movement.terminate(proposed, previous, "Cancelled", f"Superseded by order {request.direct.order}.")
@@ -516,9 +634,11 @@ class InteractiveService:
                     grant_revision=frame.interactive.grant_revision, reservation_revision=control["busyRevision"],
                     state="Accepted", revision=0, accepted_at=now, accepted_sequence=frame.sequence + 1,
                     deadline=request.direct.deadline, travelled_metres=0.0, direct_order=request.direct.order,
-                    speed_mps=cruise_speed(frame.interactive.template_id),
+                    speed_mps=entity_speed(proposed, member.entity_id),
                     remaining_metres=distance(json.loads(canonical(member.origin)), json.loads(canonical(member.destination))))
                 checkpoint["executions"].append(json.loads(canonical(execution)))
+                if rts_member:
+                    rts_member.update(reservationRevision=control["busyRevision"], movementExecutionId=execution.id)
                 ids.append(execution.id)
                 outcomes.append(dict(assetId=member.asset_id, entityId=member.entity_id, outcome="accepted", code="OK",
                                      reason="Destination accepted; awaiting a committed source step.", executionId=execution.id))
@@ -533,4 +653,4 @@ class InteractiveService:
                                         direct_order=request.direct.order, member_outcomes=outcomes)
                 self.repository.save_receipt(request.command_id, payload, canonical(receipt), mid)
                 return receipt
-            return self._commit(mid, proposed, [event], checkpoint, receipt_factory)
+            return self._commit(mid, proposed, [event] + events, checkpoint, receipt_factory)

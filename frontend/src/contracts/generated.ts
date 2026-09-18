@@ -1,5 +1,5 @@
-/* Generated from backend contract package v1.7 JSON Schemas; do not edit.
- * Source SHA-256: ef0dfeabc1a8ad4dd3f5ba725b35efdbcd35bbdff316161ad631a691fb5d2c08
+/* Generated from backend contract package v1.11 JSON Schemas; do not edit.
+ * Source SHA-256: 8fa306ce5633a84446821ffcfd849d9a7543ab788c8f32aa1e06b36409e7c90c
  */
 
 /**
@@ -21,7 +21,7 @@ export interface BackendContracts {
 export interface SnapshotMessage {
   frame: WorldFrame;
   missionId: string;
-  schemaVersion: '1.6';
+  schemaVersion: '1.10';
   sequence: number;
   streamEpoch: string;
   type: 'snapshot';
@@ -35,8 +35,10 @@ export interface WorldFrame {
   boundaryRules?: BoundaryRules | null;
   effectiveAt: string;
   entities: Entities;
+  fleetBehavior?: FleetBehavior | null;
   frameId: string;
   interactive?: InteractiveRun | null;
+  liveBoundaries?: LiveBoundaries | null;
   mission: Mission;
   /**
    * @maxItems 100
@@ -45,12 +47,14 @@ export interface WorldFrame {
   recordedAt: string;
   recordingId: string;
   scenario?: ScenarioBinding | null;
-  schemaVersion: '1.6';
+  scenarioSchedule?: ScenarioSchedule | null;
+  schemaVersion: '1.10';
   sensors: Sensors;
   sequence: number;
   streamEpoch: string;
   tasks: Tasks;
   tracks: Tracks;
+  unitProfiles?: Unitprofiles;
   zones: Zones1;
 }
 export interface Assets {
@@ -149,10 +153,189 @@ export interface Extensions {
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "FleetBehavior".
+ */
+export interface FleetBehavior {
+  /**
+   * @maxItems 64
+   */
+  assignments?: InterceptAssignment[];
+  /**
+   * @maxItems 32
+   */
+  members?: BehaviorState[];
+  model: EngagementModel;
+  /**
+   * @maxItems 32
+   */
+  outcomes?: DemoOutcome[];
+  ruleVersion?: 'local-fleet-v1' | 'local-fleet-v2';
+  runId: string;
+  sourceId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "InterceptAssignment".
+ */
+export interface InterceptAssignment {
+  assetId: string;
+  commandId: string;
+  createdSequence: number;
+  id: string;
+  interceptorId: string;
+  policyId: string;
+  reason?: string | null;
+  releasedSequence?: number | null;
+  state?: 'active' | 'released';
+  targetId: string;
+  targetTrackId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "BehaviorState".
+ */
+export interface BehaviorState {
+  acceptedSequence: number;
+  acceptedTick: number;
+  assetId: string;
+  assignmentId?: string | null;
+  bindingRevision: number;
+  commandId: string;
+  controlTrackId?: string | null;
+  deadline?: string | null;
+  entityId: string;
+  executorEpoch: string;
+  grantRevision: number;
+  id: string;
+  movementExecutionId?: string | null;
+  order: number;
+  patrol?: PatrolRoute | null;
+  policy: 'hold' | 'intercept' | 'patrol';
+  reason: string;
+  reservationRevision: number;
+  startedTick?: number | null;
+  state:
+    | 'hold'
+    | 'armed'
+    | 'patrolling'
+    | 'pursuing'
+    | 'reserve'
+    | 'blocked'
+    | 'interrupted'
+    | 'unavailable';
+  /**
+   * @maxItems 32
+   */
+  targetScope?: string[];
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "PatrolRoute".
+ */
+export interface PatrolRoute {
+  boundaryId: string;
+  completedLoops?: number;
+  entered?: boolean;
+  geometryHash: string;
+  /**
+   * @minItems 3
+   * @maxItems 32
+   */
+  loop: [
+    BehaviorPosition,
+    BehaviorPosition,
+    BehaviorPosition,
+    ...BehaviorPosition[],
+  ];
+  visitedWaypoints?: number;
+  waypoint: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "BehaviorPosition".
+ */
+export interface BehaviorPosition {
+  altitude: BehaviorAltitude;
+  latitudeDeg: number;
+  longitudeDeg: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "BehaviorAltitude".
+ */
+export interface BehaviorAltitude {
+  datumId?: 'WGS84';
+  metres: number;
+  reference?: 'ELLIPSOID';
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "EngagementModel".
+ */
+export interface EngagementModel {
+  acquisitionRadiusM?: number;
+  allocationRule?: 'distance-target-asset-v1';
+  contactAlgorithm?: 'relative-swept-sphere-v1';
+  contactRadiusM?: 25;
+  movementModel?: 'local-horizontal-v1';
+  patrolInsetFraction?: 0.1;
+  patrolRule?: 'convex-centroid-inset-v1';
+  ruleVersion?: 'demo-mutual-loss-v1';
+  speedMps: 20 | 43.05555555555556;
+  stepMs?: 200;
+  toleranceM?: 0.001;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "DemoOutcome".
+ */
+export interface DemoOutcome {
+  assignmentId: string;
+  commandId: string;
+  committedSequence: number;
+  executorEpoch: string;
+  fraction: number;
+  id: string;
+  inputFrameId: string;
+  inputSequence: number;
+  /**
+   * @minItems 2
+   * @maxItems 2
+   */
+  participants: [EngagementParticipant, EngagementParticipant];
+  policyId: string;
+  ruleVersion?: 'demo-mutual-loss-v1';
+  runId: string;
+  separationM: number;
+  sourceId: string;
+  tick: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "EngagementParticipant".
+ */
+export interface EngagementParticipant {
+  affiliation: 'friendly' | 'hostile';
+  afterCondition?: 'non-operational';
+  before: BehaviorPosition;
+  beforeCondition?: 'operational';
+  entityId: string;
+  evaluated: BehaviorPosition;
+  proposed: BehaviorPosition;
+  trackId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
  * via the `definition` "InteractiveRun".
  */
 export interface InteractiveRun {
-  capabilities: ('run-control' | 'scenario-pair')[];
+  capabilities: (
+    | 'run-control'
+    | 'scenario-pair'
+    | 'boundary-edit'
+    | 'fleet-policy'
+    | 'demo-outcome'
+  )[];
   /**
    * @maxItems 32
    */
@@ -171,7 +354,7 @@ export interface InteractiveRun {
   movementModel?: 'local-horizontal-v1';
   runId: string;
   runRevision: number;
-  schemaVersion?: '1.3';
+  schemaVersion?: '1.7';
   sourceId: string;
   state: 'ready' | 'running' | 'paused' | 'ended';
   supportedActions: (
@@ -184,6 +367,10 @@ export interface InteractiveRun {
     | 'resume'
     | 'end'
     | 'cancel'
+    | 'stop'
+    | 'return-to-script'
+    | 'boundary-edit'
+    | 'behavior'
   )[];
   templateId?: 'singapore-local-v1' | 'singapore-local-v2';
   tick: number;
@@ -196,7 +383,7 @@ export interface AssetControl {
   assetId: string;
   bindingRevision: number;
   busyRevision?: number;
-  capabilities: 'move-horizontal'[];
+  capabilities: ('move-horizontal' | 'demo-intercept')[];
   controlTrackId?: string | null;
   eligible?: boolean;
   entityId: string;
@@ -250,7 +437,7 @@ export interface MovementExecution {
   revision: number;
   runId: string;
   sourceId: string;
-  speedMps?: 20 | 43.05555555555556;
+  speedMps?: number;
   startedAt?: string | null;
   startedTick?: number | null;
   state:
@@ -262,6 +449,7 @@ export interface MovementExecution {
     | 'Failed'
     | 'Expired'
     | 'Interrupted';
+  suspendedBy?: string | null;
   terminalSequence?: number | null;
   travelledMetres: number;
 }
@@ -301,6 +489,18 @@ export interface Lease {
   expiresAt?: string | null;
   holderId?: string | null;
   revision: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LiveBoundaries".
+ */
+export interface LiveBoundaries {
+  committedSequence: number;
+  lastCommandId: string;
+  revision: number;
+  ruleVersion?: 'local-boundary-v1';
+  runId: string;
+  sourceId: string;
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
@@ -378,6 +578,87 @@ export interface Entityids {
    * via the `patternProperty` "^[^\s\x00-\x1f\x7f](?:[^\x00-\x1f\x7f]*[^\s\x00-\x1f\x7f])?$".
    */
   [k: string]: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "ScenarioSchedule".
+ */
+export interface ScenarioSchedule {
+  /**
+   * @maxItems 128
+   */
+  actions: ScheduledExecution[];
+  executorEpoch: string;
+  /**
+   * @maxItems 32
+   */
+  manualOverrides?: string[];
+  ruleVersion: 'local-schedule-v1' | 'local-schedule-v2';
+  runId: string;
+  sourceId: string;
+  startConsumed: boolean;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "ScheduledExecution".
+ */
+export interface ScheduledExecution {
+  action: ScheduledAction;
+  consumedTick?: number | null;
+  entityId: string;
+  motion?: SourceMotion | null;
+  reason?: string | null;
+  revision: number;
+  state:
+    | 'Pending'
+    | 'Accepted'
+    | 'Running'
+    | 'Completed'
+    | 'Skipped'
+    | 'Failed'
+    | 'Cancelled'
+    | 'Interrupted';
+  terminalSequence?: number | null;
+  terminalTick?: number | null;
+  trackId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "ScheduledAction".
+ */
+export interface ScheduledAction {
+  afterActionId?: string | null;
+  delayMs?: number | null;
+  destination: ScriptDestination;
+  id: string;
+  kind?: 'move';
+  offsetMs?: number | null;
+  ordinal: number;
+  unitId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "ScriptDestination".
+ */
+export interface ScriptDestination {
+  latitudeDeg: number;
+  longitudeDeg: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "SourceMotion".
+ */
+export interface SourceMotion {
+  acceptedSequence: number;
+  acceptedTick: number;
+  completionSample?: CompletionSample | null;
+  destination: MovePosition;
+  id: string;
+  origin: MovePosition;
+  remainingMetres: number;
+  speedMps: number;
+  startedTick?: number | null;
+  travelledMetres: number;
 }
 export interface Sensors {
   [k: string]: Sensor;
@@ -467,6 +748,35 @@ export interface Velocity {
   speedMps: number;
   verticalSpeedMps?: number | null;
 }
+export interface Unitprofiles {
+  [k: string]: UnitProfile;
+}
+/**
+ * This interface was referenced by `Unitprofiles`'s JSON-Schema definition
+ * via the `patternProperty` "^[^\s\x00-\x1f\x7f](?:[^\x00-\x1f\x7f]*[^\s\x00-\x1f\x7f])?$".
+ *
+ * This interface was referenced by `Unitprofiles1`'s JSON-Schema definition
+ * via the `patternProperty` "^[^\s\x00-\x1f\x7f](?:[^\x00-\x1f\x7f]*[^\s\x00-\x1f\x7f])?$".
+ *
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "UnitProfile".
+ *
+ * This interface was referenced by `Unitprofiles2`'s JSON-Schema definition
+ * via the `patternProperty` "^[^\s\x00-\x1f\x7f](?:[^\x00-\x1f\x7f]*[^\s\x00-\x1f\x7f])?$".
+ *
+ * This interface was referenced by `Unitprofiles3`'s JSON-Schema definition
+ * via the `patternProperty` "^[^\s\x00-\x1f\x7f](?:[^\x00-\x1f\x7f]*[^\s\x00-\x1f\x7f])?$".
+ */
+export interface UnitProfile {
+  cruiseMps: number;
+  id: 'hornet-10-v1' | 'sting-v1' | 'lancet-3-v1' | 'shahed-136-v1';
+  label: string;
+  model?: 'notional-unit-speed-v1';
+  pursuitMps: number;
+  reference: string;
+  referenceDate?: '2026-09-18';
+  variant: string;
+}
 export interface Zones1 {
   [k: string]: Zone;
 }
@@ -522,7 +832,7 @@ export interface DeltaMessage {
   previousSequence: number;
   recordedAt: string;
   recordingId: string;
-  schemaVersion: '1.6';
+  schemaVersion: '1.10';
   sequence: number;
   streamEpoch: string;
   type: 'delta';
@@ -536,12 +846,16 @@ export interface WorldChanges {
   boundaryRules?: BoundaryRules | null;
   entities: EntityChanges;
   events: SentinelEvent[];
+  fleetBehavior?: FleetBehavior | null;
   interactive?: InteractiveRun | null;
+  liveBoundaries?: LiveBoundaries | null;
   mission: Mission;
   scenario?: ScenarioBinding | null;
+  scenarioSchedule?: ScenarioSchedule | null;
   sensors: SensorChanges;
   tasks: TaskChanges;
   tracks: TrackChanges;
+  unitProfiles?: Unitprofiles1;
   zones: ZoneChanges;
 }
 /**
@@ -599,6 +913,9 @@ export interface TrackChanges {
 export interface Upserts4 {
   [k: string]: Track;
 }
+export interface Unitprofiles1 {
+  [k: string]: UnitProfile;
+}
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
  * via the `definition` "ZoneChanges".
@@ -616,7 +933,7 @@ export interface Upserts5 {
  */
 export interface HeartbeatMessage {
   missionId: string;
-  schemaVersion: '1.6';
+  schemaVersion: '1.10';
   sequence: number;
   serverTime: string;
   streamEpoch: string;
@@ -629,7 +946,7 @@ export interface HeartbeatMessage {
 export interface ResyncRequiredMessage {
   missionId: string;
   reason: string;
-  schemaVersion: '1.6';
+  schemaVersion: '1.10';
   type: 'resync-required';
 }
 /**
@@ -676,6 +993,75 @@ export interface RecordedObservation {
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "BehaviorMemberOutcome".
+ */
+export interface BehaviorMemberOutcome {
+  assetId: string;
+  assignmentId?: string | null;
+  code:
+    | 'OK'
+    | 'UNAVAILABLE'
+    | 'NO_RESPONSE'
+    | 'POSITION_UNAVAILABLE'
+    | 'UNSUPPORTED_REFERENCE'
+    | 'ORDER_SUPERSEDED';
+  entityId: string;
+  outcome: 'accepted' | 'skipped';
+  reason: string;
+  state?:
+    | (
+        | 'hold'
+        | 'armed'
+        | 'patrolling'
+        | 'pursuing'
+        | 'reserve'
+        | 'blocked'
+        | 'interrupted'
+        | 'unavailable'
+      )
+    | null;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "BehaviorPolicy".
+ */
+export interface BehaviorPolicy {
+  boundaryId?: string | null;
+  deadline?: string | null;
+  kind: 'hold' | 'intercept' | 'patrol';
+  reviewedFrameId?: string | null;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "BoundaryDefinition".
+ */
+export interface BoundaryDefinition {
+  id: string;
+  name: string;
+  type: 'untyped' | 'annotation' | 'friendly' | 'patrol' | 'restricted';
+  /**
+   * @minItems 3
+   * @maxItems 32
+   */
+  vertices: [
+    [number, number],
+    [number, number],
+    [number, number],
+    ...[number, number][],
+  ];
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "BoundaryMutation".
+ */
+export interface BoundaryMutation {
+  boundaryId: string;
+  definition?: BoundaryDefinition | null;
+  expectedRevision: number;
+  operation: 'upsert' | 'delete';
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
  * via the `definition` "CommandRequest".
  */
 export interface CommandRequest {
@@ -697,7 +1083,12 @@ export interface Intent {
     | 'pause'
     | 'resume'
     | 'end'
-    | 'cancel';
+    | 'cancel'
+    | 'stop'
+    | 'return-to-script'
+    | 'boundary-edit'
+    | 'behavior';
+  boundary?: BoundaryMutation | null;
   executionId?: string | null;
   executionRevision?: number | null;
   executorEpoch: string;
@@ -707,10 +1098,37 @@ export interface Intent {
   id: string;
   issuedAt: string;
   leaseRevision: number;
+  members?: [DirectMoveMember, ...DirectMoveMember[]] | null;
   missionId: string;
+  order?: number | null;
+  policy?: BehaviorPolicy | null;
   runId: string;
   runRevision: number;
   sourceId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "DirectMoveMember".
+ */
+export interface DirectMoveMember {
+  assetId: string;
+  bindingRevision: number;
+  controlTrackId?: string | null;
+  entityId: string;
+  executorId: string;
+  grantId: string;
+  sourceId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "ControlMemberOutcome".
+ */
+export interface ControlMemberOutcome {
+  assetId: string;
+  code: 'OK' | 'ORDER_SUPERSEDED' | 'UNAVAILABLE';
+  entityId: string;
+  outcome: 'accepted' | 'skipped';
+  reason: string;
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
@@ -768,6 +1186,7 @@ export interface DirectMoveIntent {
   executorEpoch: string;
   grantId: string;
   grantRevision: number;
+  intercept?: true | null;
   /**
    * @minItems 1
    * @maxItems 32
@@ -790,19 +1209,6 @@ export interface MoveAnchor {
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
- * via the `definition` "DirectMoveMember".
- */
-export interface DirectMoveMember {
-  assetId: string;
-  bindingRevision: number;
-  controlTrackId?: string | null;
-  entityId: string;
-  executorId: string;
-  grantId: string;
-  sourceId: string;
-}
-/**
- * This interface was referenced by `BackendContracts`'s JSON-Schema
  * via the `definition` "DirectMoveRequest".
  */
 export interface DirectMoveRequest {
@@ -821,8 +1227,807 @@ export interface ExecutionRead {
   executions: MovementExecution[];
   frameId: string;
   missionId: string;
-  schemaVersion?: '1.2';
+  schemaVersion?: '1.3';
   sequence: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD2DirectMemberOutcome".
+ */
+export interface LegacyD2DirectMemberOutcome {
+  assetId: string;
+  code:
+    | 'OK'
+    | 'UNAVAILABLE'
+    | 'NO_RESPONSE'
+    | 'POSITION_UNAVAILABLE'
+    | 'UNSUPPORTED_REFERENCE'
+    | 'ORDER_SUPERSEDED';
+  entityId: string;
+  executionId?: string | null;
+  outcome: 'accepted' | 'skipped';
+  reason: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD2Receipt".
+ */
+export interface LegacyD2Receipt {
+  accepted: boolean;
+  code:
+    | 'OK'
+    | 'NOT_INTERACTIVE'
+    | 'DEMO_DISABLED'
+    | 'ACTIVE_RUN_EXISTS'
+    | 'IDENTITY_CONFLICT'
+    | 'INTENT_INVALID'
+    | 'INTENT_EXPIRED'
+    | 'OBSOLETE_INTENT'
+    | 'REFERENCE_MISMATCH'
+    | 'CONTROL_HELD'
+    | 'CONTROL_REQUIRED'
+    | 'LEASE_EXPIRED'
+    | 'RECLAIM_REQUIRED'
+    | 'INVALID_TRANSITION'
+    | 'RUN_TERMINAL'
+    | 'INVALID_REQUEST'
+    | 'NOT_FOUND'
+    | 'SOURCE_UNHEALTHY'
+    | 'FRAME_INVALID'
+    | 'MOVE_EXPIRED'
+    | 'SELECTION_INVALID'
+    | 'BINDING_CHANGED'
+    | 'ASSET_BUSY'
+    | 'POSITION_UNAVAILABLE'
+    | 'UNSUPPORTED_REFERENCE'
+    | 'OUTSIDE_EXTENT'
+    | 'ENDPOINT_INVALID'
+    | 'EXECUTION_TERMINAL'
+    | 'NO_AVAILABLE_ASSETS'
+    | 'ORDER_SUPERSEDED';
+  directOrder?: number | null;
+  /**
+   * @maxItems 32
+   */
+  executionIds?: string[];
+  frameId?: string | null;
+  /**
+   * @maxItems 32
+   */
+  memberOutcomes?: LegacyD2DirectMemberOutcome[];
+  message: string;
+  missionId?: string | null;
+  operation:
+    | 'create'
+    | 'acquire'
+    | 'renew'
+    | 'reclaim'
+    | 'revoke'
+    | 'start'
+    | 'pause'
+    | 'resume'
+    | 'end'
+    | 'move'
+    | 'cancel'
+    | 'direct-move';
+  recordedAt: string;
+  recordingId?: string | null;
+  requestId: string;
+  runId?: string | null;
+  schemaVersion?: '1.2';
+  sequence?: number | null;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD3ControlMemberOutcome".
+ */
+export interface LegacyD3ControlMemberOutcome {
+  assetId: string;
+  code: 'OK' | 'ORDER_SUPERSEDED';
+  entityId: string;
+  outcome: 'accepted' | 'skipped';
+  reason: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD3DirectMemberOutcome".
+ */
+export interface LegacyD3DirectMemberOutcome {
+  assetId: string;
+  code:
+    | 'OK'
+    | 'UNAVAILABLE'
+    | 'NO_RESPONSE'
+    | 'POSITION_UNAVAILABLE'
+    | 'UNSUPPORTED_REFERENCE'
+    | 'ORDER_SUPERSEDED';
+  entityId: string;
+  executionId?: string | null;
+  outcome: 'accepted' | 'skipped';
+  reason: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD3Receipt".
+ */
+export interface LegacyD3Receipt {
+  accepted: boolean;
+  code:
+    | 'OK'
+    | 'NOT_INTERACTIVE'
+    | 'DEMO_DISABLED'
+    | 'ACTIVE_RUN_EXISTS'
+    | 'IDENTITY_CONFLICT'
+    | 'INTENT_INVALID'
+    | 'INTENT_EXPIRED'
+    | 'OBSOLETE_INTENT'
+    | 'REFERENCE_MISMATCH'
+    | 'CONTROL_HELD'
+    | 'CONTROL_REQUIRED'
+    | 'LEASE_EXPIRED'
+    | 'RECLAIM_REQUIRED'
+    | 'INVALID_TRANSITION'
+    | 'RUN_TERMINAL'
+    | 'INVALID_REQUEST'
+    | 'NOT_FOUND'
+    | 'SOURCE_UNHEALTHY'
+    | 'FRAME_INVALID'
+    | 'MOVE_EXPIRED'
+    | 'SELECTION_INVALID'
+    | 'BINDING_CHANGED'
+    | 'ASSET_BUSY'
+    | 'POSITION_UNAVAILABLE'
+    | 'UNSUPPORTED_REFERENCE'
+    | 'OUTSIDE_EXTENT'
+    | 'ENDPOINT_INVALID'
+    | 'EXECUTION_TERMINAL'
+    | 'NO_AVAILABLE_ASSETS'
+    | 'ORDER_SUPERSEDED';
+  controlOrder?: number | null;
+  /**
+   * @maxItems 32
+   */
+  controlOutcomes?: LegacyD3ControlMemberOutcome[];
+  directOrder?: number | null;
+  /**
+   * @maxItems 32
+   */
+  executionIds?: string[];
+  frameId?: string | null;
+  /**
+   * @maxItems 32
+   */
+  memberOutcomes?: LegacyD3DirectMemberOutcome[];
+  message: string;
+  missionId?: string | null;
+  operation:
+    | 'create'
+    | 'acquire'
+    | 'renew'
+    | 'reclaim'
+    | 'revoke'
+    | 'start'
+    | 'pause'
+    | 'resume'
+    | 'end'
+    | 'move'
+    | 'cancel'
+    | 'direct-move'
+    | 'stop'
+    | 'return-to-script';
+  recordedAt: string;
+  recordingId?: string | null;
+  requestId: string;
+  runId?: string | null;
+  schemaVersion?: '1.3';
+  sequence?: number | null;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD3aAssetControl".
+ */
+export interface LegacyD3AAssetControl {
+  assetId: string;
+  bindingRevision: number;
+  busyRevision?: number;
+  capabilities: 'move-horizontal'[];
+  controlTrackId?: string | null;
+  eligible?: boolean;
+  entityId: string;
+  executorId: string;
+  grantId: string;
+  lastDirectOrder?: LegacyD3ADirectOrderContext | null;
+  missionId: string;
+  positionReference: 'ELLIPSOID/WGS84';
+  reason: string;
+  sourceId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD3aDirectOrderContext".
+ */
+export interface LegacyD3ADirectOrderContext {
+  executorEpoch: string;
+  grantId: string;
+  grantRevision: number;
+  holderId: string;
+  order: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD3aCompletionSample".
+ */
+export interface LegacyD3ACompletionSample {
+  position: LegacyD3AMovePosition;
+  sequence: number;
+  timestamp: string;
+  trackId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD3aMovePosition".
+ */
+export interface LegacyD3AMovePosition {
+  altitude: LegacyD3AMoveAltitude;
+  latitudeDeg: number;
+  longitudeDeg: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD3aMoveAltitude".
+ */
+export interface LegacyD3AMoveAltitude {
+  datumId?: 'WGS84';
+  metres: number;
+  reference?: 'ELLIPSOID';
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD3aControlMemberOutcome".
+ */
+export interface LegacyD3AControlMemberOutcome {
+  assetId: string;
+  code: 'OK' | 'ORDER_SUPERSEDED';
+  entityId: string;
+  outcome: 'accepted' | 'skipped';
+  reason: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD3aDirectMemberOutcome".
+ */
+export interface LegacyD3ADirectMemberOutcome {
+  assetId: string;
+  code:
+    | 'OK'
+    | 'UNAVAILABLE'
+    | 'NO_RESPONSE'
+    | 'POSITION_UNAVAILABLE'
+    | 'UNSUPPORTED_REFERENCE'
+    | 'ORDER_SUPERSEDED';
+  entityId: string;
+  executionId?: string | null;
+  outcome: 'accepted' | 'skipped';
+  reason: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD3aInteractiveRun".
+ */
+export interface LegacyD3AInteractiveRun {
+  capabilities: ('run-control' | 'scenario-pair' | 'boundary-edit')[];
+  /**
+   * @maxItems 32
+   */
+  controls: LegacyD3AAssetControl[];
+  /**
+   * @maxItems 64
+   */
+  executions?: LegacyD3AMovementExecution[];
+  executorEpoch: string;
+  executorId: string;
+  grantId: string;
+  grantRevision: number;
+  lastReportAt?: string | null;
+  lease: LegacyD3ALease;
+  missionId: string;
+  movementModel?: 'local-horizontal-v1';
+  runId: string;
+  runRevision: number;
+  schemaVersion?: '1.5';
+  sourceId: string;
+  state: 'ready' | 'running' | 'paused' | 'ended';
+  supportedActions: (
+    | 'acquire'
+    | 'renew'
+    | 'reclaim'
+    | 'revoke'
+    | 'start'
+    | 'pause'
+    | 'resume'
+    | 'end'
+    | 'cancel'
+    | 'stop'
+    | 'return-to-script'
+    | 'boundary-edit'
+  )[];
+  templateId?: 'singapore-local-v1' | 'singapore-local-v2';
+  tick: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD3aMovementExecution".
+ */
+export interface LegacyD3AMovementExecution {
+  acceptedAt: string;
+  acceptedSequence: number;
+  assetId: string;
+  bindingRevision: number;
+  busyRevision: number;
+  commandId: string;
+  completionSample?: LegacyD3ACompletionSample | null;
+  controlTrackId: string;
+  deadline: string;
+  destination: LegacyD3AMovePosition;
+  directOrder?: number | null;
+  entityId: string;
+  executorEpoch: string;
+  executorId: string;
+  grantId: string;
+  grantRevision: number;
+  id: string;
+  kind?: 'move';
+  missionId: string;
+  origin: LegacyD3AMovePosition;
+  reason?: string | null;
+  remainingMetres: number;
+  reservationRevision: number;
+  revision: number;
+  runId: string;
+  sourceId: string;
+  speedMps?: 20 | 43.05555555555556;
+  startedAt?: string | null;
+  startedTick?: number | null;
+  state:
+    | 'Accepted'
+    | 'Running'
+    | 'Suspended'
+    | 'Completed'
+    | 'Cancelled'
+    | 'Failed'
+    | 'Expired'
+    | 'Interrupted';
+  terminalSequence?: number | null;
+  travelledMetres: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD3aLease".
+ */
+export interface LegacyD3ALease {
+  expiresAt?: string | null;
+  holderId?: string | null;
+  revision: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD3aReceipt".
+ */
+export interface LegacyD3AReceipt {
+  accepted: boolean;
+  boundaryRevision?: number | null;
+  code:
+    | 'OK'
+    | 'NOT_INTERACTIVE'
+    | 'DEMO_DISABLED'
+    | 'ACTIVE_RUN_EXISTS'
+    | 'IDENTITY_CONFLICT'
+    | 'INTENT_INVALID'
+    | 'INTENT_EXPIRED'
+    | 'OBSOLETE_INTENT'
+    | 'REFERENCE_MISMATCH'
+    | 'CONTROL_HELD'
+    | 'CONTROL_REQUIRED'
+    | 'LEASE_EXPIRED'
+    | 'RECLAIM_REQUIRED'
+    | 'INVALID_TRANSITION'
+    | 'RUN_TERMINAL'
+    | 'INVALID_REQUEST'
+    | 'NOT_FOUND'
+    | 'SOURCE_UNHEALTHY'
+    | 'FRAME_INVALID'
+    | 'MOVE_EXPIRED'
+    | 'SELECTION_INVALID'
+    | 'BINDING_CHANGED'
+    | 'ASSET_BUSY'
+    | 'POSITION_UNAVAILABLE'
+    | 'UNSUPPORTED_REFERENCE'
+    | 'OUTSIDE_EXTENT'
+    | 'ENDPOINT_INVALID'
+    | 'EXECUTION_TERMINAL'
+    | 'NO_AVAILABLE_ASSETS'
+    | 'ORDER_SUPERSEDED'
+    | 'BOUNDARY_CONFLICT';
+  controlOrder?: number | null;
+  /**
+   * @maxItems 32
+   */
+  controlOutcomes?: LegacyD3AControlMemberOutcome[];
+  directOrder?: number | null;
+  /**
+   * @maxItems 32
+   */
+  executionIds?: string[];
+  frameId?: string | null;
+  /**
+   * @maxItems 32
+   */
+  memberOutcomes?: LegacyD3ADirectMemberOutcome[];
+  message: string;
+  missionId?: string | null;
+  operation:
+    | 'create'
+    | 'acquire'
+    | 'renew'
+    | 'reclaim'
+    | 'revoke'
+    | 'start'
+    | 'pause'
+    | 'resume'
+    | 'end'
+    | 'move'
+    | 'cancel'
+    | 'direct-move'
+    | 'stop'
+    | 'return-to-script'
+    | 'boundary-edit';
+  recordedAt: string;
+  recordingId?: string | null;
+  requestId: string;
+  runId?: string | null;
+  schemaVersion?: '1.4';
+  sequence?: number | null;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD3aRunRead".
+ */
+export interface LegacyD3ARunRead {
+  frameId: string;
+  leaseState: 'unclaimed' | 'held' | 'expired';
+  ownsControl: boolean;
+  run: LegacyD3AInteractiveRun;
+  schemaVersion?: '1.5';
+  sequence: number;
+  serverTime: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD4AssetControl".
+ */
+export interface LegacyD4AssetControl {
+  assetId: string;
+  bindingRevision: number;
+  busyRevision?: number;
+  capabilities: ('move-horizontal' | 'demo-intercept')[];
+  controlTrackId?: string | null;
+  eligible?: boolean;
+  entityId: string;
+  executorId: string;
+  grantId: string;
+  lastDirectOrder?: LegacyD4DirectOrderContext | null;
+  missionId: string;
+  positionReference: 'ELLIPSOID/WGS84';
+  reason: string;
+  sourceId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD4DirectOrderContext".
+ */
+export interface LegacyD4DirectOrderContext {
+  executorEpoch: string;
+  grantId: string;
+  grantRevision: number;
+  holderId: string;
+  order: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD4BehaviorMemberOutcome".
+ */
+export interface LegacyD4BehaviorMemberOutcome {
+  assetId: string;
+  assignmentId?: string | null;
+  code:
+    | 'OK'
+    | 'UNAVAILABLE'
+    | 'NO_RESPONSE'
+    | 'POSITION_UNAVAILABLE'
+    | 'UNSUPPORTED_REFERENCE'
+    | 'ORDER_SUPERSEDED';
+  entityId: string;
+  outcome: 'accepted' | 'skipped';
+  reason: string;
+  state?:
+    | (
+        | 'hold'
+        | 'armed'
+        | 'patrolling'
+        | 'pursuing'
+        | 'reserve'
+        | 'blocked'
+        | 'interrupted'
+        | 'unavailable'
+      )
+    | null;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD4CompletionSample".
+ */
+export interface LegacyD4CompletionSample {
+  position: LegacyD4MovePosition;
+  sequence: number;
+  timestamp: string;
+  trackId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD4MovePosition".
+ */
+export interface LegacyD4MovePosition {
+  altitude: LegacyD4MoveAltitude;
+  latitudeDeg: number;
+  longitudeDeg: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD4MoveAltitude".
+ */
+export interface LegacyD4MoveAltitude {
+  datumId?: 'WGS84';
+  metres: number;
+  reference?: 'ELLIPSOID';
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD4ControlMemberOutcome".
+ */
+export interface LegacyD4ControlMemberOutcome {
+  assetId: string;
+  code: 'OK' | 'ORDER_SUPERSEDED' | 'UNAVAILABLE';
+  entityId: string;
+  outcome: 'accepted' | 'skipped';
+  reason: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD4DirectMemberOutcome".
+ */
+export interface LegacyD4DirectMemberOutcome {
+  assetId: string;
+  code:
+    | 'OK'
+    | 'UNAVAILABLE'
+    | 'NO_RESPONSE'
+    | 'POSITION_UNAVAILABLE'
+    | 'UNSUPPORTED_REFERENCE'
+    | 'ORDER_SUPERSEDED';
+  entityId: string;
+  executionId?: string | null;
+  outcome: 'accepted' | 'skipped';
+  reason: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD4InteractiveRun".
+ */
+export interface LegacyD4InteractiveRun {
+  capabilities: (
+    | 'run-control'
+    | 'scenario-pair'
+    | 'boundary-edit'
+    | 'fleet-policy'
+    | 'demo-outcome'
+  )[];
+  /**
+   * @maxItems 32
+   */
+  controls: LegacyD4AssetControl[];
+  /**
+   * @maxItems 64
+   */
+  executions?: LegacyD4MovementExecution[];
+  executorEpoch: string;
+  executorId: string;
+  grantId: string;
+  grantRevision: number;
+  lastReportAt?: string | null;
+  lease: LegacyD4Lease;
+  missionId: string;
+  movementModel?: 'local-horizontal-v1';
+  runId: string;
+  runRevision: number;
+  schemaVersion?: '1.6';
+  sourceId: string;
+  state: 'ready' | 'running' | 'paused' | 'ended';
+  supportedActions: (
+    | 'acquire'
+    | 'renew'
+    | 'reclaim'
+    | 'revoke'
+    | 'start'
+    | 'pause'
+    | 'resume'
+    | 'end'
+    | 'cancel'
+    | 'stop'
+    | 'return-to-script'
+    | 'boundary-edit'
+    | 'behavior'
+  )[];
+  templateId?: 'singapore-local-v1' | 'singapore-local-v2';
+  tick: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD4MovementExecution".
+ */
+export interface LegacyD4MovementExecution {
+  acceptedAt: string;
+  acceptedSequence: number;
+  assetId: string;
+  bindingRevision: number;
+  busyRevision: number;
+  commandId: string;
+  completionSample?: LegacyD4CompletionSample | null;
+  controlTrackId: string;
+  deadline: string;
+  destination: LegacyD4MovePosition;
+  directOrder?: number | null;
+  entityId: string;
+  executorEpoch: string;
+  executorId: string;
+  grantId: string;
+  grantRevision: number;
+  id: string;
+  kind?: 'move';
+  missionId: string;
+  origin: LegacyD4MovePosition;
+  reason?: string | null;
+  remainingMetres: number;
+  reservationRevision: number;
+  revision: number;
+  runId: string;
+  sourceId: string;
+  speedMps?: 20 | 43.05555555555556;
+  startedAt?: string | null;
+  startedTick?: number | null;
+  state:
+    | 'Accepted'
+    | 'Running'
+    | 'Suspended'
+    | 'Completed'
+    | 'Cancelled'
+    | 'Failed'
+    | 'Expired'
+    | 'Interrupted';
+  terminalSequence?: number | null;
+  travelledMetres: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD4Lease".
+ */
+export interface LegacyD4Lease {
+  expiresAt?: string | null;
+  holderId?: string | null;
+  revision: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD4Receipt".
+ */
+export interface LegacyD4Receipt {
+  accepted: boolean;
+  behaviorOrder?: number | null;
+  /**
+   * @maxItems 32
+   */
+  behaviorOutcomes?: LegacyD4BehaviorMemberOutcome[];
+  boundaryRevision?: number | null;
+  code:
+    | 'OK'
+    | 'NOT_INTERACTIVE'
+    | 'DEMO_DISABLED'
+    | 'ACTIVE_RUN_EXISTS'
+    | 'IDENTITY_CONFLICT'
+    | 'INTENT_INVALID'
+    | 'INTENT_EXPIRED'
+    | 'OBSOLETE_INTENT'
+    | 'REFERENCE_MISMATCH'
+    | 'CONTROL_HELD'
+    | 'CONTROL_REQUIRED'
+    | 'LEASE_EXPIRED'
+    | 'RECLAIM_REQUIRED'
+    | 'INVALID_TRANSITION'
+    | 'RUN_TERMINAL'
+    | 'INVALID_REQUEST'
+    | 'NOT_FOUND'
+    | 'SOURCE_UNHEALTHY'
+    | 'FRAME_INVALID'
+    | 'MOVE_EXPIRED'
+    | 'SELECTION_INVALID'
+    | 'BINDING_CHANGED'
+    | 'ASSET_BUSY'
+    | 'POSITION_UNAVAILABLE'
+    | 'UNSUPPORTED_REFERENCE'
+    | 'OUTSIDE_EXTENT'
+    | 'ENDPOINT_INVALID'
+    | 'EXECUTION_TERMINAL'
+    | 'NO_AVAILABLE_ASSETS'
+    | 'ORDER_SUPERSEDED'
+    | 'BOUNDARY_CONFLICT';
+  controlOrder?: number | null;
+  /**
+   * @maxItems 32
+   */
+  controlOutcomes?: LegacyD4ControlMemberOutcome[];
+  directOrder?: number | null;
+  /**
+   * @maxItems 32
+   */
+  executionIds?: string[];
+  frameId?: string | null;
+  /**
+   * @maxItems 32
+   */
+  memberOutcomes?: LegacyD4DirectMemberOutcome[];
+  message: string;
+  missionId?: string | null;
+  movementOrder?: number | null;
+  operation:
+    | 'create'
+    | 'acquire'
+    | 'renew'
+    | 'reclaim'
+    | 'revoke'
+    | 'start'
+    | 'pause'
+    | 'resume'
+    | 'end'
+    | 'move'
+    | 'cancel'
+    | 'direct-move'
+    | 'stop'
+    | 'return-to-script'
+    | 'boundary-edit'
+    | 'behavior'
+    | 'intercept-approach';
+  recordedAt: string;
+  recordingId?: string | null;
+  requestId: string;
+  runId?: string | null;
+  schemaVersion?: '1.5';
+  sequence?: number | null;
+  /**
+   * @maxItems 32
+   */
+  targetScope?: string[];
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LegacyD4RunRead".
+ */
+export interface LegacyD4RunRead {
+  frameId: string;
+  leaseState: 'unclaimed' | 'held' | 'expired';
+  ownsControl: boolean;
+  run: LegacyD4InteractiveRun;
+  schemaVersion?: '1.6';
+  sequence: number;
+  serverTime: string;
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
@@ -974,6 +2179,7 @@ export interface MoveRequest {
   commandId: string;
   holderId: string;
   move: MoveIntent;
+  order?: number | null;
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
@@ -981,6 +2187,12 @@ export interface MoveRequest {
  */
 export interface Receipt {
   accepted: boolean;
+  behaviorOrder?: number | null;
+  /**
+   * @maxItems 32
+   */
+  behaviorOutcomes?: BehaviorMemberOutcome[];
+  boundaryRevision?: number | null;
   code:
     | 'OK'
     | 'NOT_INTERACTIVE'
@@ -1011,7 +2223,13 @@ export interface Receipt {
     | 'ENDPOINT_INVALID'
     | 'EXECUTION_TERMINAL'
     | 'NO_AVAILABLE_ASSETS'
-    | 'ORDER_SUPERSEDED';
+    | 'ORDER_SUPERSEDED'
+    | 'BOUNDARY_CONFLICT';
+  controlOrder?: number | null;
+  /**
+   * @maxItems 32
+   */
+  controlOutcomes?: ControlMemberOutcome[];
   directOrder?: number | null;
   /**
    * @maxItems 32
@@ -1024,6 +2242,7 @@ export interface Receipt {
   memberOutcomes?: DirectMemberOutcome[];
   message: string;
   missionId?: string | null;
+  movementOrder?: number | null;
   operation:
     | 'create'
     | 'acquire'
@@ -1036,13 +2255,22 @@ export interface Receipt {
     | 'end'
     | 'move'
     | 'cancel'
-    | 'direct-move';
+    | 'direct-move'
+    | 'stop'
+    | 'return-to-script'
+    | 'boundary-edit'
+    | 'behavior'
+    | 'intercept-approach';
   recordedAt: string;
   recordingId?: string | null;
   requestId: string;
   runId?: string | null;
-  schemaVersion?: '1.2';
+  schemaVersion?: '1.6';
   sequence?: number | null;
+  /**
+   * @maxItems 32
+   */
+  targetScope?: string[];
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
@@ -1053,28 +2281,13 @@ export interface RunRead {
   leaseState: 'unclaimed' | 'held' | 'expired';
   ownsControl: boolean;
   run: InteractiveRun;
-  schemaVersion?: '1.3';
+  schemaVersion?: '1.7';
   sequence: number;
   serverTime: string;
+  unitProfiles?: Unitprofiles2;
 }
-/**
- * This interface was referenced by `BackendContracts`'s JSON-Schema
- * via the `definition` "BoundaryDefinition".
- */
-export interface BoundaryDefinition {
-  id: string;
-  name: string;
-  type: 'untyped' | 'annotation' | 'friendly' | 'patrol' | 'restricted';
-  /**
-   * @minItems 3
-   * @maxItems 32
-   */
-  vertices: [
-    [number, number],
-    [number, number],
-    [number, number],
-    ...[number, number][],
-  ];
+export interface Unitprofiles2 {
+  [k: string]: UnitProfile;
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
@@ -1090,6 +2303,7 @@ export interface ScenarioAltitude {
  * via the `definition` "ScenarioContent".
  */
 export interface ScenarioContent {
+  actions?: ScheduledAction[] | null;
   boundaries?:
     | []
     | [BoundaryDefinition]
@@ -1254,6 +2468,7 @@ export interface ScenarioContent {
     | null;
   boundaryRuleVersion?: 'local-boundary-v1' | null;
   name: string;
+  scheduleRuleVersion?: ('local-schedule-v1' | 'local-schedule-v2') | null;
   /**
    * @maxItems 32
    */
@@ -1270,6 +2485,8 @@ export interface UnitPlacement {
   id: string;
   label: string;
   position: ScenarioPosition;
+  profileId?:
+    ('hornet-10-v1' | 'sting-v1' | 'lancet-3-v1' | 'shahed-136-v1') | null;
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
@@ -1286,7 +2503,7 @@ export interface ScenarioPosition {
  */
 export interface ScenarioList {
   scenarios: ScenarioRevision[];
-  schemaVersion?: '1.0' | '1.1';
+  schemaVersion?: '1.0' | '1.1' | '1.2' | '1.3' | '1.4';
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
@@ -1298,7 +2515,7 @@ export interface ScenarioRevision {
   createdAt: string;
   definitionId: string;
   revision: number;
-  schemaVersion?: '1.0' | '1.1';
+  schemaVersion?: '1.0' | '1.1' | '1.2' | '1.3' | '1.4';
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
@@ -1310,7 +2527,7 @@ export interface ScenarioReceipt {
   message: string;
   requestId: string;
   result?: ScenarioRevision | null;
-  schemaVersion?: '1.0' | '1.1';
+  schemaVersion?: '1.0' | '1.1' | '1.2' | '1.3' | '1.4';
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
@@ -1341,12 +2558,17 @@ export interface ScenarioMotionPreset {
   modelId: 'local-horizontal-v1';
   speedMps: number;
   templateId: 'singapore-local-v2';
+  unitProfiles?: Unitprofiles3;
+}
+export interface Unitprofiles3 {
+  [k: string]: UnitProfile;
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
  * via the `definition` "ScenarioReview".
  */
 export interface ScenarioReview {
+  actionCount: number;
   activeMissionId?: string | null;
   boundaryCount: number;
   canRun: boolean;
@@ -1356,22 +2578,42 @@ export interface ScenarioReview {
   motionPreset: ScenarioMotionPreset;
   name: string;
   reference: ScenarioRef;
-  schemaVersion?: '1.1';
+  schemaVersion?: '1.4';
+  scriptDurationMs: number;
+  /**
+   * @maxItems 128
+   */
+  timings?: ScriptTimingReview[];
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
  * via the `definition` "ScenarioReviewIssue".
  */
 export interface ScenarioReviewIssue {
+  actionId?: string | null;
   boundaryId?: string | null;
   code:
     | 'EMPTY_ARRANGEMENT'
     | 'DEMO_DISABLED'
     | 'ACTIVE_RUN_EXISTS'
     | 'UNTYPED_BOUNDARY'
-    | 'RESTRICTED_OCCUPANT';
+    | 'RESTRICTED_OCCUPANT'
+    | 'SCRIPT_PATH_BLOCKED'
+    | 'SCRIPT_TIMING_INVALID';
   message: string;
   unitId?: string | null;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "ScriptTimingReview".
+ */
+export interface ScriptTimingReview {
+  actionId: string;
+  afterActionId?: string | null;
+  delayMs?: number | null;
+  estimatedEndMs?: number | null;
+  estimatedStartMs?: number | null;
+  nominalState: string;
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema

@@ -13,6 +13,7 @@ export function filtersActive(filters: FilterState) {
     filters.sourceIds.length ||
     filters.zoneIds.length ||
     filters.observationStates?.length ||
+    filters.conditions?.length ||
     !filters.showUnobserved ||
     filters.showRemoved
   );
@@ -162,6 +163,19 @@ export function FilterItems({
           runtime.setFilters({
             observationStates: v as FilterState['observationStates'],
           })
+        }
+      />
+      <Choices
+        name="Condition"
+        options={[
+          { id: 'operational', label: 'Operational' },
+          { id: 'degraded', label: 'Degraded' },
+          { id: 'non-operational', label: 'NON-OP' },
+          { id: 'unknown', label: 'Unknown condition' },
+        ]}
+        selected={f.conditions ?? []}
+        change={(v) =>
+          runtime.setFilters({ conditions: v as FilterState['conditions'] })
         }
       />
       <Choices

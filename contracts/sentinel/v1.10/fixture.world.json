@@ -1,0 +1,202 @@
+{
+  "assets": {
+    "fixture-alpha-resource-01": {
+      "availability": "unknown",
+      "capabilityCodes": [],
+      "entityId": "fixture-alpha-object-01",
+      "id": "fixture-alpha-resource-01",
+      "missionId": "fixture-alpha",
+      "provenance": {
+        "effectiveAt": "2026-09-10T00:00:00.000Z",
+        "recordedAt": "2026-09-10T00:00:00.000Z",
+        "source": {
+          "id": "synthetic-foundation-v1",
+          "kind": "import",
+          "mode": "simulated"
+        }
+      },
+      "taskIds": []
+    }
+  },
+  "effectiveAt": "2026-09-10T00:00:00.000Z",
+  "entities": {
+    "fixture-alpha-object-01": {
+      "affiliation": "unknown",
+      "condition": "unknown",
+      "extensions": {},
+      "id": "fixture-alpha-object-01",
+      "kind": "test-object",
+      "label": "Fixture object 01",
+      "missionId": "fixture-alpha",
+      "presence": "present",
+      "provenance": {
+        "effectiveAt": "2026-09-10T00:00:00.000Z",
+        "recordedAt": "2026-09-10T00:00:00.000Z",
+        "source": {
+          "id": "synthetic-foundation-v1",
+          "kind": "import",
+          "mode": "simulated"
+        }
+      }
+    },
+    "fixture-alpha-object-02": {
+      "affiliation": "unknown",
+      "condition": "unknown",
+      "extensions": {},
+      "id": "fixture-alpha-object-02",
+      "kind": "test-object",
+      "label": "Fixture object 02",
+      "missionId": "fixture-alpha",
+      "presence": "present",
+      "provenance": {
+        "effectiveAt": "2026-09-10T00:00:00.000Z",
+        "recordedAt": "2026-09-10T00:00:00.000Z",
+        "source": {
+          "id": "synthetic-foundation-v1",
+          "kind": "import",
+          "mode": "simulated"
+        }
+      }
+    },
+    "fixture-alpha-object-03": {
+      "affiliation": "unknown",
+      "condition": "unknown",
+      "extensions": {},
+      "id": "fixture-alpha-object-03",
+      "kind": "test-object",
+      "label": "Fixture object 03",
+      "missionId": "fixture-alpha",
+      "presence": "present",
+      "provenance": {
+        "effectiveAt": "2026-09-10T00:00:00.000Z",
+        "recordedAt": "2026-09-10T00:00:00.000Z",
+        "source": {
+          "id": "synthetic-foundation-v1",
+          "kind": "import",
+          "mode": "simulated"
+        }
+      }
+    }
+  },
+  "frameId": "fixture-frame-0",
+  "mission": {
+    "createdAt": "2026-09-10T00:00:00.000Z",
+    "domain": "synthetic-foundation",
+    "extensions": {
+      "sentinel.fixture": {
+        "version": 1
+      }
+    },
+    "id": "fixture-alpha",
+    "lifecycle": "active",
+    "name": "Synthetic Alpha",
+    "updatedAt": "2026-09-10T00:00:00.000Z",
+    "zoneIds": []
+  },
+  "recentEvents": [
+    {
+      "effectiveAt": "2026-09-10T00:00:00.000Z",
+      "entityIds": [],
+      "extensions": {
+        "sentinel.fixture": {
+          "sampleIndex": 0
+        }
+      },
+      "id": "fixture-event-0",
+      "missionId": "fixture-alpha",
+      "recordedAt": "2026-09-10T00:00:00.000Z",
+      "sequence": 0,
+      "severity": "info",
+      "source": {
+        "id": "synthetic-foundation-v1",
+        "kind": "import",
+        "mode": "simulated"
+      },
+      "taskIds": [],
+      "type": "fixture.sample-committed",
+      "zoneIds": []
+    }
+  ],
+  "recordedAt": "2026-09-10T00:00:00.000Z",
+  "recordingId": "fixture-recording-alpha",
+  "schemaVersion": "1.9",
+  "sensors": {},
+  "sequence": 0,
+  "streamEpoch": "fixture-epoch-alpha",
+  "tasks": {},
+  "tracks": {
+    "fixture-alpha-object-01-track": {
+      "entityId": "fixture-alpha-object-01",
+      "historySeriesId": "fixture-alpha-object-01-track-history",
+      "id": "fixture-alpha-object-01-track",
+      "latest": {
+        "discontinuity": false,
+        "position": {
+          "altitude": {
+            "metres": 100.0,
+            "reference": "MSL"
+          },
+          "latitudeDeg": -24.0,
+          "longitudeDeg": 12.0
+        },
+        "timestamp": "2026-09-10T00:00:00.000Z"
+      },
+      "missionId": "fixture-alpha",
+      "source": {
+        "id": "synthetic-foundation-v1",
+        "kind": "import",
+        "mode": "simulated"
+      },
+      "state": "tracking"
+    },
+    "fixture-alpha-object-02-track": {
+      "entityId": "fixture-alpha-object-02",
+      "historySeriesId": "fixture-alpha-object-02-track-history",
+      "id": "fixture-alpha-object-02-track",
+      "latest": {
+        "discontinuity": false,
+        "position": {
+          "altitude": {
+            "metres": 120.0,
+            "reference": "MSL"
+          },
+          "latitudeDeg": -23.99,
+          "longitudeDeg": 12.01
+        },
+        "timestamp": "2026-09-10T00:00:00.000Z"
+      },
+      "missionId": "fixture-alpha",
+      "source": {
+        "id": "synthetic-foundation-v1",
+        "kind": "import",
+        "mode": "simulated"
+      },
+      "state": "tracking"
+    },
+    "fixture-alpha-object-03-track": {
+      "entityId": "fixture-alpha-object-03",
+      "historySeriesId": "fixture-alpha-object-03-track-history",
+      "id": "fixture-alpha-object-03-track",
+      "latest": {
+        "discontinuity": false,
+        "position": {
+          "altitude": {
+            "metres": 140.0,
+            "reference": "MSL"
+          },
+          "latitudeDeg": -23.98,
+          "longitudeDeg": 12.02
+        },
+        "timestamp": "2026-09-10T00:00:00.000Z"
+      },
+      "missionId": "fixture-alpha",
+      "source": {
+        "id": "synthetic-foundation-v1",
+        "kind": "import",
+        "mode": "simulated"
+      },
+      "state": "tracking"
+    }
+  },
+  "zones": {}
+}

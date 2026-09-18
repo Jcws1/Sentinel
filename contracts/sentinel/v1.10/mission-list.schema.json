@@ -1,0 +1,178 @@
+{
+  "$defs": {
+    "Altitude": {
+      "additionalProperties": false,
+      "properties": {
+        "datumId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Datumid"
+        },
+        "metres": {
+          "title": "Metres",
+          "type": "number"
+        },
+        "reference": {
+          "enum": [
+            "MSL",
+            "ELLIPSOID",
+            "AGL"
+          ],
+          "title": "Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "metres",
+        "reference"
+      ],
+      "title": "Altitude",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "Mission": {
+      "additionalProperties": false,
+      "properties": {
+        "createdAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Createdat",
+          "type": "string"
+        },
+        "domain": {
+          "minLength": 1,
+          "title": "Domain",
+          "type": "string"
+        },
+        "extensions": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Extensions",
+          "type": "object"
+        },
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Id",
+          "type": "string"
+        },
+        "lifecycle": {
+          "enum": [
+            "draft",
+            "active",
+            "completed",
+            "cancelled"
+          ],
+          "title": "Lifecycle",
+          "type": "string"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "referencePoint": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Position3D"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "updatedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Updatedat",
+          "type": "string"
+        },
+        "zoneIds": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "title": "Zoneids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "domain",
+        "lifecycle",
+        "createdAt",
+        "updatedAt"
+      ],
+      "title": "Mission",
+      "type": "object"
+    },
+    "Position3D": {
+      "additionalProperties": false,
+      "properties": {
+        "altitude": {
+          "$ref": "#/$defs/Altitude"
+        },
+        "latitudeDeg": {
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Latitudedeg",
+          "type": "number"
+        },
+        "longitudeDeg": {
+          "maximum": 180,
+          "minimum": -180,
+          "title": "Longitudedeg",
+          "type": "number"
+        }
+      },
+      "required": [
+        "longitudeDeg",
+        "latitudeDeg",
+        "altitude"
+      ],
+      "title": "Position3D",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "fixtureAdvanceEnabled": {
+      "default": false,
+      "title": "Fixtureadvanceenabled",
+      "type": "boolean"
+    },
+    "missions": {
+      "items": {
+        "$ref": "#/$defs/Mission"
+      },
+      "title": "Missions",
+      "type": "array"
+    },
+    "schemaVersion": {
+      "const": "1.0",
+      "title": "Schemaversion",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "missions"
+  ],
+  "title": "MissionList",
+  "type": "object"
+}

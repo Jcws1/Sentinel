@@ -10,7 +10,9 @@ import {
   directClick,
 } from './rtsActions';
 
-const evidence = resolve('../docs/d2/regressions/evidence/workflow');
+const evidence = resolve(
+  '../docs/d4-refinement/regressions/d4/regressions/scenarios',
+);
 test.use({ actionTimeout: 10000 });
 const pane = (page: Page) => page.locator('.units-pane');
 const map = (page: Page) =>

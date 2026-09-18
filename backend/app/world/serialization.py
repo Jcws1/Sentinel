@@ -2,7 +2,7 @@
 import json
 from datetime import datetime, timezone, timedelta
 from time import monotonic
-from app.domain.models import Model, WorldFrame, LegacyWorldFrame, LegacyInteractiveWorldFrame, LegacyMovementWorldFrame, LegacyRtsWorldFrame, LegacyCompactWorldFrame, LegacyScenarioWorldFrame
+from app.domain.models import Model, WorldFrame, LegacyWorldFrame, LegacyInteractiveWorldFrame, LegacyMovementWorldFrame, LegacyRtsWorldFrame, LegacyCompactWorldFrame, LegacyScenarioWorldFrame, LegacyBoundaryWorldFrame, LegacyScheduledWorldFrame, LegacyD3aWorldFrame, LegacyD4WorldFrame
 
 
 def utc_now() -> str:
@@ -23,6 +23,8 @@ def validated_frame(value: Model | dict | str) -> str:
 def read_frame(text: str) -> WorldFrame:
     """Validate legacy bytes before adapting only the in-memory representation."""
     value = json.loads(text)
+    if value.get("schemaVersion") == "1.10":
+        return WorldFrame.model_validate_json(text)
     if value.get("schemaVersion") == "1.0":
         legacy = LegacyWorldFrame.model_validate_json(text)
         value = legacy.model_dump(mode="json", by_alias=True, exclude_none=True)
@@ -53,6 +55,30 @@ def read_frame(text: str) -> WorldFrame:
         legacy = LegacyScenarioWorldFrame.model_validate_json(canonical(value))
         value = legacy.model_dump(mode="json", by_alias=True, exclude_none=True)
         value["schemaVersion"] = "1.6"
+    if value.get("schemaVersion") == "1.6":
+        legacy = LegacyBoundaryWorldFrame.model_validate_json(canonical(value))
+        value = legacy.model_dump(mode="json", by_alias=True, exclude_none=True)
+        value["schemaVersion"] = "1.7"
+        if value.get("interactive"):
+            value["interactive"]["schemaVersion"] = "1.4"
+    if value.get("schemaVersion") == "1.7":
+        legacy = LegacyScheduledWorldFrame.model_validate_json(canonical(value))
+        value = legacy.model_dump(mode="json", by_alias=True, exclude_none=True)
+        value["schemaVersion"] = "1.8"
+        if value.get("interactive"):
+            value["interactive"]["schemaVersion"] = "1.5"
+    if value.get("schemaVersion") == "1.8":
+        legacy = LegacyD3aWorldFrame.model_validate_json(canonical(value))
+        value = legacy.model_dump(mode="json", by_alias=True, exclude_none=True)
+        value["schemaVersion"] = "1.9"
+        if value.get("interactive"):
+            value["interactive"]["schemaVersion"] = "1.6"
+    if value.get("schemaVersion") == "1.9":
+        legacy = LegacyD4WorldFrame.model_validate_json(canonical(value))
+        value = legacy.model_dump(mode="json", by_alias=True, exclude_none=True)
+        value["schemaVersion"] = "1.10"
+        if value.get("interactive"):
+            value["interactive"]["schemaVersion"] = "1.7"
     return WorldFrame.model_validate_json(canonical(value))
 
 

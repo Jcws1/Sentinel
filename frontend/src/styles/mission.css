@@ -243,3 +243,42 @@
     font-size: 13px;
   }
 }
+.saved-scenario-caption {
+  display: block;
+  font-size: 10px;
+  color: var(--text-muted, #96a6b1);
+  margin-top: 4px;
+}
+.mission-plan-confirm {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1000;
+  width: min(390px, 80vw);
+  padding: 16px;
+  background: #152027;
+  border: 1px solid #53646f;
+  box-shadow: 0 8px 26px #0008;
+  color: #d2dee4;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.mission-plan-overlay {
+  position: fixed;
+  inset: 0;
+  background: #0008;
+  z-index: 999;
+}
+.mission-plan-confirm h2 {
+  font-size: 15px;
+  margin: 0 0 12px;
+}
+.mission-plan-confirm button {
+  margin-right: 8px;
+  padding: 8px;
+  color: #e0e8ed;
+  background: #263740;
+  border: 1px solid #50616b;
+  border-radius: 3px;
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import rawFixture from '../../../contracts/sentinel/v1.7/fixture.world.json';
+import rawFixture from '../../../contracts/sentinel/v1.11/fixture.world.json';
 import { validateFrame } from '../../src/contracts/decode';
 import type { Track, Zone } from '../../src/contracts/generated';
 import type { WorldFrame } from '../../src/contracts/types';
@@ -80,7 +80,7 @@ describe('renderer-neutral scene', () => {
     scene = project(frame, session);
     expect(
       scene.objects.find((object) => object.ref.id === first.id)?.unavailable,
-    ).toBe('Down');
+    ).toBe('NON-OP');
     // A backend outage does not turn supplied operational condition into Down.
     first.condition = 'operational';
     track.state = 'tracking';

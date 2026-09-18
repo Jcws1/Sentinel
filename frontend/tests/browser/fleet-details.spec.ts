@@ -6,7 +6,7 @@ import { tabAction, advanceFixture } from './actions';
 test.use({ trace: 'off' });
 const origin = 'http://127.0.0.1:5182',
   evidence = resolve(
-    '../docs/d2/regressions/evidence/regressions/regressions/fleet-details',
+    '../docs/d4-refinement/regressions/d4/regressions/fleet-details',
   );
 const details = (p: Page) => p.locator('.selection-details');
 const fleet = (p: Page) => p.locator('.fleet-sidebar');

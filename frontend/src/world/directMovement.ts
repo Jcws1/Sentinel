@@ -6,6 +6,8 @@ import { entityRows } from './entityRows';
 export function directContextReason(
   state: RuntimeSnapshot,
 ): string | undefined {
+  if (state.scenario.active || state.presentation.mode !== 'live')
+    return 'Return to the live demo to issue movement.';
   const frame = state.presentation.frame,
     run = frame?.interactive,
     current = state.interactive.current;
@@ -61,7 +63,9 @@ export function directMovementReason(
       : 'Not under Sentinel control.';
   const c = bindings[0];
   if (row.entity.condition !== 'operational')
-    return row.entity.condition === 'non-operational' ? 'Down' : 'Unavailable';
+    return row.entity.condition === 'non-operational'
+      ? 'NON-OP'
+      : 'Unavailable';
   if (row.entity.presence !== 'present') return 'No response';
   const track = c.controlTrackId ? frame.tracks[c.controlTrackId] : undefined;
   if (!track) return 'No known position';

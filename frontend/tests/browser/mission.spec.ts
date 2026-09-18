@@ -8,7 +8,7 @@ import { resolve } from 'node:path';
 
 const product = 'http://127.0.0.1:5181';
 const evidence = resolve(
-  '../docs/d2/regressions/evidence/regressions/regressions/regressions',
+  '../docs/d4-refinement/regressions/d4/regressions/mission',
 );
 async function load(page: Page, missionId: string) {
   const catalog = await (

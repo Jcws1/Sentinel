@@ -4,6 +4,7 @@ Frozen Pydantic objects are not deeply immutable. Service/storage boundaries use
 canonical JSON bytes and fresh decoded copies; never publish these objects directly.
 """
 from datetime import datetime
+from functools import lru_cache
 import json
 from typing import Annotated, Literal
 
@@ -11,6 +12,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, JsonValue, fi
 from pydantic.alias_generators import to_camel
 
 
+@lru_cache(maxsize=4096)
 def calendar_instant(value: str) -> str:
     datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%fZ")
     return value

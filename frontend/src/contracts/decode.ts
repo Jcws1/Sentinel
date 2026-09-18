@@ -1,9 +1,12 @@
+import { validateSchedule } from './schedule';
+import { validateBehavior } from './behavior';
+import { profileOptions, validateProfiles } from '../world/unitProfiles';
 import Ajv2020 from 'ajv/dist/2020';
 import addFormats from 'ajv-formats';
-import worldSchema from '../../../contracts/sentinel/v1.7/world.schema.json';
-import streamSchema from '../../../contracts/sentinel/v1.7/stream.schema.json';
-import catalogSchema from '../../../contracts/sentinel/v1.7/mission-list.schema.json';
-import observedSchema from '../../../contracts/sentinel/v1.7/observed-history.schema.json';
+import worldSchema from '../../../contracts/sentinel/v1.11/world.schema.json';
+import streamSchema from '../../../contracts/sentinel/v1.11/stream.schema.json';
+import catalogSchema from '../../../contracts/sentinel/v1.11/mission-list.schema.json';
+import observedSchema from '../../../contracts/sentinel/v1.11/observed-history.schema.json';
 import type { ObservedHistory } from './generated';
 import type {
   DeepReadonly,
@@ -134,9 +137,30 @@ export function validateFrame(value: unknown): WorldFrame {
     `Invalid world frame: ${ajv.errorsText(validateWorld.errors)}`,
   );
   const frame = value;
+  validateProfiles(frame.unitProfiles);
+  for (const [eid, p] of Object.entries(frame.unitProfiles ?? {})) {
+    const affiliation = frame.entities[eid]?.affiliation;
+    assert(
+      affiliation &&
+        affiliation !== 'neutral' &&
+        (profileOptions[affiliation] as readonly string[]).includes(p.id),
+      'Profile requires a compatible entity',
+    );
+  }
+  validateSchedule(frame);
+  validateBehavior(frame);
+  if (frame.liveBoundaries)
+    assert(
+      frame.boundaryRules &&
+        frame.interactive &&
+        frame.liveBoundaries.runId === frame.interactive.runId &&
+        frame.liveBoundaries.sourceId === frame.interactive.sourceId &&
+        frame.liveBoundaries.committedSequence <= frame.sequence,
+      'Invalid effective boundary commit/source',
+    );
   if (frame.boundaryRules) {
     assert(
-      frame.scenario && frame.interactive,
+      (frame.scenario || frame.liveBoundaries) && frame.interactive,
       'Boundary rules require a custom simulation',
     );
     assert(
@@ -162,7 +186,7 @@ export function validateFrame(value: unknown): WorldFrame {
       } as BoundaryDefinition);
     }
   }
-  assert(frame.schemaVersion === '1.6', 'Missing world schema version');
+  assert(frame.schemaVersion === '1.10', 'Missing world schema version');
   calendarInstant(frame.effectiveAt);
   calendarInstant(frame.recordedAt);
   calendarInstant(frame.mission.createdAt);
@@ -360,7 +384,7 @@ export function decodeStream(text: string): StreamMessage {
     validateStream(value),
     `Invalid stream message: ${ajv.errorsText(validateStream.errors)}`,
   );
-  assert(value.schemaVersion === '1.6', 'Missing stream schema version');
+  assert(value.schemaVersion === '1.10', 'Missing stream schema version');
   if (value.type === 'snapshot') {
     const frame = validateFrame(value.frame);
     assert(value.missionId === frame.mission.id, 'Snapshot mission mismatch');

@@ -49,11 +49,15 @@ export function applyDelta(
     );
   }
   const next = {
-    schemaVersion: '1.6',
+    schemaVersion: '1.10',
     mission: delta.changes.mission,
     interactive: delta.changes.interactive,
     scenario: delta.changes.scenario,
     boundaryRules: delta.changes.boundaryRules,
+    scenarioSchedule: delta.changes.scenarioSchedule,
+    liveBoundaries: delta.changes.liveBoundaries,
+    fleetBehavior: delta.changes.fleetBehavior,
+    unitProfiles: delta.changes.unitProfiles,
     frameId: delta.frameId,
     recordingId: delta.recordingId,
     streamEpoch: delta.streamEpoch,

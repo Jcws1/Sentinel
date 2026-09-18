@@ -77,6 +77,11 @@ export function directStatusText(state: RuntimeSnapshot): string | undefined {
   const frame = state.presentation.frame;
   if (!frame || receipt.missionId !== frame.mission.id) return undefined;
   if (!receipt.accepted) return feedback?.message ?? receipt.message;
+  if (
+    (receipt.schemaVersion === '1.5' || receipt.schemaVersion === '1.6') &&
+    receipt.operation === 'intercept-approach'
+  )
+    return feedback?.message ?? 'Intercept approach accepted';
   const members = receipt.memberOutcomes ?? [];
   if (receipt.sequence == null || receipt.sequence > frame.sequence)
     return (
@@ -147,7 +152,7 @@ export function entityType(row: EntityRow, frame: ImmutableFrame) {
 export function assetStatus(frame: ImmutableFrame, id: string) {
   const entity = frame.entities[id];
   if (!entity) return 'Missing';
-  if (entity.condition === 'non-operational') return 'Down';
+  if (entity.condition === 'non-operational') return 'NON-OP';
   const controls = frame.interactive?.controls.filter((c) => c.entityId === id);
   const tracks = controls?.length
     ? controls.flatMap((c) =>

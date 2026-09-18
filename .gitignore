@@ -1,25 +1,61 @@
+# Installed dependencies and local Python environments.
 node_modules/
-dist/
-dist-verification/
-playwright-report/
 .venv/
-__pycache__/
-.pytest_cache/
+venv/
+
+# Generated bundles, including every named frontend test/review build.
+dist/
+/frontend/dist-*/
+/backend/build/
+*.egg-info/
+
+# Tool caches and incremental compilation.
 .cache/
+.vite/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.eslintcache
+*.tsbuildinfo
+
+# Generated test results, reports and coverage.
 test-results/
+playwright-report/
+blob-report/
+coverage/
+htmlcov/
+.nyc_output/
+.coverage
+.coverage.*
+
+# Local credentials/configuration; keep example/template files shareable.
 .env
-.env.local
+.env.*
+!.env.example
+!.env.*.example
+!.env.template
+!.env.*.template
 
 # Reproducible environmental pack; ~1.05 GB, never ordinary source control.
-frontend/public/edge-map/
-dist-test/
-dist-baseline/
-dist-after/
-dist-phase3b-review/
-dist-rts-live/
+/frontend/public/edge-map/
 
-docs/
-backend/data/
+# Local operator/test databases and SQLite sidecars.
+/backend/data/
 *.sqlite3
 *.sqlite3-shm
 *.sqlite3-wal
+*.sqlite3-journal
+
+# Preserve the existing policy for local documentation/review evidence.
+# Already tracked documents remain tracked and their edits stay visible.
+docs/
+
+# Generated logs and operating-system metadata.
+*.log
+.DS_Store
+Thumbs.db
+Desktop.ini
+desktop.ini

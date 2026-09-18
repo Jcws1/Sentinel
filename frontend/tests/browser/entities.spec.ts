@@ -10,7 +10,7 @@ const origin = 'http://127.0.0.1:5182',
   mid = 'fixture-observations',
   eid = mid + '-friendly-01';
 const evidence = resolve(
-  '../docs/d2/regressions/evidence/regressions/regressions/regressions',
+  '../docs/d4-refinement/regressions/d4/regressions/entities',
 );
 const pane = (page: Page, id = 'tactical') =>
   page.locator(`.tactical-view[data-view-id="${id}"]`);

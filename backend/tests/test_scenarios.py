@@ -77,7 +77,7 @@ def test_custom_run_pins_revision_separates_roles_and_restarts_fresh():
         assert results[0] == results[1] == h.service.lookup(request.creation_id)
         mid = results[0].mission_id
         frame = h.authority.read(mid)
-        assert frame.schema_version == "1.6" and frame.interactive.state == "ready"
+        assert frame.schema_version == "1.10" and frame.interactive.state == "ready"
         assert len(frame.entities) == 4 and len(frame.assets) == len(frame.interactive.controls) == 1
         assert frame.scenario.content_hash == rev.content_hash
         assert frame.entities[frame.scenario.entity_ids["unit-3"]].classification.label == "Unknown entity"
@@ -159,8 +159,8 @@ def test_current_migration_preserves_legacy_compact_bytes_receipts_and_profile(t
     assert migrated.repo.db.execute("PRAGMA user_version").fetchone()[0] == 4
     assert migrated.repo.latest_text(old.mission.id) == raw
     adapted = migrated.authority.read(old.mission.id)
-    assert adapted.schema_version == "1.6" and adapted.scenario is None
-    assert canonical(adapted.interactive) == canonical(old.interactive)
+    assert adapted.schema_version == "1.10" and adapted.scenario is None
+    assert canonical(adapted.interactive) == canonical({**json.loads(canonical(old.interactive)), "schemaVersion": "1.7"})
     invalid = json.loads(raw)
     invalid["scenario"] = {}
     with pytest.raises(ValidationError):

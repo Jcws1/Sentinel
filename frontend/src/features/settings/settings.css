@@ -1,0 +1,111 @@
+.display-settings {
+  height: 100%;
+  overflow: auto;
+  padding: 22px 20px;
+  color: var(--text-secondary);
+  background: var(--surface-base);
+  font-size: 12px;
+  user-select: text;
+}
+.display-settings header,
+.display-settings fieldset,
+.display-settings footer {
+  max-width: 620px;
+  margin: 0 auto;
+}
+.display-settings h1 {
+  font-size: 20px;
+  font-weight: 550;
+  letter-spacing: -0.025em;
+  color: var(--text-primary);
+  margin: 6px 0;
+}
+.display-settings header p {
+  margin: 8px 0 24px;
+  line-height: 1.5;
+}
+.display-settings .quiet-label {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+.display-settings fieldset {
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+  padding: 14px 0 20px;
+  min-width: 0;
+}
+.display-settings legend {
+  padding: 0 10px 0 0;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 550;
+}
+.display-setting {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  min-height: 39px;
+}
+.display-setting select {
+  width: 155px;
+  max-width: 56%;
+  min-height: 30px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  padding: 4px 7px;
+  border-radius: 3px;
+  font: inherit;
+}
+.display-setting input[type='checkbox'] {
+  width: 15px;
+  height: 15px;
+  accent-color: #80bfff;
+}
+.display-range > span:last-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 155px;
+  max-width: 56%;
+}
+.display-range input {
+  width: 100%;
+  min-width: 0;
+  accent-color: #80bfff;
+}
+.display-range output {
+  width: 32px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.setting-note {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 8px 0 0;
+}
+.display-settings footer {
+  border-top: 1px solid var(--border-subtle);
+  padding: 14px 0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.display-settings footer > div {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  margin-top: 15px;
+}
+.display-settings footer button:first-child {
+  border: 1px solid var(--border-subtle);
+  padding: 7px 10px;
+  border-radius: 3px;
+  color: var(--text-primary);
+}
+.display-settings :is(button, select, input):focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 3px;
+}

@@ -162,7 +162,14 @@ export class WorkspaceBridge {
   private auxiliary(id: string) {
     return (
       isViewId(id) &&
-      ['details', 'movement', 'inspector', 'units'].includes(viewKind(id))
+      [
+        'details',
+        'movement',
+        'inspector',
+        'units',
+        'conductor',
+        'settings',
+      ].includes(viewKind(id))
     );
   }
   private auxiliaryTabset() {

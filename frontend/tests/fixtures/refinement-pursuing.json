@@ -1,0 +1,556 @@
+{
+  "assets": {
+    "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0:asset": {
+      "availability": "available",
+      "capabilityCodes": ["synthetic-horizontal"],
+      "entityId": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0",
+      "id": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0:asset",
+      "missionId": "bdf91ec3-815d-40b6-a5b9-bcbcecfd4bc1",
+      "provenance": {
+        "effectiveAt": "2026-09-14T00:00:00.000Z",
+        "recordedAt": "2026-09-14T00:00:00.000Z",
+        "source": {
+          "id": "demo-source-fbc7b1ed-390b-4dbc-afc4-0272c94207e5",
+          "kind": "simulation",
+          "mode": "simulated"
+        }
+      },
+      "taskIds": []
+    }
+  },
+  "effectiveAt": "2026-09-14T00:00:00.400Z",
+  "entities": {
+    "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0": {
+      "affiliation": "friendly",
+      "classification": {
+        "code": "drone",
+        "label": "Drone",
+        "scheme": "sentinel-demo"
+      },
+      "condition": "operational",
+      "extensions": {},
+      "id": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0",
+      "kind": "virtual-object",
+      "label": "Friendly 1",
+      "missionId": "bdf91ec3-815d-40b6-a5b9-bcbcecfd4bc1",
+      "presence": "present",
+      "provenance": {
+        "effectiveAt": "2026-09-14T00:00:00.000Z",
+        "recordedAt": "2026-09-14T00:00:00.000Z",
+        "source": {
+          "id": "demo-source-fbc7b1ed-390b-4dbc-afc4-0272c94207e5",
+          "kind": "simulation",
+          "mode": "simulated"
+        }
+      }
+    },
+    "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:hostile-0": {
+      "affiliation": "hostile",
+      "classification": {
+        "code": "drone",
+        "label": "Drone",
+        "scheme": "sentinel-demo"
+      },
+      "condition": "operational",
+      "extensions": {},
+      "id": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:hostile-0",
+      "kind": "virtual-object",
+      "label": "Hostile 1",
+      "missionId": "bdf91ec3-815d-40b6-a5b9-bcbcecfd4bc1",
+      "presence": "present",
+      "provenance": {
+        "effectiveAt": "2026-09-14T00:00:00.000Z",
+        "recordedAt": "2026-09-14T00:00:00.000Z",
+        "source": {
+          "id": "demo-source-fbc7b1ed-390b-4dbc-afc4-0272c94207e5",
+          "kind": "simulation",
+          "mode": "simulated"
+        }
+      }
+    }
+  },
+  "fleetBehavior": {
+    "assignments": [
+      {
+        "assetId": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0:asset",
+        "commandId": "3961bf34-cfce-4e61-af80-4f34e02832ca",
+        "createdSequence": 6,
+        "id": "5b8da81d3fc91c12fa0b1b77c2cb879cba6835d16a258ccef0d323d9c225d7ea",
+        "interceptorId": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0",
+        "policyId": "b88f6b6381ae324d95312429776803cb048fddd090fc94e3288fbe959296638c",
+        "state": "active",
+        "targetId": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:hostile-0",
+        "targetTrackId": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:hostile-0:control"
+      }
+    ],
+    "members": [
+      {
+        "acceptedSequence": 5,
+        "acceptedTick": 1,
+        "assetId": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0:asset",
+        "assignmentId": "5b8da81d3fc91c12fa0b1b77c2cb879cba6835d16a258ccef0d323d9c225d7ea",
+        "bindingRevision": 1,
+        "commandId": "3961bf34-cfce-4e61-af80-4f34e02832ca",
+        "controlTrackId": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0:control",
+        "entityId": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0",
+        "executorEpoch": "b0a378b0-50c4-4662-b8fd-0c392b7c3b26",
+        "grantRevision": 0,
+        "id": "b88f6b6381ae324d95312429776803cb048fddd090fc94e3288fbe959296638c",
+        "movementExecutionId": "aa957113-c070-44bd-b11f-c7b611229dde",
+        "order": 2,
+        "policy": "intercept",
+        "reason": "Pursuing nearby hostile; movement destination retained.",
+        "reservationRevision": 3,
+        "startedTick": 2,
+        "state": "pursuing",
+        "targetScope": []
+      }
+    ],
+    "model": {
+      "acquisitionRadiusM": 700.0,
+      "allocationRule": "distance-target-asset-v1",
+      "contactAlgorithm": "relative-swept-sphere-v1",
+      "contactRadiusM": 25.0,
+      "movementModel": "local-horizontal-v1",
+      "patrolInsetFraction": 0.1,
+      "patrolRule": "convex-centroid-inset-v1",
+      "ruleVersion": "demo-mutual-loss-v1",
+      "speedMps": 43.05555555555556,
+      "stepMs": 200,
+      "toleranceM": 0.001
+    },
+    "outcomes": [],
+    "ruleVersion": "local-fleet-v2",
+    "runId": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5",
+    "sourceId": "demo-source-fbc7b1ed-390b-4dbc-afc4-0272c94207e5"
+  },
+  "frameId": "bceac23c-4477-4e87-b093-748df4d230bc",
+  "interactive": {
+    "capabilities": [
+      "run-control",
+      "scenario-pair",
+      "boundary-edit",
+      "fleet-policy",
+      "demo-outcome"
+    ],
+    "controls": [
+      {
+        "assetId": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0:asset",
+        "bindingRevision": 1,
+        "busyRevision": 3,
+        "capabilities": ["move-horizontal", "demo-intercept"],
+        "controlTrackId": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0:control",
+        "eligible": true,
+        "entityId": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0",
+        "executorId": "local-executor-fbc7b1ed-390b-4dbc-afc4-0272c94207e5",
+        "grantId": "b1c8b82c-c79a-4cee-8f98-e14d365b1ebf",
+        "lastDirectOrder": {
+          "executorEpoch": "b0a378b0-50c4-4662-b8fd-0c392b7c3b26",
+          "grantId": "b1c8b82c-c79a-4cee-8f98-e14d365b1ebf",
+          "grantRevision": 0,
+          "holderId": "operator-one",
+          "order": 2
+        },
+        "missionId": "bdf91ec3-815d-40b6-a5b9-bcbcecfd4bc1",
+        "positionReference": "ELLIPSOID/WGS84",
+        "reason": "Eligible for horizontal movement.",
+        "sourceId": "demo-source-fbc7b1ed-390b-4dbc-afc4-0272c94207e5"
+      }
+    ],
+    "executions": [
+      {
+        "acceptedAt": "2026-09-14T00:00:00.200Z",
+        "acceptedSequence": 5,
+        "assetId": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0:asset",
+        "bindingRevision": 1,
+        "busyRevision": 1,
+        "commandId": "3961bf34-cfce-4e61-af80-4f34e02832ca",
+        "controlTrackId": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0:control",
+        "deadline": "2026-09-14T00:00:30.200Z",
+        "destination": {
+          "altitude": {
+            "datumId": "WGS84",
+            "metres": 150.125,
+            "reference": "ELLIPSOID"
+          },
+          "latitudeDeg": 1.29,
+          "longitudeDeg": 103.85898543
+        },
+        "directOrder": 2,
+        "entityId": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0",
+        "executorEpoch": "b0a378b0-50c4-4662-b8fd-0c392b7c3b26",
+        "executorId": "local-executor-fbc7b1ed-390b-4dbc-afc4-0272c94207e5",
+        "grantId": "b1c8b82c-c79a-4cee-8f98-e14d365b1ebf",
+        "grantRevision": 0,
+        "id": "aa957113-c070-44bd-b11f-c7b611229dde",
+        "kind": "move",
+        "missionId": "bdf91ec3-815d-40b6-a5b9-bcbcecfd4bc1",
+        "origin": {
+          "altitude": {
+            "datumId": "WGS84",
+            "metres": 150.125,
+            "reference": "ELLIPSOID"
+          },
+          "latitudeDeg": 1.29,
+          "longitudeDeg": 103.85
+        },
+        "reason": "Destination retained while Intercept pursues.",
+        "remainingMetres": 999.9999816954917,
+        "reservationRevision": 3,
+        "revision": 1,
+        "runId": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5",
+        "sourceId": "demo-source-fbc7b1ed-390b-4dbc-afc4-0272c94207e5",
+        "speedMps": 47.22222222222222,
+        "startedAt": "2026-09-14T00:00:00.400Z",
+        "startedTick": 2,
+        "state": "Suspended",
+        "suspendedBy": "b88f6b6381ae324d95312429776803cb048fddd090fc94e3288fbe959296638c",
+        "travelledMetres": 0.0
+      }
+    ],
+    "executorEpoch": "b0a378b0-50c4-4662-b8fd-0c392b7c3b26",
+    "executorId": "local-executor-fbc7b1ed-390b-4dbc-afc4-0272c94207e5",
+    "grantId": "b1c8b82c-c79a-4cee-8f98-e14d365b1ebf",
+    "grantRevision": 0,
+    "lastReportAt": "2026-09-14T00:00:00.400Z",
+    "lease": {
+      "expiresAt": "2026-09-14T00:00:30.000Z",
+      "holderId": "operator-one",
+      "revision": 1
+    },
+    "missionId": "bdf91ec3-815d-40b6-a5b9-bcbcecfd4bc1",
+    "movementModel": "local-horizontal-v1",
+    "runId": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5",
+    "runRevision": 1,
+    "schemaVersion": "1.7",
+    "sourceId": "demo-source-fbc7b1ed-390b-4dbc-afc4-0272c94207e5",
+    "state": "running",
+    "supportedActions": [
+      "acquire",
+      "renew",
+      "reclaim",
+      "revoke",
+      "start",
+      "pause",
+      "resume",
+      "end",
+      "cancel",
+      "boundary-edit",
+      "stop",
+      "behavior"
+    ],
+    "templateId": "singapore-local-v2",
+    "tick": 2
+  },
+  "mission": {
+    "createdAt": "2026-09-14T00:00:00.000Z",
+    "domain": "synthetic-interactive",
+    "extensions": {
+      "sentinel.interactive": {
+        "synthetic": true,
+        "templateId": "singapore-local-v2"
+      },
+      "sentinel.scenario": {
+        "definitionId": "c6c99294-366f-4eef-b075-ded65d575637",
+        "name": "D4 isolated exercise",
+        "revision": 1
+      }
+    },
+    "id": "bdf91ec3-815d-40b6-a5b9-bcbcecfd4bc1",
+    "lifecycle": "active",
+    "name": "Demo 001",
+    "referencePoint": {
+      "altitude": {
+        "datumId": "WGS84",
+        "metres": 150.0,
+        "reference": "ELLIPSOID"
+      },
+      "latitudeDeg": 1.29,
+      "longitudeDeg": 103.85
+    },
+    "updatedAt": "2026-09-14T00:00:00.000Z",
+    "zoneIds": []
+  },
+  "recentEvents": [
+    {
+      "effectiveAt": "2026-09-14T00:00:00.000Z",
+      "entityIds": [],
+      "extensions": {
+        "sentinel.interactive": { "holderId": null, "requestId": null }
+      },
+      "id": "f1b1c4dc-7ccd-4d2b-a4a5-65f83e7d25b7",
+      "missionId": "bdf91ec3-815d-40b6-a5b9-bcbcecfd4bc1",
+      "recordedAt": "2026-09-14T00:00:00.000Z",
+      "sequence": 0,
+      "severity": "info",
+      "source": {
+        "id": "demo-source-fbc7b1ed-390b-4dbc-afc4-0272c94207e5",
+        "kind": "simulation",
+        "mode": "simulated"
+      },
+      "taskIds": [],
+      "type": "interactive.created",
+      "zoneIds": []
+    },
+    {
+      "effectiveAt": "2026-09-14T00:00:00.000Z",
+      "entityIds": [],
+      "extensions": {
+        "sentinel.interactive": {
+          "holderId": "operator-one",
+          "requestId": "d5601548-8457-4c7f-8279-41c88f4d8b40"
+        }
+      },
+      "id": "78cc8a66-29c6-45ca-8768-f687c2da5e2a",
+      "missionId": "bdf91ec3-815d-40b6-a5b9-bcbcecfd4bc1",
+      "recordedAt": "2026-09-14T00:00:00.000Z",
+      "sequence": 1,
+      "severity": "info",
+      "source": {
+        "id": "demo-source-fbc7b1ed-390b-4dbc-afc4-0272c94207e5",
+        "kind": "simulation",
+        "mode": "simulated"
+      },
+      "taskIds": [],
+      "type": "interactive.acquire",
+      "zoneIds": []
+    },
+    {
+      "effectiveAt": "2026-09-14T00:00:00.000Z",
+      "entityIds": [],
+      "extensions": {
+        "sentinel.interactive": {
+          "holderId": "operator-one",
+          "requestId": "f7475e0b-b136-4a81-ac4b-60344f3f65d4"
+        }
+      },
+      "id": "1668fed5-6579-455e-aeda-bac5bc3ca12b",
+      "missionId": "bdf91ec3-815d-40b6-a5b9-bcbcecfd4bc1",
+      "recordedAt": "2026-09-14T00:00:00.000Z",
+      "sequence": 2,
+      "severity": "info",
+      "source": {
+        "id": "demo-source-fbc7b1ed-390b-4dbc-afc4-0272c94207e5",
+        "kind": "simulation",
+        "mode": "simulated"
+      },
+      "taskIds": [],
+      "type": "interactive.start",
+      "zoneIds": []
+    },
+    {
+      "effectiveAt": "2026-09-14T00:00:00.200Z",
+      "entityIds": [],
+      "extensions": {
+        "sentinel.interactive": {
+          "holderId": "operator-one",
+          "requestId": "f3ff1c7f-f23d-491c-a6c5-9acc6b50e686"
+        }
+      },
+      "id": "60026924-9b78-4468-a424-3eb03ed9b604",
+      "missionId": "bdf91ec3-815d-40b6-a5b9-bcbcecfd4bc1",
+      "recordedAt": "2026-09-14T00:00:00.200Z",
+      "sequence": 3,
+      "severity": "info",
+      "source": {
+        "id": "demo-source-fbc7b1ed-390b-4dbc-afc4-0272c94207e5",
+        "kind": "simulation",
+        "mode": "simulated"
+      },
+      "taskIds": [],
+      "type": "interactive.behavior",
+      "zoneIds": []
+    },
+    {
+      "effectiveAt": "2026-09-14T00:00:00.200Z",
+      "entityIds": ["fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0"],
+      "extensions": {
+        "sentinel.behavior": {
+          "commandId": "f3ff1c7f-f23d-491c-a6c5-9acc6b50e686",
+          "order": 1,
+          "outcomes": [
+            {
+              "assetId": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0:asset",
+              "code": "OK",
+              "entityId": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0",
+              "outcome": "accepted",
+              "reason": "Intercept enabled; automatic local proximity acquisition. Movement destination retained.",
+              "state": "armed"
+            }
+          ],
+          "policy": "intercept"
+        }
+      },
+      "id": "761a4230-2ff4-4da1-a4f0-3bac06944e6d",
+      "missionId": "bdf91ec3-815d-40b6-a5b9-bcbcecfd4bc1",
+      "recordedAt": "2026-09-14T00:00:00.200Z",
+      "sequence": 4,
+      "severity": "info",
+      "source": {
+        "id": "demo-source-fbc7b1ed-390b-4dbc-afc4-0272c94207e5",
+        "kind": "simulation",
+        "mode": "simulated"
+      },
+      "taskIds": [],
+      "type": "behavior.policy",
+      "zoneIds": []
+    },
+    {
+      "effectiveAt": "2026-09-14T00:00:00.200Z",
+      "entityIds": [],
+      "extensions": {
+        "sentinel.direct": {
+          "memberOutcomes": [
+            {
+              "assetId": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0:asset",
+              "code": "OK",
+              "entityId": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0",
+              "executionId": "aa957113-c070-44bd-b11f-c7b611229dde",
+              "outcome": "accepted",
+              "reason": "Destination accepted; awaiting a committed source step."
+            }
+          ],
+          "order": 2
+        },
+        "sentinel.interactive": {
+          "holderId": "operator-one",
+          "requestId": "3961bf34-cfce-4e61-af80-4f34e02832ca"
+        }
+      },
+      "id": "86ba4f75-3b20-49e9-99a3-716b5a0eb63f",
+      "missionId": "bdf91ec3-815d-40b6-a5b9-bcbcecfd4bc1",
+      "recordedAt": "2026-09-14T00:00:00.200Z",
+      "sequence": 5,
+      "severity": "info",
+      "source": {
+        "id": "demo-source-fbc7b1ed-390b-4dbc-afc4-0272c94207e5",
+        "kind": "simulation",
+        "mode": "simulated"
+      },
+      "taskIds": [],
+      "type": "interactive.direct-move-accepted",
+      "zoneIds": []
+    },
+    {
+      "effectiveAt": "2026-09-14T00:00:00.400Z",
+      "entityIds": [
+        "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0",
+        "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:hostile-0"
+      ],
+      "extensions": {
+        "sentinel.behavior": {
+          "acquisitionRadiusM": 700.0,
+          "assignmentId": "5b8da81d3fc91c12fa0b1b77c2cb879cba6835d16a258ccef0d323d9c225d7ea",
+          "policyId": "b88f6b6381ae324d95312429776803cb048fddd090fc94e3288fbe959296638c"
+        }
+      },
+      "id": "1da6f33b-6077-4b20-8458-61bcf90eaf63",
+      "missionId": "bdf91ec3-815d-40b6-a5b9-bcbcecfd4bc1",
+      "recordedAt": "2026-09-14T00:00:00.400Z",
+      "sequence": 6,
+      "severity": "info",
+      "source": {
+        "id": "demo-source-fbc7b1ed-390b-4dbc-afc4-0272c94207e5",
+        "kind": "simulation",
+        "mode": "simulated"
+      },
+      "taskIds": [],
+      "type": "behavior.assigned",
+      "zoneIds": []
+    }
+  ],
+  "recordedAt": "2026-09-14T00:00:00.400Z",
+  "recordingId": "06d4eda1-8fef-4c34-a3d8-f47d248542ad",
+  "scenario": {
+    "contentHash": "0bcc9a2da2fc792990799ec14d214d679c9619e587e34cb6a1e2e8214d3de7ad",
+    "definitionId": "c6c99294-366f-4eef-b075-ded65d575637",
+    "entityIds": {
+      "friendly-0": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0",
+      "hostile-0": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:hostile-0"
+    },
+    "name": "D4 isolated exercise",
+    "revision": 1
+  },
+  "schemaVersion": "1.10",
+  "sensors": {},
+  "sequence": 6,
+  "streamEpoch": "4a960ba3-7db3-40e1-8c04-a01a0ac942db",
+  "tasks": {},
+  "tracks": {
+    "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0:control": {
+      "entityId": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0",
+      "historySeriesId": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0:control:b0a378b0-50c4-4662-b8fd-0c392b7c3b26",
+      "id": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0:control",
+      "latest": {
+        "discontinuity": false,
+        "position": {
+          "altitude": {
+            "datumId": "WGS84",
+            "metres": 150.125,
+            "reference": "ELLIPSOID"
+          },
+          "latitudeDeg": 1.29,
+          "longitudeDeg": 103.850139773
+        },
+        "timestamp": "2026-09-14T00:00:00.400Z",
+        "velocity": { "headingTrueDeg": 90.0, "speedMps": 77.77777777777777 }
+      },
+      "missionId": "bdf91ec3-815d-40b6-a5b9-bcbcecfd4bc1",
+      "source": {
+        "id": "demo-source-fbc7b1ed-390b-4dbc-afc4-0272c94207e5",
+        "kind": "simulation",
+        "mode": "simulated"
+      },
+      "state": "tracking"
+    },
+    "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:hostile-0:control": {
+      "entityId": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:hostile-0",
+      "historySeriesId": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:hostile-0:control:b0a378b0-50c4-4662-b8fd-0c392b7c3b26",
+      "id": "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:hostile-0:control",
+      "latest": {
+        "discontinuity": false,
+        "position": {
+          "altitude": {
+            "datumId": "WGS84",
+            "metres": 150.125,
+            "reference": "ELLIPSOID"
+          },
+          "latitudeDeg": 1.29,
+          "longitudeDeg": 103.853594172
+        },
+        "timestamp": "2026-09-14T00:00:00.400Z",
+        "velocity": { "headingTrueDeg": 73.5, "speedMps": 0.0 }
+      },
+      "missionId": "bdf91ec3-815d-40b6-a5b9-bcbcecfd4bc1",
+      "source": {
+        "id": "demo-source-fbc7b1ed-390b-4dbc-afc4-0272c94207e5",
+        "kind": "simulation",
+        "mode": "simulated"
+      },
+      "state": "tracking"
+    }
+  },
+  "unitProfiles": {
+    "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:friendly-0": {
+      "cruiseMps": 47.22222222222222,
+      "id": "sting-v1",
+      "label": "STING interceptor",
+      "model": "notional-unit-speed-v1",
+      "pursuitMps": 77.77777777777777,
+      "reference": "https://wildhornets.com/en/sting-interceptor",
+      "referenceDate": "2026-09-18",
+      "variant": "Wild Hornets STING"
+    },
+    "fbc7b1ed-390b-4dbc-afc4-0272c94207e5:hostile-0": {
+      "cruiseMps": 51.388888888888886,
+      "id": "shahed-136-v1",
+      "label": "Shahed-136",
+      "model": "notional-unit-speed-v1",
+      "pursuitMps": 51.388888888888886,
+      "reference": "https://en.wikipedia.org/wiki/HESA_Shahed_136",
+      "referenceDate": "2026-09-18",
+      "variant": "HESA Shahed-136"
+    }
+  },
+  "zones": {}
+}

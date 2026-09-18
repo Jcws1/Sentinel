@@ -1,4 +1,5 @@
 import * as maplibregl from 'maplibre-gl';
+import { affiliationSymbols } from '../symbology';
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import type { GeoJSONSource, StyleSpecification } from 'maplibre-gl';
 import type { Feature, FeatureCollection, Geometry } from 'geojson';
@@ -8,8 +9,12 @@ import type {
   SceneProjection,
   RendererCallbacks,
   MapPresentation,
+  SceneDestination,
 } from '../contracts';
 import { defaultMapPresentation } from '../contracts';
+import { displayedRoutePoints } from '../../world/activePlans';
+import { defaultDisplayPreferences } from '../../state/displayPreferences';
+import { entityLabel, entityLabelVisible } from '../symbolCanvas';
 import { constrainCamera } from '../regions';
 import { acquireArchives, refreshRegionalArchives } from './archiveProtocol';
 import {
@@ -44,6 +49,8 @@ import {
 } from '../providers';
 
 const prefix = '__sentinel-';
+const destinationImageId = (d: SceneDestination, style = 'ring') =>
+  `${prefix}label-destination-${JSON.stringify([d.label, d.stage, d.selected, d.outcome, style])}`;
 // MapLibre 6's ESM worker must be bundled with its shared imports by Vite.
 maplibregl.setWorkerUrl(workerUrl);
 const sourceId = `${prefix}world`;
@@ -246,7 +253,7 @@ export class MapLibreAdapter {
         );
       for (const d of this.scene?.destinations ?? [])
         current.add(
-          `${prefix}label-destination-${JSON.stringify([d.label, d.stage])}`,
+          destinationImageId(d, this.scene?.display?.destinationStyle),
         );
       for (const id of this.imageIds)
         if (!current.has(id) && id.startsWith(`${prefix}label-`)) {
@@ -367,8 +374,8 @@ export class MapLibreAdapter {
     const ids = (this.scene?.objects ?? [])
       .filter((object) => {
         if (
-          !object.managed ||
-          object.affiliation !== 'friendly' ||
+          (this.scene?.context !== 'authoring' &&
+            (!object.managed || object.affiliation !== 'friendly')) ||
           !pickable.has(object.ref.id)
         )
           return false;
@@ -411,7 +418,7 @@ export class MapLibreAdapter {
   private move(point: ScreenPoint) {
     if (!this.installed || !this.active) return;
     const position = this.map.unproject([point.x, point.y]);
-    if (this.scene?.context === 'authoring')
+    if (this.scene?.context === 'authoring' || this.scene?.boundaryInteraction)
       this.callbacks.boundaryContext?.(position.lng, position.lat, point);
     else this.callbacks.directMove?.(position.lng, position.lat);
   }
@@ -581,7 +588,7 @@ export class MapLibreAdapter {
       return;
     }
     const changedMission = this.scene?.missionId !== scene.missionId;
-    if (changedMission) {
+    if (changedMission || this.scene?.context !== scene.context) {
       this.gestures.reset();
       this.framed = false;
       this.keyboardId = undefined;
@@ -604,7 +611,17 @@ export class MapLibreAdapter {
         ]);
         // Clear old mission geometry before the worker processes the new source.
         this.map.setFilter(symbols, ['==', ['get', 'kind'], 'none']);
+        this.map.setFilter(`${prefix}active-route`, [
+          '==',
+          ['get', 'kind'],
+          'none',
+        ]);
         this.map.setFilter(`${prefix}destinations`, [
+          '==',
+          ['get', 'kind'],
+          'none',
+        ]);
+        this.map.setFilter(`${prefix}script-intent`, [
           '==',
           ['get', 'kind'],
           'none',
@@ -634,6 +651,14 @@ export class MapLibreAdapter {
       }
     }
     this.scene = scene;
+    if (this.installed)
+      this.map.setFilter(`${prefix}script-intent`, [
+        '==',
+        ['get', 'kind'],
+        scene.context === 'authoring' && !this.filtersHidden
+          ? 'script-intent'
+          : 'none',
+      ]);
     this.acknowledgement.update(scene.acknowledgement);
     this.positionAcknowledgement();
     if (changedMission) {
@@ -652,6 +677,52 @@ export class MapLibreAdapter {
     )
       this.keyboardId = undefined;
     if (this.installed) this.draw();
+  }
+
+  setMotion(objects: readonly SceneObject[]) {
+    if (
+      this.disposed ||
+      !this.active ||
+      !this.installed ||
+      !this.scene ||
+      this.scene.context === 'authoring'
+    )
+      return;
+    const prior = new Map(
+      this.scene.objects.map((o) => [o.ref.id, o.position]),
+    );
+    this.scene = { ...this.scene, objects };
+    const update: { id: string; newGeometry: Geometry }[] = objects
+      .filter((o) => {
+        const p = prior.get(o.ref.id);
+        return (
+          p &&
+          (p.longitudeDeg !== o.position.longitudeDeg ||
+            p.latitudeDeg !== o.position.latitudeDeg)
+        );
+      })
+      .map((o) => ({
+        id: JSON.stringify(o.ref),
+        newGeometry: {
+          type: 'Point' as const,
+          coordinates: [o.position.longitudeDeg, o.position.latitudeDeg],
+        },
+      }));
+    if (update.length) {
+      for (const route of this.scene.routes ?? []) {
+        const points = displayedRoutePoints(route, objects);
+        if (points.some((p) => Math.abs(p.latitudeDeg) > 85.051129)) continue;
+        update.push({
+          id: `active-route:${route.id}`,
+          newGeometry: {
+            type: 'LineString',
+            coordinates: points.map((p) => [p.longitudeDeg, p.latitudeDeg]),
+          },
+        });
+      }
+      (this.map.getSource(sourceId) as GeoJSONSource)?.updateData({ update });
+      this.sourceSignature = undefined;
+    }
   }
 
   private install() {
@@ -825,6 +896,7 @@ export class MapLibreAdapter {
       filter: ['==', ['get', 'kind'], 'entity'],
       layout: {
         'icon-image': ['get', 'symbol'],
+        'icon-size': ['coalesce', ['get', 'iconScale'], 1],
         'icon-pitch-alignment': 'viewport',
         'icon-rotation-alignment': 'viewport',
         'icon-allow-overlap': true,
@@ -836,16 +908,71 @@ export class MapLibreAdapter {
       id: `${prefix}labels`,
       type: 'symbol',
       source: sourceId,
-      filter: ['==', ['get', 'kind'], 'entity'],
+      filter: [
+        'all',
+        ['==', ['get', 'kind'], 'entity'],
+        ['boolean', ['get', 'labelVisible'], true],
+      ],
       layout: {
         'icon-image': ['get', 'labelImage'],
         'icon-pitch-alignment': 'viewport',
         'icon-rotation-alignment': 'viewport',
         'icon-anchor': 'left',
-        'icon-offset': [18, 0],
+        'icon-offset': [
+          'case',
+          ['get', 'nonOperational'],
+          [
+            'case',
+            ['get', 'friendly'],
+            ['literal', [18, -16]],
+            ['literal', [18, 16]],
+          ],
+          ['literal', [18, 0]],
+        ],
         'icon-padding': 3,
       },
-      paint: { 'icon-opacity': ['case', ['get', 'stale'], 0.65, 1] },
+      paint: {
+        'icon-opacity': [
+          'case',
+          ['get', 'labelVisible'],
+          ['case', ['get', 'stale'], 0.65, 1],
+          0,
+        ],
+      },
+    });
+    this.map.addLayer({
+      id: `${prefix}active-route`,
+      type: 'line',
+      source: sourceId,
+      filter: ['==', ['get', 'kind'], 'active-route'],
+      paint: {
+        'line-color': affiliationSymbols.friendly.color,
+        'line-width': 1.6,
+        'line-dasharray': [4, 3],
+        'line-opacity': ['coalesce', ['get', 'opacity'], 0.7],
+      },
+    });
+    this.map.addLayer({
+      id: `${prefix}script-intent`,
+      type: 'line',
+      source: sourceId,
+      filter: ['==', ['get', 'kind'], 'script-intent'],
+      paint: {
+        'line-color': '#a8c1c9',
+        'line-width': [
+          'case',
+          ['boolean', ['get', 'selected'], false],
+          2.7,
+          1.25,
+        ],
+        'line-dasharray': [3, 3],
+        'line-opacity': [
+          'case',
+          ['boolean', ['get', 'selected'], false],
+          1,
+          0.55,
+        ],
+      },
     });
     this.map.addLayer({
       id: `${prefix}destinations`,
@@ -867,11 +994,11 @@ export class MapLibreAdapter {
   }
 
   private labelId(object: SceneObject) {
-    return `${prefix}label-${JSON.stringify([object.label, object.affiliation, object.stale, object.unavailable])}`;
+    return `${prefix}label-${JSON.stringify([entityLabel(object, this.scene?.display), object.affiliation, object.stale, object.unavailable])}`;
   }
 
   private addImages(object: SceneObject) {
-    const iconId = `${prefix}${object.affiliation}:${Boolean(object.unavailable)}`;
+    const iconId = `${prefix}${object.affiliation}:${Boolean(object.unavailable)}:${object.condition === 'non-operational'}:${object.profileId ?? 'generic'}:${this.scene?.display?.entityStyle ?? 'minimal'}`;
     if (!this.map.hasImage(iconId)) {
       const canvas = symbolCanvas(
         object.affiliation,
@@ -879,6 +1006,9 @@ export class MapLibreAdapter {
         false,
         false,
         Boolean(object.unavailable),
+        object.condition === 'non-operational',
+        object.profileId,
+        this.scene?.display?.entityStyle,
       );
       const context = canvas.getContext('2d')!;
       this.map.addImage(iconId, context.getImageData(0, 0, 56, 56), {
@@ -890,11 +1020,7 @@ export class MapLibreAdapter {
     if (!this.map.hasImage(labelId)) {
       const canvas = document.createElement('canvas');
       const context = canvas.getContext('2d')!;
-      const label =
-        object.label.length > 36
-          ? `${object.label.slice(0, 35)}…`
-          : object.label;
-      const text = `${label}${object.unavailable ? ` · ${object.unavailable}` : object.stale ? ' · Last known' : ''}`;
+      const text = entityLabel(object, this.scene?.display);
       context.font = '22px ui-monospace, Consolas, monospace';
       canvas.width = Math.ceil(context.measureText(text).width) + 12;
       canvas.height = 32;
@@ -917,6 +1043,7 @@ export class MapLibreAdapter {
   private draw() {
     if (!this.active || !this.installed || !this.scene) return;
     const scene = this.scene;
+    const display = scene.display ?? defaultDisplayPreferences;
     const features: Feature<Geometry>[] = scene.zones.map((zone) => ({
       type: 'Feature',
       id: JSON.stringify(zone.ref),
@@ -1002,7 +1129,10 @@ export class MapLibreAdapter {
         if (segment.length > 1)
           features.push({
             type: 'Feature',
-            properties: { kind: 'trail', pathId: path.id },
+            properties: {
+              kind: 'trail',
+              pathId: path.id,
+            },
             geometry: { type: 'LineString', coordinates: segment },
           });
         segment = [];
@@ -1035,10 +1165,14 @@ export class MapLibreAdapter {
         id: JSON.stringify(object.ref),
         properties: {
           kind: 'entity',
+          iconScale: display.iconSize / 28,
+          labelVisible: entityLabelVisible(object, display),
           entityId: object.ref.id,
           selected: object.selected,
           keyboard: object.ref.id === this.keyboardId,
           stale: object.stale,
+          nonOperational: object.condition === 'non-operational',
+          friendly: object.affiliation === 'friendly',
           ...this.addImages(object),
         },
         geometry: {
@@ -1050,10 +1184,44 @@ export class MapLibreAdapter {
         },
       });
     }
+    for (const route of scene.routes ?? []) {
+      const points = displayedRoutePoints(route, scene.objects);
+      if (points.some((p) => Math.abs(p.latitudeDeg) > 85.051129)) continue;
+      features.push({
+        type: 'Feature',
+        id: `active-route:${route.id}`,
+        properties: {
+          kind: 'active-route',
+          routeKind: route.kind,
+          label: route.label,
+          opacity: display.planOpacity,
+        },
+        geometry: {
+          type: 'LineString',
+          coordinates: points.map((p) => [p.longitudeDeg, p.latitudeDeg]),
+        },
+      });
+    }
     for (const d of scene.destinations ?? []) {
-      const imageId = `${prefix}label-destination-${JSON.stringify([d.label, d.stage])}`;
+      if (d.intentOrigin)
+        features.push({
+          type: 'Feature',
+          id: `script-intent:${d.id}`,
+          properties: { kind: 'script-intent', selected: !!d.selected },
+          geometry: {
+            type: 'LineString',
+            coordinates: [
+              [d.intentOrigin.longitudeDeg, d.intentOrigin.latitudeDeg],
+              [
+                (d.intentEnd ?? d.position).longitudeDeg,
+                (d.intentEnd ?? d.position).latitudeDeg,
+              ],
+            ],
+          },
+        });
+      const imageId = destinationImageId(d, display.destinationStyle);
       if (!this.map.hasImage(imageId)) {
-        const canvas = destinationCanvas(d);
+        const canvas = destinationCanvas(d, display.destinationStyle);
         this.map.addImage(
           imageId,
           canvas
@@ -1084,7 +1252,7 @@ export class MapLibreAdapter {
       this.sceneDraws++;
       (this.map.getSource(sourceId) as GeoJSONSource).setData({
         type: 'FeatureCollection',
-        features,
+        features: features.map((f, i) => ({ ...f, id: f.id ?? `static:${i}` })),
       });
     } else if (this.map.loaded()) {
       // A new frame with identical geometry is already fully represented.
@@ -1096,6 +1264,11 @@ export class MapLibreAdapter {
       this.filterRestoreQueued = false;
       if (this.disposed || !this.installed || !this.filtersHidden) return;
       this.filtersHidden = false;
+      this.map.setFilter(`${prefix}script-intent`, [
+        '==',
+        ['get', 'kind'],
+        this.scene?.context === 'authoring' ? 'script-intent' : 'none',
+      ]);
       this.map.setFilter(`${prefix}trail-line`, [
         '==',
         ['get', 'kind'],
@@ -1107,12 +1280,21 @@ export class MapLibreAdapter {
         'trail-point',
       ]);
       this.map.setFilter(symbols, ['==', ['get', 'kind'], 'entity']);
+      this.map.setFilter(`${prefix}active-route`, [
+        '==',
+        ['get', 'kind'],
+        'active-route',
+      ]);
       this.map.setFilter(`${prefix}destinations`, [
         '==',
         ['get', 'kind'],
         'destination',
       ]);
-      this.map.setFilter(`${prefix}labels`, ['==', ['get', 'kind'], 'entity']);
+      this.map.setFilter(`${prefix}labels`, [
+        'all',
+        ['==', ['get', 'kind'], 'entity'],
+        ['boolean', ['get', 'labelVisible'], true],
+      ]);
       this.map.setFilter(`${prefix}selection`, [
         'all',
         ['==', ['get', 'kind'], 'entity'],
@@ -1470,10 +1652,29 @@ export class MapLibreAdapter {
         ),
       ].sort(),
       selectedId: this.scene?.selection.id,
+      renderedPoints: features
+        .filter(
+          (f) => f.properties.kind === 'entity' && f.geometry.type === 'Point',
+        )
+        .map((f) => ({
+          id: f.properties.entityId,
+          coordinates:
+            f.geometry.type === 'Point' ? f.geometry.coordinates : [],
+        })),
       selectedIds: this.scene?.objects
         .filter((o) => o.selected)
         .map((o) => o.ref.id),
       destinations: this.scene?.destinations,
+      routes: this.scene?.routes,
+      display: this.scene?.display,
+      scriptIntents: features.filter(
+        (f) => f.properties.kind === 'script-intent',
+      ).length,
+      destinationImagesReady: (this.scene?.destinations ?? []).every((d) =>
+        this.map.hasImage(
+          destinationImageId(d, this.scene?.display?.destinationStyle),
+        ),
+      ),
       trails: (this.scene?.paths ?? []).map((p) => ({
         id: p.id,
         trackId: p.trackId,

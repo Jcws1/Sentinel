@@ -11,7 +11,7 @@ import {
 } from './rtsActions';
 test.use({ trace: 'off' });
 const evidence = resolve(
-  '../docs/d2/regressions/evidence/regressions/regressions',
+  '../docs/d4-refinement/regressions/d4/regressions/interactive',
 );
 test.beforeEach(async () => {
   await mkdir(evidence, { recursive: true });

@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import raw from '../../../contracts/sentinel/v1.7/demo.world.json';
+import raw from '../../../contracts/sentinel/v1.11/demo.world.json';
 import { validateFrame } from '../../src/contracts/decode';
 import { initialSession } from '../../src/state/sessionStore';
 import type {
@@ -30,7 +30,7 @@ it('keeps synchronization notices for either receipt without replacing the prese
     frame = state.presentation.frame!,
     bridge = new WorkspaceBridge();
   const receipt = (sequence: number): Receipt => ({
-    schemaVersion: '1.2',
+    schemaVersion: '1.6',
     accepted: true,
     code: 'OK',
     message: 'Accepted',
@@ -104,7 +104,7 @@ it('does not claim control from an expired, disconnected or unsynchronized statu
   state.interactive = {
     ...state.interactive,
     current: {
-      schemaVersion: '1.3',
+      schemaVersion: '1.7',
       serverTime: state.interactive.now!,
       ownsControl: true,
       leaseState: 'held',

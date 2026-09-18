@@ -683,6 +683,8 @@ test('standard retry recovers failed terrain without reauthenticating or reloadi
     .toBe('ready');
   expect(imageryEndpoints).toBe(1);
   expect(terrainEndpoints).toBe(2);
+  // Provider readiness precedes Cesium's committed presentation acknowledgement.
+  await expect.poll(async () => (await inspect(page)).ready).toBe(true);
   const after = await inspect(page);
   // Cesium invalidates globe tiles when terrain changes, including cached tile
   // textures. Assert Sentinel's service retention directly, not SDK tile demand.
@@ -707,7 +709,7 @@ test('standard retry recovers failed terrain without reauthenticating or reloadi
   assertContext(before, after);
   await expect(pane(page)).toHaveAttribute('data-selection', selected!);
   const evidence = resolve(
-    '../docs/d2/regressions/evidence/regressions/regressions/regressions/recovery',
+    '../docs/d4-refinement/regressions/d4/regressions/map-recovery',
   );
   await mkdir(evidence, { recursive: true });
   await writeFile(

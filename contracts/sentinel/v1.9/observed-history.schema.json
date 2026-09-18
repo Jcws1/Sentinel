@@ -1,0 +1,418 @@
+{
+  "$defs": {
+    "Altitude": {
+      "additionalProperties": false,
+      "properties": {
+        "datumId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Datumid"
+        },
+        "metres": {
+          "title": "Metres",
+          "type": "number"
+        },
+        "reference": {
+          "enum": [
+            "MSL",
+            "ELLIPSOID",
+            "AGL"
+          ],
+          "title": "Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "metres",
+        "reference"
+      ],
+      "title": "Altitude",
+      "type": "object"
+    },
+    "ObservedSegment": {
+      "additionalProperties": false,
+      "properties": {
+        "breakReason": {
+          "enum": [
+            "window-start",
+            "missing-observation",
+            "source-change",
+            "altitude-reference",
+            "discontinuity",
+            "time-regression",
+            "observation-gap"
+          ],
+          "title": "Breakreason",
+          "type": "string"
+        },
+        "historySeriesId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Historyseriesid",
+          "type": "string"
+        },
+        "points": {
+          "items": {
+            "$ref": "#/$defs/RecordedObservation"
+          },
+          "maxItems": 2000,
+          "minItems": 1,
+          "title": "Points",
+          "type": "array"
+        },
+        "source": {
+          "$ref": "#/$defs/SourceRef"
+        },
+        "trackId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Trackid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "trackId",
+        "historySeriesId",
+        "source",
+        "breakReason",
+        "points"
+      ],
+      "title": "ObservedSegment",
+      "type": "object"
+    },
+    "Position3D": {
+      "additionalProperties": false,
+      "properties": {
+        "altitude": {
+          "$ref": "#/$defs/Altitude"
+        },
+        "latitudeDeg": {
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Latitudedeg",
+          "type": "number"
+        },
+        "longitudeDeg": {
+          "maximum": 180,
+          "minimum": -180,
+          "title": "Longitudedeg",
+          "type": "number"
+        }
+      },
+      "required": [
+        "longitudeDeg",
+        "latitudeDeg",
+        "altitude"
+      ],
+      "title": "Position3D",
+      "type": "object"
+    },
+    "RecordedObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "frameEffectiveAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Frameeffectiveat",
+          "type": "string"
+        },
+        "frameId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Frameid",
+          "type": "string"
+        },
+        "recordedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Recordedat",
+          "type": "string"
+        },
+        "sample": {
+          "$ref": "#/$defs/TrackSample"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "frameId",
+        "sequence",
+        "frameEffectiveAt",
+        "recordedAt",
+        "sample"
+      ],
+      "title": "RecordedObservation",
+      "type": "object"
+    },
+    "SourceRef": {
+      "additionalProperties": false,
+      "properties": {
+        "externalId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Externalid"
+        },
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "simulation",
+            "sensor",
+            "manual",
+            "import"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "simulated",
+            "live",
+            "replay"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "recordingId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recordingid"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "mode"
+      ],
+      "title": "SourceRef",
+      "type": "object"
+    },
+    "TrackSample": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "discontinuity": {
+          "default": false,
+          "title": "Discontinuity",
+          "type": "boolean"
+        },
+        "position": {
+          "$ref": "#/$defs/Position3D"
+        },
+        "timestamp": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "velocity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Velocity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "timestamp",
+        "position"
+      ],
+      "title": "TrackSample",
+      "type": "object"
+    },
+    "Velocity": {
+      "additionalProperties": false,
+      "properties": {
+        "headingTrueDeg": {
+          "exclusiveMaximum": 360,
+          "minimum": 0,
+          "title": "Headingtruedeg",
+          "type": "number"
+        },
+        "speedMps": {
+          "minimum": 0,
+          "title": "Speedmps",
+          "type": "number"
+        },
+        "verticalSpeedMps": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Verticalspeedmps"
+        }
+      },
+      "required": [
+        "speedMps",
+        "headingTrueDeg"
+      ],
+      "title": "Velocity",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "entityId": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+      "title": "Entityid",
+      "type": "string"
+    },
+    "fromAt": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+      "title": "Fromat",
+      "type": "string"
+    },
+    "inspectedFrames": {
+      "maximum": 1000,
+      "minimum": 0,
+      "title": "Inspectedframes",
+      "type": "integer"
+    },
+    "maxGapSeconds": {
+      "const": 30,
+      "default": 30,
+      "title": "Maxgapseconds",
+      "type": "integer"
+    },
+    "missionId": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+      "title": "Missionid",
+      "type": "string"
+    },
+    "recordingId": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+      "title": "Recordingid",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": "1.0",
+      "title": "Schemaversion",
+      "type": "string"
+    },
+    "segments": {
+      "items": {
+        "$ref": "#/$defs/ObservedSegment"
+      },
+      "maxItems": 2000,
+      "title": "Segments",
+      "type": "array"
+    },
+    "streamEpoch": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+      "title": "Streamepoch",
+      "type": "string"
+    },
+    "throughAt": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+      "title": "Throughat",
+      "type": "string"
+    },
+    "throughFrameId": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+      "title": "Throughframeid",
+      "type": "string"
+    },
+    "throughSequence": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Throughsequence",
+      "type": "integer"
+    },
+    "truncated": {
+      "title": "Truncated",
+      "type": "boolean"
+    },
+    "windowSeconds": {
+      "maximum": 300,
+      "minimum": 5,
+      "title": "Windowseconds",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "missionId",
+    "entityId",
+    "recordingId",
+    "streamEpoch",
+    "throughFrameId",
+    "throughSequence",
+    "throughAt",
+    "fromAt",
+    "windowSeconds",
+    "inspectedFrames",
+    "truncated",
+    "segments"
+  ],
+  "title": "ObservedHistory",
+  "type": "object"
+}
