@@ -28,6 +28,28 @@ import {
   MAX_SCENARIO_UNITS,
 } from '../contracts/scenarios';
 import { immutableCopy } from '../world/immutable';
+import {
+  legacyOrigin,
+  originFor,
+  locationGeometry,
+  locationConflicts,
+} from '../world/localGeometry';
+import type { LocalGeometry } from '../contracts/generated';
+
+export interface LocationEdit {
+  longitude: string;
+  latitude: string;
+  viewId?: string;
+}
+export function locationPreview(draft: ScenarioContent, edit: LocationEdit) {
+  if (!edit.longitude.trim() || !edit.latitude.trim())
+    throw new Error('Enter both origin coordinates.');
+  const geometry = locationGeometry(
+    Number(edit.longitude),
+    Number(edit.latitude),
+  );
+  return { geometry, conflicts: locationConflicts(draft, geometry) };
+}
 
 interface Pending {
   definitionId?: string;
@@ -103,6 +125,12 @@ export interface ActionEdit {
   viewId?: string;
 }
 export interface ScenarioState {
+  locationEdit?: LocationEdit;
+  locationCamera?: {
+    viewId: string;
+    serial: number;
+    geometry?: LocalGeometry | null;
+  };
   actionEdit?: ActionEdit;
   selectedActionId?: string;
   selectedActionIds?: string[];
@@ -258,7 +286,14 @@ export function createScenarioClient(options: {
   let locateSerial = 0;
   let state: ScenarioState = {
     active: false,
-    draft: { name: 'Untitled scenario', units: [] },
+    draft: {
+      name: 'Untitled scenario',
+      units: [],
+      localGeometry: locationGeometry(
+        legacyOrigin.longitudeDeg,
+        legacyOrigin.latitudeDeg,
+      ),
+    },
     dirty: false,
     busy: false,
     catalog: [],
@@ -274,14 +309,28 @@ export function createScenarioClient(options: {
         edit?: ScenarioUnitEdit;
         boundaryEdit?: BoundaryEdit;
         actionEdit?: ActionEdit;
+        locationEdit?: LocationEdit;
       };
       const content = readDraft(value.content);
+      if (
+        value.locationEdit &&
+        ![value.locationEdit.longitude, value.locationEdit.latitude].every(
+          (v) => typeof v === 'string' && v.length <= 64,
+        )
+      )
+        throw new Error('Invalid recovered location edit.');
       const saved = value.saved
         ? decodeScenarioRevision(value.saved)
         : undefined;
       state = {
         ...state,
         draft: content,
+        locationEdit: value.locationEdit
+          ? {
+              longitude: value.locationEdit.longitude,
+              latitude: value.locationEdit.latitude,
+            }
+          : undefined,
         saved,
         dirty: !saved || canonical(content) !== canonical(saved.content),
         edit: value.edit ? readEdit(value.edit, content) : undefined,
@@ -317,6 +366,7 @@ export function createScenarioClient(options: {
       'edit' in update ||
       'boundaryEdit' in update ||
       'actionEdit' in update ||
+      'locationEdit' in update ||
       update.active === false ||
       update.placement
     ) {
@@ -339,6 +389,7 @@ export function createScenarioClient(options: {
             edit: state.edit,
             boundaryEdit: state.boundaryEdit,
             actionEdit: state.actionEdit,
+            locationEdit: state.locationEdit,
           }),
         );
       } catch {
@@ -467,6 +518,136 @@ export function createScenarioClient(options: {
   }
   return {
     get: () => snapshot,
+    beginLocation(viewId?: string) {
+      if (
+        !state.active ||
+        state.edit ||
+        state.boundaryEdit ||
+        state.actionEdit ||
+        state.pending ||
+        state.busy ||
+        state.blocked
+      )
+        return false;
+      const origin = originFor(state.draft);
+      emit(
+        {
+          locationEdit: {
+            longitude:
+              state.locationEdit?.longitude ?? String(origin.longitudeDeg),
+            latitude:
+              state.locationEdit?.latitude ?? String(origin.latitudeDeg),
+            viewId,
+          },
+          placement: undefined,
+          boundaryMenu: undefined,
+          error: undefined,
+        },
+        true,
+      );
+      return true;
+    },
+    editLocation(
+      update: Partial<Pick<LocationEdit, 'longitude' | 'latitude'>>,
+    ) {
+      if (state.locationEdit && !state.pending && !state.busy)
+        emit(
+          {
+            locationEdit: {
+              ...state.locationEdit,
+              ...update,
+              viewId: undefined,
+            },
+            error: undefined,
+          },
+          true,
+        );
+    },
+    pickLocation(longitude: number, latitude: number, viewId: string) {
+      if (
+        !state.active ||
+        state.locationEdit?.viewId !== viewId ||
+        state.pending ||
+        state.busy
+      )
+        return false;
+      emit(
+        {
+          locationEdit: {
+            longitude: String(longitude),
+            latitude: String(latitude),
+          },
+          error: undefined,
+        },
+        true,
+      );
+      return true;
+    },
+    disarmLocation(viewId?: string) {
+      if (
+        state.locationEdit &&
+        (!viewId || state.locationEdit.viewId === viewId)
+      )
+        emit(
+          { locationEdit: { ...state.locationEdit, viewId: undefined } },
+          true,
+        );
+    },
+    cancelLocation() {
+      if (!state.pending && !state.busy)
+        emit({ locationEdit: undefined, error: undefined }, true);
+    },
+    applyLocation() {
+      if (
+        !state.active ||
+        !state.locationEdit ||
+        state.pending ||
+        state.busy ||
+        state.blocked
+      )
+        return false;
+      try {
+        const { geometry, conflicts } = locationPreview(
+          state.draft,
+          state.locationEdit,
+        );
+        if (conflicts.length)
+          throw new Error(
+            `Origin cannot be applied: ${conflicts.join('; ')} fall outside the proposed square. Existing content is unchanged.`,
+          );
+        const draft = readDraft({ ...state.draft, localGeometry: geometry });
+        emit(
+          {
+            draft,
+            dirty: true,
+            locationEdit: undefined,
+            error: undefined,
+            message:
+              'Scenario origin changed. Geographic positions and heights are unchanged. Save a new revision.',
+          },
+          true,
+        );
+        return true;
+      } catch (error) {
+        emit({ error: (error as Error).message });
+        return false;
+      }
+    },
+    showLocationArea(viewId: string) {
+      if (!state.active) return;
+      try {
+        const geometry = state.locationEdit
+          ? locationPreview(state.draft, state.locationEdit).geometry
+          : state.draft.localGeometry;
+        emit({ locationCamera: { viewId, serial: ++locateSerial, geometry } });
+      } catch (error) {
+        emit({ error: (error as Error).message });
+      }
+    },
+    completeLocationCamera(serial: number) {
+      if (state.locationCamera?.serial === serial)
+        emit({ locationCamera: undefined });
+    },
     report: (error: string) => emit({ error }),
     locate(id: string, viewId: string) {
       if (state.active && state.draft.units.some((u) => u.id === id))
@@ -480,6 +661,7 @@ export function createScenarioClient(options: {
     editUnit(edit: ScenarioUnitEdit) {
       if (
         !state.active ||
+        state.locationEdit ||
         state.actionEdit ||
         state.boundaryEdit ||
         state.blocked ||
@@ -556,7 +738,7 @@ export function createScenarioClient(options: {
       } catch {
         emit({
           error:
-            'Check selected unit edits: label required, coordinates within 5 km, height 0–5000 m and heading 0–359.999°. Only friendly drones may have Sentinel control.',
+            'Check selected unit edits: label required, coordinates within ±5 km east/west and north/south, height 0–5000 m and heading 0–359.999°. Only friendly drones may have Sentinel control.',
         });
       }
     },
@@ -568,6 +750,10 @@ export function createScenarioClient(options: {
       emit(
         {
           active: false,
+          locationEdit: state.locationEdit
+            ? { ...state.locationEdit, viewId: undefined }
+            : undefined,
+          locationCamera: undefined,
           actionEdit: state.actionEdit
             ? { ...state.actionEdit, viewId: undefined }
             : undefined,
@@ -581,6 +767,7 @@ export function createScenarioClient(options: {
       ),
     newDraft() {
       if (
+        !state.locationEdit &&
         !state.edit &&
         !state.actionEdit &&
         !state.boundaryEdit &&
@@ -591,7 +778,14 @@ export function createScenarioClient(options: {
         emit(
           {
             active: true,
-            draft: { name: 'Untitled scenario', units: [] },
+            draft: {
+              name: 'Untitled scenario',
+              units: [],
+              localGeometry: locationGeometry(
+                legacyOrigin.longitudeDeg,
+                legacyOrigin.latitudeDeg,
+              ),
+            },
             saved: undefined,
             dirty: true,
             placement: undefined,
@@ -606,6 +800,7 @@ export function createScenarioClient(options: {
     update(draft: ScenarioContent) {
       if (
         state.active &&
+        !state.locationEdit &&
         !state.edit &&
         !state.actionEdit &&
         !state.boundaryEdit &&
@@ -632,7 +827,8 @@ export function createScenarioClient(options: {
     arm(placement?: ScenarioState['placement']) {
       if (
         !placement ||
-        (!state.edit &&
+        (!state.locationEdit &&
+          !state.edit &&
           !state.actionEdit &&
           !state.boundaryEdit &&
           !state.blocked &&
@@ -646,6 +842,7 @@ export function createScenarioClient(options: {
     },
     async load(id: string) {
       if (
+        state.locationEdit ||
         state.edit ||
         state.actionEdit ||
         state.boundaryEdit ||
@@ -683,6 +880,7 @@ export function createScenarioClient(options: {
     },
     async save(asNew = false) {
       if (
+        state.locationEdit ||
         state.edit ||
         state.actionEdit ||
         state.boundaryEdit ||
@@ -752,6 +950,7 @@ export function createScenarioClient(options: {
         !state.active ||
         !state.saved ||
         state.dirty ||
+        state.locationEdit ||
         state.edit ||
         state.actionEdit ||
         state.boundaryEdit ||
@@ -810,6 +1009,7 @@ export function createScenarioClient(options: {
     beginAction(id?: string, duplicate = false) {
       if (
         !state.active ||
+        state.locationEdit ||
         state.edit ||
         state.boundaryEdit ||
         state.actionEdit ||
@@ -869,6 +1069,7 @@ export function createScenarioClient(options: {
     beginBatch(unitIds: string[], actionIds: string[] = []) {
       if (
         !state.active ||
+        state.locationEdit ||
         state.edit ||
         state.boundaryEdit ||
         state.actionEdit ||
@@ -1051,6 +1252,7 @@ export function createScenarioClient(options: {
     deleteAction(id: string) {
       if (
         state.actionEdit ||
+        state.locationEdit ||
         state.edit ||
         state.boundaryEdit ||
         state.pending ||
@@ -1084,6 +1286,7 @@ export function createScenarioClient(options: {
     reorderAction(id: string, direction: -1 | 1) {
       if (
         state.actionEdit ||
+        state.locationEdit ||
         state.edit ||
         state.boundaryEdit ||
         state.pending ||
@@ -1123,6 +1326,7 @@ export function createScenarioClient(options: {
     beginBoundary(viewId: string, id?: string) {
       if (
         !state.active ||
+        state.locationEdit ||
         state.edit ||
         state.pending ||
         state.busy ||
@@ -1199,8 +1403,10 @@ export function createScenarioClient(options: {
         vertices[index] = value;
       else {
         const last = vertices.at(-1),
-          a = last && metricVertex([Number(last[0]), Number(last[1])]),
-          b = metricVertex([longitude, latitude]);
+          a =
+            last &&
+            metricVertex([Number(last[0]), Number(last[1])], state.draft),
+          b = metricVertex([longitude, latitude], state.draft);
         if (a && Math.hypot(a[0] - b[0], a[1] - b[1]) <= 0.001) return true;
         if (vertices.length >= 32) {
           emit({ error: 'At most 32 vertices are supported.' });
@@ -1256,7 +1462,7 @@ export function createScenarioClient(options: {
             Number(v[1]),
           ]) as BoundaryDefinition['vertices'],
         };
-        validateBoundary(boundary);
+        validateBoundary(boundary, state.draft);
         const boundaries = [...(state.draft.boundaries ?? [])];
         const index = boundaries.findIndex((b) => b.id === edit.originalId);
         if (index >= 0) boundaries[index] = boundary;
@@ -1289,6 +1495,7 @@ export function createScenarioClient(options: {
     },
     setBoundaryType(id: string, type: BoundaryDefinition['type']) {
       if (
+        state.locationEdit ||
         state.edit ||
         state.actionEdit ||
         state.boundaryEdit ||
@@ -1302,7 +1509,7 @@ export function createScenarioClient(options: {
       if (!boundary) return;
       try {
         boundary.type = type;
-        validateBoundary(boundary);
+        validateBoundary(boundary, state.draft);
         emit(
           {
             draft: {
@@ -1325,6 +1532,7 @@ export function createScenarioClient(options: {
     },
     deleteBoundary(id: string) {
       if (
+        state.locationEdit ||
         state.edit ||
         state.actionEdit ||
         state.boundaryEdit ||
@@ -1366,7 +1574,9 @@ export function createScenarioClient(options: {
         return;
       }
       const ids = (state.draft.boundaries ?? [])
-        .filter((b) => boundaryContains([longitude, latitude], b.vertices))
+        .filter((b) =>
+          boundaryContains([longitude, latitude], b.vertices, state.draft),
+        )
         .map((b) => b.id)
         .sort();
       emit({ boundaryMenu: { ids, viewId, x, y } });

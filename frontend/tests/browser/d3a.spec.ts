@@ -324,7 +324,8 @@ test('Missions loads a saved group script, actual completion dependencies execut
   ).scenarios.find(
     (s: ScenarioRevision) => s.content.name === name,
   ) as ScenarioRevision;
-  expect(saved.schemaVersion).toBe('1.4');
+  expect(saved.schemaVersion).toBe('1.6');
+  expect(saved.content.localGeometry?.modelId).toBe('local-horizontal-v2');
   expect(saved.content.actions).toHaveLength(8);
   await page.getByRole('button', { name: 'Load mission', exact: true }).click();
   await page.getByRole('menuitem', { name: new RegExp(name) }).click();

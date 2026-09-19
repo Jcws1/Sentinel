@@ -21,6 +21,7 @@ export function BoundaryPanel({ viewId }: { viewId?: string }) {
     scenario.busy ||
     !!scenario.blocked ||
     !!scenario.edit ||
+    (state.scenario.active && !!state.scenario.locationEdit) ||
     !!scenario.placement ||
     scenario.reviewing;
   useEffect(() => {
@@ -361,6 +362,7 @@ export function LiveBoundaryList() {
                   frame.zones[id].geometry.coordinates[0]
                     .slice(0, -1)
                     .map((v) => [v[0], v[1]] as const),
+                  frame,
                 ),
             )
             .map((t) => (

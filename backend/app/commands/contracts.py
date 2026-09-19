@@ -7,7 +7,8 @@ from app.commands.legacy import LegacyReceipt
 from app.commands.legacy_movement import LegacyM12Receipt
 from app.commands.legacy_d2 import LegacyD2Receipt
 from app.commands.legacy_d3 import LegacyD3Receipt
-from app.commands.boundary_contracts import BoundaryMutation
+from app.commands.boundary_contracts import LocatedBoundaryMutation as BoundaryMutation
+from app.commands.boundary_contracts import BoundaryMutation as LegacyBoundaryMutation
 from app.commands.legacy_d3a import LegacyD3aReceipt, LegacyD3aRunRead
 from app.commands.behavior_contracts import BehaviorPolicy, BehaviorMemberOutcome
 from app.commands.legacy_d4 import LegacyD4Receipt, LegacyD4RunRead
@@ -53,7 +54,7 @@ class MoveMember(Model):
 
 
 class MoveIntent(Model):
-    model_id: Literal["local-horizontal-v1"] = "local-horizontal-v1"
+    model_id: Literal["local-horizontal-v1", "local-horizontal-v2"] = "local-horizontal-v1"
     mission_id: Id
     run_id: Id
     executor_epoch: Id
@@ -85,7 +86,7 @@ class DirectMoveMember(Model):
 
 class DirectMoveIntent(Model):
     intercept: Literal[True] | None = None
-    model_id: Literal["local-horizontal-v1"] = "local-horizontal-v1"
+    model_id: Literal["local-horizontal-v1", "local-horizontal-v2"] = "local-horizontal-v1"
     mission_id: Id
     run_id: Id
     executor_epoch: Id
@@ -221,8 +222,12 @@ class AssetControl(Model):
     last_direct_order: DirectOrderContext | None = None
 
 
+from app.scenarios.location import LocalGeometry, model_for
+
+
 class InteractiveRun(Model):
-    schema_version: Literal["1.7"] = "1.7"
+    schema_version: Literal["1.7", "1.8"] = "1.7"
+    local_geometry: LocalGeometry | None = None
     mission_id: Id
     run_id: Id
     template_id: Literal["singapore-local-v1", "singapore-local-v2"] = "singapore-local-v2"
@@ -239,8 +244,23 @@ class InteractiveRun(Model):
     tick: Sequence
     last_report_at: UtcInstant | None = None
     controls: list[AssetControl] = Field(max_length=32)
-    movement_model: Literal["local-horizontal-v1"] = "local-horizontal-v1"
+    movement_model: Literal["local-horizontal-v1", "local-horizontal-v2"] = "local-horizontal-v1"
     executions: list[MovementExecution] = Field(default_factory=list, max_length=64)
+
+    @model_validator(mode="after")
+    def strict_legacy_geometry(self):
+        # fields_set survives revalidation of an already validated model. Looking
+        # at a generated before-validator dict would mistake its default None
+        # for a property supplied by the historical wire payload.
+        if self.schema_version == "1.7" and "local_geometry" in self.model_fields_set:
+            raise ValueError("Legacy runs cannot contain a local geometry field, including null")
+        return self
+
+    @model_validator(mode="after")
+    def location_version(self):
+        if self.schema_version != ("1.8" if self.local_geometry else "1.7") or self.movement_model != model_for(self):
+            raise ValueError("Run geometry and version disagree")
+        return self
 
 
 
@@ -481,13 +501,19 @@ class Receipt(Model):
 
 class RunRead(Model):
     unit_profiles: dict[Id, UnitProfile] = Field(default_factory=dict)
-    schema_version: Literal["1.7"] = "1.7"
+    schema_version: Literal["1.7", "1.8"] = "1.7"
     server_time: UtcInstant
     frame_id: Id
     sequence: Sequence
     run: InteractiveRun
     owns_control: bool
     lease_state: Literal["unclaimed", "held", "expired"]
+
+    @model_validator(mode="after")
+    def location_version(self):
+        if self.schema_version != self.run.schema_version:
+            raise ValueError("Status and run versions disagree")
+        return self
 
 
 ReceiptRead = Receipt | LegacyD4Receipt | LegacyD3aReceipt | LegacyD3Receipt | LegacyD2Receipt | LegacyM12Receipt | LegacyReceipt
@@ -510,6 +536,7 @@ class DemoEntry(Model):
 
 class CommandContracts(Model):
     """Export root; no route accepts this aggregate."""
+    legacy_boundary_mutation: LegacyBoundaryMutation
     intent: Intent
     command: CommandRequest
     creation: CreateRunRequest

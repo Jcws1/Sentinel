@@ -8,10 +8,12 @@ Tactical uses MapLibre; ordinary 3D and Video use role-specific Cesium presentat
 
 Saved scenarios support forty entities, with at most thirty-two controlled actors. The supported 20v20 case has twenty Friendly controlled actors and twenty Hostile observation-only scripted actors. Existing assignment/Intercept eligibility, ordering, boundaries, atomic outcomes and NON-OP persistence remain unchanged.
 
+New scenarios own versioned horizontal geometry, frozen into each run and recording. Legacy absence retains the historical origin. The ±5 km square is fixed; origin edits preserve geographic content and reject invalidating changes. Drafts and map viewports never own a running mission's geometry. See [scenario locations](scenario-location/README.md).
+
 ## Files that remain intentionally
 
 - `backend/app/**/legacy*.py`: strict versioned compatibility readers, reached through current imports.
-- `contracts/sentinel/v*/`: immutable historical message packages and current v1.13 exports.
+- `contracts/sentinel/v*/`: immutable historical message packages and current v1.14 exports.
 - `backend/drafts/`, unversioned foundation exports and Phase-0 scripts: still used by structural/specification verification.
 - Developer fixtures, migration code, worker configuration, font/map notices and test harness entry points: active behavior or verification dependencies.
 

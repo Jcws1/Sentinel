@@ -1,3 +1,8 @@
+import {
+  insideExtent,
+  validateLocalGeometry,
+  type GeometryOwner,
+} from '../world/localGeometry';
 import { validateBoundary } from '../world/boundaryGeometry';
 import { profileOptions } from '../world/unitProfiles';
 import d3aSchema from '../../../contracts/sentinel/v1.10/scenarios.schema.json';
@@ -7,8 +12,8 @@ import addFormats from 'ajv-formats';
 import boundarySchema from '../../../contracts/sentinel/v1.7/scenarios.schema.json';
 import scheduledSchema from '../../../contracts/sentinel/v1.8/scenarios.schema.json';
 import { validateActionGraph } from '../world/scriptPlan';
-import schema from '../../../contracts/sentinel/v1.13/scenarios.schema.json';
-import reviewSchema from '../../../contracts/sentinel/v1.13/scenario-review.schema.json';
+import schema from '../../../contracts/sentinel/v1.14/scenarios.schema.json';
+import reviewSchema from '../../../contracts/sentinel/v1.14/scenario-review.schema.json';
 export const MAX_SCENARIO_UNITS =
   schema.$defs.ScenarioContent.properties.units.maxItems;
 import type {
@@ -39,17 +44,18 @@ function decoder<T>(name: string) {
     return value;
   };
 }
-export function withinScenarioExtent(longitude: number, latitude: number) {
-  const scale = (6378137 * Math.PI) / 180;
-  return (
-    Number.isFinite(longitude) &&
-    Number.isFinite(latitude) &&
-    Math.abs((longitude - 103.85) * scale * Math.cos((1.29 * Math.PI) / 180)) <=
-      5000 &&
-    Math.abs((latitude - 1.29) * scale) <= 5000
+export function withinScenarioExtent(
+  longitude: number,
+  latitude: number,
+  geometry?: GeometryOwner,
+) {
+  return insideExtent(
+    { longitudeDeg: longitude, latitudeDeg: latitude },
+    geometry,
   );
 }
 function contentIntegrity(content: ScenarioContent) {
+  if (content.localGeometry) validateLocalGeometry(content.localGeometry);
   validateActionGraph(content);
   for (const u of content.units)
     if (
@@ -63,7 +69,7 @@ function contentIntegrity(content: ScenarioContent) {
     throw new Error('Script content needs a rule version.');
   const ids = new Set(content.units.map((u) => u.id));
   for (const b of content.boundaries ?? []) {
-    validateBoundary(b);
+    validateBoundary(b, content);
     if (ids.has(b.id)) throw new Error('Boundary identities must be unique.');
     ids.add(b.id);
   }
@@ -83,6 +89,7 @@ function contentIntegrity(content: ScenarioContent) {
       !withinScenarioExtent(
         a.destination.longitudeDeg,
         a.destination.latitudeDeg,
+        content,
       )
     )
       throw new Error(
@@ -101,7 +108,11 @@ function contentIntegrity(content: ScenarioContent) {
       (u) =>
         !u.label.trim() ||
         (u.commandRole === 'sentinel' && u.category !== 'friendly') ||
-        !withinScenarioExtent(u.position.longitudeDeg, u.position.latitudeDeg),
+        !withinScenarioExtent(
+          u.position.longitudeDeg,
+          u.position.latitudeDeg,
+          content,
+        ),
     )
   )
     throw new Error('Invalid scenario roles, identities or local positions.');
@@ -141,6 +152,10 @@ const d3aReceipt = ajv.compile({
 });
 export function decodeScenarioRevision(value: unknown) {
   const result = revisionShape(value);
+  if (result.schemaVersion !== '1.6' && 'localGeometry' in result.content)
+    throw new Error(
+      'Legacy scenario revisions cannot contain a local geometry field, including null.',
+    );
   if (result.schemaVersion === '1.3' && !d3aRevision(value))
     throw new Error('Invalid legacy revision.');
   if (result.schemaVersion === '1.0' && !legacyRevision(value))
@@ -151,17 +166,19 @@ export function decodeScenarioRevision(value: unknown) {
     throw new Error('Invalid scheduled legacy revision.');
   if (
     result.schemaVersion !==
-    (result.content.units.length > 32
-      ? '1.5'
-      : result.content.units.some((u) => u.profileId)
-        ? '1.4'
-        : result.content.scheduleRuleVersion === 'local-schedule-v2'
-          ? '1.3'
-          : result.content.actions != null
-            ? '1.2'
-            : result.content.boundaries == null
-              ? '1.0'
-              : '1.1')
+    (result.content.localGeometry
+      ? '1.6'
+      : result.content.units.length > 32
+        ? '1.5'
+        : result.content.units.some((u) => u.profileId)
+          ? '1.4'
+          : result.content.scheduleRuleVersion === 'local-schedule-v2'
+            ? '1.3'
+            : result.content.actions != null
+              ? '1.2'
+              : result.content.boundaries == null
+                ? '1.0'
+                : '1.1')
   )
     throw new Error('Scenario version disagrees with content.');
   contentIntegrity(result.content);
@@ -184,7 +201,12 @@ export function decodeScenarioReceipt(value: unknown) {
   )
     throw new Error('Invalid scenario receipt evidence.');
   if (result.result) decodeScenarioRevision(result.result);
-  if (result.schemaVersion !== '1.5' && result.result?.schemaVersion === '1.5')
+  if (result.result?.schemaVersion === '1.6' && result.schemaVersion !== '1.6')
+    throw new Error('Located scenario requires envelope 1.6.');
+  if (
+    !['1.5', '1.6'].includes(result.schemaVersion ?? '') &&
+    result.result?.schemaVersion === '1.5'
+  )
     throw new Error('Expanded capacity requires scenario envelope 1.5.');
   return result;
 }
@@ -193,7 +215,12 @@ export function decodeScenarioList(value: unknown) {
   const result = listShape(value);
   result.scenarios.forEach(decodeScenarioRevision);
   if (
-    result.schemaVersion !== '1.5' &&
+    result.scenarios.some((s) => s.schemaVersion === '1.6') &&
+    result.schemaVersion !== '1.6'
+  )
+    throw new Error('Located scenario requires envelope 1.6.');
+  if (
+    !['1.5', '1.6'].includes(result.schemaVersion ?? '') &&
     result.scenarios.some((s) => s.schemaVersion === '1.5')
   )
     throw new Error('Expanded capacity requires scenario envelope 1.5.');
@@ -212,7 +239,21 @@ const reviewShape = ajv.compile<ScenarioReview>({
 });
 export function decodeScenarioReview(value: unknown) {
   if (!reviewShape(value)) throw new Error('Invalid scenario review response.');
+  if (value.schemaVersion !== '1.6' && 'localGeometry' in value.motionPreset)
+    throw new Error(
+      'Legacy reviews cannot contain a local geometry field, including null.',
+    );
   const counts = value.counts;
+  if (value.motionPreset.localGeometry)
+    validateLocalGeometry(value.motionPreset.localGeometry);
+  if (
+    (value.schemaVersion === '1.6') !== !!value.motionPreset.localGeometry ||
+    value.motionPreset.modelId !==
+      (value.motionPreset.localGeometry
+        ? 'local-horizontal-v2'
+        : 'local-horizontal-v1')
+  )
+    throw new Error('Review geometry mismatch.');
   if (
     value.canRun !== !value.issues.length ||
     counts.total !== counts.friendly + counts.hostile + counts.unknown ||

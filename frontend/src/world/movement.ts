@@ -8,6 +8,12 @@ import type {
 import type { DeepReadonly } from '../contracts/types';
 import type { RuntimeSnapshot } from '../app/runtime';
 import { entityRows } from './entityRows';
+import {
+  originFor,
+  extentTolerance,
+  geometryFor,
+  type GeometryOwner,
+} from './localGeometry';
 
 const radius = 6378137,
   radians = Math.PI / 180;
@@ -15,39 +21,50 @@ export const terminalExecution = (e: Pick<MovementExecution, 'state'>) =>
   ['Completed', 'Cancelled', 'Failed', 'Expired', 'Interrupted'].includes(
     e.state,
   );
-export function metric(p: DeepReadonly<MoveAnchor>) {
+export function metric(p: DeepReadonly<MoveAnchor>, geometry?: GeometryOwner) {
+  const origin = originFor(geometry);
   return [
-    (p.longitudeDeg - 103.85) * radians * radius * Math.cos(1.29 * radians),
-    (p.latitudeDeg - 1.29) * radians * radius,
+    (p.longitudeDeg - origin.longitudeDeg) *
+      radians *
+      radius *
+      Math.cos(origin.latitudeDeg * radians),
+    (p.latitudeDeg - origin.latitudeDeg) * radians * radius,
   ];
 }
 export function translatedEndpoints(
   origins: readonly DeepReadonly<MovePosition>[],
   anchor: MoveAnchor,
+  geometry?: GeometryOwner,
 ): MovePosition[] {
   const inside = (p: DeepReadonly<MoveAnchor>) =>
     Number.isFinite(p.longitudeDeg) &&
     Number.isFinite(p.latitudeDeg) &&
-    metric(p).every((v) => Math.abs(v) <= 5000);
+    metric(p, geometry).every(
+      (v) => Math.abs(v) <= 5000 + extentTolerance(geometry),
+    );
   if (!origins.length || !inside(anchor) || origins.some((p) => !inside(p)))
     throw new Error(
       'Origins and anchor must lie within the local ±5,000 m extent.',
     );
-  const points = origins.map(metric),
-    a = metric(anchor);
+  const origin = originFor(geometry);
+  const points = origins.map((p) => metric(p, geometry)),
+    a = metric(anchor, geometry);
   const center = [0, 1].map(
     (i) => points.reduce((sum, p) => sum + p[i], 0) / points.length,
   );
   const targets = points.map((p, i) => ({
     longitudeDeg: Number(
       (
-        103.85 +
+        origin.longitudeDeg +
         (a[0] + p[0] - center[0]) /
-          (radius * Math.cos(1.29 * radians) * radians)
+          (radius * Math.cos(origin.latitudeDeg * radians) * radians)
       ).toFixed(9),
     ),
     latitudeDeg: Number(
-      (1.29 + (a[1] + p[1] - center[1]) / (radius * radians)).toFixed(9),
+      (
+        origin.latitudeDeg +
+        (a[1] + p[1] - center[1]) / (radius * radians)
+      ).toFixed(9),
     ),
     altitude: { ...origins[i].altitude },
   }));
@@ -55,8 +72,8 @@ export function translatedEndpoints(
     p: DeepReadonly<MoveAnchor>,
     q: DeepReadonly<MoveAnchor>,
   ) => {
-    const a = metric(p),
-      b = metric(q);
+    const a = metric(p, geometry),
+      b = metric(q, geometry);
     return Math.hypot(a[0] - b[0], a[1] - b[1]);
   };
   if (targets.some((p) => !inside(p)))
@@ -160,6 +177,7 @@ export interface DraftParticipant {
   member?: MoveMember;
 }
 export interface MovementDraft {
+  geometry?: ReturnType<typeof geometryFor>;
   id: string;
   context: Omit<MoveIntent, 'members' | 'anchor'>;
   participants: DraftParticipant[];
@@ -213,16 +231,17 @@ export function captureMovement(
   );
   return {
     id: crypto.randomUUID(),
+    geometry: geometryFor(frame),
     phase: 'editing',
     selectionRevision: state.session.selection.revision,
     participants,
     longitude: (origins.length
       ? origins.reduce((s, p) => s + p.longitudeDeg, 0) / origins.length
-      : 103.85
+      : originFor(frame).longitudeDeg
     ).toFixed(9),
     latitude: (origins.length
       ? origins.reduce((s, p) => s + p.latitudeDeg, 0) / origins.length
-      : 1.29
+      : originFor(frame).latitudeDeg
     ).toFixed(9),
     context: {
       missionId: frame.mission.id,
@@ -232,7 +251,7 @@ export function captureMovement(
       grantId: run.grantId,
       grantRevision: run.grantRevision,
       reviewedFrameId: frame.frameId,
-      modelId: 'local-horizontal-v1',
+      modelId: run.movementModel,
       deadline: new Date(Date.parse(frame.recordedAt) + 30_000).toISOString(),
     },
   };
@@ -257,6 +276,7 @@ export function reviewMovement(draft: DeepReadonly<MovementDraft>): MoveIntent {
   const targets = translatedEndpoints(
     members.map((m) => m.origin),
     anchor,
+    draft.geometry,
   );
   return {
     ...draft.context,

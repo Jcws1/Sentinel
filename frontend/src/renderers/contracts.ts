@@ -75,6 +75,7 @@ export interface ProviderStatus {
     | 'renderer-error'
     | 'renderer-timeout';
   source?: 'regional' | 'maptiler';
+  coverage?: 'outside' | 'partial' | 'inside';
   terrainError?: boolean;
   reason?:
     | 'context-lost'
@@ -158,6 +159,11 @@ export interface MapRenderer {
 
 /** Derived from one complete presentation frame; never an operational store. */
 export interface SceneProjection {
+  readonly locationGuides?: readonly {
+    readonly id: 'current' | 'proposed';
+    readonly origin: Readonly<{ longitudeDeg: number; latitudeDeg: number }>;
+    readonly corners: readonly (readonly [number, number])[];
+  }[];
   /** Empty developer fixture: use Tactical's local grid without changing saved provider settings. */
   readonly localGrid?: boolean;
   readonly display?: Readonly<DisplayPreferences>;

@@ -15,6 +15,7 @@ export function ScenarioRunReview() {
   const active = state.catalog.missions.find((m) => m.id === activeId);
   const locked =
     !!s.edit ||
+    !!s.locationEdit ||
     !!s.actionEdit ||
     !!s.boundaryEdit ||
     !!s.placement ||

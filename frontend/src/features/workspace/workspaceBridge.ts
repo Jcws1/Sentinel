@@ -404,7 +404,11 @@ export class WorkspaceBridge {
   getMapMode(id: ViewId): MapMode {
     return this.mapModes.get(id) ?? (id === 'three-d' ? 'three-d' : 'tactical');
   }
-  beginDestinationAuthoring(id: ViewId, missionId: string) {
+  beginDestinationAuthoring(
+    id: ViewId,
+    missionId: string,
+    home?: CameraIntent,
+  ) {
     if (!this.authoringCameras.has(id))
       this.authoringCameras.set(id, {
         missionId,
@@ -414,11 +418,12 @@ export class WorkspaceBridge {
     this.setMapMode(id, 'tactical');
     const prior = this.getMapCamera(id, missionId);
     const camera: CameraIntent = {
-      ...(prior ?? {
-        center: { longitudeDeg: 103.85, latitudeDeg: 1.29 },
-        groundSpanM: 3000,
-        headingTrueDeg: 0,
-      }),
+      ...(prior ??
+        home ?? {
+          center: { longitudeDeg: 103.85, latitudeDeg: 1.29 },
+          groundSpanM: 3000,
+          headingTrueDeg: 0,
+        }),
       projection: 'tactical',
       pitchFromNadirDeg: 0,
     };

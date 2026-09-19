@@ -116,7 +116,7 @@ def source_reason(frame, schedule, item):
     if not track or track["state"] != "tracking" or track["entityId"] != item["entityId"] or track["source"] != dict(id=run["sourceId"], kind="simulation", mode="simulated"):
         return "Frozen source Track is unavailable; an observation cannot substitute for it."
     position = track["latest"]["position"]
-    if position["altitude"]["reference"] != "ELLIPSOID" or position["altitude"].get("datumId") != "WGS84" or not in_extent(position):
+    if position["altitude"]["reference"] != "ELLIPSOID" or position["altitude"].get("datumId") != "WGS84" or not in_extent(position, geometry=frame):
         return "Source position requires supplied WGS84 height inside the local extent."
     return blocked(frame, position)
 
@@ -165,7 +165,7 @@ def dispatch(frame, checkpoint, start=False):
                 events.extend(halt(frame, previous, "Cancelled", f'Superseded by script action {item["action"]["id"]}.'))
         item["motion"] = dict(id=f'{schedule["runId"]}:script:{item["action"]["id"]}', origin=origin, destination=target,
                               acceptedTick=tick, acceptedSequence=frame["sequence"] + 1, travelledMetres=0.0,
-                              remainingMetres=distance(origin, target), speedMps=entity_speed(frame, item["entityId"]))
+                              remainingMetres=distance(origin, target, geometry=frame), speedMps=entity_speed(frame, item["entityId"]))
         transition(frame, item, "Accepted")
         events.append(event(frame, item))
     events.extend(resolve_broken(frame, schedule))
@@ -188,7 +188,7 @@ def advance(frame, checkpoint):
             continue
         motion = item["motion"]
         candidate = deepcopy(motion)
-        position, velocity = step(candidate)
+        position, velocity = step(candidate, geometry=frame)
         track = frame["tracks"][item["trackId"]]
         reason = blocked(frame, track["latest"]["position"], position)
         if reason:
@@ -239,6 +239,8 @@ def nominal_plan(content):
             latest=dict(position=u.position.model_dump(by_alias=True))) for u in content.units},
         boundaryRules=dict(zones={b.id:b.type for b in zones}), zones={b.id:dict(label=b.name,
             geometry=dict(coordinates=[[list(v) for v in b.vertices]+[list(b.vertices[0])]])) for b in zones})
+    if content.local_geometry is not None:
+        frame["interactive"]["localGeometry"] = content.local_geometry.model_dump(by_alias=True)
     checkpoint = dict(scenarioSchedule=freeze(content, frame))
     dispatch(frame, checkpoint, start=True)
     # The slowest typed profile takes <3,200 ticks across the local diagonal.

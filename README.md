@@ -70,7 +70,9 @@ Browser checks use installed Microsoft Edge and isolated databases on ports 8011
 
 ## Current limits
 
-Scenarios support **40 units**, including the verified **20 Friendly / 20 Hostile** moving workload. Controlled units remain capped at 32; existing command and assignment rules remain. Hostile interception semantics have not been added. Current exports are in [v1.13](contracts/sentinel/v1.13/README.md); individual wire versions differ by message.
+Scenarios support **40 units**, including the verified **20 Friendly / 20 Hostile** moving workload. Controlled units remain capped at 32; existing command and assignment rules remain. Hostile interception semantics have not been added. Current exports are in [v1.14](contracts/sentinel/v1.14/README.md); individual wire versions differ by message.
+
+**Units → Scenario location** supports an explicit WGS84 origin while retaining a fixed ±5 km square and unchanged geographic positions/heights. See [location workflow, compatibility and verification](docs/scenario-location/README.md).
 
 Loaded Google Video did **not** meet sustained 60 FPS in the last performance pass. Intermittent ordinary-3D cold startup and dense 3D label overlap remain documented. [Performance results and limitations](docs/reports/performance-stability.md).
 

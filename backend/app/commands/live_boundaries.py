@@ -26,6 +26,11 @@ def candidate(frame, mutation):
         del rules["zones"][zid]
     else:
         definition = mutation.definition
+        from app.scenarios.geometry import validate
+        try:
+            validate(definition.vertices, definition.type, frame)
+        except ValueError as error:
+            raise CommandError("INVALID_REQUEST", str(error)) from error
         if zid != f'{run["runId"]}:boundary:{definition.id}':
             raise CommandError("REFERENCE_MISMATCH", "Boundary and geometry identities disagree.")
         if zid not in rules["zones"] and len(rules["zones"]) >= 16:
@@ -38,11 +43,11 @@ def candidate(frame, mutation):
         rules["zones"][zid] = definition.type
         if definition.type == "restricted":
             # Only the proposed footprint: existing inconsistent positions stay honest.
-            check = dict(zones={zid:zones[zid]}, boundaryRules=dict(zones={zid:"restricted"}))
+            check = dict(interactive=run, zones={zid:zones[zid]}, boundaryRules=dict(zones={zid:"restricted"}))
             owned = [e for e in frame["entities"].values() if e["provenance"]["source"]["id"] == run["sourceId"] and e["presence"] != "removed"]
             for entity in owned:
                 tracks = [t for t in frame["tracks"].values() if t["entityId"] == entity["id"] and t["source"] == dict(id=run["sourceId"],kind="simulation",mode="simulated")]
-                if len(tracks) != 1 or tracks[0]["state"] != "tracking" or not in_extent(tracks[0]["latest"]["position"]):
+                if len(tracks) != 1 or tracks[0]["state"] != "tracking" or not in_extent(tracks[0]["latest"]["position"], geometry=frame):
                     raise CommandError("POSITION_UNAVAILABLE", f'{entity["label"]}: current source position is unavailable; cannot activate a Restricted boundary.')
                 reason = blocked(check, tracks[0]["latest"]["position"])
                 if reason:

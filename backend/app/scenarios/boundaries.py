@@ -6,7 +6,8 @@ from app.scenarios.geometry import validate
 BoundaryType = Literal["untyped", "annotation", "friendly", "patrol", "restricted"]
 
 
-class BoundaryDefinition(Model):
+class LocatedBoundaryDefinition(Model):
+    """Structural input; the owning scenario/run validates its actual geometry."""
     id: Id = Field(max_length=64)
     name: str = Field(min_length=1, max_length=64)
     type: BoundaryType
@@ -22,6 +23,13 @@ class BoundaryDefinition(Model):
     def geometry(self):
         if not self.name.strip():
             raise ValueError("Name the boundary.")
+        return self
+
+
+class BoundaryDefinition(LocatedBoundaryDefinition):
+    """Strict legacy reader, also used by archived command/scenario contracts."""
+    @model_validator(mode="after")
+    def legacy_geometry(self):
         validate(self.vertices, self.type)
         return self
 

@@ -66,6 +66,7 @@ export function ConductorPane({
     s.busy ||
     !!s.blocked ||
     !!s.edit ||
+    !!s.locationEdit ||
     !!s.boundaryEdit ||
     !!s.placement ||
     s.reviewing;

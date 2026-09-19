@@ -232,8 +232,14 @@ export function createScene(
     }),
     unlocatedCount: rows.filter((r) => !r.tracks.length).length,
     referencePoint: frame.mission.referencePoint ?? undefined,
-    localHome:
-      localGrid && frame.mission.referencePoint
+    localHome: frame.interactive?.localGeometry
+      ? {
+          center: frame.interactive.localGeometry.origin,
+          groundSpanM: 6000,
+          headingTrueDeg: 0,
+          focusHeightM: 150,
+        }
+      : localGrid && frame.mission.referencePoint
         ? {
             center: {
               longitudeDeg: frame.mission.referencePoint.longitudeDeg,
@@ -254,10 +260,11 @@ export function createScene(
               focusHeightM: 150,
             }
           : undefined,
-    region:
-      regionalMissions[frame.mission.id] ??
-      (frame.interactive?.templateId?.startsWith('singapore-local-v')
-        ? regionalMissions['fixture-tactical']
-        : undefined),
+    region: frame.interactive?.localGeometry
+      ? undefined
+      : (regionalMissions[frame.mission.id] ??
+        (frame.interactive?.templateId?.startsWith('singapore-local-v')
+          ? regionalMissions['fixture-tactical']
+          : undefined)),
   });
 }

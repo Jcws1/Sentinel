@@ -138,7 +138,7 @@ def advance(frame, checkpoint, now):
                     e.update(startedAt=frame["effectiveAt"], startedTick=run["tick"])
                 transition(e, "Running")
                 candidate = dict(e)
-                position, velocity = step(candidate)
+                position, velocity = step(candidate, geometry=frame)
                 track = frame["tracks"][e["controlTrackId"]]
                 zone_reason = blocked(frame, track["latest"]["position"], position)
                 if zone_reason:

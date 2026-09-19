@@ -1,0 +1,201 @@
+{
+  "actions": [
+    {
+      "destination": {
+        "latitudeDeg": 1.350657521,
+        "longitudeDeg": 103.923478526
+      },
+      "id": "friendly-01-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 0,
+      "unitId": "friendly-01"
+    },
+    {
+      "afterActionId": "friendly-01-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": 1.350657521,
+        "longitudeDeg": 103.896521474
+      },
+      "id": "friendly-01-back",
+      "kind": "move",
+      "ordinal": 1,
+      "unitId": "friendly-01"
+    },
+    {
+      "destination": {
+        "latitudeDeg": 1.351376173,
+        "longitudeDeg": 103.923478526
+      },
+      "id": "friendly-02-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 2,
+      "unitId": "friendly-02"
+    },
+    {
+      "afterActionId": "friendly-02-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": 1.351376173,
+        "longitudeDeg": 103.896521474
+      },
+      "id": "friendly-02-back",
+      "kind": "move",
+      "ordinal": 3,
+      "unitId": "friendly-02"
+    },
+    {
+      "destination": {
+        "latitudeDeg": 1.368623827,
+        "longitudeDeg": 103.896521474
+      },
+      "id": "hostile-01-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 4,
+      "unitId": "hostile-01"
+    },
+    {
+      "afterActionId": "hostile-01-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": 1.368623827,
+        "longitudeDeg": 103.923478526
+      },
+      "id": "hostile-01-back",
+      "kind": "move",
+      "ordinal": 5,
+      "unitId": "hostile-01"
+    },
+    {
+      "destination": {
+        "latitudeDeg": 1.369342479,
+        "longitudeDeg": 103.896521474
+      },
+      "id": "hostile-02-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 6,
+      "unitId": "hostile-02"
+    },
+    {
+      "afterActionId": "hostile-02-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": 1.369342479,
+        "longitudeDeg": 103.923478526
+      },
+      "id": "hostile-02-back",
+      "kind": "move",
+      "ordinal": 7,
+      "unitId": "hostile-02"
+    }
+  ],
+  "boundaries": [
+    {
+      "id": "patrol-area",
+      "name": "Patrol practice",
+      "type": "patrol",
+      "vertices": [
+        [103.888434358, 1.337542118],
+        [103.895622905, 1.337542118],
+        [103.895622905, 1.34293201],
+        [103.888434358, 1.34293201]
+      ]
+    },
+    {
+      "id": "restricted-area",
+      "name": "Restricted practice",
+      "type": "restricted",
+      "vertices": [
+        [103.93246421, 1.382457882],
+        [103.935159915, 1.382457882],
+        [103.935159915, 1.385152828],
+        [103.93246421, 1.385152828]
+      ]
+    }
+  ],
+  "boundaryRuleVersion": "local-boundary-v1",
+  "localGeometry": {
+    "halfExtentMetres": 5000,
+    "modelId": "local-horizontal-v2",
+    "origin": {
+      "latitudeDeg": 1.36,
+      "longitudeDeg": 103.91
+    }
+  },
+  "name": "Location · nearby airbase",
+  "scheduleRuleVersion": "local-schedule-v2",
+  "units": [
+    {
+      "category": "friendly",
+      "commandRole": "sentinel",
+      "headingTrueDeg": 73.5,
+      "id": "friendly-01",
+      "label": "Friendly 01",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 150.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": 1.350657521,
+        "longitudeDeg": 103.896521474
+      },
+      "profileId": "sting-v1"
+    },
+    {
+      "category": "friendly",
+      "commandRole": "sentinel",
+      "headingTrueDeg": 73.5,
+      "id": "friendly-02",
+      "label": "Friendly 02",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 151.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": 1.351376173,
+        "longitudeDeg": 103.896521474
+      },
+      "profileId": "sting-v1"
+    },
+    {
+      "category": "hostile",
+      "commandRole": "observation",
+      "headingTrueDeg": 73.5,
+      "id": "hostile-01",
+      "label": "Hostile 01",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 150.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": 1.368623827,
+        "longitudeDeg": 103.923478526
+      },
+      "profileId": "lancet-3-v1"
+    },
+    {
+      "category": "hostile",
+      "commandRole": "observation",
+      "headingTrueDeg": 73.5,
+      "id": "hostile-02",
+      "label": "Hostile 02",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 151.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": 1.369342479,
+        "longitudeDeg": 103.923478526
+      },
+      "profileId": "lancet-3-v1"
+    }
+  ]
+}

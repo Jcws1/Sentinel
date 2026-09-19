@@ -9,6 +9,7 @@ import {
   validateFrame,
 } from '../contracts/decode';
 import { immutableCopy } from './immutable';
+import { sameGeometry } from './localGeometry';
 
 function applyRecords<T, P>(
   previous: Readonly<Record<string, P>>,
@@ -49,7 +50,7 @@ export function applyDelta(
     );
   }
   const next = {
-    schemaVersion: '1.10',
+    schemaVersion: delta.schemaVersion,
     mission: delta.changes.mission,
     interactive: delta.changes.interactive,
     scenario: delta.changes.scenario,
@@ -80,6 +81,8 @@ export function applyDelta(
   ) {
     throw new ContractError('Delta changed mission or recording identity');
   }
+  if (!sameGeometry(previous, next))
+    throw new ContractError('Delta changed frozen scenario geometry');
   if (
     delta.changes.events.some((event) =>
       previous.recentEvents.some((prior) => prior.id === event.id),

@@ -1,5 +1,5 @@
 from typing import Annotated, Literal
-from pydantic import Field
+from pydantic import Field, model_validator
 from app.domain.models import (Model, Id, Sequence, UtcInstant, Mission, Entity, Track,
                                Asset, Sensor, Zone, Task, SentinelEvent, WorldFrame)
 
@@ -65,16 +65,22 @@ class WorldChanges(Model):
 
 class SnapshotMessage(Model):
     type: Literal["snapshot"]
-    schema_version: Literal["1.10"]
+    schema_version: Literal["1.10", "1.11"]
     mission_id: Id
     stream_epoch: Id
     sequence: Sequence
     frame: WorldFrame
 
+    @model_validator(mode="after")
+    def geometry_version(self):
+        if self.schema_version != self.frame.schema_version:
+            raise ValueError("Snapshot version disagrees with world")
+        return self
+
 
 class DeltaMessage(Model):
     type: Literal["delta"]
-    schema_version: Literal["1.10"]
+    schema_version: Literal["1.10", "1.11"]
     mission_id: Id
     stream_epoch: Id
     sequence: Sequence
@@ -85,10 +91,17 @@ class DeltaMessage(Model):
     recorded_at: UtcInstant
     changes: WorldChanges
 
+    @model_validator(mode="after")
+    def geometry_version(self):
+        from app.scenarios.location import geometry_for
+        if self.schema_version != ("1.11" if geometry_for(self.changes) is not None else "1.10"):
+            raise ValueError("Delta version disagrees with geometry")
+        return self
+
 
 class HeartbeatMessage(Model):
     type: Literal["heartbeat"]
-    schema_version: Literal["1.10"]
+    schema_version: Literal["1.10", "1.11"]
     mission_id: Id
     stream_epoch: Id
     sequence: Sequence
@@ -97,7 +110,7 @@ class HeartbeatMessage(Model):
 
 class ResyncRequiredMessage(Model):
     type: Literal["resync-required"]
-    schema_version: Literal["1.10"]
+    schema_version: Literal["1.10", "1.11"]
     mission_id: Id
     reason: str
 

@@ -25,7 +25,8 @@ class ScenarioService:
 
     def list(self):
         rows = self.repository.db.execute("SELECT revision_json FROM scenario_revisions r WHERE revision=(SELECT MAX(revision) FROM scenario_revisions WHERE definition_id=r.definition_id) ORDER BY definition_id LIMIT 100").fetchall()
-        return ScenarioList(scenarios=[ScenarioRevision.model_validate_json(r[0]) for r in rows])
+        scenarios = [ScenarioRevision.model_validate_json(r[0]) for r in rows]
+        return ScenarioList(schema_version="1.6" if any(s.content.local_geometry for s in scenarios) else "1.5", scenarios=scenarios)
 
     def resolve(self, reference):
         revision = self.get(reference.definition_id, reference.revision)
@@ -37,6 +38,7 @@ class ScenarioService:
         from app.commands.template import TEMPLATE
         from app.commands.kinematics import cruise_speed
         from app.commands.unit_profiles import profile
+        from app.scenarios.location import model_for
         from app.scenarios.review import ScenarioReview, ScenarioCounts, ScenarioMotionPreset, ScenarioReviewIssue
         revision = self.resolve(reference)
         units = revision.content.units
@@ -52,7 +54,7 @@ class ScenarioService:
         if active:
             issues.append(ScenarioReviewIssue(code="ACTIVE_RUN_EXISTS", message="Return to the active demo and End it before starting another; then validate again."))
         controlled = sum(u.command_role == "sentinel" for u in units)
-        return ScenarioReview(schema_version="1.5" if len(revision.content.units) > 32 else "1.4",
+        return ScenarioReview(schema_version="1.6" if revision.content.local_geometry else "1.5" if len(revision.content.units) > 32 else "1.4",
             reference=reference, name=revision.content.name, checked_at=self.authority.clock(),
             boundary_count=len(revision.content.boundaries or []), action_count=len(revision.content.actions or []),
             script_duration_ms=min(600000, max((e.get("consumedTick",0)*200 for e in plan),default=0)),
@@ -62,7 +64,9 @@ class ScenarioService:
             counts=ScenarioCounts(total=len(units), friendly=sum(u.category == "friendly" for u in units),
                 hostile=sum(u.category == "hostile" for u in units), unknown=sum(u.category == "unknown" for u in units),
                 controlled=controlled, observation_only=len(units) - controlled),
-            motion_preset=ScenarioMotionPreset(template_id=TEMPLATE, model_id="local-horizontal-v1", speed_mps=cruise_speed(TEMPLATE), unit_profiles={u.id:profile(u.profile_id) for u in revision.content.units if u.profile_id}),
+            motion_preset=ScenarioMotionPreset(template_id=TEMPLATE, model_id=model_for(revision.content),
+                **({"local_geometry":revision.content.local_geometry} if revision.content.local_geometry is not None else {}),
+                speed_mps=cruise_speed(TEMPLATE), unit_profiles={u.id:profile(u.profile_id) for u in revision.content.units if u.profile_id}),
             issues=issues, active_mission_id=active, can_run=not issues)
 
     def lookup(self, identity, definition_id=None):
@@ -108,6 +112,11 @@ def instantiate(revision, at):
         raise CommandError("INVALID_REQUEST", issues[0]["message"])
     mission, frame = new_template(at)
     run = frame["interactive"]
+    if revision.content.local_geometry is not None:
+        run.update(schemaVersion="1.8", movementModel="local-horizontal-v2",
+                   localGeometry=json.loads(canonical(revision.content.local_geometry)))
+        frame["schemaVersion"] = "1.11"
+        frame["mission"]["referencePoint"].update(json.loads(canonical(revision.content.local_geometry.origin)))
     source = {"id": run["sourceId"], "kind": "simulation", "mode": "simulated"}
     provenance = {"source": source, "effectiveAt": at, "recordedAt": at}
     for key in ("entities", "tracks", "assets"):

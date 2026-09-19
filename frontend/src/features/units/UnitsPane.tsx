@@ -1,3 +1,4 @@
+import { ScenarioLocation } from './ScenarioLocation';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Drone, CircleHelp, Plus, Save, Play, Search } from 'lucide-react';
 import {
@@ -84,6 +85,7 @@ export function UnitsPane({ bridge }: { bridge: WorkspaceBridge }) {
   const locked = !!scenario.pending || scenario.busy || !!scenario.blocked;
   const documentLocked =
     locked ||
+    !!scenario.locationEdit ||
     !!scenario.edit ||
     !!scenario.actionEdit ||
     !!scenario.boundaryEdit ||
@@ -328,6 +330,7 @@ export function UnitsPane({ bridge }: { bridge: WorkspaceBridge }) {
                 Placement and Locate affect only this map.
               </p>
             </div>
+            <ScenarioLocation viewId={targetMap} />
             <BoundaryPanel viewId={targetMap} />
             <section className="units-palette" aria-label="Unit palette">
               <div className="units-section-title">
@@ -355,6 +358,7 @@ export function UnitsPane({ bridge }: { bridge: WorkspaceBridge }) {
                       className={`units-category units-${c.id}`}
                       disabled={
                         locked ||
+                        !!scenario.locationEdit ||
                         !!scenario.edit ||
                         !!scenario.actionEdit ||
                         !!scenario.boundaryEdit ||
@@ -394,6 +398,7 @@ export function UnitsPane({ bridge }: { bridge: WorkspaceBridge }) {
                             key={id}
                             disabled={
                               locked ||
+                              !!scenario.locationEdit ||
                               !!scenario.edit ||
                               !!scenario.actionEdit ||
                               !!scenario.boundaryEdit ||
@@ -473,6 +478,23 @@ export function UnitsPane({ bridge }: { bridge: WorkspaceBridge }) {
                       tabIndex={-1}
                     >
                       {scenario.error}
+                      {scenario.error.includes('operating square') && (
+                        <div className="units-actions">
+                          <button
+                            disabled={!targetMap}
+                            onClick={() =>
+                              targetMap && runtime.showScenarioArea(targetMap)
+                            }
+                          >
+                            Show operating area
+                          </button>
+                          <button
+                            onClick={() => runtime.beginScenarioLocation()}
+                          >
+                            Change origin
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                   <button
@@ -543,6 +565,7 @@ export function UnitsPane({ bridge }: { bridge: WorkspaceBridge }) {
                 edit={scenario.edit}
                 disabled={
                   locked ||
+                  !!scenario.locationEdit ||
                   !!scenario.actionEdit ||
                   !!scenario.boundaryEdit ||
                   !!scenario.placement ||

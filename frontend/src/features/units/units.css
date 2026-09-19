@@ -16,9 +16,24 @@
   flex-shrink: 0;
 }
 .units-target,
+.scenario-location,
 .units-review {
   padding: 12px 14px;
   border-bottom: 1px solid var(--border-subtle);
+}
+.scenario-location h2 {
+  font-size: 12px;
+  margin: 0 0 8px;
+}
+.location-coordinates {
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.location-conflicts {
+  max-height: 130px;
+  overflow: auto;
+  padding-left: 18px;
+  overflow-wrap: anywhere;
 }
 .units-review {
   border-left: 2px solid #a6c6b7;

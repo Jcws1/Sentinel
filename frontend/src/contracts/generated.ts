@@ -1,5 +1,5 @@
-/* Generated from backend contract package v1.13 JSON Schemas; do not edit.
- * Source SHA-256: 1e139d9a890c44e643f59aa7a7525770e52d419b786adc94e6a5955329cf0ca6
+/* Generated from backend contract package v1.14 JSON Schemas; do not edit.
+ * Source SHA-256: 248be71760f0dc7e1adc2bfedd53a306024f4bd6de22400a4b334b5ba148191c
  */
 
 /**
@@ -21,7 +21,7 @@ export interface BackendContracts {
 export interface SnapshotMessage {
   frame: WorldFrame;
   missionId: string;
-  schemaVersion: '1.10';
+  schemaVersion: '1.10' | '1.11';
   sequence: number;
   streamEpoch: string;
   type: 'snapshot';
@@ -48,7 +48,7 @@ export interface WorldFrame {
   recordingId: string;
   scenario?: ScenarioBinding | null;
   scenarioSchedule?: ScenarioSchedule | null;
-  schemaVersion: '1.10';
+  schemaVersion: '1.10' | '1.11';
   sensors: Sensors;
   sequence: number;
   streamEpoch: string;
@@ -277,7 +277,7 @@ export interface EngagementModel {
   allocationRule?: 'distance-target-asset-v1';
   contactAlgorithm?: 'relative-swept-sphere-v1';
   contactRadiusM?: 25;
-  movementModel?: 'local-horizontal-v1';
+  movementModel?: 'local-horizontal-v1' | 'local-horizontal-v2';
   patrolInsetFraction?: 0.1;
   patrolRule?: 'convex-centroid-inset-v1';
   ruleVersion?: 'demo-mutual-loss-v1';
@@ -350,11 +350,12 @@ export interface InteractiveRun {
   grantRevision: number;
   lastReportAt?: string | null;
   lease: Lease;
+  localGeometry?: LocalGeometry | null;
   missionId: string;
-  movementModel?: 'local-horizontal-v1';
+  movementModel?: 'local-horizontal-v1' | 'local-horizontal-v2';
   runId: string;
   runRevision: number;
-  schemaVersion?: '1.7';
+  schemaVersion?: '1.7' | '1.8';
   sourceId: string;
   state: 'ready' | 'running' | 'paused' | 'ended';
   supportedActions: (
@@ -492,6 +493,23 @@ export interface Lease {
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LocalGeometry".
+ */
+export interface LocalGeometry {
+  halfExtentMetres: 5000;
+  modelId: 'local-horizontal-v2';
+  origin: GeometryOrigin;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "GeometryOrigin".
+ */
+export interface GeometryOrigin {
+  latitudeDeg: number;
+  longitudeDeg: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
  * via the `definition` "LiveBoundaries".
  */
 export interface LiveBoundaries {
@@ -603,7 +621,7 @@ export interface ScenarioSchedule {
  * via the `definition` "ScheduledExecution".
  */
 export interface ScheduledExecution {
-  action: ScheduledAction;
+  action: LocatedScheduledAction;
   consumedTick?: number | null;
   entityId: string;
   motion?: SourceMotion | null;
@@ -624,12 +642,12 @@ export interface ScheduledExecution {
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
- * via the `definition` "ScheduledAction".
+ * via the `definition` "LocatedScheduledAction".
  */
-export interface ScheduledAction {
+export interface LocatedScheduledAction {
   afterActionId?: string | null;
   delayMs?: number | null;
-  destination: ScriptDestination;
+  destination: LocatedScriptDestination;
   id: string;
   kind?: 'move';
   offsetMs?: number | null;
@@ -637,10 +655,12 @@ export interface ScheduledAction {
   unitId: string;
 }
 /**
+ * Extent is checked by the owning scenario/run, after its origin is known.
+ *
  * This interface was referenced by `BackendContracts`'s JSON-Schema
- * via the `definition` "ScriptDestination".
+ * via the `definition` "LocatedScriptDestination".
  */
-export interface ScriptDestination {
+export interface LocatedScriptDestination {
   latitudeDeg: number;
   longitudeDeg: number;
 }
@@ -832,7 +852,7 @@ export interface DeltaMessage {
   previousSequence: number;
   recordedAt: string;
   recordingId: string;
-  schemaVersion: '1.10';
+  schemaVersion: '1.10' | '1.11';
   sequence: number;
   streamEpoch: string;
   type: 'delta';
@@ -933,7 +953,7 @@ export interface Upserts5 {
  */
 export interface HeartbeatMessage {
   missionId: string;
-  schemaVersion: '1.10';
+  schemaVersion: '1.10' | '1.11';
   sequence: number;
   serverTime: string;
   streamEpoch: string;
@@ -946,7 +966,7 @@ export interface HeartbeatMessage {
 export interface ResyncRequiredMessage {
   missionId: string;
   reason: string;
-  schemaVersion: '1.10';
+  schemaVersion: '1.10' | '1.11';
   type: 'resync-required';
 }
 /**
@@ -1032,6 +1052,8 @@ export interface BehaviorPolicy {
   reviewedFrameId?: string | null;
 }
 /**
+ * Strict legacy reader, also used by archived command/scenario contracts.
+ *
  * This interface was referenced by `BackendContracts`'s JSON-Schema
  * via the `definition` "BoundaryDefinition".
  */
@@ -1088,7 +1110,7 @@ export interface Intent {
     | 'return-to-script'
     | 'boundary-edit'
     | 'behavior';
-  boundary?: BoundaryMutation | null;
+  boundary?: LocatedBoundaryMutation | null;
   executionId?: string | null;
   executionRevision?: number | null;
   executorEpoch: string;
@@ -1106,6 +1128,37 @@ export interface Intent {
   runId: string;
   runRevision: number;
   sourceId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LocatedBoundaryMutation".
+ */
+export interface LocatedBoundaryMutation {
+  boundaryId: string;
+  definition?: LocatedBoundaryDefinition | null;
+  expectedRevision: number;
+  operation: 'upsert' | 'delete';
+}
+/**
+ * Structural input; the owning scenario/run validates its actual geometry.
+ *
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "LocatedBoundaryDefinition".
+ */
+export interface LocatedBoundaryDefinition {
+  id: string;
+  name: string;
+  type: 'untyped' | 'annotation' | 'friendly' | 'patrol' | 'restricted';
+  /**
+   * @minItems 3
+   * @maxItems 32
+   */
+  vertices: [
+    [number, number],
+    [number, number],
+    [number, number],
+    ...[number, number][],
+  ];
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
@@ -1292,7 +1345,7 @@ export interface DirectMoveIntent {
    */
   members: [DirectMoveMember, ...DirectMoveMember[]];
   missionId: string;
-  modelId?: 'local-horizontal-v1';
+  modelId?: 'local-horizontal-v1' | 'local-horizontal-v2';
   order: number;
   reviewedFrameId: string;
   runId: string;
@@ -2249,7 +2302,7 @@ export interface MoveIntent {
    */
   members: [MoveMember, ...MoveMember[]];
   missionId: string;
-  modelId?: 'local-horizontal-v1';
+  modelId?: 'local-horizontal-v1' | 'local-horizontal-v2';
   reviewedFrameId: string;
   runId: string;
   sourceId: string;
@@ -2440,7 +2493,7 @@ export interface RunRead {
   leaseState: 'unclaimed' | 'held' | 'expired';
   ownsControl: boolean;
   run: InteractiveRun;
-  schemaVersion?: '1.7';
+  schemaVersion?: '1.7' | '1.8';
   sequence: number;
   serverTime: string;
   unitProfiles?: Unitprofiles2;
@@ -2450,194 +2503,9 @@ export interface Unitprofiles2 {
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
- * via the `definition` "ScenarioAltitude".
+ * via the `definition` "LocatedUnitPlacement".
  */
-export interface ScenarioAltitude {
-  datumId?: 'WGS84';
-  metres: number;
-  reference?: 'ELLIPSOID';
-}
-/**
- * This interface was referenced by `BackendContracts`'s JSON-Schema
- * via the `definition` "ScenarioContent".
- */
-export interface ScenarioContent {
-  actions?: ScheduledAction[] | null;
-  boundaries?:
-    | []
-    | [BoundaryDefinition]
-    | [BoundaryDefinition, BoundaryDefinition]
-    | [BoundaryDefinition, BoundaryDefinition, BoundaryDefinition]
-    | [
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-      ]
-    | [
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-      ]
-    | [
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-      ]
-    | [
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-      ]
-    | [
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-      ]
-    | [
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-      ]
-    | [
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-      ]
-    | [
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-      ]
-    | [
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-      ]
-    | [
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-      ]
-    | [
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-      ]
-    | [
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-      ]
-    | [
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-        BoundaryDefinition,
-      ]
-    | null;
-  boundaryRuleVersion?: 'local-boundary-v1' | null;
-  name: string;
-  scheduleRuleVersion?: ('local-schedule-v1' | 'local-schedule-v2') | null;
-  /**
-   * @maxItems 40
-   */
-  units: UnitPlacement[];
-}
-/**
- * This interface was referenced by `BackendContracts`'s JSON-Schema
- * via the `definition` "UnitPlacement".
- */
-export interface UnitPlacement {
+export interface LocatedUnitPlacement {
   category: 'friendly' | 'hostile' | 'unknown';
   commandRole: 'sentinel' | 'observation';
   headingTrueDeg: number;
@@ -2658,11 +2526,201 @@ export interface ScenarioPosition {
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "ScenarioAltitude".
+ */
+export interface ScenarioAltitude {
+  datumId?: 'WGS84';
+  metres: number;
+  reference?: 'ELLIPSOID';
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "ScenarioContent".
+ */
+export interface ScenarioContent {
+  actions?: LocatedScheduledAction[] | null;
+  boundaries?:
+    | []
+    | [LocatedBoundaryDefinition]
+    | [LocatedBoundaryDefinition, LocatedBoundaryDefinition]
+    | [
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+      ]
+    | [
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+      ]
+    | [
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+      ]
+    | [
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+      ]
+    | [
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+      ]
+    | [
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+      ]
+    | [
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+      ]
+    | [
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+      ]
+    | [
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+      ]
+    | [
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+      ]
+    | [
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+      ]
+    | [
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+      ]
+    | [
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+      ]
+    | [
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+        LocatedBoundaryDefinition,
+      ]
+    | null;
+  boundaryRuleVersion?: 'local-boundary-v1' | null;
+  localGeometry?: LocalGeometry | null;
+  name: string;
+  scheduleRuleVersion?: ('local-schedule-v1' | 'local-schedule-v2') | null;
+  /**
+   * @maxItems 40
+   */
+  units: LocatedUnitPlacement[];
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
  * via the `definition` "ScenarioList".
  */
 export interface ScenarioList {
   scenarios: ScenarioRevision[];
-  schemaVersion?: '1.0' | '1.1' | '1.2' | '1.3' | '1.4' | '1.5';
+  schemaVersion?: '1.0' | '1.1' | '1.2' | '1.3' | '1.4' | '1.5' | '1.6';
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
@@ -2674,7 +2732,7 @@ export interface ScenarioRevision {
   createdAt: string;
   definitionId: string;
   revision: number;
-  schemaVersion?: '1.0' | '1.1' | '1.2' | '1.3' | '1.4' | '1.5';
+  schemaVersion?: '1.0' | '1.1' | '1.2' | '1.3' | '1.4' | '1.5' | '1.6';
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
@@ -2686,7 +2744,7 @@ export interface ScenarioReceipt {
   message: string;
   requestId: string;
   result?: ScenarioRevision | null;
-  schemaVersion?: '1.0' | '1.1' | '1.2' | '1.3' | '1.4' | '1.5';
+  schemaVersion?: '1.0' | '1.1' | '1.2' | '1.3' | '1.4' | '1.5' | '1.6';
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
@@ -2696,6 +2754,42 @@ export interface ScenarioWrite {
   content: ScenarioContent;
   expectedRevision: number;
   requestId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "ScheduledAction".
+ */
+export interface ScheduledAction {
+  afterActionId?: string | null;
+  delayMs?: number | null;
+  destination: ScriptDestination;
+  id: string;
+  kind?: 'move';
+  offsetMs?: number | null;
+  ordinal: number;
+  unitId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "ScriptDestination".
+ */
+export interface ScriptDestination {
+  latitudeDeg: number;
+  longitudeDeg: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "UnitPlacement".
+ */
+export interface UnitPlacement {
+  category: 'friendly' | 'hostile' | 'unknown';
+  commandRole: 'sentinel' | 'observation';
+  headingTrueDeg: number;
+  id: string;
+  label: string;
+  position: ScenarioPosition;
+  profileId?:
+    ('hornet-10-v1' | 'sting-v1' | 'lancet-3-v1' | 'shahed-136-v1') | null;
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
@@ -2714,7 +2808,8 @@ export interface ScenarioCounts {
  * via the `definition` "ScenarioMotionPreset".
  */
 export interface ScenarioMotionPreset {
-  modelId: 'local-horizontal-v1';
+  localGeometry?: LocalGeometry | null;
+  modelId: 'local-horizontal-v1' | 'local-horizontal-v2';
   speedMps: number;
   templateId: 'singapore-local-v2';
   unitProfiles?: Unitprofiles3;
@@ -2737,7 +2832,7 @@ export interface ScenarioReview {
   motionPreset: ScenarioMotionPreset;
   name: string;
   reference: ScenarioRef;
-  schemaVersion?: '1.4' | '1.5';
+  schemaVersion?: '1.4' | '1.5' | '1.6';
   scriptDurationMs: number;
   /**
    * @maxItems 128

@@ -12,8 +12,14 @@ import {
   validateBoundary,
 } from '../world/boundaryGeometry';
 import { immutableCopy } from '../world/immutable';
+import {
+  geometryFor,
+  sameGeometry,
+  validateLocalGeometry,
+} from '../world/localGeometry';
 
 export interface LiveBoundaryState {
+  localGeometry?: ReturnType<typeof geometryFor>;
   runId?: string;
   missionId?: string;
   expectedRevision: number;
@@ -47,7 +53,8 @@ export function createLiveBoundaryEditor(options: {
         parsed.provisional.length > 16
       )
         throw Error();
-      parsed.provisional.forEach(validateBoundary);
+      if (parsed.localGeometry) validateLocalGeometry(parsed.localGeometry);
+      parsed.provisional.forEach((b) => validateBoundary(b, parsed));
       if (
         parsed.edit &&
         (!Array.isArray(parsed.edit.vertices) ||
@@ -124,6 +131,8 @@ export function createLiveBoundaryEditor(options: {
       !run.capabilities.includes('boundary-edit')
     )
       return 'Acquire the active demo control lease to edit live boundaries.';
+    if (value.runId === run.runId && !sameGeometry(value, run))
+      return 'Recovered boundary geometry differs from its frozen run. No command will be sent.';
     if (interactive.busy || interactive.pending || value.requestId)
       return 'Reconcile the pending boundary or control request first.';
     return undefined;
@@ -139,7 +148,7 @@ export function createLiveBoundaryEditor(options: {
     }
     if (definition) {
       try {
-        validateBoundary(definition);
+        validateBoundary(definition, frame);
         if (definition.type === 'untyped')
           throw Error('Choose a type or annotation-only before activation.');
       } catch (e) {
@@ -236,6 +245,7 @@ export function createLiveBoundaryEditor(options: {
         visibleView: viewId,
         runId: frame.interactive.runId,
         missionId: frame.mission.id,
+        localGeometry: geometryFor(frame),
         ...(!value.edit && !value.provisional.length && !value.requestId
           ? { expectedRevision: frame.liveBoundaries?.revision ?? 0 }
           : {}),
@@ -302,9 +312,9 @@ export function createLiveBoundaryEditor(options: {
       else {
         const last = vertices.at(-1),
           a = last
-            ? metricVertex([Number(last[0]), Number(last[1])])
+            ? metricVertex([Number(last[0]), Number(last[1])], frame)
             : undefined,
-          b = metricVertex([longitude, latitude]);
+          b = metricVertex([longitude, latitude], frame);
         if (a && Math.hypot(a[0] - b[0], a[1] - b[1]) <= 0.001) return true;
         if (vertices.length >= 32) {
           emit({ error: 'At most 32 vertices are supported.' });
@@ -350,7 +360,7 @@ export function createLiveBoundaryEditor(options: {
             Number(v[1]),
           ]) as BoundaryDefinition['vertices'],
         };
-        validateBoundary(b);
+        validateBoundary(b, frame);
         if (
           !edit.originalId ||
           value.provisional.some((p) => p.id === edit.id)
@@ -412,7 +422,9 @@ export function createLiveBoundaryEditor(options: {
           x,
           y,
           ids: boundaries()
-            .filter((b) => boundaryContains([longitude, latitude], b.vertices))
+            .filter((b) =>
+              boundaryContains([longitude, latitude], b.vertices, frame),
+            )
             .map((b) => b.id)
             .sort(),
         },

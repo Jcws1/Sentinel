@@ -5,6 +5,7 @@ from typing import Callable
 from uuid import uuid4
 
 from app.domain.models import Mission, WorldFrame
+from app.scenarios.location import geometry_for
 from app.recording.sqlite_repository import RecordingRepository
 from app.world.contracts import DeltaMessage, ResyncRequiredMessage, SnapshotMessage
 from app.world.serialization import canonical, utc_now, read_frame
@@ -49,7 +50,7 @@ class MissionService:
             frame = self.read(mission_id)
             subscription = Subscription(asyncio.Queue(maxsize=self.queue_size))
             self._subscribers.setdefault(mission_id, set()).add(subscription)
-            snapshot = SnapshotMessage(type="snapshot", schema_version="1.10", mission_id=mission_id, stream_epoch=frame.stream_epoch,
+            snapshot = SnapshotMessage(type="snapshot", schema_version=frame.schema_version, mission_id=mission_id, stream_epoch=frame.stream_epoch,
                                        sequence=frame.sequence, frame=frame)
             return canonical(snapshot), subscription
 
@@ -88,7 +89,9 @@ class MissionService:
         for index, event in enumerate(events):
             event.update(id=str(uuid4()), missionId=mission_id, sequence=event_sequence + index, recordedAt=recorded_at)
         proposed = json.loads(canonical(proposed))
-        proposed.update(schemaVersion="1.10", recordingId=recording.id, streamEpoch=recording.stream_epoch,
+        if previous and geometry_for(previous) != geometry_for(proposed):
+            raise ValueError("A mission's frozen horizontal geometry cannot change")
+        proposed.update(schemaVersion="1.11" if geometry_for(proposed) is not None else "1.10", recordingId=recording.id, streamEpoch=recording.stream_epoch,
                         sequence=0 if previous is None else previous_sequence + 1,
                         frameId=str(uuid4()), recordedAt=recorded_at,
                         recentEvents=(event_tail + events)[-100:])
@@ -98,7 +101,7 @@ class MissionService:
         committed_text = canonical(frame)
         # Build/validate transport before commit, but distribute only AFTER it.
         message = self._delta(previous, json.loads(committed_text), events) if previous else canonical(
-            SnapshotMessage(type="snapshot", schema_version="1.10", mission_id=mission_id, stream_epoch=frame.stream_epoch, sequence=frame.sequence, frame=frame))
+            SnapshotMessage(type="snapshot", schema_version=frame.schema_version, mission_id=mission_id, stream_epoch=frame.stream_epoch, sequence=frame.sequence, frame=frame))
         if effects:
             # The caller already owns the encompassing repository transaction.
             self.repository.commit(committed_text, events)
@@ -119,7 +122,7 @@ class MissionService:
         for table in ("entities", "tracks", "assets", "sensors", "zones", "tasks"):
             changes[table] = {"upserts": {key: item for key, item in current[table].items() if previous[table].get(key) != item},
                               "removes": sorted(set(previous[table]) - set(current[table]))}
-        payload = {"type": "delta", "schemaVersion": "1.10", "missionId": current["mission"]["id"],
+        payload = {"type": "delta", "schemaVersion": current["schemaVersion"], "missionId": current["mission"]["id"],
                    "previousSequence": previous["sequence"], "changes": changes}
         for key in ("streamEpoch", "sequence", "frameId", "recordingId", "effectiveAt", "recordedAt"):
             payload[key] = current[key]
@@ -131,6 +134,6 @@ class MissionService:
                 self.unsubscribe(mission_id, subscription)
                 while not subscription.queue.empty():
                     subscription.queue.get_nowait()
-                subscription.queue.put_nowait(canonical(ResyncRequiredMessage(type="resync-required", schema_version="1.10", mission_id=mission_id, reason="slow-consumer")))
+                subscription.queue.put_nowait(canonical(ResyncRequiredMessage(type="resync-required", schema_version=json.loads(message)["schemaVersion"], mission_id=mission_id, reason="slow-consumer")))
             else:
                 subscription.queue.put_nowait(message)

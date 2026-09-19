@@ -3,11 +3,35 @@ import type { DeepReadonly } from '../contracts/types';
 import type { ScenarioState } from '../services/scenarioClient';
 import type { SceneProjection } from '../renderers/contracts';
 import type { SessionState } from '../state/sessionStore';
+import { originFor, operatingCorners, locationGeometry } from './localGeometry';
 export function scenarioScene(
   scenario: DeepReadonly<ScenarioState>,
   session: DeepReadonly<SessionState>,
 ): SceneProjection {
+  const origin = originFor(scenario.draft);
+  const locationGuides: NonNullable<
+    SceneProjection['locationGuides']
+  >[number][] = [
+    { id: 'current', origin, corners: operatingCorners(scenario.draft) },
+  ];
+  const edit = scenario.locationEdit;
+  if (edit?.longitude.trim() && edit.latitude.trim()) {
+    try {
+      const geometry = locationGeometry(
+        Number(edit.longitude),
+        Number(edit.latitude),
+      );
+      locationGuides.push({
+        id: 'proposed',
+        origin: geometry.origin,
+        corners: operatingCorners(geometry),
+      });
+    } catch {
+      /* Invalid coordinates have a textual error, not an invented outline. */
+    }
+  }
   return {
+    locationGuides,
     destinations: draftScriptDestinations(scenario, session),
     context: 'authoring',
     // Renderer camera bookmark scope only; never an operational mission identity.
@@ -63,12 +87,11 @@ export function scenarioScene(
       id: session.selection.primary?.id,
     },
     referencePoint: {
-      longitudeDeg: 103.85,
-      latitudeDeg: 1.29,
+      ...origin,
       altitude: { metres: 150, reference: 'ELLIPSOID', datumId: 'WGS84' },
     },
     localHome: {
-      center: { longitudeDeg: 103.85, latitudeDeg: 1.29 },
+      center: origin,
       groundSpanM: 6000,
       headingTrueDeg: 0,
     },

@@ -10,12 +10,12 @@ from app.commands.errors import CommandError
 
 
 def protected(frame, origin, destination=None):
-    a, b = metric(origin), metric(destination) if destination is not None else None
+    a, b = metric(origin, geometry=frame), metric(destination, geometry=frame) if destination is not None else None
     for zid, kind in frame.get("boundaryRules", {}).get("zones", {}).items():
         if kind != "friendly":
             continue
         zone = frame["zones"][zid]
-        ring = [point(v) for v in zone["geometry"]["coordinates"][0][:-1]]
+        ring = [point(v, geometry=frame) for v in zone["geometry"]["coordinates"][0][:-1]]
         if crosses(a, b, ring) if b is not None else contains(a, ring):
             return f'Friendly boundary “{zone["label"]}”: pursuit and engagement protected. Use ordinary Move or revise the policy.'
     return None
@@ -37,16 +37,16 @@ def patrol_route(frame, boundary_id, asset_id, origin):
     zone = frame["zones"][boundary_id]
     vertices = zone["geometry"]["coordinates"][0][:-1]
     try:
-        ring = validate(vertices, "patrol")
+        ring = validate(vertices, "patrol", geometry=frame)
         area2 = sum(a[0]*b[1]-b[0]*a[1] for a, b in zip(ring, ring[1:]+ring[:1]))
         if area2 > 0:
             ring.reverse()
         first = min(range(len(ring)), key=lambda i: ring[i])
         ring = ring[first:]+ring[:first]
         cx, cy = (sum(p[i] for p in ring)/len(ring) for i in range(2))
-        loop = [{**geographic(x*.9+cx*.1, y*.9+cy*.1), "altitude": deepcopy(origin["altitude"])} for x, y in ring]
-        inset = validate([[p["longitudeDeg"], p["latitudeDeg"]] for p in loop], "patrol")
-        if any(not contains(p, ring) for p in inset) or any(not in_extent(p) for p in loop):
+        loop = [{**geographic(x*.9+cx*.1, y*.9+cy*.1, geometry=frame), "altitude": deepcopy(origin["altitude"])} for x, y in ring]
+        inset = validate([[p["longitudeDeg"], p["latitudeDeg"]] for p in loop], "patrol", geometry=frame)
+        if any(not contains(p, ring) for p in inset) or any(not in_extent(p, geometry=frame) for p in loop):
             raise ValueError("Inset does not remain inside the Patrol footprint.")
         for a, b in zip(loop, loop[1:]+loop[:1]):
             reason = blocked(frame, a, b)
@@ -62,16 +62,16 @@ def patrol_route(frame, boundary_id, asset_id, origin):
                 waypoint=waypoint, entered=False, completedLoops=0, visitedWaypoints=0)
 
 
-def interpolate(a, b, fraction):
-    ax, ay = metric(a)
-    bx, by = metric(b)
-    return {**geographic(ax+(bx-ax)*fraction, ay+(by-ay)*fraction), "altitude": deepcopy(a["altitude"])}
+def interpolate(a, b, fraction, geometry=None):
+    ax, ay = metric(a, geometry=geometry)
+    bx, by = metric(b, geometry=geometry)
+    return {**geographic(ax+(bx-ax)*fraction, ay+(by-ay)*fraction, geometry=geometry), "altitude": deepcopy(a["altitude"])}
 
 
-def swept_contact(a0, a1, b0, b1, radius=25.0, tolerance=TOLERANCE):
+def swept_contact(a0, a1, b0, b1, radius=25.0, tolerance=TOLERANCE, geometry=None):
     """Earliest relative-segment entry into the inclusive 3D toy contact sphere."""
     def xyz(p):
-        return (*metric(p), p["altitude"]["metres"])
+        return (*metric(p, geometry=geometry), p["altitude"]["metres"])
     aa, ab, ba, bb = map(xyz, (a0, a1, b0, b1))
     r = [a-b for a, b in zip(aa, ba)]
     v = [(a1-a0)-(b1-b0) for a0, a1, b0, b1 in zip(aa, ab, ba, bb)]
@@ -93,7 +93,7 @@ def swept_contact(a0, a1, b0, b1, radius=25.0, tolerance=TOLERANCE):
     return max(0.0, min(1.0, t)) if -1e-12 <= t <= 1+1e-12 else None
 
 
-def spatial_distance(a, b):
-    ax, ay = metric(a)
-    bx, by = metric(b)
+def spatial_distance(a, b, geometry=None):
+    ax, ay = metric(a, geometry=geometry)
+    bx, by = metric(b, geometry=geometry)
     return hypot(ax-bx, ay-by, a["altitude"]["metres"]-b["altitude"]["metres"])

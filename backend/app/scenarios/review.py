@@ -5,6 +5,7 @@ from app.domain.base import Model, Finite, Id, UtcInstant
 from app.scenarios.contracts import ScenarioRef
 from app.commands.unit_profiles import UnitProfile
 from app.domain.capacity import MAX_SCENARIO_UNITS
+from app.scenarios.location import LocalGeometry, model_for
 
 
 class ScenarioCounts(Model):
@@ -24,9 +25,16 @@ class ScenarioCounts(Model):
 
 class ScenarioMotionPreset(Model):
     template_id: Literal["singapore-local-v2"]
-    model_id: Literal["local-horizontal-v1"]
+    model_id: Literal["local-horizontal-v1", "local-horizontal-v2"]
+    local_geometry: LocalGeometry | None = None
     speed_mps: Finite = Field(gt=0)
     unit_profiles: dict[Id, UnitProfile] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def strict_legacy_geometry(self):
+        if self.model_id == "local-horizontal-v1" and "local_geometry" in self.model_fields_set:
+            raise ValueError("Legacy review motion cannot contain local geometry, including null")
+        return self
 
 
 class ScenarioReviewIssue(Model):
@@ -47,7 +55,7 @@ class ScriptTimingReview(Model):
 
 
 class ScenarioReview(Model):
-    schema_version: Literal["1.4", "1.5"] = "1.4"
+    schema_version: Literal["1.4", "1.5", "1.6"] = "1.4"
     reference: ScenarioRef
     name: str
     checked_at: UtcInstant
@@ -63,6 +71,8 @@ class ScenarioReview(Model):
 
     @model_validator(mode="after")
     def evidence(self):
+        if (self.schema_version == "1.6") != (self.motion_preset.local_geometry is not None) or self.motion_preset.model_id != model_for(self.motion_preset):
+            raise ValueError("Scenario review geometry and version disagree")
         if self.schema_version == "1.4" and self.counts.total > 32:
             raise ValueError("Expanded capacity requires scenario review 1.5")
         if self.can_run != (not self.issues):

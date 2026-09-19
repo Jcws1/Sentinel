@@ -57,6 +57,7 @@ import { countText } from '../entities/values';
 import { FilterItems, filtersActive } from '../entities/EntityFilters';
 import { entityRows } from '../../world/entityRows';
 import { formatSgt } from '../../world/time';
+import { originFor } from '../../world/localGeometry';
 
 export function TacticalMap({
   viewId,
@@ -143,6 +144,8 @@ export function TacticalMap({
     state.scenario.active &&
     !!state.scenario.placement &&
     state.scenario.placement.viewId === viewId;
+  const locating =
+    state.scenario.active && state.scenario.locationEdit?.viewId === viewId;
   const scripting =
     state.scenario.active && state.scenario.actionEdit?.viewId === viewId;
   const boundary = boundaryEditorContext(state);
@@ -152,7 +155,7 @@ export function TacticalMap({
     ? drawing
       ? 'draw'
       : 'vertex'
-    : picking || directPicking || placing || scripting
+    : picking || directPicking || placing || scripting || locating
       ? 'destination'
       : mode;
   const latestMode = useRef<
@@ -161,7 +164,11 @@ export function TacticalMap({
   useEffect(() => {
     const missionId = state.missionId;
     if (picking && missionId) {
-      const camera = bridge.beginDestinationAuthoring(viewId, missionId);
+      const camera = bridge.beginDestinationAuthoring(
+        viewId,
+        missionId,
+        latest.current.localHome,
+      );
       if (!threeD) adapter.current?.restoreCamera(camera);
     } else {
       const saved = bridge.endDestinationAuthoring(viewId);
@@ -178,6 +185,7 @@ export function TacticalMap({
       bridge.endDestinationAuthoring(viewId);
       runtime.disarmBoundary(viewId);
       runtime.disarmAction(viewId);
+      runtime.disarmScenarioLocation(viewId);
       if (runtime.getSnapshot().session.destinationPickView === viewId)
         runtime.pickDestination();
       if (runtime.getSnapshot().session.directDestinationView === viewId)
@@ -193,8 +201,39 @@ export function TacticalMap({
     if (!visible) {
       runtime.disarmBoundary(viewId);
       runtime.disarmAction(viewId);
+      runtime.disarmScenarioLocation(viewId);
     }
   }, [visible, runtime, viewId]);
+  useEffect(() => {
+    const action = state.scenario.locationCamera,
+      renderer = adapter.current;
+    if (
+      !visible ||
+      !state.scenario.active ||
+      action?.viewId !== viewId ||
+      !renderer ||
+      runtime.getSnapshot().scenario.locationCamera?.serial !== action.serial
+    )
+      return;
+    const bounds = canvas.current?.getBoundingClientRect();
+    renderer.restoreCamera({
+      center: originFor(action.geometry),
+      groundSpanM:
+        12000 *
+        Math.max(1, (bounds?.width ?? 1) / Math.max(1, bounds?.height ?? 1)),
+      headingTrueDeg: 0,
+      pitchFromNadirDeg: 0,
+      focusHeightM: 0,
+    });
+    runtime.completeScenarioArea(action.serial);
+  }, [
+    state.scenario.locationCamera,
+    state.scenario.active,
+    visible,
+    viewId,
+    provider,
+    runtime,
+  ]);
   useEffect(() => {
     const locate = state.scenario.locate;
     if (
@@ -382,6 +421,10 @@ export function TacticalMap({
           runtime.boundaryPoint(position.longitude, position.latitude, index);
       },
       boundaryContext: (longitude, latitude, point) => {
+        if (runtime.getSnapshot().scenario.locationEdit?.viewId === viewId) {
+          runtime.cancelScenarioLocation();
+          return;
+        }
         if (pool.owns(lease) && lease.active)
           runtime.boundaryContext(
             longitude,
@@ -393,6 +436,8 @@ export function TacticalMap({
       },
       cancelDestination: () => {
         if (!pool.owns(lease) || !lease.active) return;
+        if (runtime.getSnapshot().scenario.locationEdit?.viewId === viewId)
+          runtime.cancelScenarioLocation();
         runtime.armDirectMove();
         runtime.pickDestination();
         runtime.armPlacement();
@@ -411,6 +456,8 @@ export function TacticalMap({
       destination: (longitude, latitude) => {
         if (!pool.owns(lease) || !lease.active) return;
         const draft = runtime.getSnapshot().scenario;
+        if (draft.active && draft.locationEdit?.viewId === viewId)
+          return runtime.pickScenarioLocation(longitude, latitude, viewId);
         const boundaryDraft = boundaryEditorContext(
           runtime.getSnapshot(),
         ).boundaryEdit;
@@ -999,17 +1046,19 @@ export function TacticalMap({
             units
           </span>
           <span>
-            {scripting
-              ? 'Pick scripted destination · Esc cancels pick'
-              : state.scenario.actionEdit?.viewId
-                ? 'Script pick belongs to another map'
-                : placing
-                  ? 'Click to place · Esc or right-click cancels'
-                  : state.scenario.placement
-                    ? 'Placement belongs to another map'
-                    : state.scenario.actionEdit
-                      ? 'Script preview · straight intent, not route clearance'
-                      : 'Units to place · Conductor to script'}
+            {locating
+              ? 'Choose scenario origin · click to preview · Esc cancels'
+              : scripting
+                ? 'Pick scripted destination · Esc cancels pick'
+                : state.scenario.actionEdit?.viewId
+                  ? 'Script pick belongs to another map'
+                  : placing
+                    ? 'Click to place · Esc or right-click cancels'
+                    : state.scenario.placement
+                      ? 'Placement belongs to another map'
+                      : state.scenario.actionEdit
+                        ? 'Script preview · straight intent, not route clearance'
+                        : 'Units to place · Conductor to script'}
           </span>
         </div>
       ) : state.presentation.frame?.scenario ? (
@@ -1119,7 +1168,9 @@ export function TacticalMap({
               <>
                 <span>
                   {provider.source === 'regional'
-                    ? 'LOCAL VECTOR'
+                    ? provider.coverage === 'outside'
+                      ? 'LOCAL GRID · OUTSIDE MAP PACK'
+                      : 'LOCAL VECTOR'
                     : 'HOSTED BASEMAP'}
                 </span>
                 {provider.terrainError && (
@@ -1133,6 +1184,10 @@ export function TacticalMap({
                     </button>
                   </>
                 )}
+                {provider.source === 'regional' &&
+                  provider.coverage === 'partial' && (
+                    <span className="constraint-tag">PARTIAL MAP COVERAGE</span>
+                  )}
               </>
             )}
             {threeD && spatial && provider.kind === 'hosted' && (

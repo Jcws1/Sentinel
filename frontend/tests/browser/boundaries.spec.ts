@@ -27,6 +27,10 @@ async function unit(p: Page, lon = '103.85', lat = '1.29') {
   await units(p)
     .getByRole('button', { name: /^Friendly drone/ })
     .click();
+  await units(p)
+    .locator('.units-subtypes')
+    .getByRole('button', { name: /^Quadcopter \/ strike/ })
+    .click();
   await units(p).locator('.units-numeric summary').click();
   await units(p)
     .getByRole('textbox', { name: 'Placement longitude', exact: true })
@@ -129,7 +133,12 @@ test('keyboard boundaries, invalid edit recovery, exact copies, validated run an
   await unit(page);
   await numeric(page, 'Transit exclusion');
   const untyped = await save(page, name);
-  expect(untyped.schemaVersion).toBe('1.1');
+  // Newly authored scenarios explicitly own their default geometry.
+  expect(untyped.schemaVersion).toBe('1.6');
+  expect(untyped.content.localGeometry?.origin).toEqual({
+    longitudeDeg: 103.85,
+    latitudeDeg: 1.29,
+  });
   expect(untyped.content.boundaries![0]!.vertices).toEqual(rectangle);
   await units(page)
     .getByRole('button', { name: 'Validate saved revision', exact: true })

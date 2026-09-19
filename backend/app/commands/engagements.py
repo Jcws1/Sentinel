@@ -31,8 +31,8 @@ def truncate_work(frame, checkpoint, entity_id, fraction, position, events):
             if item["state"] in scheduler.ACTIVE:
                 motion = item["motion"]
                 from app.commands.kinematics import distance
-                motion["travelledMetres"] = distance(motion["origin"], position)
-                motion["remainingMetres"] = distance(position, motion["destination"])
+                motion["travelledMetres"] = distance(motion["origin"], position, geometry=frame)
+                motion["remainingMetres"] = distance(position, motion["destination"], geometry=frame)
             changes.extend(scheduler.halt(frame, item, "Cancelled", "simulated-loss: future source work terminated."))
         changes.extend(scheduler.resolve_broken(frame, schedule))
     events[:] = [e for e in events if not any(v.get("executionId") in cancelled_ids and e["type"].endswith(".completed") for v in e.get("extensions", {}).values() if isinstance(v, dict))]
@@ -62,10 +62,10 @@ def resolve(frame, checkpoint, before, events):
             reason = "Protected/restricted participant path; pursuit released."
             events.extend(rts_behavior.release(frame, checkpoint, member, reason) if rts_behavior.enabled(checkpoint) else behaviors.halt(frame, checkpoint, a["assetId"], reason, "blocked", disarm=False))
             continue
-        fraction = swept_contact(old[0], proposed[0], old[1], proposed[1], model["contactRadiusM"], model["toleranceM"])
+        fraction = swept_contact(old[0], proposed[0], old[1], proposed[1], model["contactRadiusM"], model["toleranceM"], geometry=frame)
         if fraction is None:
             continue
-        evaluated = [interpolate(start, end, fraction) for start, end in zip(old, proposed)]
+        evaluated = [interpolate(start, end, fraction, geometry=frame) for start, end in zip(old, proposed)]
         if any(pursuit_blocked(frame, p) for p in evaluated):
             continue
         ids = [a["interceptorId"], a["targetId"]]
@@ -73,7 +73,7 @@ def resolve(frame, checkpoint, before, events):
             assignmentId=a["id"], policyId=member["id"], commandId=member["commandId"], runId=run["runId"], sourceId=run["sourceId"],
             executorEpoch=run["executorEpoch"], inputFrameId=before["frameId"], inputSequence=before["sequence"],
             committedSequence=frame["sequence"]+1, tick=run["tick"], fraction=fraction,
-            separationM=spatial_distance(*evaluated), participants=[])
+            separationM=spatial_distance(*evaluated, geometry=frame), participants=[])
         for eid, tid, start, end, position in zip(ids, tids, old, proposed, evaluated):
             entity = frame["entities"][eid]
             outcome["participants"].append(dict(entityId=eid, trackId=tid, affiliation=entity["affiliation"],

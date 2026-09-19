@@ -1,0 +1,1641 @@
+{
+  "actions": [
+    {
+      "destination": {
+        "latitudeDeg": -33.961910349,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "friendly-01-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 0,
+      "unitId": "friendly-01"
+    },
+    {
+      "afterActionId": "friendly-01-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.961910349,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "friendly-01-back",
+      "kind": "move",
+      "ordinal": 1,
+      "unitId": "friendly-01"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.961191697,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "friendly-02-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 2,
+      "unitId": "friendly-02"
+    },
+    {
+      "afterActionId": "friendly-02-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.961191697,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "friendly-02-back",
+      "kind": "move",
+      "ordinal": 3,
+      "unitId": "friendly-02"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.960473045,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "friendly-03-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 4,
+      "unitId": "friendly-03"
+    },
+    {
+      "afterActionId": "friendly-03-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.960473045,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "friendly-03-back",
+      "kind": "move",
+      "ordinal": 5,
+      "unitId": "friendly-03"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.959754392,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "friendly-04-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 6,
+      "unitId": "friendly-04"
+    },
+    {
+      "afterActionId": "friendly-04-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.959754392,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "friendly-04-back",
+      "kind": "move",
+      "ordinal": 7,
+      "unitId": "friendly-04"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.95903574,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "friendly-05-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 8,
+      "unitId": "friendly-05"
+    },
+    {
+      "afterActionId": "friendly-05-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.95903574,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "friendly-05-back",
+      "kind": "move",
+      "ordinal": 9,
+      "unitId": "friendly-05"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.958317088,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "friendly-06-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 10,
+      "unitId": "friendly-06"
+    },
+    {
+      "afterActionId": "friendly-06-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.958317088,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "friendly-06-back",
+      "kind": "move",
+      "ordinal": 11,
+      "unitId": "friendly-06"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.957598436,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "friendly-07-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 12,
+      "unitId": "friendly-07"
+    },
+    {
+      "afterActionId": "friendly-07-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.957598436,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "friendly-07-back",
+      "kind": "move",
+      "ordinal": 13,
+      "unitId": "friendly-07"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.956879783,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "friendly-08-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 14,
+      "unitId": "friendly-08"
+    },
+    {
+      "afterActionId": "friendly-08-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.956879783,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "friendly-08-back",
+      "kind": "move",
+      "ordinal": 15,
+      "unitId": "friendly-08"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.956161131,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "friendly-09-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 16,
+      "unitId": "friendly-09"
+    },
+    {
+      "afterActionId": "friendly-09-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.956161131,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "friendly-09-back",
+      "kind": "move",
+      "ordinal": 17,
+      "unitId": "friendly-09"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.955442479,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "friendly-10-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 18,
+      "unitId": "friendly-10"
+    },
+    {
+      "afterActionId": "friendly-10-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.955442479,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "friendly-10-back",
+      "kind": "move",
+      "ordinal": 19,
+      "unitId": "friendly-10"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.954723827,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "friendly-11-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 20,
+      "unitId": "friendly-11"
+    },
+    {
+      "afterActionId": "friendly-11-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.954723827,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "friendly-11-back",
+      "kind": "move",
+      "ordinal": 21,
+      "unitId": "friendly-11"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.954005175,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "friendly-12-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 22,
+      "unitId": "friendly-12"
+    },
+    {
+      "afterActionId": "friendly-12-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.954005175,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "friendly-12-back",
+      "kind": "move",
+      "ordinal": 23,
+      "unitId": "friendly-12"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.953286522,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "friendly-13-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 24,
+      "unitId": "friendly-13"
+    },
+    {
+      "afterActionId": "friendly-13-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.953286522,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "friendly-13-back",
+      "kind": "move",
+      "ordinal": 25,
+      "unitId": "friendly-13"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.95256787,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "friendly-14-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 26,
+      "unitId": "friendly-14"
+    },
+    {
+      "afterActionId": "friendly-14-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.95256787,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "friendly-14-back",
+      "kind": "move",
+      "ordinal": 27,
+      "unitId": "friendly-14"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.951849218,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "friendly-15-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 28,
+      "unitId": "friendly-15"
+    },
+    {
+      "afterActionId": "friendly-15-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.951849218,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "friendly-15-back",
+      "kind": "move",
+      "ordinal": 29,
+      "unitId": "friendly-15"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.951130566,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "friendly-16-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 30,
+      "unitId": "friendly-16"
+    },
+    {
+      "afterActionId": "friendly-16-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.951130566,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "friendly-16-back",
+      "kind": "move",
+      "ordinal": 31,
+      "unitId": "friendly-16"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.950411913,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "friendly-17-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 32,
+      "unitId": "friendly-17"
+    },
+    {
+      "afterActionId": "friendly-17-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.950411913,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "friendly-17-back",
+      "kind": "move",
+      "ordinal": 33,
+      "unitId": "friendly-17"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.949693261,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "friendly-18-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 34,
+      "unitId": "friendly-18"
+    },
+    {
+      "afterActionId": "friendly-18-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.949693261,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "friendly-18-back",
+      "kind": "move",
+      "ordinal": 35,
+      "unitId": "friendly-18"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.948974609,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "friendly-19-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 36,
+      "unitId": "friendly-19"
+    },
+    {
+      "afterActionId": "friendly-19-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.948974609,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "friendly-19-back",
+      "kind": "move",
+      "ordinal": 37,
+      "unitId": "friendly-19"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.948255957,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "friendly-20-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 38,
+      "unitId": "friendly-20"
+    },
+    {
+      "afterActionId": "friendly-20-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.948255957,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "friendly-20-back",
+      "kind": "move",
+      "ordinal": 39,
+      "unitId": "friendly-20"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.943944043,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "hostile-01-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 40,
+      "unitId": "hostile-01"
+    },
+    {
+      "afterActionId": "hostile-01-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.943944043,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "hostile-01-back",
+      "kind": "move",
+      "ordinal": 41,
+      "unitId": "hostile-01"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.943225391,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "hostile-02-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 42,
+      "unitId": "hostile-02"
+    },
+    {
+      "afterActionId": "hostile-02-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.943225391,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "hostile-02-back",
+      "kind": "move",
+      "ordinal": 43,
+      "unitId": "hostile-02"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.942506739,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "hostile-03-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 44,
+      "unitId": "hostile-03"
+    },
+    {
+      "afterActionId": "hostile-03-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.942506739,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "hostile-03-back",
+      "kind": "move",
+      "ordinal": 45,
+      "unitId": "hostile-03"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.941788087,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "hostile-04-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 46,
+      "unitId": "hostile-04"
+    },
+    {
+      "afterActionId": "hostile-04-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.941788087,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "hostile-04-back",
+      "kind": "move",
+      "ordinal": 47,
+      "unitId": "hostile-04"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.941069434,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "hostile-05-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 48,
+      "unitId": "hostile-05"
+    },
+    {
+      "afterActionId": "hostile-05-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.941069434,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "hostile-05-back",
+      "kind": "move",
+      "ordinal": 49,
+      "unitId": "hostile-05"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.940350782,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "hostile-06-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 50,
+      "unitId": "hostile-06"
+    },
+    {
+      "afterActionId": "hostile-06-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.940350782,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "hostile-06-back",
+      "kind": "move",
+      "ordinal": 51,
+      "unitId": "hostile-06"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.93963213,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "hostile-07-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 52,
+      "unitId": "hostile-07"
+    },
+    {
+      "afterActionId": "hostile-07-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.93963213,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "hostile-07-back",
+      "kind": "move",
+      "ordinal": 53,
+      "unitId": "hostile-07"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.938913478,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "hostile-08-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 54,
+      "unitId": "hostile-08"
+    },
+    {
+      "afterActionId": "hostile-08-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.938913478,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "hostile-08-back",
+      "kind": "move",
+      "ordinal": 55,
+      "unitId": "hostile-08"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.938194825,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "hostile-09-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 56,
+      "unitId": "hostile-09"
+    },
+    {
+      "afterActionId": "hostile-09-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.938194825,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "hostile-09-back",
+      "kind": "move",
+      "ordinal": 57,
+      "unitId": "hostile-09"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.937476173,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "hostile-10-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 58,
+      "unitId": "hostile-10"
+    },
+    {
+      "afterActionId": "hostile-10-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.937476173,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "hostile-10-back",
+      "kind": "move",
+      "ordinal": 59,
+      "unitId": "hostile-10"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.936757521,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "hostile-11-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 60,
+      "unitId": "hostile-11"
+    },
+    {
+      "afterActionId": "hostile-11-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.936757521,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "hostile-11-back",
+      "kind": "move",
+      "ordinal": 61,
+      "unitId": "hostile-11"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.936038869,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "hostile-12-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 62,
+      "unitId": "hostile-12"
+    },
+    {
+      "afterActionId": "hostile-12-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.936038869,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "hostile-12-back",
+      "kind": "move",
+      "ordinal": 63,
+      "unitId": "hostile-12"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.935320217,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "hostile-13-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 64,
+      "unitId": "hostile-13"
+    },
+    {
+      "afterActionId": "hostile-13-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.935320217,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "hostile-13-back",
+      "kind": "move",
+      "ordinal": 65,
+      "unitId": "hostile-13"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.934601564,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "hostile-14-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 66,
+      "unitId": "hostile-14"
+    },
+    {
+      "afterActionId": "hostile-14-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.934601564,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "hostile-14-back",
+      "kind": "move",
+      "ordinal": 67,
+      "unitId": "hostile-14"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.933882912,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "hostile-15-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 68,
+      "unitId": "hostile-15"
+    },
+    {
+      "afterActionId": "hostile-15-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.933882912,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "hostile-15-back",
+      "kind": "move",
+      "ordinal": 69,
+      "unitId": "hostile-15"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.93316426,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "hostile-16-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 70,
+      "unitId": "hostile-16"
+    },
+    {
+      "afterActionId": "hostile-16-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.93316426,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "hostile-16-back",
+      "kind": "move",
+      "ordinal": 71,
+      "unitId": "hostile-16"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.932445608,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "hostile-17-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 72,
+      "unitId": "hostile-17"
+    },
+    {
+      "afterActionId": "hostile-17-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.932445608,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "hostile-17-back",
+      "kind": "move",
+      "ordinal": 73,
+      "unitId": "hostile-17"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.931726955,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "hostile-18-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 74,
+      "unitId": "hostile-18"
+    },
+    {
+      "afterActionId": "hostile-18-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.931726955,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "hostile-18-back",
+      "kind": "move",
+      "ordinal": 75,
+      "unitId": "hostile-18"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.931008303,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "hostile-19-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 76,
+      "unitId": "hostile-19"
+    },
+    {
+      "afterActionId": "hostile-19-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.931008303,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "hostile-19-back",
+      "kind": "move",
+      "ordinal": 77,
+      "unitId": "hostile-19"
+    },
+    {
+      "destination": {
+        "latitudeDeg": -33.930289651,
+        "longitudeDeg": 151.160956839
+      },
+      "id": "hostile-20-out",
+      "kind": "move",
+      "offsetMs": 0,
+      "ordinal": 78,
+      "unitId": "hostile-20"
+    },
+    {
+      "afterActionId": "hostile-20-out",
+      "delayMs": 200,
+      "destination": {
+        "latitudeDeg": -33.930289651,
+        "longitudeDeg": 151.193443161
+      },
+      "id": "hostile-20-back",
+      "kind": "move",
+      "ordinal": 79,
+      "unitId": "hostile-20"
+    }
+  ],
+  "boundaries": [
+    {
+      "id": "patrol-area",
+      "name": "Patrol practice",
+      "type": "patrol",
+      "vertices": [
+        [151.151210943, -33.968557882],
+        [151.159873962, -33.968557882],
+        [151.159873962, -33.96316799],
+        [151.151210943, -33.96316799]
+      ]
+    },
+    {
+      "id": "restricted-area",
+      "name": "Restricted practice",
+      "type": "restricted",
+      "vertices": [
+        [151.204271934, -33.923642118],
+        [151.207520567, -33.923642118],
+        [151.207520567, -33.920947172],
+        [151.204271934, -33.920947172]
+      ]
+    }
+  ],
+  "boundaryRuleVersion": "local-boundary-v1",
+  "localGeometry": {
+    "halfExtentMetres": 5000,
+    "modelId": "local-horizontal-v2",
+    "origin": {
+      "latitudeDeg": -33.9461,
+      "longitudeDeg": 151.1772
+    }
+  },
+  "name": "Location · Sydney 20v20",
+  "scheduleRuleVersion": "local-schedule-v2",
+  "units": [
+    {
+      "category": "friendly",
+      "commandRole": "sentinel",
+      "headingTrueDeg": 73.5,
+      "id": "friendly-01",
+      "label": "Friendly 01",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 150.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.961910349,
+        "longitudeDeg": 151.160956839
+      },
+      "profileId": "sting-v1"
+    },
+    {
+      "category": "friendly",
+      "commandRole": "sentinel",
+      "headingTrueDeg": 73.5,
+      "id": "friendly-02",
+      "label": "Friendly 02",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 151.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.961191697,
+        "longitudeDeg": 151.160956839
+      },
+      "profileId": "sting-v1"
+    },
+    {
+      "category": "friendly",
+      "commandRole": "sentinel",
+      "headingTrueDeg": 73.5,
+      "id": "friendly-03",
+      "label": "Friendly 03",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 152.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.960473045,
+        "longitudeDeg": 151.160956839
+      },
+      "profileId": "sting-v1"
+    },
+    {
+      "category": "friendly",
+      "commandRole": "sentinel",
+      "headingTrueDeg": 73.5,
+      "id": "friendly-04",
+      "label": "Friendly 04",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 153.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.959754392,
+        "longitudeDeg": 151.160956839
+      },
+      "profileId": "sting-v1"
+    },
+    {
+      "category": "friendly",
+      "commandRole": "sentinel",
+      "headingTrueDeg": 73.5,
+      "id": "friendly-05",
+      "label": "Friendly 05",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 154.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.95903574,
+        "longitudeDeg": 151.160956839
+      },
+      "profileId": "sting-v1"
+    },
+    {
+      "category": "friendly",
+      "commandRole": "sentinel",
+      "headingTrueDeg": 73.5,
+      "id": "friendly-06",
+      "label": "Friendly 06",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 155.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.958317088,
+        "longitudeDeg": 151.160956839
+      },
+      "profileId": "sting-v1"
+    },
+    {
+      "category": "friendly",
+      "commandRole": "sentinel",
+      "headingTrueDeg": 73.5,
+      "id": "friendly-07",
+      "label": "Friendly 07",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 156.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.957598436,
+        "longitudeDeg": 151.160956839
+      },
+      "profileId": "sting-v1"
+    },
+    {
+      "category": "friendly",
+      "commandRole": "sentinel",
+      "headingTrueDeg": 73.5,
+      "id": "friendly-08",
+      "label": "Friendly 08",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 157.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.956879783,
+        "longitudeDeg": 151.160956839
+      },
+      "profileId": "sting-v1"
+    },
+    {
+      "category": "friendly",
+      "commandRole": "sentinel",
+      "headingTrueDeg": 73.5,
+      "id": "friendly-09",
+      "label": "Friendly 09",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 158.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.956161131,
+        "longitudeDeg": 151.160956839
+      },
+      "profileId": "sting-v1"
+    },
+    {
+      "category": "friendly",
+      "commandRole": "sentinel",
+      "headingTrueDeg": 73.5,
+      "id": "friendly-10",
+      "label": "Friendly 10",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 159.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.955442479,
+        "longitudeDeg": 151.160956839
+      },
+      "profileId": "sting-v1"
+    },
+    {
+      "category": "friendly",
+      "commandRole": "sentinel",
+      "headingTrueDeg": 73.5,
+      "id": "friendly-11",
+      "label": "Friendly 11",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 160.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.954723827,
+        "longitudeDeg": 151.160956839
+      },
+      "profileId": "sting-v1"
+    },
+    {
+      "category": "friendly",
+      "commandRole": "sentinel",
+      "headingTrueDeg": 73.5,
+      "id": "friendly-12",
+      "label": "Friendly 12",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 161.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.954005175,
+        "longitudeDeg": 151.160956839
+      },
+      "profileId": "sting-v1"
+    },
+    {
+      "category": "friendly",
+      "commandRole": "sentinel",
+      "headingTrueDeg": 73.5,
+      "id": "friendly-13",
+      "label": "Friendly 13",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 162.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.953286522,
+        "longitudeDeg": 151.160956839
+      },
+      "profileId": "sting-v1"
+    },
+    {
+      "category": "friendly",
+      "commandRole": "sentinel",
+      "headingTrueDeg": 73.5,
+      "id": "friendly-14",
+      "label": "Friendly 14",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 163.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.95256787,
+        "longitudeDeg": 151.160956839
+      },
+      "profileId": "sting-v1"
+    },
+    {
+      "category": "friendly",
+      "commandRole": "sentinel",
+      "headingTrueDeg": 73.5,
+      "id": "friendly-15",
+      "label": "Friendly 15",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 164.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.951849218,
+        "longitudeDeg": 151.160956839
+      },
+      "profileId": "sting-v1"
+    },
+    {
+      "category": "friendly",
+      "commandRole": "sentinel",
+      "headingTrueDeg": 73.5,
+      "id": "friendly-16",
+      "label": "Friendly 16",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 165.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.951130566,
+        "longitudeDeg": 151.160956839
+      },
+      "profileId": "sting-v1"
+    },
+    {
+      "category": "friendly",
+      "commandRole": "sentinel",
+      "headingTrueDeg": 73.5,
+      "id": "friendly-17",
+      "label": "Friendly 17",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 166.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.950411913,
+        "longitudeDeg": 151.160956839
+      },
+      "profileId": "sting-v1"
+    },
+    {
+      "category": "friendly",
+      "commandRole": "sentinel",
+      "headingTrueDeg": 73.5,
+      "id": "friendly-18",
+      "label": "Friendly 18",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 167.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.949693261,
+        "longitudeDeg": 151.160956839
+      },
+      "profileId": "sting-v1"
+    },
+    {
+      "category": "friendly",
+      "commandRole": "sentinel",
+      "headingTrueDeg": 73.5,
+      "id": "friendly-19",
+      "label": "Friendly 19",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 168.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.948974609,
+        "longitudeDeg": 151.160956839
+      },
+      "profileId": "sting-v1"
+    },
+    {
+      "category": "friendly",
+      "commandRole": "sentinel",
+      "headingTrueDeg": 73.5,
+      "id": "friendly-20",
+      "label": "Friendly 20",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 169.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.948255957,
+        "longitudeDeg": 151.160956839
+      },
+      "profileId": "sting-v1"
+    },
+    {
+      "category": "hostile",
+      "commandRole": "observation",
+      "headingTrueDeg": 73.5,
+      "id": "hostile-01",
+      "label": "Hostile 01",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 150.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.943944043,
+        "longitudeDeg": 151.193443161
+      },
+      "profileId": "lancet-3-v1"
+    },
+    {
+      "category": "hostile",
+      "commandRole": "observation",
+      "headingTrueDeg": 73.5,
+      "id": "hostile-02",
+      "label": "Hostile 02",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 151.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.943225391,
+        "longitudeDeg": 151.193443161
+      },
+      "profileId": "lancet-3-v1"
+    },
+    {
+      "category": "hostile",
+      "commandRole": "observation",
+      "headingTrueDeg": 73.5,
+      "id": "hostile-03",
+      "label": "Hostile 03",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 152.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.942506739,
+        "longitudeDeg": 151.193443161
+      },
+      "profileId": "lancet-3-v1"
+    },
+    {
+      "category": "hostile",
+      "commandRole": "observation",
+      "headingTrueDeg": 73.5,
+      "id": "hostile-04",
+      "label": "Hostile 04",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 153.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.941788087,
+        "longitudeDeg": 151.193443161
+      },
+      "profileId": "lancet-3-v1"
+    },
+    {
+      "category": "hostile",
+      "commandRole": "observation",
+      "headingTrueDeg": 73.5,
+      "id": "hostile-05",
+      "label": "Hostile 05",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 154.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.941069434,
+        "longitudeDeg": 151.193443161
+      },
+      "profileId": "lancet-3-v1"
+    },
+    {
+      "category": "hostile",
+      "commandRole": "observation",
+      "headingTrueDeg": 73.5,
+      "id": "hostile-06",
+      "label": "Hostile 06",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 155.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.940350782,
+        "longitudeDeg": 151.193443161
+      },
+      "profileId": "lancet-3-v1"
+    },
+    {
+      "category": "hostile",
+      "commandRole": "observation",
+      "headingTrueDeg": 73.5,
+      "id": "hostile-07",
+      "label": "Hostile 07",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 156.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.93963213,
+        "longitudeDeg": 151.193443161
+      },
+      "profileId": "lancet-3-v1"
+    },
+    {
+      "category": "hostile",
+      "commandRole": "observation",
+      "headingTrueDeg": 73.5,
+      "id": "hostile-08",
+      "label": "Hostile 08",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 157.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.938913478,
+        "longitudeDeg": 151.193443161
+      },
+      "profileId": "lancet-3-v1"
+    },
+    {
+      "category": "hostile",
+      "commandRole": "observation",
+      "headingTrueDeg": 73.5,
+      "id": "hostile-09",
+      "label": "Hostile 09",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 158.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.938194825,
+        "longitudeDeg": 151.193443161
+      },
+      "profileId": "lancet-3-v1"
+    },
+    {
+      "category": "hostile",
+      "commandRole": "observation",
+      "headingTrueDeg": 73.5,
+      "id": "hostile-10",
+      "label": "Hostile 10",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 159.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.937476173,
+        "longitudeDeg": 151.193443161
+      },
+      "profileId": "lancet-3-v1"
+    },
+    {
+      "category": "hostile",
+      "commandRole": "observation",
+      "headingTrueDeg": 73.5,
+      "id": "hostile-11",
+      "label": "Hostile 11",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 160.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.936757521,
+        "longitudeDeg": 151.193443161
+      },
+      "profileId": "lancet-3-v1"
+    },
+    {
+      "category": "hostile",
+      "commandRole": "observation",
+      "headingTrueDeg": 73.5,
+      "id": "hostile-12",
+      "label": "Hostile 12",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 161.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.936038869,
+        "longitudeDeg": 151.193443161
+      },
+      "profileId": "lancet-3-v1"
+    },
+    {
+      "category": "hostile",
+      "commandRole": "observation",
+      "headingTrueDeg": 73.5,
+      "id": "hostile-13",
+      "label": "Hostile 13",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 162.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.935320217,
+        "longitudeDeg": 151.193443161
+      },
+      "profileId": "lancet-3-v1"
+    },
+    {
+      "category": "hostile",
+      "commandRole": "observation",
+      "headingTrueDeg": 73.5,
+      "id": "hostile-14",
+      "label": "Hostile 14",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 163.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.934601564,
+        "longitudeDeg": 151.193443161
+      },
+      "profileId": "lancet-3-v1"
+    },
+    {
+      "category": "hostile",
+      "commandRole": "observation",
+      "headingTrueDeg": 73.5,
+      "id": "hostile-15",
+      "label": "Hostile 15",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 164.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.933882912,
+        "longitudeDeg": 151.193443161
+      },
+      "profileId": "lancet-3-v1"
+    },
+    {
+      "category": "hostile",
+      "commandRole": "observation",
+      "headingTrueDeg": 73.5,
+      "id": "hostile-16",
+      "label": "Hostile 16",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 165.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.93316426,
+        "longitudeDeg": 151.193443161
+      },
+      "profileId": "lancet-3-v1"
+    },
+    {
+      "category": "hostile",
+      "commandRole": "observation",
+      "headingTrueDeg": 73.5,
+      "id": "hostile-17",
+      "label": "Hostile 17",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 166.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.932445608,
+        "longitudeDeg": 151.193443161
+      },
+      "profileId": "lancet-3-v1"
+    },
+    {
+      "category": "hostile",
+      "commandRole": "observation",
+      "headingTrueDeg": 73.5,
+      "id": "hostile-18",
+      "label": "Hostile 18",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 167.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.931726955,
+        "longitudeDeg": 151.193443161
+      },
+      "profileId": "lancet-3-v1"
+    },
+    {
+      "category": "hostile",
+      "commandRole": "observation",
+      "headingTrueDeg": 73.5,
+      "id": "hostile-19",
+      "label": "Hostile 19",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 168.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.931008303,
+        "longitudeDeg": 151.193443161
+      },
+      "profileId": "lancet-3-v1"
+    },
+    {
+      "category": "hostile",
+      "commandRole": "observation",
+      "headingTrueDeg": 73.5,
+      "id": "hostile-20",
+      "label": "Hostile 20",
+      "position": {
+        "altitude": {
+          "datumId": "WGS84",
+          "metres": 169.125,
+          "reference": "ELLIPSOID"
+        },
+        "latitudeDeg": -33.930289651,
+        "longitudeDeg": 151.193443161
+      },
+      "profileId": "lancet-3-v1"
+    }
+  ]
+}

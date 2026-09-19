@@ -1,12 +1,13 @@
+import { geometryFor, validateLocalGeometry } from '../world/localGeometry';
 import { validateSchedule } from './schedule';
 import { validateBehavior } from './behavior';
 import { profileOptions, validateProfiles } from '../world/unitProfiles';
 import Ajv2020 from 'ajv/dist/2020';
 import addFormats from 'ajv-formats';
-import worldSchema from '../../../contracts/sentinel/v1.11/world.schema.json';
-import streamSchema from '../../../contracts/sentinel/v1.11/stream.schema.json';
-import catalogSchema from '../../../contracts/sentinel/v1.11/mission-list.schema.json';
-import observedSchema from '../../../contracts/sentinel/v1.11/observed-history.schema.json';
+import worldSchema from '../../../contracts/sentinel/v1.14/world.schema.json';
+import streamSchema from '../../../contracts/sentinel/v1.14/stream.schema.json';
+import catalogSchema from '../../../contracts/sentinel/v1.14/mission-list.schema.json';
+import observedSchema from '../../../contracts/sentinel/v1.14/observed-history.schema.json';
 import type { ObservedHistory } from './generated';
 import type {
   DeepReadonly,
@@ -178,15 +179,30 @@ export function validateFrame(value: unknown): WorldFrame {
           z.provenance.source.id === frame.interactive!.sourceId,
         'Invalid frozen boundary/source',
       );
-      validateBoundary({
-        id: 'world-boundary',
-        name: z.label,
-        type,
-        vertices: z.geometry.coordinates[0].slice(0, -1),
-      } as BoundaryDefinition);
+      validateBoundary(
+        {
+          id: 'world-boundary',
+          name: z.label,
+          type,
+          vertices: z.geometry.coordinates[0].slice(0, -1),
+        } as BoundaryDefinition,
+        frame,
+      );
     }
   }
-  assert(frame.schemaVersion === '1.10', 'Missing world schema version');
+  const geometry = geometryFor(frame);
+  if (geometry) validateLocalGeometry(geometry);
+  assert(
+    frame.schemaVersion === (geometry ? '1.11' : '1.10'),
+    'World geometry/version mismatch',
+  );
+  assert(!geometry || frame.scenario, 'Located run needs a frozen scenario');
+  assert(
+    !frame.fleetBehavior ||
+      frame.fleetBehavior.model.movementModel ===
+        frame.interactive?.movementModel,
+    'Behavior geometry mismatch',
+  );
   calendarInstant(frame.effectiveAt);
   calendarInstant(frame.recordedAt);
   calendarInstant(frame.mission.createdAt);
@@ -384,15 +400,26 @@ export function decodeStream(text: string): StreamMessage {
     validateStream(value),
     `Invalid stream message: ${ajv.errorsText(validateStream.errors)}`,
   );
-  assert(value.schemaVersion === '1.10', 'Missing stream schema version');
+  assert(
+    ['1.10', '1.11'].includes(value.schemaVersion),
+    'Missing stream schema version',
+  );
   if (value.type === 'snapshot') {
     const frame = validateFrame(value.frame);
+    assert(
+      value.schemaVersion === frame.schemaVersion,
+      'Snapshot geometry/version mismatch',
+    );
     assert(value.missionId === frame.mission.id, 'Snapshot mission mismatch');
     assert(value.streamEpoch === frame.streamEpoch, 'Snapshot epoch mismatch');
     assert(value.sequence === frame.sequence, 'Snapshot sequence mismatch');
   } else if (value.type === 'heartbeat') {
     calendarInstant(value.serverTime);
   } else if (value.type === 'delta') {
+    assert(
+      value.schemaVersion === (geometryFor(value.changes) ? '1.11' : '1.10'),
+      'Delta geometry/version mismatch',
+    );
     calendarInstant(value.effectiveAt);
     calendarInstant(value.recordedAt);
   }

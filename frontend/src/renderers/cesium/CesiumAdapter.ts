@@ -1579,6 +1579,37 @@ export class CesiumAdapter implements MapRenderer {
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         });
       }
+      for (const guide of scene.locationGuides ?? []) {
+        const id = `location-guide:${guide.id}`;
+        retained.add(id);
+        const entity = collection.getById(id) ?? collection.add({ id });
+        const color = Color.fromCssColorString(
+          guide.id === 'proposed' ? '#dfb665' : '#a4adb6',
+        );
+        entity.position = new ConstantPositionProperty(
+          Cartesian3.fromDegrees(
+            guide.origin.longitudeDeg,
+            guide.origin.latitudeDeg,
+          ),
+        );
+        entity.point = new PointGraphics({
+          pixelSize: 7,
+          color: Color.fromCssColorString('#13181e'),
+          outlineColor: color,
+          outlineWidth: 1.5,
+          heightReference: HeightReference.CLAMP_TO_GROUND,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        });
+        entity.polyline = new PolylineGraphics({
+          positions: [...guide.corners, guide.corners[0]].map((p) =>
+            Cartesian3.fromDegrees(p[0], p[1]),
+          ),
+          arcType: ArcType.RHUMB,
+          width: 1.5,
+          clampToGround: true,
+          material: new PolylineDashMaterialProperty({ color, dashLength: 16 }),
+        });
+      }
       const vertices = scene.boundaryEdit?.vertices ?? [];
       if (vertices.length > 1) {
         const id = 'boundary-edit-line';

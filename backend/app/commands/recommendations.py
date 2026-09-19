@@ -63,7 +63,7 @@ def eligible_pairs(frame, entity_ids):
         for eid, track in targets:
             if track:
                 point = track["latest"]["position"]
-                if distance(origin, point) <= fleet["model"]["acquisitionRadiusM"] + fleet["model"]["toleranceM"] and not pursuit_blocked(frame, origin, point):
+                if distance(origin, point, geometry=frame) <= fleet["model"]["acquisitionRadiusM"] + fleet["model"]["toleranceM"] and not pursuit_blocked(frame, origin, point):
                     pairs.append((c["assetId"], eid))
     return pairs
 

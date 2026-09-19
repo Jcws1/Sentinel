@@ -6,6 +6,7 @@ import type {
 } from '../contracts/generated';
 import type { DeepReadonly } from '../contracts/types';
 import { boundaryCrosses, metricVertex } from './boundaryGeometry';
+import { eastScale, type GeometryOwner } from './localGeometry';
 
 export type ScriptPoint = DeepReadonly<ScenarioPosition>;
 export interface PlannedLeg {
@@ -22,23 +23,29 @@ export interface PlannedLeg {
   travelled: number;
 }
 const scale = (6378137 * Math.PI) / 180;
-const dxScale = scale * Math.cos((1.29 * Math.PI) / 180);
 import { placementSpeed } from './unitProfiles';
 export const scriptStep = (155 / 3.6) * 0.2;
-export function scriptDistance(a: ScriptPoint, b: ScriptPoint) {
-  const [x, y] = metricVertex([a.longitudeDeg, a.latitudeDeg]),
-    [tx, ty] = metricVertex([b.longitudeDeg, b.latitudeDeg]);
+export function scriptDistance(
+  a: ScriptPoint,
+  b: ScriptPoint,
+  geometry?: GeometryOwner,
+) {
+  const [x, y] = metricVertex([a.longitudeDeg, a.latitudeDeg], geometry),
+    [tx, ty] = metricVertex([b.longitudeDeg, b.latitudeDeg], geometry);
   return Math.hypot(tx - x, ty - y);
 }
 export function translatePoint(
   point: ScriptPoint,
   x: number,
   y: number,
+  geometry?: GeometryOwner,
 ): ScenarioPosition {
   return {
     ...point,
     altitude: { ...point.altitude },
-    longitudeDeg: Number((point.longitudeDeg + x / dxScale).toFixed(9)),
+    longitudeDeg: Number(
+      (point.longitudeDeg + x / eastScale(geometry)).toFixed(9),
+    ),
     latitudeDeg: Number((point.latitudeDeg + y / scale).toFixed(9)),
   };
 }
@@ -46,14 +53,18 @@ export function atDistance(
   origin: ScriptPoint,
   target: ScriptPoint,
   travelled: number,
+  geometry?: GeometryOwner,
 ): ScriptPoint {
-  const distance = scriptDistance(origin, target);
+  const distance = scriptDistance(origin, target, geometry);
   if (travelled >= distance) return target;
   return translatePoint(
     origin,
-    ((target.longitudeDeg - origin.longitudeDeg) * dxScale * travelled) /
+    ((target.longitudeDeg - origin.longitudeDeg) *
+      eastScale(geometry) *
+      travelled) /
       distance,
     ((target.latitudeDeg - origin.latitudeDeg) * scale * travelled) / distance,
+    geometry,
   );
 }
 export function actionTime(action: DeepReadonly<ScheduledAction>) {
@@ -229,6 +240,7 @@ export function scriptPlan(
             [origin.longitudeDeg, origin.latitudeDeg],
             [l.destination.longitudeDeg, l.destination.latitudeDeg],
             b.vertices.map((v) => [v[0], v[1]]),
+            content,
           ),
       );
       if (restricted) {
@@ -254,12 +266,12 @@ export function scriptPlan(
       for (const l of legs) {
         if (l.state !== 'Running' || !l.origin) continue;
         l.travelled = Math.min(
-          scriptDistance(l.origin, l.destination),
+          scriptDistance(l.origin, l.destination, content),
           l.travelled + placementSpeed(units.get(l.action.unitId)!) * 0.2,
         );
-        l.reached = atDistance(l.origin, l.destination, l.travelled);
+        l.reached = atDistance(l.origin, l.destination, l.travelled, content);
         positions.set(l.action.unitId, l.reached);
-        if (l.travelled >= scriptDistance(l.origin, l.destination)) {
+        if (l.travelled >= scriptDistance(l.origin, l.destination, content)) {
           l.state = 'Completed';
           l.endTick = tick;
         }
@@ -294,6 +306,7 @@ export function positionBefore(
           placementSpeed(content.units.find((u) => u.id === l.action.unitId)!) *
           0.2,
       ),
+      content,
     );
   }
   return result;

@@ -1,3 +1,4 @@
+import { insideExtent } from '../world/localGeometry';
 import type { WorldFrame } from './generated';
 import { invariant } from './integrity';
 import { validateActionGraph } from '../world/scriptPlan';
@@ -56,6 +57,10 @@ export function validateSchedule(frame: WorldFrame) {
     'Live movement requires Manual override',
   );
   for (const e of s.actions) {
+    invariant(
+      insideExtent(e.action.destination, frame),
+      'Script destination outside frozen extent',
+    );
     const a = e.action,
       t = frame.tracks[e.trackId],
       key = `${e.entityId}:${a.offsetMs}`,

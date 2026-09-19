@@ -678,6 +678,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
     async openSavedScenario(id: string, discard = false) {
       const s = scenarios.get();
       if (
+        s.locationEdit ||
         s.edit ||
         s.actionEdit ||
         s.boundaryEdit ||
@@ -706,6 +707,14 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
         scenarios.get().saved?.definitionId === id && !scenarios.get().error
       );
     },
+    beginScenarioLocation: scenarios.beginLocation,
+    editScenarioLocation: scenarios.editLocation,
+    pickScenarioLocation: scenarios.pickLocation,
+    disarmScenarioLocation: scenarios.disarmLocation,
+    cancelScenarioLocation: scenarios.cancelLocation,
+    applyScenarioLocation: scenarios.applyLocation,
+    showScenarioArea: scenarios.showLocationArea,
+    completeScenarioArea: scenarios.completeLocationCamera,
     updateScenario: (content: ScenarioContent) => scenarios.update(content),
     editScenarioUnit: (edit: ScenarioUnitEdit) => scenarios.editUnit(edit),
     applyScenarioUnitEdit: () => scenarios.applyEdit(),
@@ -871,6 +880,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       if (
         !state.active ||
         !placement ||
+        state.locationEdit ||
         state.edit ||
         state.actionEdit ||
         state.boundaryEdit ||
@@ -879,9 +889,9 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
         state.pending
       )
         return;
-      if (!withinScenarioExtent(longitudeDeg, latitudeDeg)) {
+      if (!withinScenarioExtent(longitudeDeg, latitudeDeg, state.draft)) {
         scenarios.report(
-          'Place units within 5 km of the local origin. Recenter to return.',
+          'Place units inside the operating square: ±5 km east/west and north/south of the scenario origin. Show operating area or change origin in Scenario location.',
         );
         return;
       }
@@ -960,6 +970,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       if (
         !state.saved ||
         !state.active ||
+        state.locationEdit ||
         state.edit ||
         state.actionEdit ||
         state.boundaryEdit ||

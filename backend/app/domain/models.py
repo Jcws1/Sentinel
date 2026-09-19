@@ -417,7 +417,7 @@ class LegacyBoundaryWorldFrame(LegacyScenarioWorldFrame):
                 z = self.zones[zid]
                 if z.purpose != kind or z.altitude_band or len(z.geometry.coordinates) != 1 or z.provenance.source.id != self.interactive.source_id:
                     raise ValueError("Invalid boundary footprint or source")
-                validate(z.geometry.coordinates[0][:-1], kind)
+                validate(z.geometry.coordinates[0][:-1], kind, geometry=self)
         return self
 
 
@@ -502,7 +502,7 @@ class LegacyD3aWorldFrame(LegacyScheduledWorldFrame):
                 z = self.zones[zid]
                 if z.purpose != kind or z.altitude_band or len(z.geometry.coordinates) != 1 or z.provenance.source.id != self.interactive.source_id:
                     raise ValueError("Invalid boundary footprint or source")
-                validate(z.geometry.coordinates[0][:-1], kind)
+                validate(z.geometry.coordinates[0][:-1], kind, geometry=self)
         return self
 
 
@@ -563,11 +563,28 @@ class LegacyD4WorldFrame(LegacyD3aWorldFrame):
 
 
 class WorldFrame(LegacyD3aWorldFrame):
-    schema_version: Literal["1.10"]
+    schema_version: Literal["1.10", "1.11"]
     interactive: InteractiveRun | None = None
     fleet_behavior: FleetBehavior | None = None
     scenario_schedule: ScenarioSchedule | None = None
     unit_profiles: dict[Id, UnitProfile] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def location_integrity(self):
+        from app.scenarios.location import geometry_for
+        from app.commands.kinematics import in_extent
+        geometry = geometry_for(self)
+        if self.schema_version != ("1.11" if geometry is not None else "1.10"):
+            raise ValueError("World geometry and version disagree")
+        if geometry is not None and not self.scenario:
+            raise ValueError("Located runs require a frozen scenario binding")
+        if self.scenario_schedule:
+            for item in self.scenario_schedule.actions:
+                if not in_extent(item.action.destination.model_dump(by_alias=True), self):
+                    raise ValueError("Script destination outside frozen run geometry")
+        if self.fleet_behavior and self.interactive and self.fleet_behavior.model.movement_model != self.interactive.movement_model:
+            raise ValueError("Behavior geometry differs from frozen run")
+        return self
 
     @model_validator(mode="after")
     def unit_profile_integrity(self):

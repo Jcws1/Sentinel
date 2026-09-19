@@ -50,7 +50,7 @@ def resume(frame, checkpoint, member):
         return []
     e.pop("suspendedBy", None)
     e.update(origin=deepcopy(track["latest"]["position"]), travelledMetres=0.0)
-    e["remainingMetres"] = distance(e["origin"], e["destination"])
+    e["remainingMetres"] = distance(e["origin"], e["destination"], geometry=frame)
     movement.transition(e, "Running" if frame["interactive"]["state"] == "running" else "Suspended", "Pursuit ended; latest movement destination retained.")
     return [behaviors.event(frame, "movement-resumed", [member["entityId"]],
         policyId=member["id"], executionId=e["id"], destination=deepcopy(e["destination"]))]
@@ -118,7 +118,7 @@ def revalidate(frame, checkpoint):
         origin = frame["tracks"][m["controlTrackId"]]["latest"]["position"]
         if not t or t["id"] != a["targetTrackId"]:
             reason = "Target lost or unavailable; destination resumed, Intercept remains enabled."
-        elif distance(origin, t["latest"]["position"]) > fleet["model"]["acquisitionRadiusM"] + fleet["model"]["toleranceM"]:
+        elif distance(origin, t["latest"]["position"], geometry=frame) > fleet["model"]["acquisitionRadiusM"] + fleet["model"]["toleranceM"]:
             reason = "Target left proximity radius; destination resumed, Intercept remains enabled."
         else:
             reason = pursuit_blocked(frame, origin, t["latest"]["position"])
@@ -145,7 +145,7 @@ def prepare(frame, checkpoint, before, now):
             if t is None or eid in occupied:
                 continue
             p = t["latest"]["position"]
-            d = distance(origin, p)
+            d = distance(origin, p, geometry=frame)
             if d <= fleet["model"]["acquisitionRadiusM"] + fleet["model"]["toleranceM"] and not pursuit_blocked(frame, origin, p):
                 pairs.append((d, eid, m["assetId"], m, t))
     allocated = set()

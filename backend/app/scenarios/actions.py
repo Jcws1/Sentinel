@@ -35,6 +35,16 @@ class ScheduledAction(Model):
         return self
 
 
+class LocatedScriptDestination(Model):
+    """Extent is checked by the owning scenario/run, after its origin is known."""
+    longitude_deg: Longitude
+    latitude_deg: Latitude
+
+
+class LocatedScheduledAction(ScheduledAction):
+    destination: LocatedScriptDestination
+
+
 def validate_chain(actions, rule_version):
     by_id = {a.id: a for a in actions}
     successors = set()

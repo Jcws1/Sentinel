@@ -1,4 +1,9 @@
 import type { BoundaryDefinition } from '../contracts/generated';
+import {
+  originFor,
+  extentTolerance,
+  type GeometryOwner,
+} from './localGeometry';
 export type Vertex = readonly [number, number];
 const scale = (6378137 * Math.PI) / 180;
 const tolerance = 0.001;
@@ -16,10 +21,13 @@ export const boundaryColors = {
   patrol: '#77c5dc',
   restricted: '#dfb665',
 } as const;
-export function metricVertex(v: Vertex): Vertex {
+export function metricVertex(v: Vertex, geometry?: GeometryOwner): Vertex {
+  const origin = originFor(geometry);
   return [
-    (v[0] - 103.85) * scale * Math.cos((1.29 * Math.PI) / 180),
-    (v[1] - 1.29) * scale,
+    (v[0] - origin.longitudeDeg) *
+      scale *
+      Math.cos((origin.latitudeDeg * Math.PI) / 180),
+    (v[1] - origin.latitudeDeg) * scale,
   ];
 }
 function cross(a: Vertex, b: Vertex, c: Vertex) {
@@ -48,9 +56,13 @@ function touches(a: Vertex, b: Vertex, c: Vertex, d: Vertex) {
     (cross(a, b, c) * cross(a, b, d) < 0 && cross(c, d, a) * cross(c, d, b) < 0)
   );
 }
-export function boundaryContains(v: Vertex, vertices: readonly Vertex[]) {
-  const p = metricVertex(v),
-    ring = vertices.map(metricVertex);
+export function boundaryContains(
+  v: Vertex,
+  vertices: readonly Vertex[],
+  geometry?: GeometryOwner,
+) {
+  const p = metricVertex(v, geometry),
+    ring = vertices.map((v) => metricVertex(v, geometry));
   let inside = false;
   for (let i = 0; i < ring.length; i++) {
     const a = ring[i],
@@ -68,24 +80,36 @@ export function boundaryCrosses(
   a: Vertex,
   b: Vertex,
   vertices: readonly Vertex[],
+  geometry?: GeometryOwner,
 ) {
-  if (boundaryContains(a, vertices) || boundaryContains(b, vertices))
+  if (
+    boundaryContains(a, vertices, geometry) ||
+    boundaryContains(b, vertices, geometry)
+  )
     return true;
-  const left = metricVertex(a),
-    right = metricVertex(b),
-    ring = vertices.map(metricVertex);
+  const left = metricVertex(a, geometry),
+    right = metricVertex(b, geometry),
+    ring = vertices.map((v) => metricVertex(v, geometry));
   return ring.some((v, i) =>
     touches(left, right, v, ring[(i + 1) % ring.length]),
   );
 }
-export function validateBoundary(b: BoundaryDefinition) {
+export function validateBoundary(
+  b: BoundaryDefinition,
+  geometry?: GeometryOwner,
+) {
   if (!b.name.trim() || b.name.length > 64)
     throw new Error('Name the boundary (1–64 characters).');
   if (b.vertices.length < 3 || b.vertices.length > 32)
     throw new Error('Use 3–32 distinct vertices before Finish or Apply.');
-  const ring = b.vertices.map(metricVertex);
+  const ring = b.vertices.map((v) => metricVertex(v, geometry));
   if (
-    ring.some((p) => p.some((x) => !Number.isFinite(x) || Math.abs(x) > 5000))
+    ring.some((p) =>
+      p.some(
+        (x) =>
+          !Number.isFinite(x) || Math.abs(x) > 5000 + extentTolerance(geometry),
+      ),
+    )
   )
     throw new Error('Enter finite coordinates within the local ±5 km extent.');
   let area = 0,

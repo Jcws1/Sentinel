@@ -16,7 +16,11 @@ import { displayedRoutePoints } from '../../world/activePlans';
 import { defaultDisplayPreferences } from '../../state/displayPreferences';
 import { entityLabel, entityLabelVisible } from '../symbolCanvas';
 import { constrainCamera } from '../regions';
-import { acquireArchives, refreshRegionalArchives } from './archiveProtocol';
+import {
+  acquireArchives,
+  refreshRegionalArchives,
+  regionalCoverageBounds,
+} from './archiveProtocol';
 import {
   terrainSource,
   elevationSource,
@@ -286,6 +290,8 @@ export class MapLibreAdapter {
     this.map.on('moveend', () => {
       this.updateGrid();
       this.saveCamera();
+      if (this.hosted && !this.failed && !this.providerLoading)
+        this.providerStatus();
     });
     this.map.on('move', () => this.saveCamera());
     this.map.on('error', (event) => {
@@ -556,11 +562,30 @@ export class MapLibreAdapter {
       );
   }
   private providerStatus() {
+    const coverage = this.regionalCoverage();
     this.callbacks.status({
       kind: 'hosted',
+      coverage,
       source: this.provider.kind === 'regional' ? 'regional' : 'maptiler',
       terrainError: this.terrainFailed,
     });
+  }
+  private regionalCoverage() {
+    const viewport = this.map.getBounds(),
+      bounds = this.regionalBounds;
+    return bounds && this.provider.kind === 'regional'
+      ? viewport.getEast() < bounds[0] ||
+        viewport.getWest() > bounds[2] ||
+        viewport.getNorth() < bounds[1] ||
+        viewport.getSouth() > bounds[3]
+        ? 'outside'
+        : viewport.getWest() >= bounds[0] &&
+            viewport.getEast() <= bounds[2] &&
+            viewport.getSouth() >= bounds[1] &&
+            viewport.getNorth() <= bounds[3]
+          ? 'inside'
+          : 'partial'
+      : undefined;
   }
   restoreCamera(camera: CameraIntent) {
     if (!this.active) {
@@ -781,6 +806,30 @@ export class MapLibreAdapter {
       },
     });
     this.map.addSource(sourceId, { type: 'geojson', data: empty });
+    this.map.addLayer({
+      id: `${prefix}location-area`,
+      type: 'line',
+      source: sourceId,
+      filter: ['==', ['get', 'kind'], 'location-area'],
+      paint: {
+        'line-color': ['get', 'color'],
+        'line-width': 1,
+        'line-opacity': 0.8,
+        'line-dasharray': [5, 4],
+      },
+    });
+    this.map.addLayer({
+      id: `${prefix}location-origin`,
+      type: 'circle',
+      source: sourceId,
+      filter: ['==', ['get', 'kind'], 'location-origin'],
+      paint: {
+        'circle-radius': 4,
+        'circle-color': '#13181e',
+        'circle-stroke-color': ['get', 'color'],
+        'circle-stroke-width': 1.5,
+      },
+    });
     this.map.addLayer({
       id: `${prefix}zone-fill`,
       type: 'fill',
@@ -1122,6 +1171,25 @@ export class MapLibreAdapter {
         },
       });
     }
+    for (const guide of scene.locationGuides ?? []) {
+      const color = guide.id === 'proposed' ? '#dfb665' : '#a4adb6';
+      features.push({
+        type: 'Feature',
+        properties: { kind: 'location-area', color },
+        geometry: {
+          type: 'LineString',
+          coordinates: [...guide.corners, guide.corners[0]].map((p) => [...p]),
+        },
+      });
+      features.push({
+        type: 'Feature',
+        properties: { kind: 'location-origin', color },
+        geometry: {
+          type: 'Point',
+          coordinates: [guide.origin.longitudeDeg, guide.origin.latitudeDeg],
+        },
+      });
+    }
     const vertices = scene.boundaryEdit?.vertices ?? [];
     if (vertices.length > 1)
       features.push({
@@ -1442,7 +1510,7 @@ export class MapLibreAdapter {
     const source = this.map.getSource(`${prefix}grid`) as
       GeoJSONSource | undefined;
     if (!source) return;
-    if (this.hosted && !this.failed) {
+    if (this.hosted && !this.failed && this.regionalCoverage() !== 'outside') {
       if (this.gridSignature !== 'empty') {
         this.gridSignature = 'empty';
         source.setData(empty);
@@ -1605,6 +1673,7 @@ export class MapLibreAdapter {
     });
     this.attributionObserver.observe(element);
   }
+  private regionalBounds?: [number, number, number, number];
   setProvider(provider: TacticalProvider) {
     if (this.disposed) return;
     this.provider = provider;
@@ -1619,6 +1688,7 @@ export class MapLibreAdapter {
     const generation = ++this.providerGeneration;
     this.failed = false;
     this.terrainFailed = false;
+    this.regionalBounds = undefined;
     if (this.scene?.localGrid || !hasTacticalCredentials(provider)) {
       this.providerLoading = false;
       const wasHosted = this.hosted;
@@ -1638,6 +1708,24 @@ export class MapLibreAdapter {
     void loadHostedStyle(provider, controller.signal)
       .then((style) => {
         if (this.disposed || generation !== this.providerGeneration) return;
+        if (provider.kind === 'regional')
+          void regionalCoverageBounds()
+            .then((bounds) => {
+              if (this.disposed || generation !== this.providerGeneration)
+                return;
+              this.regionalBounds = bounds;
+              if (
+                this.active &&
+                this.hosted &&
+                !this.failed &&
+                !this.providerLoading
+              )
+                this.providerStatus();
+              this.updateGrid();
+            })
+            .catch(() => {
+              /* Provider readiness/failure remains responsible for unavailable archives. */
+            });
         this.hosted = true;
         this.replaceStyle(style);
         this.readinessTimer = setTimeout(() => {

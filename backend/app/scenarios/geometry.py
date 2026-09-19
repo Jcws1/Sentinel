@@ -1,12 +1,12 @@
-"""Bounded horizontal geometry in local-horizontal-v1 metres. No routing."""
+"""Bounded horizontal geometry in the owning v1/v2 local metric frame. No routing."""
 from math import hypot
 from app.commands.kinematics import metric, in_extent
 
 TOLERANCE = .001  # Inclusive one-millimetre contact in the local metric frame.
 
 
-def point(vertex):
-    return metric({"longitudeDeg": vertex[0], "latitudeDeg": vertex[1]})
+def point(vertex, geometry=None):
+    return metric({"longitudeDeg": vertex[0], "latitudeDeg": vertex[1]}, geometry)
 
 
 def cross(a, b, c):
@@ -44,12 +44,12 @@ def crosses(a, b, ring):
     return contains(a,ring) or contains(b,ring) or any(touches(a,b,c,d) for c,d in edges(ring))
 
 
-def validate(vertices, kind):
+def validate(vertices, kind, geometry=None):
     if not 3 <= len(vertices) <= 32:
         raise ValueError("Use 3–32 boundary vertices.")
-    if any(not in_extent({"longitudeDeg": v[0], "latitudeDeg": v[1]}) for v in vertices):
+    if any(not in_extent({"longitudeDeg": v[0], "latitudeDeg": v[1]}, geometry) for v in vertices):
         raise ValueError("Boundary vertices must stay within the local ±5 km extent.")
-    ring = [point(v) for v in vertices]
+    ring = [point(v, geometry) for v in vertices]
     if any(hypot(a[0]-b[0], a[1]-b[1]) <= TOLERANCE for i,a in enumerate(ring) for b in ring[i+1:]):
         raise ValueError("Boundary vertices must be distinct (more than 1 mm apart).")
     segments = list(edges(ring))

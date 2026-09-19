@@ -26,7 +26,7 @@ def acquisition_radius():
 def initialize(frame, checkpoint):
     """Grant only during NEW run creation, never during legacy read/recovery."""
     run = frame["interactive"]
-    run["schemaVersion"] = "1.7"
+    run["schemaVersion"] = "1.8" if run.get("localGeometry") else "1.7"
     for cap in ("fleet-policy", "demo-outcome"):
         if cap not in run["capabilities"]:
             run["capabilities"].append(cap)
@@ -36,13 +36,13 @@ def initialize(frame, checkpoint):
         if frame["entities"][c["entityId"]]["affiliation"] == "friendly" and "demo-intercept" not in c["capabilities"]:
             c["capabilities"].append("demo-intercept")
     checkpoint["fleetBehavior"] = dict(ruleVersion="local-fleet-v2", runId=run["runId"], sourceId=run["sourceId"],
-        model=EngagementModel(speed_mps=cruise_speed(run["templateId"]), acquisition_radius_m=acquisition_radius()).model_dump(by_alias=True),
+        model=EngagementModel(movement_model=run["movementModel"], speed_mps=cruise_speed(run["templateId"]), acquisition_radius_m=acquisition_radius()).model_dump(by_alias=True),
         members=[], assignments=[], outcomes=[])
     project(frame, checkpoint)
 
 
 def project(frame, checkpoint):
-    checkpoint["schemaVersion"] = "1.7"
+    checkpoint["schemaVersion"] = "1.8" if frame["interactive"].get("localGeometry") else "1.7"
     fleet = checkpoint.get("fleetBehavior")
     if fleet is None:
         return
@@ -75,7 +75,7 @@ def source_track(frame, entity_id, affiliation=None):
         return None
     track = tracks[0]
     p = track["latest"]["position"]
-    if track["state"] != "tracking" or not 0 <= movement.age(frame["effectiveAt"], track["latest"]["timestamp"]) <= 1 or p["altitude"]["reference"] != "ELLIPSOID" or p["altitude"].get("datumId") != "WGS84" or not in_extent(p):
+    if track["state"] != "tracking" or not 0 <= movement.age(frame["effectiveAt"], track["latest"]["timestamp"]) <= 1 or p["altitude"]["reference"] != "ELLIPSOID" or p["altitude"].get("datumId") != "WGS84" or not in_extent(p, geometry=frame):
         return None
     return track
 
@@ -200,7 +200,7 @@ def approach(frame, checkpoint, request, members, skipped, context):
     targets = {}
     for eid in sorted(frame["entities"]):
         track = source_track(frame, eid, "hostile")
-        if track and distance(anchor, track["latest"]["position"]) <= fleet["model"]["acquisitionRadiusM"]+fleet["model"]["toleranceM"] and not pursuit_blocked(frame, track["latest"]["position"]):
+        if track and distance(anchor, track["latest"]["position"], geometry=frame) <= fleet["model"]["acquisitionRadiusM"]+fleet["model"]["toleranceM"] and not pursuit_blocked(frame, track["latest"]["position"]):
             targets[eid] = track
     scope = list(targets)
     kept = {}
@@ -235,7 +235,7 @@ def approach(frame, checkpoint, request, members, skipped, context):
         for eid, t in targets.items():
             reason = pursuit_blocked(frame, origin, t["latest"]["position"])
             if not reason:
-                pairs.append((distance(origin, t["latest"]["position"]), eid, m["assetId"]))
+                pairs.append((distance(origin, t["latest"]["position"], geometry=frame), eid, m["assetId"]))
             legal.append(reason)
         if legal and all(legal):
             m.update(state="blocked", reason=next(r for r in legal if r))
@@ -336,7 +336,7 @@ def advance(frame, checkpoint, before, now):
         else:
             destination = m["patrol"]["loop"][m["patrol"]["waypoint"]]
         motion = dict(origin=origin, destination=destination, travelledMetres=0.0, speedMps=entity_speed(frame, m["entityId"], m["state"] == "pursuing") if rts_behavior.enabled(checkpoint) else fleet["model"]["speedMps"])
-        position, velocity = step(motion)
+        position, velocity = step(motion, geometry=frame)
         from app.commands.zone_rules import blocked
         reason = pursuit_blocked(frame, origin, position) if m["state"] == "pursuing" else blocked(frame, origin, position)
         if reason:

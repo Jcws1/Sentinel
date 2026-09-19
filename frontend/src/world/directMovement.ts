@@ -123,6 +123,7 @@ export function captureDirectMove(
   });
   return {
     missionId: frame.mission.id,
+    modelId: run.movementModel,
     runId: run.runId,
     executorEpoch: run.executorEpoch,
     sourceId: run.sourceId,

@@ -2,8 +2,9 @@
 from typing import Literal
 from pydantic import Field, model_validator
 from app.domain.base import Model, Id, Finite, Longitude, Latitude, UtcInstant
-from app.scenarios.boundaries import BoundaryDefinition
-from app.scenarios.actions import ScheduledAction, validate_chain
+from app.scenarios.boundaries import BoundaryDefinition, LocatedBoundaryDefinition
+from app.scenarios.actions import ScheduledAction, LocatedScheduledAction, validate_chain
+from app.scenarios.location import LocalGeometry
 from app.domain.capacity import MAX_SCENARIO_UNITS, MAX_CONTROLLED_UNITS
 
 
@@ -43,17 +44,38 @@ class UnitPlacement(Model):
         return self
 
 
+class LocatedUnitPlacement(UnitPlacement):
+    @model_validator(mode="after")
+    def valid_role_and_position(self):
+        if not self.label.strip() or not allowed_profile(self.profile_id, self.category):
+            raise ValueError("A named placement with a supported profile is required")
+        if self.command_role == "sentinel" and self.category != "friendly":
+            raise ValueError("Only explicitly friendly placements may request the Sentinel role")
+        return self
+
+
 class ScenarioContent(Model):
+    local_geometry: LocalGeometry | None = None
     name: str = Field(min_length=1, max_length=80)
-    units: list[UnitPlacement] = Field(max_length=MAX_SCENARIO_UNITS)
-    boundaries: list[BoundaryDefinition] | None = Field(default=None, max_length=16)
+    units: list[LocatedUnitPlacement] = Field(max_length=MAX_SCENARIO_UNITS)
+    boundaries: list[LocatedBoundaryDefinition] | None = Field(default=None, max_length=16)
     boundary_rule_version: Literal["local-boundary-v1"] | None = None
 
-    actions: list[ScheduledAction] | None = Field(default=None, max_length=128)
+    actions: list[LocatedScheduledAction] | None = Field(default=None, max_length=128)
     schedule_rule_version: Literal["local-schedule-v1", "local-schedule-v2"] | None = None
 
     @model_validator(mode="after")
     def identities(self):
+        from app.commands.kinematics import in_extent
+        from app.scenarios.geometry import validate
+        for unit in self.units:
+            if not in_extent(unit.position.model_dump(by_alias=True), self):
+                raise ValueError(f'Unit "{unit.label}" is outside the scenario operating area (±5 km on each axis).')
+        for action in self.actions or []:
+            if not in_extent(action.destination.model_dump(by_alias=True), self):
+                raise ValueError(f'Script destination "{action.id}" is outside the scenario operating area.')
+        for boundary in self.boundaries or []:
+            validate(boundary.vertices, boundary.type, self)
         if sum(u.command_role == "sentinel" for u in self.units) > MAX_CONTROLLED_UNITS:
             raise ValueError("At most 32 Sentinel-controlled units are supported")
         if not self.name.strip() or len({u.id for u in self.units}) != len(self.units):
@@ -80,6 +102,8 @@ class ScenarioContent(Model):
 
 
 def content_version(content):
+    if content.local_geometry is not None:
+        return "1.6"
     if len(content.units) > 32:
         return "1.5"
     return "1.4" if any(u.profile_id for u in content.units) else "1.3" if content.schedule_rule_version == "local-schedule-v2" else "1.2" if content.actions is not None else "1.1" if content.boundaries is not None else "1.0"
@@ -97,13 +121,17 @@ class ScenarioBinding(ScenarioRef):
 
 
 class ScenarioRevision(ScenarioRef):
-    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5"] = "1.5"
+    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6"] = "1.5"
     created_at: UtcInstant
     content: ScenarioContent
 
     @model_validator(mode="before")
     @classmethod
     def strict_legacy(cls, value):
+        if isinstance(value, dict) and value.get("schemaVersion", value.get("schema_version")) != "1.6":
+            content = value.get("content")
+            if isinstance(content, dict) and ("localGeometry" in content or "local_geometry" in content):
+                raise ValueError("Located content requires scenario version 1.6")
         if isinstance(value, dict) and value.get("schemaVersion", value.get("schema_version")) == "1.3":
             from app.scenarios.legacy_d3a import LegacyD3aScenarioRevision
             LegacyD3aScenarioRevision.model_validate({k:v.model_dump(by_alias=True,exclude_none=True) if isinstance(v,Model) else v for k,v in value.items()})
@@ -139,7 +167,7 @@ class ScenarioWrite(Model):
 
 
 class ScenarioReceipt(Model):
-    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5"] = "1.5"
+    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6"] = "1.5"
     request_id: Id
     accepted: bool
     code: Literal["OK", "REVISION_CONFLICT", "NOT_FOUND"]
@@ -149,6 +177,10 @@ class ScenarioReceipt(Model):
     @model_validator(mode="before")
     @classmethod
     def strict_legacy(cls, value):
+        if isinstance(value, dict) and value.get("schemaVersion", value.get("schema_version")) != "1.6":
+            content = value.get("content")
+            if isinstance(content, dict) and ("localGeometry" in content or "local_geometry" in content):
+                raise ValueError("Located content requires scenario version 1.6")
         if isinstance(value, dict) and value.get("schemaVersion", value.get("schema_version")) == "1.3":
             from app.scenarios.legacy_d3a import LegacyD3aScenarioReceipt
             LegacyD3aScenarioReceipt.model_validate({k:v.model_dump(by_alias=True,exclude_none=True) if isinstance(v,Model) else v for k,v in value.items()})
@@ -165,30 +197,37 @@ class ScenarioReceipt(Model):
 
     @model_validator(mode="after")
     def evidence(self):
+        if self.result is not None and self.result.schema_version == "1.6" and self.schema_version != "1.6":
+            raise ValueError("Located scenarios require envelope 1.6")
         if self.schema_version == "1.0":
             from app.scenarios.legacy import ScenarioReceipt as LegacyReceipt
             LegacyReceipt.model_validate(self.model_dump(by_alias=True, exclude_none=True))
         if self.accepted != (self.code == "OK") or self.accepted != (self.result is not None):
             raise ValueError("Scenario receipt requires immutable revision evidence")
-        if self.schema_version != "1.5" and self.result is not None and self.result.schema_version == "1.5":
+        if self.schema_version not in {"1.5", "1.6"} and self.result is not None and self.result.schema_version == "1.5":
             raise ValueError("Expanded capacity requires scenario envelope 1.5")
         return self
 
 
 class ScenarioList(Model):
-    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5"] = "1.5"
+    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "1.5", "1.6"] = "1.5"
     scenarios: list[ScenarioRevision]
 
     @model_validator(mode="after")
     def capacity_version(self):
+        if self.schema_version != "1.6" and any(s.schema_version == "1.6" for s in self.scenarios):
+            raise ValueError("Located scenarios require envelope 1.6")
         # Archived catalogs permit mixed earlier revision versions, but none can
         # contain the newly introduced 1.5 revision with expanded unit capacity.
-        if self.schema_version != "1.5" and any(s.schema_version == "1.5" for s in self.scenarios):
+        if self.schema_version not in {"1.5", "1.6"} and any(s.schema_version == "1.5" for s in self.scenarios):
             raise ValueError("Expanded capacity requires scenario envelope 1.5")
         return self
 
 
 class ScenarioContracts(Model):
+    legacy_unit: UnitPlacement
+    legacy_boundary: BoundaryDefinition
+    legacy_action: ScheduledAction
     write: ScenarioWrite
     receipt: ScenarioReceipt
     revision: ScenarioRevision

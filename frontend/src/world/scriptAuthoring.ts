@@ -94,16 +94,21 @@ export function buildActionEdits(
   });
   if (actions.length > 1) {
     const points = actions.map((a) =>
-        metricVertex([a.base.longitudeDeg, a.base.latitudeDeg]),
+        metricVertex([a.base.longitudeDeg, a.base.latitudeDeg], content),
       ),
       cx = points.reduce((n, p) => n + p[0], 0) / points.length,
       cy = points.reduce((n, p) => n + p[1], 0) / points.length;
-    const anchor = metricVertex([
-      Number(edit.longitude),
-      Number(edit.latitude),
-    ]);
+    const anchor = metricVertex(
+      [Number(edit.longitude), Number(edit.latitude)],
+      content,
+    );
     for (const entry of actions) {
-      const point = translatePoint(entry.base, anchor[0] - cx, anchor[1] - cy);
+      const point = translatePoint(
+        entry.base,
+        anchor[0] - cx,
+        anchor[1] - cy,
+        content,
+      );
       entry.action.destination = {
         longitudeDeg: point.longitudeDeg,
         latitudeDeg: point.latitudeDeg,

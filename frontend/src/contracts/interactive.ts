@@ -1,5 +1,6 @@
+import { validateLocalGeometry } from '../world/localGeometry';
 import Ajv2020 from 'ajv/dist/2020';
-import schema from '../../../contracts/sentinel/v1.12/interactive.schema.json';
+import schema from '../../../contracts/sentinel/v1.14/interactive.schema.json';
 import type {
   DemoEntry,
   Intent,
@@ -356,6 +357,10 @@ export function decodeRunRead(value: unknown) {
     undefined,
     result.unitProfiles,
   );
+  invariant(
+    result.schemaVersion === result.run.schemaVersion,
+    'Status geometry/version mismatch',
+  );
   validateProfiles(result.unitProfiles);
   calendarInstant(result.serverTime);
   const lease = result.run.lease;
@@ -390,7 +395,17 @@ export function validateMovementRun(
   frame?: ImmutableFrame,
   profiles: ImmutableFrame['unitProfiles'] = frame?.unitProfiles,
 ) {
-  invariant(run.schemaVersion === '1.7', 'Unsupported interactive module');
+  invariant(
+    run.schemaVersion !== '1.7' || !('localGeometry' in run),
+    'Legacy runs cannot contain a local geometry field, including null',
+  );
+  if (run.localGeometry) validateLocalGeometry(run.localGeometry);
+  invariant(
+    run.schemaVersion === (run.localGeometry ? '1.8' : '1.7') &&
+      run.movementModel ===
+        (run.localGeometry ? 'local-horizontal-v2' : 'local-horizontal-v1'),
+    'Unsupported interactive geometry',
+  );
   const ids = new Set<string>(),
     active = new Set<string>();
   for (const e of run.executions ?? []) {

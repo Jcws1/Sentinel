@@ -35,7 +35,7 @@ class BehaviorPolicy(Model):
 
 class EngagementModel(Model):
     rule_version: Literal["demo-mutual-loss-v1"] = "demo-mutual-loss-v1"
-    movement_model: Literal["local-horizontal-v1"] = "local-horizontal-v1"
+    movement_model: Literal["local-horizontal-v1", "local-horizontal-v2"] = "local-horizontal-v1"
     contact_algorithm: Literal["relative-swept-sphere-v1"] = "relative-swept-sphere-v1"
     allocation_rule: Literal["distance-target-asset-v1"] = "distance-target-asset-v1"
     patrol_rule: Literal["convex-centroid-inset-v1"] = "convex-centroid-inset-v1"

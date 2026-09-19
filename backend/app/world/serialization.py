@@ -18,7 +18,7 @@ def canonical(value: Model | dict) -> str:
 def read_frame(text: str) -> WorldFrame:
     """Validate legacy bytes before adapting only the in-memory representation."""
     value = json.loads(text)
-    if value.get("schemaVersion") == "1.10":
+    if value.get("schemaVersion") in {"1.10", "1.11"}:
         return WorldFrame.model_validate_json(text)
     if value.get("schemaVersion") == "1.0":
         legacy = LegacyWorldFrame.model_validate_json(text)

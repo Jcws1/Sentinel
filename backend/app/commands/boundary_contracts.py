@@ -2,7 +2,7 @@
 from typing import Literal
 from pydantic import Field, model_validator
 from app.domain.base import Model, Id, Sequence
-from app.scenarios.boundaries import BoundaryDefinition
+from app.scenarios.boundaries import BoundaryDefinition, LocatedBoundaryDefinition
 
 
 class BoundaryMutation(Model):
@@ -20,6 +20,17 @@ class BoundaryMutation(Model):
         return self
 
 
+class LocatedBoundaryMutation(BoundaryMutation):
+    definition: LocatedBoundaryDefinition | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def validated_legacy_instance(cls, value):
+        if isinstance(value, BoundaryMutation) and not isinstance(value, cls):
+            return value.model_dump(by_alias=True, exclude_none=True)
+        return value
+
+
 class LiveBoundaries(Model):
     rule_version: Literal["local-boundary-v1"] = "local-boundary-v1"
     run_id: Id
@@ -27,4 +38,3 @@ class LiveBoundaries(Model):
     revision: Sequence = Field(ge=1)
     last_command_id: Id
     committed_sequence: Sequence
-

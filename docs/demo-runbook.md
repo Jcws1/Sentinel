@@ -5,6 +5,7 @@ Start the application using the [root instructions](../README.md), with `SENTINE
 - **New demo** creates an interactive recording; lifecycle controls provide Pause/Resume and End. End preserves the recording.
 - **Load mission** opens saved plans, recordings or developer fixtures. An ended recording is read-only.
 - **Units** authors a saved arrangement. Expand Friendly/Hostile, select a supported profile, then place on the authoring map or enter coordinates. Unknown placement has no profile chooser.
+- **Units → Scenario location** previews a new horizontal origin by map click or coordinates. Apply preserves existing unit/route/boundary coordinates and refuses changes that exclude them. Recenter and Show operating area move only the camera. See [location limits and verification](scenario-location/README.md).
 - **Conductor** edits supported actions, saves a revision, validates it and runs that exact saved revision. Validation does not automatically execute commands.
 - Fleet/map selection drives Details. Movement, Stop, Return and supported Intercept commands use existing authority rules. Return clears manual overrides; cancelled or skipped dependency chains are not replayed.
 - An uncertain command keeps its original identity for recovery. Do not clear browser storage or operator databases as a troubleshooting shortcut.

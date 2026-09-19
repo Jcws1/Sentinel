@@ -1,0 +1,50 @@
+[
+  {
+    "state": "Completed",
+    "consumedTick": 0,
+    "terminalTick": 318,
+    "id": "friendly-01-out"
+  },
+  {
+    "state": "Completed",
+    "consumedTick": 319,
+    "terminalTick": 636,
+    "id": "friendly-01-back"
+  },
+  {
+    "state": "Completed",
+    "consumedTick": 0,
+    "terminalTick": 318,
+    "id": "friendly-02-out"
+  },
+  {
+    "state": "Completed",
+    "consumedTick": 319,
+    "terminalTick": 636,
+    "id": "friendly-02-back"
+  },
+  {
+    "state": "Completed",
+    "consumedTick": 0,
+    "terminalTick": 491,
+    "id": "hostile-01-out"
+  },
+  {
+    "state": "Completed",
+    "consumedTick": 492,
+    "terminalTick": 982,
+    "id": "hostile-01-back"
+  },
+  {
+    "state": "Completed",
+    "consumedTick": 0,
+    "terminalTick": 491,
+    "id": "hostile-02-out"
+  },
+  {
+    "state": "Completed",
+    "consumedTick": 492,
+    "terminalTick": 982,
+    "id": "hostile-02-back"
+  }
+]

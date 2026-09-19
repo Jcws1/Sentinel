@@ -31,6 +31,7 @@ REQUIRED = (
     "frontend/map-data/licenses/Protomaps-data.md",
     "frontend/map-data/licenses/Tangram-icons-MIT.txt",
     "contracts/sentinel/v1.13/openapi.json",
+    "contracts/sentinel/v1.14/openapi.json",
     "contracts/sentinel/world.schema.json",
     "backend/drafts/domain.py",
 )

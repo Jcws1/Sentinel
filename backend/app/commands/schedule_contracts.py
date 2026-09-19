@@ -3,7 +3,7 @@ from typing import Literal
 from pydantic import Field, model_validator
 from app.domain.base import Model, Id, Sequence, Finite
 from app.commands.contracts import MovePosition, CompletionSample
-from app.scenarios.actions import ScheduledAction, validate_chain
+from app.scenarios.actions import LocatedScheduledAction as ScheduledAction, validate_chain
 
 
 class SourceMotion(Model):

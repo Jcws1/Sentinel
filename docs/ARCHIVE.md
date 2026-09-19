@@ -28,3 +28,11 @@ Build retirement additionally preserved **16,060 unique files / 570,096,151 byte
 This archive is local and is not uploaded by Git. The complete original performance report is `historical/docs/performance-stability/REPORT.md`; its critic reports and raw measurements remain beside it. Historical absolute links may still name the original location; resolve their checkout-relative paths below `historical/`. Original documents were not rewritten to imply later acceptance.
 
 Restore an old artifact to a separate scratch checkout when reproducing history. Current builds/tests must not require this archive. The cleanup has not rewritten existing Git commits, so previously committed artifacts remain in repository history.
+
+## Scenario-location implementation evidence
+
+The separate `../Sentinel3-archive/2026-09-19-scenario-location/` archive retains **244 hash-verified files / 23,647,334 bytes** from the configurable-location implementation: baseline inventories, final and intermediate test logs, screenshots, sampled motion clips, all three independent reviewers' raw evidence and task-service cleanup receipts. It preserves checkout-relative paths under `frontend/test-results/scenario-location/`, `.cache/scenario-location/` and `test-results/scenario-location/`.
+
+Its `manifest.json` records each retained file's size and SHA-256. `cleanup-summary.json` records the removed disposable builds/caches, released ports and final preservation checks. The 437 original database artifacts and 189 protected historical source/contract files remained unchanged; all 198 production files still match the final critic's reviewed inventory. This is separate from the earlier repository-cleanup archive above.
+
+Current [feature documentation](scenario-location/README.md), [verification index](scenario-location/VERIFICATION.md), tests and reusable fixtures remain in source control. Raw evidence is local-only; current builds/tests do not require the archive. Restore an archived one-off runner to a separate scratch checkout if reproducing its historical run.

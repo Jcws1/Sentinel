@@ -2,14 +2,15 @@
 
 Run frontend commands from `frontend/` or use `npm --prefix frontend` from the repository root. Install dependencies with `npm ci`. Microsoft Edge is the configured browser. Tests use new contexts and task-owned databases; no operator browser profile or recording is used.
 
-| Folder         | Responsibility                                                                  |
-| -------------- | ------------------------------------------------------------------------------- |
-| `unit/`        | Focused state, contracts, command, presentation and component regressions       |
-| `browser/`     | Current UI workflows, accessibility, authoring, authority and renderer behavior |
-| `fixtures/`    | Reusable, tracked world/scenario and geometry inputs                            |
-| `harness/`     | Verification-only renderer fixture page                                         |
-| `support/`     | Shared UI actions and isolated process/database ownership                       |
-| `performance/` | Foreground measurement, lifecycle, recovery, geometry, recording and zoom tools |
+| Folder               | Responsibility                                                                        |
+| -------------------- | ------------------------------------------------------------------------------------- |
+| `unit/`              | Focused state, contracts, command, presentation and component regressions             |
+| `browser/`           | Current UI workflows, accessibility, authoring, authority and renderer behavior       |
+| `fixtures/`          | Reusable, tracked world/scenario and geometry inputs                                  |
+| `harness/`           | Verification-only renderer fixture page                                               |
+| `support/`           | Shared UI actions and isolated process/database ownership                             |
+| `performance/`       | Foreground measurement, lifecycle, recovery, geometry, recording and zoom tools       |
+| `scenario-location/` | Foreground origin authoring, remote runs, retries, recordings and configured coverage |
 
 Phase names on some regression files describe provenance, not obsolescence. The assertions remain relevant; one-off critic/capture programs moved to the [archive](../../docs/ARCHIVE.md).
 

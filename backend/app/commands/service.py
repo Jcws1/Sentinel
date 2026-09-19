@@ -56,7 +56,7 @@ class InteractiveService:
         frame = self._run(mid)
         run, now = frame.interactive, self.authority.clock()
         lease_state = "unclaimed" if not run.lease.holder_id else "expired" if now >= run.lease.expires_at else "held"
-        return RunRead(server_time=now, frame_id=frame.frame_id, sequence=frame.sequence, run=run, unit_profiles=frame.unit_profiles,
+        return RunRead(schema_version=run.schema_version, server_time=now, frame_id=frame.frame_id, sequence=frame.sequence, run=run, unit_profiles=frame.unit_profiles,
                        owns_control=lease_state == "held" and self._owns(mid, credential), lease_state=lease_state)
 
     async def suggest(self, mid, selection, credential):
@@ -459,6 +459,8 @@ class InteractiveService:
 
     def _validate_move(self, mid, request, credential, frame, now):
         run, move = frame.interactive, request.move
+        if move.model_id != run.movement_model:
+            raise CommandError("REFERENCE_MISMATCH", "Movement model does not match the frozen run.")
         if (move.mission_id, move.run_id, move.executor_epoch, move.source_id, move.grant_id, move.grant_revision) != (mid, run.run_id, run.executor_epoch, run.source_id, run.grant_id, run.grant_revision):
             raise CommandError("REFERENCE_MISMATCH", "Mission, run, executor or grant changed.")
         if not self._owns(mid, credential) or request.holder_id != run.lease.holder_id:
@@ -476,7 +478,7 @@ class InteractiveService:
             raise CommandError("MOVE_EXPIRED", "Original reviewed-frame deadline elapsed or was changed. Make a new review.")
         if len({m.asset_id for m in move.members}) != len(move.members) or len({m.entity_id for m in move.members}) != len(move.members):
             raise CommandError("SELECTION_INVALID", "Every selected Entity and Asset must appear once.")
-        targets = endpoints([json.loads(canonical(m.origin)) for m in move.members], json.loads(canonical(move.anchor)))
+        targets = endpoints([json.loads(canonical(m.origin)) for m in move.members], json.loads(canonical(move.anchor)), geometry=frame)
         for member, target in zip(move.members, targets):
             controls = [c for c in run.controls if c.asset_id == member.asset_id]
             original = next((c for c in anchor_frame.interactive.controls if c.asset_id == member.asset_id), None)
@@ -502,9 +504,9 @@ class InteractiveService:
             if zone_reason:
                 raise CommandError("ENDPOINT_INVALID", f"{proposed['entities'][member.entity_id]['label']}: {zone_reason}")
             supplied = json.loads(canonical(member.destination))
-            if not in_extent(supplied):
+            if not in_extent(supplied, geometry=frame):
                 raise CommandError("OUTSIDE_EXTENT", "Every supplied endpoint must be inside the local metric extent.")
-            if supplied["altitude"] != target["altitude"] or distance(supplied, target) > .002:
+            if supplied["altitude"] != target["altitude"] or distance(supplied, target, geometry=frame) > .002:
                 raise CommandError("ENDPOINT_INVALID", "Endpoint differs from the reviewed group translation or supplied height.")
 
     async def move(self, mid, request: MoveRequest, credential):
@@ -545,7 +547,7 @@ class InteractiveService:
                     grant_revision=frame.interactive.grant_revision, reservation_revision=control["busyRevision"],
                     state="Accepted", revision=0, accepted_at=now, accepted_sequence=frame.sequence + 1,
                     deadline=request.move.deadline, travelled_metres=0.0, speed_mps=entity_speed(proposed, member.entity_id),
-                    remaining_metres=distance(json.loads(canonical(member.origin)), json.loads(canonical(member.destination))))
+                    remaining_metres=distance(json.loads(canonical(member.origin)), json.loads(canonical(member.destination)), geometry=frame))
                 checkpoint["executions"].append(json.loads(canonical(execution)))
                 ids.append(execution.id)
             def receipt_factory(committed):
@@ -557,6 +559,8 @@ class InteractiveService:
     def _validate_direct(self, mid, request, credential, frame, checkpoint, now):
         """Resolve every binding before computing available-only current-position geometry."""
         run, intent = frame.interactive, request.direct
+        if intent.model_id != run.movement_model:
+            raise CommandError("REFERENCE_MISMATCH", "Movement model does not match the frozen run.")
         if (intent.mission_id, intent.run_id, intent.executor_epoch, intent.source_id, intent.grant_id, intent.grant_revision) != (mid, run.run_id, run.executor_epoch, run.source_id, run.grant_id, run.grant_revision):
             raise CommandError("REFERENCE_MISMATCH", "Demo or control context changed.")
         if not self._owns(mid, credential) or request.holder_id != run.lease.holder_id:
@@ -576,7 +580,7 @@ class InteractiveService:
         if len({m.asset_id for m in intent.members}) != len(intent.members) or len({m.entity_id for m in intent.members}) != len(intent.members):
             raise CommandError("SELECTION_INVALID", "Every selected Entity and Asset must appear once.")
         anchor = json.loads(canonical(intent.anchor))
-        if not in_extent(anchor):
+        if not in_extent(anchor, geometry=frame):
             raise CommandError("OUTSIDE_EXTENT", "Destination outside the supported area.")
         controls = []
         for member in intent.members:
@@ -606,10 +610,10 @@ class InteractiveService:
                 accepted.append((member, control, current["tracks"][member.control_track_id]["latest"]["position"]))
         # Geometry validation is deliberately before any supersession or reservation.
         legacy_approach = bool(intent.intercept and not rts_behavior.enabled(checkpoint))
-        targets = [origin for _, _, origin in accepted] if legacy_approach else endpoints([origin for _, _, origin in accepted], anchor) if accepted else []
+        targets = [origin for _, _, origin in accepted] if legacy_approach else endpoints([origin for _, _, origin in accepted], anchor, geometry=frame) if accepted else []
         from app.commands.zone_rules import blocked
         for (member, _, origin), target in zip(accepted, targets):
-            if legacy_approach and (not in_extent(origin) or behaviors.source_track(current, member.entity_id, "friendly") is None):
+            if legacy_approach and (not in_extent(origin, geometry=frame) or behaviors.source_track(current, member.entity_id, "friendly") is None):
                 raise CommandError("POSITION_UNAVAILABLE", "Intercept requires a fresh source-owned friendly position inside the local extent.")
             zone_reason = None if legacy_approach else blocked(current, origin, target)
             if zone_reason:
@@ -677,7 +681,7 @@ class InteractiveService:
                     state="Accepted", revision=0, accepted_at=now, accepted_sequence=frame.sequence + 1,
                     deadline=request.direct.deadline, travelled_metres=0.0, direct_order=request.direct.order,
                     speed_mps=entity_speed(proposed, member.entity_id),
-                    remaining_metres=distance(json.loads(canonical(member.origin)), json.loads(canonical(member.destination))))
+                    remaining_metres=distance(json.loads(canonical(member.origin)), json.loads(canonical(member.destination)), geometry=frame))
                 checkpoint["executions"].append(json.loads(canonical(execution)))
                 if rts_member:
                     rts_member.update(reservationRevision=control["busyRevision"], movementExecutionId=execution.id)
