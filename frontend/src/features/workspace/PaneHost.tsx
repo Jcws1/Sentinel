@@ -13,6 +13,7 @@ import { EntityDetails } from '../entities/EntityDetails';
 import { MovementPane } from '../movement/MovementPane';
 import { UnitsPane } from '../units/UnitsPane';
 import { DisplaySettings } from '../settings/DisplaySettings';
+import { CockpitPane } from '../cockpit/CockpitPane';
 
 export type PaneLifecycleEvent =
   | { type: 'mount' | 'dispose'; viewId: ViewId }
@@ -104,7 +105,9 @@ export function PaneHost({
         }
       }}
     >
-      {kind === 'settings' && runtime ? (
+      {kind === 'cockpit' && runtime ? (
+        <CockpitPane bridge={bridge} visible={visible} />
+      ) : kind === 'settings' && runtime ? (
         <DisplaySettings bridge={bridge} />
       ) : kind === 'credits' ? (
         <Credits />

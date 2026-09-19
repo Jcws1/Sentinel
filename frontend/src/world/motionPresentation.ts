@@ -65,6 +65,17 @@ export function createMotionPresentation(clock = () => performance.now()) {
     lastPaint = 0;
   }
   return {
+    /** Exact Track sampler shared by maps and the simulated cockpit. */
+    sampleTrack(
+      frameId: string,
+      trackId: string,
+      committed: Position,
+      now = clock(),
+    ): Position {
+      const segment =
+        frameId === previous?.frameId ? segments.get(trackId) : undefined;
+      return segment ? position(segment, now) : committed;
+    },
     update(
       presentation: PresentationFrame,
       connected: boolean,

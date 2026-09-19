@@ -7,10 +7,19 @@ import {
   ScanSearch,
   Info,
   Settings2,
+  Camera,
 } from 'lucide-react';
 
 // View kinds describe capabilities, never domain objects or individual pane instances.
 export const viewRegistry = {
+  cockpit: {
+    unavailable: '',
+    title: 'Simulated cockpit',
+    category: 'Simulated viewpoint',
+    icon: Camera,
+    description: 'One pinned simulated drone viewpoint. No video feed.',
+    future: '',
+  },
   settings: {
     unavailable: '',
     title: 'Settings',

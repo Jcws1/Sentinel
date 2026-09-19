@@ -27,9 +27,10 @@ export function presentCredits(
   const update = () => {
     frame = 0;
     if (stopped || !container.isConnected || !container.clientWidth) return;
-    const height = credits.getBoundingClientRect().height;
+    const creditBounds = credits.getBoundingClientRect();
+    const height = creditBounds.height;
     container
-      .closest<HTMLElement>('.map-surface')
+      .closest<HTMLElement>('.map-surface, .cockpit-scene')
       ?.style.setProperty('--map-credits-height', `${height}px`);
     const tileset = photorealistic();
     if (!tileset) return;
@@ -53,7 +54,10 @@ export function presentCredits(
       for (const image of element.querySelectorAll('img'))
         width += image.width || 100;
     }
-    const show = width <= container.clientWidth - 12;
+    const availableWidth = container.closest('.cockpit-scene')
+      ? creditBounds.width
+      : container.clientWidth;
+    const show = width <= availableWidth - 12;
     if (tileset.showCreditsOnScreen !== show) {
       tileset.showCreditsOnScreen = show;
       viewer.scene.requestRender();

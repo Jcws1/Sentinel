@@ -74,6 +74,7 @@ import {
 import { displayedRoutePoints } from '../../world/activePlans';
 import { defaultDisplayPreferences } from '../../state/displayPreferences';
 import { visualHeight } from './altitude';
+import { cockpitOrientation, type CockpitCameraFrame } from './cockpitCamera';
 import type { CesiumProvider } from './config';
 import { ionImagery } from './ionImagery';
 import { RequestRecovery } from './requestRecovery';
@@ -113,7 +114,12 @@ const initialSpatial = (): SpatialStatus => ({
 export class CesiumAdapter implements MapRenderer {
   private readonly viewer: Viewer;
   private readonly observer: ResizeObserver;
-  private readonly gestures: MapGestures;
+  private readonly gestures?: MapGestures;
+  private cockpitPose?: CockpitCameraFrame;
+  private cockpitAppliedPose?: CockpitCameraFrame;
+  private cockpitGeometryAt = 0;
+  private cockpitIntersects?: boolean;
+  private cockpitCameraUpdates = 0;
   private readonly acknowledgement: DestinationAcknowledgement;
   private readonly billboards: BillboardCollection;
   private readonly markers = new Map<string, Billboard>();
@@ -166,6 +172,7 @@ export class CesiumAdapter implements MapRenderer {
   private photoVisibleTiles = 0;
   private photoFailures = 0;
   private renderedFrames = 0;
+  private readonly renderTimes: number[] = [];
   private constraining = false;
   private active = true;
   private pendingScene?: { scene: SceneProjection; bookmark?: CameraIntent };
@@ -215,6 +222,7 @@ export class CesiumAdapter implements MapRenderer {
     private provider: CesiumProvider,
     private readonly callbacks: RendererCallbacks,
     initialCamera?: CameraIntent,
+    private readonly role: 'map' | 'cockpit' = 'map',
   ) {
     this.bookmark = initialCamera;
     this.viewer = new Viewer(container, {
@@ -299,34 +307,45 @@ export class CesiumAdapter implements MapRenderer {
       }),
     );
     const canvas = this.viewer.canvas;
-    canvas.tabIndex = 0;
-    canvas.setAttribute('aria-label', '3D map');
+    canvas.tabIndex = role === 'cockpit' ? -1 : 0;
+    canvas.setAttribute(
+      'aria-label',
+      role === 'cockpit' ? 'Simulated cockpit environment' : '3D map',
+    );
     canvas.setAttribute(
       'aria-describedby',
-      `map-help-${viewId.replace(':', '-')}`,
+      role === 'cockpit'
+        ? 'cockpit-help'
+        : `map-help-${viewId.replace(':', '-')}`,
     );
-    canvas.addEventListener('keydown', this.keyHandler);
-    canvas.addEventListener('wheel', this.wheelHandler, {
-      capture: true,
-      passive: false,
-    });
+    if (role === 'map') canvas.addEventListener('keydown', this.keyHandler);
+    if (role === 'map')
+      canvas.addEventListener('wheel', this.wheelHandler, {
+        capture: true,
+        passive: false,
+      });
     this.acknowledgement = new DestinationAcknowledgement(container);
-    this.gestures = new MapGestures(canvas, container, {
-      mode: () => this.mode,
-      finishBoundary: () => this.callbacks.boundaryFinish?.(),
-      deleteBoundaryVertex: () => this.callbacks.boundaryDeleteVertex?.(),
-      doubleClick: (point, reverse) => this.zoomAt(point, reverse ? 2 : 0.5),
-      vertexDrag: (start, end) => this.dragVertex(start, end),
-      pan: (temporary) => {
-        this.temporaryPan = temporary;
-        this.updateGestures();
-      },
-      click: (point, additive) => this.pick(point, additive),
-      rectangle: (start, end, additive) => this.rectangle(start, end, additive),
-      move: (point) => this.move(point),
-      clear: () => this.callbacks.clearSelection?.(),
-      cancelDestination: () => this.callbacks.cancelDestination?.(),
-    });
+    this.gestures =
+      role === 'map'
+        ? new MapGestures(canvas, container, {
+            mode: () => this.mode,
+            finishBoundary: () => this.callbacks.boundaryFinish?.(),
+            deleteBoundaryVertex: () => this.callbacks.boundaryDeleteVertex?.(),
+            doubleClick: (point, reverse) =>
+              this.zoomAt(point, reverse ? 2 : 0.5),
+            vertexDrag: (start, end) => this.dragVertex(start, end),
+            pan: (temporary) => {
+              this.temporaryPan = temporary;
+              this.updateGestures();
+            },
+            click: (point, additive) => this.pick(point, additive),
+            rectangle: (start, end, additive) =>
+              this.rectangle(start, end, additive),
+            move: (point) => this.move(point),
+            clear: () => this.callbacks.clearSelection?.(),
+            cancelDestination: () => this.callbacks.cancelDestination?.(),
+          })
+        : undefined;
     this.updateGestures();
     this.removers.push(
       this.viewer.camera.moveEnd.addEventListener(() => this.saveCamera()),
@@ -334,9 +353,15 @@ export class CesiumAdapter implements MapRenderer {
     this.removers.push(
       this.viewer.scene.postRender.addEventListener(() => {
         this.renderedFrames++;
+        if (import.meta.env.MODE === 'verification') {
+          this.renderTimes.push(performance.now());
+          if (this.renderTimes.length > 600) this.renderTimes.shift();
+        }
         this.checkReadiness();
-        this.positionAcknowledgement();
-        this.layoutBoundaryLabels();
+        if (this.role === 'map') {
+          this.positionAcknowledgement();
+          this.layoutBoundaryLabels();
+        }
         this.scheduleClearance();
       }),
     );
@@ -395,13 +420,14 @@ export class CesiumAdapter implements MapRenderer {
       this.saveCamera();
     });
     this.observer.observe(container);
-    this.restoreCamera(
-      initialCamera ?? {
-        center: { longitudeDeg: 103.85, latitudeDeg: 1.35 },
-        groundSpanM: 25000,
-        headingTrueDeg: 0,
-      },
-    );
+    if (role === 'map')
+      this.restoreCamera(
+        initialCamera ?? {
+          center: { longitudeDeg: 103.85, latitudeDeg: 1.35 },
+          groundSpanM: 25000,
+          headingTrueDeg: 0,
+        },
+      );
     counts.created++;
     counts.active++;
     probes.set(viewId, this);
@@ -492,13 +518,19 @@ export class CesiumAdapter implements MapRenderer {
   }
 
   setMode(mode: 'select' | 'pan' | 'destination' | 'draw' | 'vertex') {
-    this.gestures.cancel();
+    this.gestures?.cancel();
     this.mode = mode;
     this.updateGestures();
   }
   private updateGestures() {
     const pan = this.mode === 'pan' || this.temporaryPan;
     const controller = this.viewer.scene.screenSpaceCameraController;
+    if (this.role === 'cockpit') {
+      controller.enableInputs = false;
+      controller.enableCollisionDetection = false;
+      this.viewer.canvas.style.cursor = 'default';
+      return;
+    }
     controller.rotateEventTypes = pan ? [CameraEventType.LEFT_DRAG] : [];
     controller.translateEventTypes = pan ? [CameraEventType.LEFT_DRAG] : [];
     this.viewer.canvas.style.cursor = pan ? 'grab' : 'crosshair';
@@ -761,9 +793,14 @@ export class CesiumAdapter implements MapRenderer {
       return;
     const camera = this.viewer.camera;
     if (
+      this.role === 'cockpit' &&
+      performance.now() - this.cockpitGeometryAt < 1000
+    )
+      return;
+    if (
       (Cartesian3.distance(camera.positionWC, this.clearancePosition) < 0.1 &&
         this.sampledGeometryRevision === this.clearanceGeometryRevision) ||
-      (this.camera()?.groundSpanM ?? Infinity) > 3000
+      (this.role === 'map' && (this.camera()?.groundSpanM ?? Infinity) > 3000)
     )
       return;
     // Public sampleHeight queries the loaded displayed 3D mesh, including buildings.
@@ -771,6 +808,7 @@ export class CesiumAdapter implements MapRenderer {
     this.clearanceFrame = requestAnimationFrame(() => {
       this.clearanceFrame = undefined;
       if (this.disposed || !this.active || this.resourceFailed) return;
+      this.cockpitGeometryAt = performance.now();
       Cartesian3.clone(camera.positionWC, this.clearancePosition);
       this.sampledGeometryRevision = this.clearanceGeometryRevision;
       const scene = this.viewer.scene;
@@ -788,8 +826,18 @@ export class CesiumAdapter implements MapRenderer {
         if (terrain !== undefined)
           surface = Math.max(surface ?? terrain, terrain);
       }
+      if (this.role === 'cockpit') {
+        const intersects =
+          surface === undefined || !Number.isFinite(surface)
+            ? undefined
+            : point.height <= surface;
+        if (this.cockpitIntersects !== intersects) {
+          this.cockpitIntersects = intersects;
+          this.callbacks.cockpitGeometry?.(intersects);
+        }
+      }
       if (surface === undefined || !Number.isFinite(surface)) return;
-      const corrected = point.height < surface + 8;
+      const corrected = this.role === 'map' && point.height < surface + 8;
       this.cameraClearance = {
         surfaceHeightM: surface,
         cameraHeightM: point.height,
@@ -887,6 +935,7 @@ export class CesiumAdapter implements MapRenderer {
     this.saveCamera();
   }
   captureCamera() {
+    if (this.role === 'cockpit') return undefined;
     return this.active ? this.camera() : this.bookmark;
   }
   retainedBytes() {
@@ -921,7 +970,7 @@ export class CesiumAdapter implements MapRenderer {
       this.pendingWheel = undefined;
       if (this.wheelFrame !== undefined) cancelAnimationFrame(this.wheelFrame);
       this.wheelFrame = undefined;
-      this.gestures.reset();
+      this.gestures?.reset();
       this.saveCamera();
       this.viewer.camera.cancelFlight();
       this.active = false;
@@ -945,6 +994,7 @@ export class CesiumAdapter implements MapRenderer {
     const camera = this.pendingCamera;
     this.pendingCamera = undefined;
     if (camera) this.restoreCamera(camera);
+    if (this.cockpitPose) this.setCockpitPose(this.cockpitPose);
     if (this.photorealistic) this.photorealistic.show = true;
     if (this.buildings) this.buildings.show = true;
     if (!this.resourceFailed) {
@@ -953,6 +1003,7 @@ export class CesiumAdapter implements MapRenderer {
     }
   }
   setScene(scene: SceneProjection, bookmark?: CameraIntent) {
+    if (this.role === 'cockpit') return;
     if (!this.active) {
       this.pendingScene = { scene, bookmark };
       return;
@@ -960,7 +1011,7 @@ export class CesiumAdapter implements MapRenderer {
     const changed = scene.missionId !== this.scene?.missionId;
     if (changed) {
       this.pendingWheel = undefined;
-      this.gestures.reset();
+      this.gestures?.reset();
       this.missionGeneration++;
       this.framed = false;
       this.bookmark = bookmark ?? (this.scene ? undefined : this.bookmark);
@@ -993,7 +1044,75 @@ export class CesiumAdapter implements MapRenderer {
     }
     this.applyLighting();
   }
+  /** Anchored read-only camera. It deliberately bypasses map framing and clearance. */
+  setCockpitPose(pose: CockpitCameraFrame) {
+    if (this.role !== 'cockpit' || this.disposed || this.resourceFailed) return;
+    const orientation = cockpitOrientation(pose);
+    if (!orientation) return;
+    const previous = this.cockpitAppliedPose;
+    this.cockpitPose = pose;
+    if (!this.active) return;
+    this.cockpitAppliedPose = pose;
+    if (previous?.bindingKey !== pose.bindingKey) {
+      this.cockpitIntersects = undefined;
+      this.cockpitGeometryAt = 0;
+      this.sampledGeometryRevision = -1;
+      this.callbacks.cockpitGeometry?.(undefined);
+    }
+    this.scene = {
+      missionId: pose.missionId,
+      frameId: pose.frameId,
+      sequence: pose.sequence,
+      effectiveAt: pose.effectiveAt,
+      stale: false,
+      objects: [],
+      zones: [],
+      selection: { status: 'none' },
+      unlocatedCount: 0,
+    };
+    this.framed = true;
+    this.viewer.clock.shouldAnimate = false;
+    this.viewer.clock.canAnimate = false;
+    this.viewer.trackedEntity = undefined;
+    if (previous?.frameId !== pose.frameId) {
+      this.viewer.clock.currentTime = JulianDate.fromIso8601(pose.effectiveAt);
+      this.applyLighting();
+    }
+    if (this.viewer.camera.frustum instanceof PerspectiveFrustum) {
+      this.viewer.camera.frustum.fov = orientation.fov;
+      this.viewer.camera.frustum.near = 0.1;
+    }
+    const p = pose.position;
+    if (
+      previous &&
+      previous.bindingKey === pose.bindingKey &&
+      previous.position.longitudeDeg === p.longitudeDeg &&
+      previous.position.latitudeDeg === p.latitudeDeg &&
+      previous.position.altitude.metres === p.altitude.metres &&
+      previous.headingTrueDeg === pose.headingTrueDeg &&
+      previous.yaw === pose.yaw &&
+      previous.pitch === pose.pitch
+    ) {
+      if (previous.frameId !== pose.frameId) this.viewer.scene.requestRender();
+      return;
+    }
+    this.viewer.camera.setView({
+      destination: Cartesian3.fromDegrees(
+        p.longitudeDeg,
+        p.latitudeDeg,
+        orientation.height,
+      ),
+      orientation: {
+        heading: orientation.heading,
+        pitch: orientation.pitch,
+        roll: orientation.roll,
+      },
+    });
+    this.cockpitCameraUpdates++;
+    this.viewer.scene.requestRender();
+  }
   setMotion(objects: readonly SceneObject[]) {
+    if (this.role === 'cockpit') return;
     if (
       this.disposed ||
       !this.active ||
@@ -1677,6 +1796,7 @@ export class CesiumAdapter implements MapRenderer {
     );
   }
   restoreCamera(input: CameraIntent) {
+    if (this.role === 'cockpit') return;
     if (!this.active) {
       this.pendingCamera = { ...input, center: { ...input.center } };
       return;
@@ -1761,6 +1881,7 @@ export class CesiumAdapter implements MapRenderer {
     };
   }
   private saveCamera() {
+    if (this.role === 'cockpit') return;
     if (
       this.disposed ||
       !this.active ||
@@ -1778,6 +1899,7 @@ export class CesiumAdapter implements MapRenderer {
     }
   }
   private limitCamera() {
+    if (this.role === 'cockpit') return;
     if (
       this.disposed ||
       !this.active ||
@@ -1815,10 +1937,11 @@ export class CesiumAdapter implements MapRenderer {
   private applyLighting() {
     if (!this.viewer || this.disposed || !this.active) return;
     const scene = this.viewer.scene;
-    const focus = this.bookmark?.center ?? {
-      longitudeDeg: 103.85,
-      latitudeDeg: 1.35,
-    };
+    const focus = this.cockpitPose?.position ??
+      this.bookmark?.center ?? {
+        longitudeDeg: 103.85,
+        latitudeDeg: 1.35,
+      };
     const key = this.presentation.daylight
       ? `${focus.longitudeDeg}:${focus.latitudeDeg}`
       : 'sun';
@@ -2304,6 +2427,30 @@ export class CesiumAdapter implements MapRenderer {
       ? Reflect.get(this.photorealistic, 'memoryAdjustedScreenSpaceError')
       : undefined;
     return {
+      role: this.role,
+      cockpit: this.cockpitPose && {
+        ...this.cockpitPose,
+        actualPosition: (() => {
+          const p = Cartographic.fromCartesian(this.viewer.camera.positionWC);
+          return {
+            longitudeDeg: CesiumMath.toDegrees(p.longitude),
+            latitudeDeg: CesiumMath.toDegrees(p.latitude),
+            height: p.height,
+          };
+        })(),
+        heading: CesiumMath.toDegrees(this.viewer.camera.heading),
+        pitch: CesiumMath.toDegrees(this.viewer.camera.pitch),
+        roll: CesiumMath.toDegrees(this.viewer.camera.roll),
+        updates: this.cockpitCameraUpdates,
+        intersects: this.cockpitIntersects,
+        shouldAnimate: this.viewer.clock.shouldAnimate,
+        tracking: !!this.viewer.trackedEntity,
+        inputsEnabled:
+          this.viewer.scene.screenSpaceCameraController.enableInputs,
+        collisionEnabled:
+          this.viewer.scene.screenSpaceCameraController
+            .enableCollisionDetection,
+      },
       active: this.active,
       retainable: this.canRetain(),
       diagnostics: {
@@ -2396,6 +2543,9 @@ export class CesiumAdapter implements MapRenderer {
         resolutionScale: this.viewer.resolutionScale,
         canvasSize: [this.viewer.canvas.width, this.viewer.canvas.height],
         renderedFrames: this.renderedFrames,
+        ...(import.meta.env.MODE === 'verification'
+          ? { renderTimes: [...this.renderTimes] }
+          : {}),
       },
       entityIds: this.viewer.entities.values
         .filter((e) => this.markers.has(e.id))
@@ -2443,7 +2593,7 @@ export class CesiumAdapter implements MapRenderer {
     this.pendingLayerFailures.clear();
     this.generation++;
     this.observer.disconnect();
-    this.gestures.dispose();
+    this.gestures?.dispose();
     this.acknowledgement.dispose();
     if (this.clearanceFrame !== undefined)
       cancelAnimationFrame(this.clearanceFrame);

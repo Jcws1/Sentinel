@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
-import { Drone, Pin, X } from 'lucide-react';
+import { Camera, Drone, Pin, X } from 'lucide-react';
+import { cockpitCandidate } from '../../world/cockpit';
 import { useOperationalRuntime } from '../../app/OperationalContext';
 import { entityRows, type EntityRow } from '../../world/entityRows';
 import { observedSegments } from '../../world/observedSegments';
@@ -302,6 +303,39 @@ export function EntityDetails({
             </p>
           )}
           {!row.track && <p className="entity-notice">No position supplied.</p>}
+          {row.entity.affiliation === 'friendly' && (
+            <button
+              className="text-control entity-cockpit-action"
+              onClick={() => {
+                if (runtime.openCockpit(row.entity.id)) bridge.open('cockpit');
+              }}
+              disabled={
+                !cockpitCandidate(
+                  {
+                    presentation: state.presentation,
+                    session: state.session,
+                    connection: state.connection,
+                    authoring: state.scenario.active,
+                  },
+                  row.entity.id,
+                ).binding
+              }
+              title={
+                cockpitCandidate(
+                  {
+                    presentation: state.presentation,
+                    session: state.session,
+                    connection: state.connection,
+                    authoring: state.scenario.active,
+                  },
+                  row.entity.id,
+                ).reason ??
+                'Open or rebind the one simulated cockpit. Viewing does not acquire control.'
+              }
+            >
+              <Camera size={14} aria-hidden="true" /> Simulated cockpit
+            </button>
+          )}
           {state.presentation.status === 'stale' && (
             <p className="entity-notice" role="status">
               {state.presentation.sourceDelayed

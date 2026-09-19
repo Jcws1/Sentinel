@@ -2,6 +2,7 @@ import { captureScriptControl } from '../world/scriptControl';
 import { captureBehavior, interceptSelection } from '../world/behavior';
 import { createEngagementCues } from '../world/engagementCues';
 import { createMotionPresentation } from '../world/motionPresentation';
+import { createCockpitPresentation, type CockpitState } from '../world/cockpit';
 import {
   createDisplayPreferences,
   type DisplayPreferences,
@@ -61,6 +62,7 @@ import {
 } from '../world/observedHistory';
 
 export interface RuntimeSnapshot {
+  cockpit?: Readonly<CockpitState>;
   display?: Readonly<DisplayPreferences>;
   displayPersistence?: 'local' | 'session';
   engagementCues?: readonly DeepReadonly<DemoOutcome>[];
@@ -122,6 +124,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
   const history = createHistoryCache();
   const engagementCues = createEngagementCues();
   const motion = createMotionPresentation();
+  const cockpit = createCockpitPresentation();
   const display = createDisplayPreferences(dependencies.displayStorage);
   const listeners = new Set<() => void>();
   let catalog: RuntimeSnapshot['catalog'] = { status: 'idle', missions: [] };
@@ -202,6 +205,12 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       operational.overlays.historyWindowSeconds ?? 60,
     );
     snapshot = Object.freeze({
+      cockpit: cockpit.sync({
+        presentation,
+        session: operational,
+        connection: cache.connection,
+        authoring: scenarios.get().active,
+      }),
       display: display.get(),
       displayPersistence: display.persistence(),
       catalog: immutableCopy(catalog),
@@ -411,6 +420,27 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
   publish();
   const owner = {
     motion,
+    openCockpit(entityId: string) {
+      const opened = cockpit.open(
+        {
+          presentation: snapshot.presentation,
+          session: snapshot.session,
+          connection: snapshot.connection,
+          authoring: snapshot.scenario.active,
+        },
+        entityId,
+      );
+      if (opened) publish();
+      return opened;
+    },
+    followCockpit(value: boolean) {
+      cockpit.follow(value);
+      publish();
+    },
+    lookCockpit(yaw: number, pitch: number) {
+      cockpit.look(yaw, pitch);
+      publish();
+    },
     getSnapshot: () => snapshot,
     getPresentationFrame: () => snapshot.presentation,
     subscribe(listener: () => void) {

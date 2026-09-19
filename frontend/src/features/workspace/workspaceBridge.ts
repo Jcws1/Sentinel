@@ -169,6 +169,7 @@ export class WorkspaceBridge {
         'units',
         'conductor',
         'settings',
+        'cockpit',
       ].includes(viewKind(id))
     );
   }
@@ -340,7 +341,7 @@ export class WorkspaceBridge {
   }
   openToSide(id: ViewId, relativeTo?: ViewId) {
     if (this.disposed) return;
-    if (this.auxiliary(id)) {
+    if (this.auxiliary(id) && id !== 'cockpit') {
       this.openAuxiliary(id);
       return;
     }
@@ -355,6 +356,10 @@ export class WorkspaceBridge {
         : this.layoutModel.getNodeById(relativeTo)?.getParent()
       : undefined;
     const target = relative ?? this.mainTarget();
+    if (id === 'cockpit' && this.viewportWidth < 1180) {
+      this.openAuxiliary(id);
+      return;
+    }
     // Moving the only tab beside itself has no useful result; keep its identity intact.
     if (existing?.getParent() === target && target.getChildren().length === 1) {
       this.focus(id);

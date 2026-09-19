@@ -8,6 +8,8 @@ import {
 import { CesiumAdapter } from '../../src/renderers/cesium/CesiumAdapter';
 
 interface SurfaceHarness {
+  role: 'map' | 'cockpit';
+  cockpitGeometryAt: number;
   scheduleClearance(): void;
   queueGeometryClearance(): void;
   watchGeometryClearance(
@@ -37,11 +39,14 @@ function harness() {
   const sampleHeight = vi.fn<() => number | undefined>(() => undefined);
   const requestRender = vi.fn();
   const callbacks = {
+    cockpitGeometry: vi.fn(),
     announce: vi.fn(),
     directMove: vi.fn(),
     destination: vi.fn(),
   };
   const adapter = Object.assign(Object.create(CesiumAdapter.prototype), {
+    role: 'map',
+    cockpitGeometryAt: 0,
     active: true,
     disposed: false,
     engineReady: true,
@@ -79,6 +84,22 @@ describe('Cesium loaded-surface safety', () => {
   afterEach(() => {
     vi.clearAllTimers();
     vi.useRealTimers();
+  });
+  it('discloses cockpit intersection without relocating its supplied eye, with bounded depth checks', () => {
+    const { adapter, camera, sampleHeight, callbacks } = harness();
+    adapter.role = 'cockpit';
+    sampleHeight.mockReturnValue(100);
+    vi.advanceTimersByTime(1001);
+    adapter.scheduleClearance();
+    vi.advanceTimersByTime(17);
+    expect(callbacks.cockpitGeometry).toHaveBeenCalledWith(true);
+    expect(camera.setView).not.toHaveBeenCalled();
+    expect(Cartographic.fromCartesian(camera.positionWC).height).toBeCloseTo(
+      35,
+    );
+    for (let i = 0; i < 100; i++) adapter.scheduleClearance();
+    vi.advanceTimersByTime(17);
+    expect(sampleHeight).toHaveBeenCalledOnce();
   });
 
   it('rechecks a stationary restored eye when geometry arrives, with bounded samples', () => {

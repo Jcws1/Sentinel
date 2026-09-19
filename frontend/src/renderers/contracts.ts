@@ -104,6 +104,7 @@ export interface SpatialStatus {
   retryAfterSeconds?: number;
 }
 export interface RendererCallbacks {
+  cockpitGeometry?(intersects: boolean | undefined): void;
   pick(id: string, additive?: boolean): void;
   selection?(ids: string[], additive?: boolean): void;
   clearSelection?(): void;
@@ -128,6 +129,9 @@ export interface RendererCallbacks {
 }
 /** A pane owns one projection. No transport or world mutation is exposed here. */
 export interface MapRenderer {
+  setCockpitPose?(
+    pose: import('./cesium/cockpitCamera').CockpitCameraFrame,
+  ): void;
   /** Suspends renderer work; the application applies its latest scene on resume. */
   setActive(active: boolean): void;
   canRetain(): boolean;

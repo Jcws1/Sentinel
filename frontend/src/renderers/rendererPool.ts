@@ -6,6 +6,8 @@ import type {
 } from './contracts';
 
 export interface RendererLease {
+  readonly role: 'map' | 'cockpit';
+  subject?: string;
   readonly key: string;
   readonly viewId: string;
   readonly mode: MapMode;
@@ -33,12 +35,19 @@ export class RendererPool {
   private timer?: ReturnType<typeof setTimeout>;
   private disposed = false;
 
-  acquire(viewId: string, mode: MapMode, owner: Document) {
+  acquire(
+    viewId: string,
+    mode: MapMode,
+    owner: Document,
+    role: 'map' | 'cockpit' = 'map',
+    subject?: string,
+  ) {
     if (this.disposed) return;
     this.enforce();
-    const key = JSON.stringify([viewId, mode]);
+    const key = JSON.stringify([viewId, mode, role]);
     let lease = this.leases.get(key);
     if (lease) {
+      lease.subject = subject;
       lease.active = true;
       lease.host.hidden = false;
       this.schedule();
@@ -53,6 +62,8 @@ export class RendererPool {
     host.className = 'map-renderer-host';
     host.dataset.rendererProjection = mode;
     lease = {
+      role,
+      subject,
       key,
       viewId,
       mode,
@@ -179,6 +190,8 @@ export class RendererPool {
         0,
       ),
       leases: [...this.leases.values()].map((lease) => ({
+        role: lease.role,
+        subject: lease.subject,
         viewId: lease.viewId,
         mode: lease.mode,
         active: lease.active,

@@ -47,6 +47,39 @@ afterEach(() => {
 });
 
 describe('bounded renderer resource leases', () => {
+  it('separates cockpit role and subject while counting it as Cesium for hidden limits', () => {
+    const pool = create();
+    const { lease: map, engine: mapEngine } = install(
+      pool,
+      'cockpit',
+      'three-d',
+    );
+    const cockpit = pool.acquire(
+      'cockpit',
+      'three-d',
+      document,
+      'cockpit',
+      'run/entity/track',
+    )!;
+    expect(cockpit).not.toBe(map);
+    const engine = renderer();
+    pool.install(cockpit, engine);
+    pool.release(map);
+    pool.release(cockpit);
+    expect(mapEngine.dispose).toHaveBeenCalledOnce();
+    expect(pool.inspect()).toMatchObject({
+      alive: 1,
+      hidden: 1,
+      leases: [
+        { role: 'cockpit', subject: 'run/entity/track', mode: 'three-d' },
+      ],
+    });
+    expect(
+      pool.acquire('cockpit', 'three-d', document, 'cockpit', 'new/subject'),
+    ).toBe(cockpit);
+    expect(cockpit.subject).toBe('new/subject');
+    expect(engine.dispose).not.toHaveBeenCalled();
+  });
   it('resumes the same healthy lease, detached from inactive UI without disposing it', () => {
     const pool = create();
     const { lease, engine } = install(pool, 'map');
