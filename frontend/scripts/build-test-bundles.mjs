@@ -9,6 +9,7 @@ const env = {
   VITE_CESIUM_ION_TOKEN: '',
   VITE_GOOGLE_MAPS_API_KEY: '',
   VITE_CESIUM_PHOTOREALISTIC_ASSET_ID: '0',
+  SENTINEL_SHARED_PUBLIC: '1',
 };
 const suffix = process.env.SENTINEL_TEST_BUILD_SUFFIX ?? '';
 for (const args of [

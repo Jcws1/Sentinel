@@ -11,9 +11,7 @@ import {
 } from './rtsActions';
 import type { DirectMoveRequest } from '../../src/contracts/generated';
 test.use({ trace: 'off' });
-const evidence = resolve(
-  '../docs/d4-refinement/regressions/d4/regressions/movement',
-);
+const evidence = resolve('test-results/browser/movement');
 test.beforeEach(async () => {
   await mkdir(evidence, { recursive: true });
 });

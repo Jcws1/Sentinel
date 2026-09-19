@@ -11,9 +11,7 @@ import { resolve } from 'node:path';
 import { closeTab, tabAction, unloadMission } from './actions';
 
 const product = 'http://127.0.0.1:5181';
-const evidence = resolve(
-  '../docs/d4-refinement/regressions/d4/regressions/chrome',
-);
+const evidence = resolve('test-results/browser/chrome');
 const tab = (page: Page, name: string) =>
   page.getByRole('tab', { name, exact: true });
 
@@ -96,9 +94,7 @@ test('compact header reclaims map space with a single mission breadcrumb and no 
 }) => {
   const baseline = JSON.parse(
     await readFile(
-      resolve(
-        '../docs/d4-refinement/regressions/chrome-refinement/before-geometry.json',
-      ),
+      resolve('tests/fixtures/chrome-before-geometry.json'),
       'utf8',
     ),
   );

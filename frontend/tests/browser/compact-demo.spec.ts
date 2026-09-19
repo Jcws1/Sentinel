@@ -9,9 +9,7 @@ import {
   endDemo,
 } from './rtsActions';
 
-const evidence = resolve(
-  '../docs/d4-refinement/regressions/d4/regressions/compact-demo',
-);
+const evidence = resolve('test-results/browser/compact-demo');
 test.use({ trace: 'off' });
 test.afterEach(async ({ page }) => {
   // Keep each real UI scenario independent if an assertion fails mid-demo.

@@ -4,9 +4,7 @@ import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { rtsOrigin, readWorld, endDemo } from './rtsActions';
 import type { ScenarioRevision } from '../../src/contracts/generated';
-const evidence = resolve(
-  '../docs/d4-refinement/regressions/d4/regressions/d3a-workflow',
-);
+const evidence = resolve('test-results/browser/d3a-workflow');
 const units = (p: Page) => p.locator('[data-view="units"]');
 const conductor = (p: Page) => p.locator('[data-view="conductor"]');
 const map = (p: Page) => p.locator('.tactical-view[data-view-id="tactical"]');

@@ -5,9 +5,7 @@ import { resolve } from 'node:path';
 import { tabAction, advanceFixture } from './actions';
 test.use({ trace: 'off' });
 const origin = 'http://127.0.0.1:5182',
-  evidence = resolve(
-    '../docs/d4-refinement/regressions/d4/regressions/fleet-details',
-  );
+  evidence = resolve('test-results/browser/fleet-details');
 const details = (p: Page) => p.locator('.selection-details');
 const fleet = (p: Page) => p.locator('.fleet-sidebar');
 async function load(p: Page, name = 'Observations') {

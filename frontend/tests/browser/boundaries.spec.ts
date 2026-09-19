@@ -4,9 +4,7 @@ import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { rtsOrigin, readWorld, endDemo, fleetSelect } from './rtsActions';
 import type { ScenarioRevision } from '../../src/contracts/generated';
-const evidence = resolve(
-  '../docs/d4-refinement/regressions/d4/regressions/boundaries',
-);
+const evidence = resolve('test-results/browser/boundaries');
 const units = (p: Page) => p.locator('.units-pane');
 const map = (p: Page, id = 'tactical') =>
   p.locator(`.tactical-view[data-view-id="${id}"]`);

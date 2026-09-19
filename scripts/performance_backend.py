@@ -2,6 +2,7 @@
 import asyncio
 import cProfile
 import json
+import re
 import statistics
 import sys
 import tempfile
@@ -16,7 +17,7 @@ from app.scenarios.service import ScenarioService
 
 
 async def benchmark(per_side, output):
-    data = json.loads((ROOT / 'docs/performance-stability/scenario-20v20.json').read_text())
+    data = json.loads((ROOT / 'frontend/tests/fixtures/scenario-20v20.json').read_text(encoding='utf-8'))
     kept = {u['id'] for u in data['units'] if int(u['id'].split('-')[-1]) <= per_side}
     data['units'] = [u for u in data['units'] if u['id'] in kept]
     data['actions'] = [a for a in data['actions'] if a['unitId'] in kept]
@@ -53,7 +54,11 @@ async def benchmark(per_side, output):
 
 
 async def main():
-    output = ROOT / 'docs/performance-stability' / ('backend-' + sys.argv[1])
+    (ROOT / '.cache').mkdir(exist_ok=True)
+    tag = sys.argv[1] if len(sys.argv) > 1 else 'current'
+    if not re.fullmatch(r'[a-z0-9-]+', tag):
+        raise SystemExit('Use a lowercase alphanumeric or hyphenated result tag')
+    output = ROOT / 'test-results/performance' / ('backend-' + tag)
     output.mkdir(parents=True, exist_ok=True)
     results = []
     for n in (1, 10, 20):
@@ -61,8 +66,10 @@ async def main():
             results.append(await benchmark(n, output))
         except Exception as error:
             results.append({'perSide': n, 'error': type(error).__name__, 'detail': str(error)[:300]})
-    (output / 'result.json').write_text(json.dumps(results, indent=2))
+    (output / 'result.json').write_text(json.dumps(results, indent=2), encoding='utf-8')
     print(json.dumps(results))
+    if any('error' in result for result in results):
+        raise SystemExit(1)
 
 
 asyncio.run(main())

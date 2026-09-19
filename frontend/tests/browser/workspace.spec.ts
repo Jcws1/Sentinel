@@ -6,9 +6,7 @@ import { resolve } from 'node:path';
 
 const product = 'http://127.0.0.1:5181';
 const harness = 'http://127.0.0.1:5182/tests/harness/index.html';
-const evidence = resolve(
-  '../docs/d4-refinement/regressions/d4/regressions/workspace',
-);
+const evidence = resolve('test-results/browser/workspace');
 const failures = new WeakMap<Page, string[]>();
 test.beforeAll(async ({ browser }) => {
   await mkdir(evidence, { recursive: true });

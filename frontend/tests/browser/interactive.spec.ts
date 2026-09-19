@@ -10,9 +10,7 @@ import {
   rtsOrigin,
 } from './rtsActions';
 test.use({ trace: 'off' });
-const evidence = resolve(
-  '../docs/d4-refinement/regressions/d4/regressions/interactive',
-);
+const evidence = resolve('test-results/browser/interactive');
 test.beforeEach(async () => {
   await mkdir(evidence, { recursive: true });
 });

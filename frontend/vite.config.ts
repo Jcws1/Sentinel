@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
 import { resolve } from 'node:path';
 import { cesiumAssets } from './cesiumAssets.ts';
+import { sharedPublicAssets } from './sharedPublicAssets.ts';
 
 export default defineConfig(({ mode }) => ({
   server: {
@@ -30,6 +31,9 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     tailwindcss(),
     cesiumAssets(),
+    ...(process.env.SENTINEL_SHARED_PUBLIC === '1'
+      ? [sharedPublicAssets()]
+      : []),
     {
       name: 'flexlayout-published-css-map',
       enforce: 'pre',
@@ -45,6 +49,7 @@ export default defineConfig(({ mode }) => ({
     },
   ],
   build: {
+    copyPublicDir: process.env.SENTINEL_SHARED_PUBLIC !== '1',
     outDir: mode === 'verification' ? 'dist-verification' : 'dist',
     rolldownOptions: {
       // Cache stable runtime/engine code separately from the small application shell.

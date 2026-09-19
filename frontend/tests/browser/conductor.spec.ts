@@ -1,3 +1,4 @@
+import { armPlacement } from './authoringActions';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -13,9 +14,7 @@ import type {
   ScenarioRevision,
   WorldFrame,
 } from '../../src/contracts/generated';
-const evidence = resolve(
-  '../docs/d4-refinement/regressions/d4/regressions/conductor',
-);
+const evidence = resolve('test-results/browser/conductor');
 const units = (p: Page) => p.locator('[data-view="units"]');
 const conductor = (p: Page) => p.locator('[data-view="conductor"]');
 const map = (p: Page, id = 'tactical') =>
@@ -55,9 +54,7 @@ async function unit(
   lat = '1.296',
   observer = false,
 ) {
-  await units(p)
-    .getByRole('button', { name: new RegExp(`^${category}`) })
-    .click();
+  await armPlacement(units(p), category);
   await units(p).locator('.units-numeric summary').click();
   await units(p)
     .getByRole('textbox', { name: 'Placement longitude', exact: true })
@@ -125,7 +122,7 @@ async function reviewRun(p: Page) {
     'Saved revision',
   );
   await conductor(p)
-    .getByRole('button', { name: 'Validate → Run review', exact: true })
+    .getByRole('button', { name: 'Validate saved revision', exact: true })
     .click();
   await expect(
     conductor(p).getByLabel('Scenario validation review'),
@@ -646,9 +643,12 @@ test('three hostile ticks, two friendlies, observation-only motion, manual overr
       /Last Stop receipt · order \d+ · accepted/.test(text),
     ),
   ).toBe(true);
-  await expect(page.locator('.fleet-sidebar')).toContainText(
-    'Manual override · Moving',
-  );
+  await expect(
+    page.locator('.fleet-sidebar').getByRole('button', {
+      name: 'Inspect Friendly 1',
+      exact: true,
+    }),
+  ).toContainText('Manual · moving');
   await page.screenshot({
     path: resolve(evidence, 'recorded-stop-after-live-move.png'),
   });

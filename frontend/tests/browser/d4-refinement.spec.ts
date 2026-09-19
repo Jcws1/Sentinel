@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import { rtsOrigin, readWorld, endDemo, fleetSelect } from './rtsActions';
 import { closeTab } from './actions';
 import type { ScenarioContent } from '../../src/contracts/generated';
-const evidence = resolve('../docs/d4-refinement/evidence');
+const evidence = resolve('test-results/browser/evidence');
 const units = (p: Page) => p.locator('[data-view="units"]');
 const conductor = (p: Page) => p.locator('[data-view="conductor"]');
 const map = (p: Page) => p.locator('.tactical-view[data-view-id="tactical"]');

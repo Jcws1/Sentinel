@@ -1,12 +1,11 @@
+import { armPlacement } from './authoringActions';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { rtsOrigin, readWorld, endDemo } from './rtsActions';
 import type { CameraIntent } from '../../src/renderers/contracts';
-const evidence = resolve(
-  '../docs/d4-refinement/regressions/d4/regressions/scenario-authoring',
-);
+const evidence = resolve('test-results/browser/scenario-authoring');
 const units = (page: Page) => page.locator('.units-pane');
 const map = (page: Page, id = 'tactical') =>
   page.locator(`.tactical-view[data-view-id="${id}"]`);
@@ -109,6 +108,11 @@ test('keyboard placement, explicit-position duplication, remapped copy recovery 
   const friendly = units(page).getByRole('button', { name: /^Friendly drone/ });
   await friendly.focus();
   await page.keyboard.press('Enter');
+  const profile = units(page)
+    .locator('.units-subtypes')
+    .getByRole('button', { name: /^Quadcopter \/ strike/ });
+  await profile.focus();
+  await page.keyboard.press('Enter');
   await numeric(page, '103.85', '1.29', true);
   await expect(units(page).locator('.units-arrangement li')).toHaveCount(1);
   await expect(
@@ -204,7 +208,9 @@ test('keyboard placement, explicit-position duplication, remapped copy recovery 
   await expect(units(page).locator('.units-review')).toContainText(
     '0 controlled · 2 observation only',
   );
-  await expect(units(page).locator('.units-review')).toContainText('155 km/h');
+  await expect(units(page).locator('.units-review')).toContainText(
+    'per unit profile',
+  );
   await expect(units(page).locator('.units-review')).toBeFocused();
   await page.screenshot({ path: resolve(evidence, 'validated-copy.png') });
   await run.click();
@@ -214,6 +220,12 @@ test('keyboard placement, explicit-position duplication, remapped copy recovery 
   const world = await readWorld(page);
   expect(world.scenario?.definitionId).toBe(copiedId);
   expect(world.interactive?.controls).toHaveLength(0);
+  expect(
+    Object.values(world.unitProfiles ?? {}).map((profile) => profile.id),
+  ).toEqual(['hornet-10-v1', 'hornet-10-v1']);
+  expect(
+    Object.values(world.unitProfiles ?? {}).map((profile) => profile.cruiseMps),
+  ).toEqual([80 / 3.6, 80 / 3.6]);
   await endDemo(page);
   expect(errors).toEqual([]);
 });
@@ -276,9 +288,7 @@ test('two-map ownership, preview, Locate isolation, projection cancellation and 
   expect((await probe(page, 'tactical'))!.camera.center).toEqual(
     firstBefore.center,
   );
-  await units(page)
-    .getByRole('button', { name: /^Hostile drone/ })
-    .click();
+  await armPlacement(units(page), 'Hostile drone');
   await map(page, 'tactical:2')
     .getByRole('button', { name: 'Tactical', exact: true })
     .click();
@@ -451,9 +461,7 @@ test('narrow invalid edits and numeric placement keep one focused visible error 
 }) => {
   await page.setViewportSize({ width: 820, height: 800 });
   await open(page);
-  await units(page)
-    .getByRole('button', { name: /^Friendly drone/ })
-    .click();
+  await armPlacement(units(page), 'Friendly drone');
   await numeric(page, '103.85', '1.29', true);
   const height = units(page).getByRole('textbox', {
     name: 'Unit altitude',
@@ -479,9 +487,7 @@ test('narrow invalid edits and numeric placement keep one focused visible error 
   await expect(units(page).getByRole('alert')).toHaveCount(0);
   await expect(height).toHaveValue('250.125');
   await page.setViewportSize({ width: 760, height: 800 });
-  await units(page)
-    .getByRole('button', { name: /^Hostile drone/ })
-    .click();
+  await armPlacement(units(page), 'Hostile drone');
   await units(page).locator('.units-numeric summary').focus();
   await page.keyboard.press('Enter');
   const longitude = units(page).getByRole('textbox', {

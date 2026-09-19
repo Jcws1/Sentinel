@@ -15,9 +15,14 @@
     "preview": "vite preview --host 127.0.0.1 --port 5181 --strictPort",
     "preview:verification": "vite preview --mode verification --host 127.0.0.1 --port 5182 --strictPort",
     "test": "vitest run",
-    "test:browser": "playwright test",
+    "test:browser": "node tests/support/run-browser.mjs",
     "lint": "eslint src tests --max-warnings 0",
-    "format:check": "prettier --check src tests *.ts *.json *.html"
+    "format:check": "prettier --check src tests *.ts *.json *.html",
+    "contracts:foundation:check": "node scripts/generate-foundation-contracts.mjs --check",
+    "build:performance": "node scripts/build-performance.mjs",
+    "test:performance": "node tests/performance/measure.mjs",
+    "test:capacity": "node tests/performance/recovery.mjs",
+    "test:geometry": "node tests/performance/geometry.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "1.1.23",

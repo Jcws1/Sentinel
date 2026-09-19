@@ -49,9 +49,13 @@ htmlcov/
 *.sqlite3-wal
 *.sqlite3-journal
 
-# Preserve the existing policy for local documentation/review evidence.
-# Already tracked documents remain tracked and their edits stay visible.
-docs/
+# Documentation, reusable test inputs and licence notices are source files.
+# Raw runs belong in test-results/; local historical evidence is archived outside
+# the checkout. Keep these generic scratch destinations out of future commits.
+/output/
+/tmp/
+*.prof
+*.cpuprofile
 
 
 # Generated logs and operating-system metadata.

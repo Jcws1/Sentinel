@@ -6,9 +6,7 @@ import { closeTab, tabAction } from './actions';
 import type { CameraIntent } from '../../src/renderers/contracts';
 
 test.use({ trace: 'off' });
-const evidence = resolve(
-  '../docs/d4-refinement/regressions/d4/regressions/rts-gestures',
-);
+const evidence = resolve('test-results/browser/rts-gestures');
 type Mode = 'tactical' | 'three-d';
 type Probe = {
   ready: boolean;

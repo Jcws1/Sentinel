@@ -2,15 +2,13 @@ import { defineConfig } from '@playwright/test';
 const suffix = process.env.SENTINEL_TEST_BUILD_SUFFIX ?? '';
 export default defineConfig({
   testDir: './tests/browser',
+  outputDir: './test-results/playwright',
   fullyParallel: false,
   workers: 1,
   timeout: 30000,
   reporter: [
     ['list'],
-    [
-      'json',
-      { outputFile: '../docs/d4-refinement/regressions/browser-results.json' },
-    ],
+    ['json', { outputFile: './test-results/browser/results.json' }],
   ],
   use: {
     channel: 'msedge',
@@ -24,7 +22,7 @@ export default defineConfig({
       ? []
       : [
           {
-            command: 'node tests/start-backend.mjs',
+            command: 'node tests/support/start-backend.mjs',
             url: 'http://127.0.0.1:8011/api/missions',
             reuseExistingServer: false,
           },
@@ -32,13 +30,19 @@ export default defineConfig({
             command: `npx vite preview --outDir dist-test${suffix} --host 127.0.0.1 --port 5181 --strictPort`,
             url: 'http://127.0.0.1:5181',
             reuseExistingServer: false,
-            env: { SENTINEL_API_TARGET: 'http://127.0.0.1:8011' },
+            env: {
+              SENTINEL_API_TARGET: 'http://127.0.0.1:8011',
+              SENTINEL_SHARED_PUBLIC: '1',
+            },
           },
           {
             command: `npx vite preview --mode verification --outDir dist-verification${suffix} --host 127.0.0.1 --port 5182 --strictPort`,
             url: 'http://127.0.0.1:5182/tests/harness/index.html',
             reuseExistingServer: false,
-            env: { SENTINEL_API_TARGET: 'http://127.0.0.1:8011' },
+            env: {
+              SENTINEL_API_TARGET: 'http://127.0.0.1:8011',
+              SENTINEL_SHARED_PUBLIC: '1',
+            },
           },
         ],
 });

@@ -11,7 +11,7 @@ import {
 } from './rtsActions';
 import { closeTab } from './actions';
 import type { ScenarioRevision } from '../../src/contracts/generated';
-const evidence = resolve('../docs/d4-refinement/regressions/d4/evidence');
+const evidence = resolve('test-results/browser/evidence');
 const units = (p: Page) => p.locator('[data-view="units"]');
 const conductor = (p: Page) => p.locator('[data-view="conductor"]');
 const map = (p: Page) => p.locator('.tactical-view[data-view-id="tactical"]');

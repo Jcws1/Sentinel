@@ -47,9 +47,7 @@ for (const name of ['dark.png', 'dark.json', 'dark@2x.png', 'dark@2x.json'])
   );
 // v2's pack omitted these upstream notices. Ship them with the reused assets.
 await cp(
-  fileURLToPath(
-    new URL('../../docs/map-refinement/licenses/', import.meta.url),
-  ),
+  fileURLToPath(new URL('../map-data/licenses/', import.meta.url)),
   join(destination, 'assets/licenses'),
   { recursive: true },
 );

@@ -9,9 +9,7 @@ import type { CameraIntent } from '../../src/renderers/contracts';
 
 const product = 'http://127.0.0.1:5181';
 const verification = 'http://127.0.0.1:5182';
-const evidence = resolve(
-  '../docs/d4-refinement/regressions/d4/regressions/tactical',
-);
+const evidence = resolve('test-results/browser/tactical');
 const fixture = 'fixture-tactical';
 const failures = new WeakMap<Page, string[]>();
 const entityId = (suffix: string) => `${fixture}-${suffix}`;

@@ -1,0 +1,88 @@
+[
+  {
+    "viewport": {
+      "width": 1920,
+      "height": 1080
+    },
+    "header": {
+      "x": 0,
+      "y": 0,
+      "width": 1920,
+      "height": 40
+    },
+    "activity": {
+      "x": 0,
+      "y": 40,
+      "width": 52,
+      "height": 1015
+    },
+    "mission": {
+      "x": 260,
+      "y": 40,
+      "width": 1660,
+      "height": 35
+    },
+    "paneToolbar": {
+      "x": 260,
+      "y": 112,
+      "width": 1660,
+      "height": 34
+    },
+    "canvas": {
+      "x": 260,
+      "y": 179,
+      "width": 1660,
+      "height": 853
+    },
+    "tabs": {
+      "x": 262,
+      "y": 75,
+      "width": 265.390625,
+      "height": 36
+    },
+    "dpr": 1
+  },
+  {
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "header": {
+      "x": 0,
+      "y": 0,
+      "width": 1440,
+      "height": 40
+    },
+    "activity": {
+      "x": 0,
+      "y": 40,
+      "width": 52,
+      "height": 835
+    },
+    "mission": {
+      "x": 260,
+      "y": 40,
+      "width": 1180,
+      "height": 35
+    },
+    "paneToolbar": {
+      "x": 260,
+      "y": 112,
+      "width": 1180,
+      "height": 34
+    },
+    "canvas": {
+      "x": 260,
+      "y": 179,
+      "width": 1180,
+      "height": 673
+    },
+    "tabs": {
+      "x": 262,
+      "y": 75,
+      "width": 265.390625,
+      "height": 36
+    },
+    "dpr": 1
+  }
+]

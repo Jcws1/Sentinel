@@ -708,9 +708,7 @@ test('standard retry recovers failed terrain without reauthenticating or reloadi
   expect((await stats(page)).created).toBe(initial.created);
   assertContext(before, after);
   await expect(pane(page)).toHaveAttribute('data-selection', selected!);
-  const evidence = resolve(
-    '../docs/d4-refinement/regressions/d4/regressions/map-recovery',
-  );
+  const evidence = resolve('test-results/browser/map-recovery');
   await mkdir(evidence, { recursive: true });
   await writeFile(
     resolve(evidence, 'provider-retry-resources.json'),

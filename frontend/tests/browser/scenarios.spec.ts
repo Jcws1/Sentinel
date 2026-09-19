@@ -1,3 +1,4 @@
+import { armPlacement } from './authoringActions';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -10,9 +11,7 @@ import {
   directClick,
 } from './rtsActions';
 
-const evidence = resolve(
-  '../docs/d4-refinement/regressions/d4/regressions/scenarios',
-);
+const evidence = resolve('test-results/browser/scenarios');
 test.use({ actionTimeout: 10000 });
 const pane = (page: Page) => page.locator('.units-pane');
 const map = (page: Page) =>
@@ -30,9 +29,7 @@ async function editor(page: Page) {
   await expect(map(page)).toHaveAttribute('data-context', 'authoring');
 }
 async function place(page: Page, category: string, x = 0.5, y = 0.5) {
-  await pane(page)
-    .getByRole('button', { name: new RegExp(`^${category}`) })
-    .click();
+  await armPlacement(pane(page), category);
   const canvas = map(page).locator('canvas').first();
   await expect(canvas).toBeVisible();
   const box = (await canvas.boundingBox())!;
@@ -352,9 +349,7 @@ test('unapplied role and pose edits cannot silently Save or Run; reload retains 
   test.setTimeout(60000);
   await page.goto(rtsOrigin);
   await editor(page);
-  await pane(page)
-    .getByRole('button', { name: /^Friendly drone/ })
-    .click();
+  await armPlacement(pane(page), 'Friendly drone');
   await expect(
     pane(page).getByRole('button', { name: 'Cancel placement · Esc' }),
   ).toBeVisible();
