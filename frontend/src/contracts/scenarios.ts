@@ -7,8 +7,10 @@ import addFormats from 'ajv-formats';
 import boundarySchema from '../../../contracts/sentinel/v1.7/scenarios.schema.json';
 import scheduledSchema from '../../../contracts/sentinel/v1.8/scenarios.schema.json';
 import { validateActionGraph } from '../world/scriptPlan';
-import schema from '../../../contracts/sentinel/v1.11/scenarios.schema.json';
-import reviewSchema from '../../../contracts/sentinel/v1.11/scenario-review.schema.json';
+import schema from '../../../contracts/sentinel/v1.13/scenarios.schema.json';
+import reviewSchema from '../../../contracts/sentinel/v1.13/scenario-review.schema.json';
+export const MAX_SCENARIO_UNITS =
+  schema.$defs.ScenarioContent.properties.units.maxItems;
 import type {
   ScenarioRevision,
   ScenarioReceipt,
@@ -90,6 +92,8 @@ function contentIntegrity(content: ScenarioContent) {
     if (a.offsetMs != null) actorTicks.add(tick);
   }
 
+  if (content.units.filter((u) => u.commandRole === 'sentinel').length > 32)
+    throw new Error('At most 32 Sentinel-controlled units are supported.');
   if (
     !content.name.trim() ||
     new Set(content.units.map((u) => u.id)).size !== content.units.length ||
@@ -147,15 +151,17 @@ export function decodeScenarioRevision(value: unknown) {
     throw new Error('Invalid scheduled legacy revision.');
   if (
     result.schemaVersion !==
-    (result.content.units.some((u) => u.profileId)
-      ? '1.4'
-      : result.content.scheduleRuleVersion === 'local-schedule-v2'
-        ? '1.3'
-        : result.content.actions != null
-          ? '1.2'
-          : result.content.boundaries == null
-            ? '1.0'
-            : '1.1')
+    (result.content.units.length > 32
+      ? '1.5'
+      : result.content.units.some((u) => u.profileId)
+        ? '1.4'
+        : result.content.scheduleRuleVersion === 'local-schedule-v2'
+          ? '1.3'
+          : result.content.actions != null
+            ? '1.2'
+            : result.content.boundaries == null
+              ? '1.0'
+              : '1.1')
   )
     throw new Error('Scenario version disagrees with content.');
   contentIntegrity(result.content);
@@ -178,12 +184,19 @@ export function decodeScenarioReceipt(value: unknown) {
   )
     throw new Error('Invalid scenario receipt evidence.');
   if (result.result) decodeScenarioRevision(result.result);
+  if (result.schemaVersion !== '1.5' && result.result?.schemaVersion === '1.5')
+    throw new Error('Expanded capacity requires scenario envelope 1.5.');
   return result;
 }
 const listShape = decoder<ScenarioList>('ScenarioList');
 export function decodeScenarioList(value: unknown) {
   const result = listShape(value);
   result.scenarios.forEach(decodeScenarioRevision);
+  if (
+    result.schemaVersion !== '1.5' &&
+    result.scenarios.some((s) => s.schemaVersion === '1.5')
+  )
+    throw new Error('Expanded capacity requires scenario envelope 1.5.');
   return result;
 }
 const writeShape = decoder<ScenarioWrite>('ScenarioWrite');
@@ -204,6 +217,7 @@ export function decodeScenarioReview(value: unknown) {
     value.canRun !== !value.issues.length ||
     counts.total !== counts.friendly + counts.hostile + counts.unknown ||
     counts.total !== counts.controlled + counts.observationOnly ||
+    (value.schemaVersion === '1.4' && counts.total > 32) ||
     counts.controlled > counts.friendly
   )
     throw new Error('Scenario review evidence disagrees.');

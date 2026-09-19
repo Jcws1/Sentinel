@@ -7,7 +7,11 @@ import {
 } from '../../src/contracts/interactive';
 import { validateFrame } from '../../src/contracts/decode';
 import rawFrame from '../../../contracts/sentinel/v1.11/fixture.world.json';
-import type { CommandRequest } from '../../src/contracts/generated';
+import demo from '../../../contracts/sentinel/v1.11/demo.world.json';
+import type {
+  CommandRequest,
+  InteractiveRun,
+} from '../../src/contracts/generated';
 
 const cleanup: (() => void)[] = [];
 afterEach(() => {
@@ -48,6 +52,88 @@ const entry = {
   enabled: true,
   templateId: 'singapore-local-v2',
 };
+
+it.each(['accepted', 'lost', 'mission changed'] as const)(
+  'serializes a foreground End behind background renewal (%s)',
+  async (outcome) => {
+    vi.useFakeTimers();
+    const run = structuredClone(demo.interactive!) as InteractiveRun;
+    run.missionId = 'mid';
+    run.runId = 'run';
+    run.state = 'running';
+    run.lease = {
+      holderId: 'operator',
+      revision: 1,
+      expiresAt: '2026-09-14T00:00:15.000Z',
+    };
+    const commands: CommandRequest[] = [];
+    let finish!: (value: Response) => void;
+    let fail!: (reason: Error) => void;
+    const client = createInteractiveClient({
+      base: '/api',
+      storage: sessionStorage,
+      publish: () => {},
+      loadMission: () => {},
+      fetcher: async (url, init) => {
+        if (url.endsWith('/entry')) return Response.json(entry);
+        if (url.endsWith('/status'))
+          return Response.json({
+            schemaVersion: '1.7',
+            run,
+            serverTime: evidence.issuedAt,
+            frameId: 'frame',
+            sequence: 1,
+            ownsControl: true,
+            leaseState: 'held',
+          });
+        if (url.endsWith('/intents'))
+          return Response.json({
+            ...evidence,
+            ...JSON.parse(String(init?.body)),
+            leaseRevision: run.lease.revision,
+          });
+        if (url.endsWith('/commands')) {
+          const body = JSON.parse(String(init?.body)) as CommandRequest;
+          commands.push(body);
+          if (body.intent.action === 'renew')
+            return new Promise<Response>((resolve, reject) => {
+              finish = resolve;
+              fail = reject;
+            });
+          return Response.json(received(body.commandId, body.intent.action));
+        }
+        throw Error('Unexpected route');
+      },
+    });
+    cleanup.push(client.dispose);
+    client.setMission('mid');
+    client.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(commands.map((c) => c.intent.action)).toEqual(['renew']);
+    expect(client.get().renewing).toBe(true);
+    const end = client.perform('end');
+    expect(commands).toHaveLength(1);
+    if (outcome === 'mission changed') client.setMission('another');
+    if (outcome === 'lost') fail(Error('Reply lost'));
+    else {
+      run.lease.revision = 2;
+      run.lease.expiresAt = '2026-09-14T00:00:30.000Z';
+      finish(Response.json(received(commands[0].commandId, 'renew')));
+    }
+    await end;
+    if (outcome === 'accepted') {
+      expect(commands.map((c) => c.intent.action)).toEqual(['renew', 'end']);
+      expect(commands[1].intent.leaseRevision).toBe(2);
+      expect(client.get().receipt?.operation).toBe('end');
+    } else {
+      expect(commands).toHaveLength(1);
+      expect(client.get().pending?.body).toEqual(commands[0]);
+      expect(
+        sessionStorage.getItem('sentinel.interactive.pending.v1'),
+      ).toContain(commands[0].commandId);
+    }
+  },
+);
 
 it('saves creation identity before send, reconciles lost reply after reload, never recreates', async () => {
   let creation = '',

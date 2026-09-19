@@ -253,14 +253,14 @@ await withD5Runtime(
       await patrol();
       const opened = globalThis.performance.now();
       await page
-        .getByRole('button', { name: 'Simulated cockpit', exact: true })
+        .getByRole('button', { name: 'Video Feed', exact: true })
         .click();
       await expect
         .poll(async () => (await inspect()).cockpit?.ready, { timeout: 30000 })
         .toBe(true);
       report.openToRendererMs = globalThis.performance.now() - opened;
       await c()
-        .getByLabel('Cockpit environment', { exact: true })
+        .getByLabel('Video Feed environment', { exact: true })
         .selectOption('photorealistic');
       await expect
         .poll(
@@ -276,21 +276,21 @@ await withD5Runtime(
       await page.screenshot({
         path: resolve(output, 'three-views-patrol.png'),
       });
-      await tab('Simulated cockpit', 'Close view');
+      await tab('Video Feed', 'Close view');
       await page
         .getByRole('button', { name: 'Open Details', exact: true })
         .click();
       await measure('maps-only-2');
       const reopen = globalThis.performance.now();
       await page
-        .getByRole('button', { name: 'Simulated cockpit', exact: true })
+        .getByRole('button', { name: 'Video Feed', exact: true })
         .click();
       await expect
         .poll(async () => (await inspect()).cockpit?.ready)
         .toBe(true);
       report.reopenMs = globalThis.performance.now() - reopen;
       await c()
-        .getByLabel('Cockpit environment', { exact: true })
+        .getByLabel('Video Feed environment', { exact: true })
         .selectOption('photorealistic');
       await expect
         .poll(

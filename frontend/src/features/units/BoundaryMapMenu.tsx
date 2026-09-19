@@ -1,5 +1,8 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { useOperationalRuntime } from '../../app/OperationalContext';
+import { useEffect, useRef, useState } from 'react';
+import {
+  useOperationalRuntime,
+  useOperationalSnapshot,
+} from '../../app/OperationalContext';
 import { boundaryLabels } from '../../world/boundaryGeometry';
 import type { BoundaryDefinition } from '../../contracts/generated';
 import { boundaryEditorContext } from '../../world/boundaryContext';
@@ -13,7 +16,7 @@ export function BoundaryMapMenu({
   height: number;
 }) {
   const runtime = useOperationalRuntime()!,
-    state = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);
+    state = useOperationalSnapshot(runtime);
   const scenario = boundaryEditorContext(state);
   const menu = scenario.boundaryMenu,
     ref = useRef<HTMLDivElement>(null);

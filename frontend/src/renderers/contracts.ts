@@ -129,6 +129,9 @@ export interface RendererCallbacks {
 }
 /** A pane owns one projection. No transport or world mutation is exposed here. */
 export interface MapRenderer {
+  setVideoOverlay?(
+    frame?: import('../world/videoOverlay').VideoOverlayFrame,
+  ): void;
   setCockpitPose?(
     pose: import('./cesium/cockpitCamera').CockpitCameraFrame,
   ): void;
@@ -155,6 +158,8 @@ export interface MapRenderer {
 
 /** Derived from one complete presentation frame; never an operational store. */
 export interface SceneProjection {
+  /** Empty developer fixture: use Tactical's local grid without changing saved provider settings. */
+  readonly localGrid?: boolean;
   readonly display?: Readonly<DisplayPreferences>;
   readonly routes?: readonly SceneRoute[];
   readonly boundaryInteraction?: boolean;

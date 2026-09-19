@@ -7,6 +7,7 @@ export interface LabelAnchor {
   height: number;
   offsetX: number;
   offsetY: number;
+  previous?: { offsetX: number; offsetY: number };
 }
 export function layoutLabels(
   anchors: LabelAnchor[],
@@ -21,43 +22,39 @@ export function layoutLabels(
   }[] = [];
   return anchors.map((a) => {
     const step = a.height + 8;
-    for (const dx of [a.offsetX, -a.width - a.offsetX]) {
-      for (const dy of [
-        0,
-        -step,
-        step,
-        -2 * step,
-        2 * step,
-        -3 * step,
-        3 * step,
-      ]) {
-        const offsetY = a.offsetY + dy;
-        const box = {
-          left: a.x + dx - 4,
-          top: a.y + offsetY - a.height / 2 - 4,
-          right: a.x + dx + a.width + 4,
-          bottom: a.y + offsetY + a.height / 2 + 4,
-        };
-        if (
-          box.left < 4 ||
-          box.top < 4 ||
-          box.right > width - 4 ||
-          box.bottom > height - 4
+    const candidates = [a.offsetX, -a.width - a.offsetX].flatMap((dx) =>
+      [0, -step, step, -2 * step, 2 * step, -3 * step, 3 * step].map((dy) => ({
+        offsetX: dx,
+        offsetY: a.offsetY + dy,
+      })),
+    );
+    if (a.previous) candidates.unshift(a.previous);
+    for (const { offsetX: dx, offsetY } of candidates) {
+      const box = {
+        left: a.x + dx - 4,
+        top: a.y + offsetY - a.height / 2 - 4,
+        right: a.x + dx + a.width + 4,
+        bottom: a.y + offsetY + a.height / 2 + 4,
+      };
+      if (
+        box.left < 4 ||
+        box.top < 4 ||
+        box.right > width - 4 ||
+        box.bottom > height - 4
+      )
+        continue;
+      if (
+        occupied.some(
+          (b) =>
+            box.left < b.right &&
+            box.right > b.left &&
+            box.top < b.bottom &&
+            box.bottom > b.top,
         )
-          continue;
-        if (
-          occupied.some(
-            (b) =>
-              box.left < b.right &&
-              box.right > b.left &&
-              box.top < b.bottom &&
-              box.bottom > b.top,
-          )
-        )
-          continue;
-        occupied.push(box);
-        return { id: a.id, show: true, offsetX: dx, offsetY };
-      }
+      )
+        continue;
+      occupied.push(box);
+      return { id: a.id, show: true, offsetX: dx, offsetY };
     }
     return { id: a.id, show: false, offsetX: a.offsetX, offsetY: a.offsetY };
   });

@@ -52,7 +52,8 @@ class ScenarioService:
         if active:
             issues.append(ScenarioReviewIssue(code="ACTIVE_RUN_EXISTS", message="Return to the active demo and End it before starting another; then validate again."))
         controlled = sum(u.command_role == "sentinel" for u in units)
-        return ScenarioReview(reference=reference, name=revision.content.name, checked_at=self.authority.clock(),
+        return ScenarioReview(schema_version="1.5" if len(revision.content.units) > 32 else "1.4",
+            reference=reference, name=revision.content.name, checked_at=self.authority.clock(),
             boundary_count=len(revision.content.boundaries or []), action_count=len(revision.content.actions or []),
             script_duration_ms=min(600000, max((e.get("consumedTick",0)*200 for e in plan),default=0)),
             timings=[dict(actionId=e["action"]["id"],estimatedStartMs=e["consumedTick"]*200 if "consumedTick" in e else None,

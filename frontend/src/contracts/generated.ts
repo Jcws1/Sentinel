@@ -1,5 +1,5 @@
-/* Generated from backend contract package v1.11 JSON Schemas; do not edit.
- * Source SHA-256: 8fa306ce5633a84446821ffcfd849d9a7543ab788c8f32aa1e06b36409e7c90c
+/* Generated from backend contract package v1.13 JSON Schemas; do not edit.
+ * Source SHA-256: 1e139d9a890c44e643f59aa7a7525770e52d419b786adc94e6a5955329cf0ca6
  */
 
 /**
@@ -1102,6 +1102,7 @@ export interface Intent {
   missionId: string;
   order?: number | null;
   policy?: BehaviorPolicy | null;
+  recommendation?: RecommendationAudit | null;
   runId: string;
   runRevision: number;
   sourceId: string;
@@ -1118,6 +1119,104 @@ export interface DirectMoveMember {
   executorId: string;
   grantId: string;
   sourceId: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "RecommendationAudit".
+ */
+export interface RecommendationAudit {
+  assignmentCount: number;
+  createdAt: string;
+  /**
+   * @maxItems 32
+   */
+  eligibleTargetIds: string[];
+  executorEpoch: string;
+  expiresAt: string;
+  fingerprint: string;
+  inputFrameId: string;
+  /**
+   * @minItems 1
+   * @maxItems 32
+   */
+  members: [RecommendationMember, ...RecommendationMember[]];
+  missionId: string;
+  option: RecommendationOption;
+  recommendationId: string;
+  runId: string;
+  schemaVersion?: '1.0';
+  /**
+   * @minItems 1
+   * @maxItems 32
+   */
+  selectedEntityIds: [string, ...string[]];
+  sequence: number;
+  situation: string;
+  source?: 'rules';
+  sourceId: string;
+  unavailableReason?: string | null;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "RecommendationMember".
+ */
+export interface RecommendationMember {
+  available: boolean;
+  entityId: string;
+  exclusion?: string | null;
+  label: string;
+  state: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "RecommendationOption".
+ */
+export interface RecommendationOption {
+  action?: SuggestedAction | null;
+  /**
+   * @maxItems 6
+   */
+  consequences:
+    | []
+    | [string]
+    | [string, string]
+    | [string, string, string]
+    | [string, string, string, string]
+    | [string, string, string, string, string]
+    | [string, string, string, string, string, string];
+  explanation: string;
+  id: string;
+  title: string;
+  /**
+   * @maxItems 32
+   */
+  unchangedEntityIds: string[];
+  /**
+   * @maxItems 32
+   */
+  unchangedReasons: RecommendationUnchanged[];
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "SuggestedAction".
+ */
+export interface SuggestedAction {
+  /**
+   * @minItems 1
+   * @maxItems 32
+   */
+  members: [DirectMoveMember, ...DirectMoveMember[]];
+  operation: 'behavior' | 'stop' | 'return-to-script';
+  policy?: BehaviorPolicy | null;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "RecommendationUnchanged".
+ */
+export interface RecommendationUnchanged {
+  disposition: 'unchanged' | 'excluded';
+  entityId: string;
+  reason: string;
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
@@ -2274,6 +2373,66 @@ export interface Receipt {
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "RecommendationRequest".
+ */
+export interface RecommendationRequest {
+  /**
+   * @minItems 1
+   * @maxItems 32
+   */
+  entityIds: [string, ...string[]];
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "RecommendationSet".
+ */
+export interface RecommendationSet {
+  assignmentCount: number;
+  createdAt: string;
+  /**
+   * @maxItems 32
+   */
+  eligibleTargetIds: string[];
+  executorEpoch: string;
+  expiresAt: string;
+  fingerprint: string;
+  id: string;
+  inputFrameId: string;
+  /**
+   * @minItems 1
+   * @maxItems 32
+   */
+  members: [RecommendationMember, ...RecommendationMember[]];
+  missionId: string;
+  /**
+   * @minItems 1
+   * @maxItems 4
+   */
+  options:
+    | [RecommendationOption]
+    | [RecommendationOption, RecommendationOption]
+    | [RecommendationOption, RecommendationOption, RecommendationOption]
+    | [
+        RecommendationOption,
+        RecommendationOption,
+        RecommendationOption,
+        RecommendationOption,
+      ];
+  runId: string;
+  schemaVersion?: '1.0';
+  /**
+   * @minItems 1
+   * @maxItems 32
+   */
+  selectedEntityIds: [string, ...string[]];
+  sequence: number;
+  situation: string;
+  source?: 'rules';
+  sourceId: string;
+  unavailableReason?: string | null;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
  * via the `definition` "RunRead".
  */
 export interface RunRead {
@@ -2470,7 +2629,7 @@ export interface ScenarioContent {
   name: string;
   scheduleRuleVersion?: ('local-schedule-v1' | 'local-schedule-v2') | null;
   /**
-   * @maxItems 32
+   * @maxItems 40
    */
   units: UnitPlacement[];
 }
@@ -2503,7 +2662,7 @@ export interface ScenarioPosition {
  */
 export interface ScenarioList {
   scenarios: ScenarioRevision[];
-  schemaVersion?: '1.0' | '1.1' | '1.2' | '1.3' | '1.4';
+  schemaVersion?: '1.0' | '1.1' | '1.2' | '1.3' | '1.4' | '1.5';
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
@@ -2515,7 +2674,7 @@ export interface ScenarioRevision {
   createdAt: string;
   definitionId: string;
   revision: number;
-  schemaVersion?: '1.0' | '1.1' | '1.2' | '1.3' | '1.4';
+  schemaVersion?: '1.0' | '1.1' | '1.2' | '1.3' | '1.4' | '1.5';
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
@@ -2527,7 +2686,7 @@ export interface ScenarioReceipt {
   message: string;
   requestId: string;
   result?: ScenarioRevision | null;
-  schemaVersion?: '1.0' | '1.1' | '1.2' | '1.3' | '1.4';
+  schemaVersion?: '1.0' | '1.1' | '1.2' | '1.3' | '1.4' | '1.5';
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema
@@ -2578,7 +2737,7 @@ export interface ScenarioReview {
   motionPreset: ScenarioMotionPreset;
   name: string;
   reference: ScenarioRef;
-  schemaVersion?: '1.4';
+  schemaVersion?: '1.4' | '1.5';
   scriptDurationMs: number;
   /**
    * @maxItems 128

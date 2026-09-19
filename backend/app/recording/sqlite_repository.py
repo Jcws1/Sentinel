@@ -6,7 +6,7 @@ from pathlib import Path
 from threading import RLock
 
 from app.domain.models import Mission, RecordingMetadata, SentinelEvent, WorldFrame
-from app.world.serialization import canonical, validated_frame
+from app.world.serialization import canonical
 
 
 class RecordingRepository:
@@ -187,8 +187,8 @@ class RecordingRepository:
     def commit(self, frame_text: str, appended_events: list[dict]):
         # Revalidate even a caller-provided model copy; model_copy(update=...) can
         # bypass Pydantic validation and frozen nested objects may have mutated.
-        frame_text = validated_frame(frame_text)
         frame = WorldFrame.model_validate_json(frame_text)
+        frame_text = canonical(frame)
         events = [SentinelEvent.model_validate_json(canonical(event)) for event in appended_events]
         with self._lock:
             own_transaction = not self.db.in_transaction

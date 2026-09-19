@@ -1,0 +1,6455 @@
+{
+  "$defs": {
+    "AssetControl": {
+      "additionalProperties": false,
+      "properties": {
+        "assetId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Assetid",
+          "type": "string"
+        },
+        "bindingRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Bindingrevision",
+          "type": "integer"
+        },
+        "busyRevision": {
+          "default": 0,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Busyrevision",
+          "type": "integer"
+        },
+        "capabilities": {
+          "items": {
+            "enum": [
+              "move-horizontal",
+              "demo-intercept"
+            ],
+            "type": "string"
+          },
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "controlTrackId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Controltrackid"
+        },
+        "eligible": {
+          "default": false,
+          "title": "Eligible",
+          "type": "boolean"
+        },
+        "entityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "executorId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorid",
+          "type": "string"
+        },
+        "grantId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Grantid",
+          "type": "string"
+        },
+        "lastDirectOrder": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DirectOrderContext"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "positionReference": {
+          "const": "ELLIPSOID/WGS84",
+          "title": "Positionreference",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "sourceId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Sourceid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "missionId",
+        "assetId",
+        "entityId",
+        "executorId",
+        "sourceId",
+        "grantId",
+        "bindingRevision",
+        "capabilities",
+        "positionReference",
+        "reason"
+      ],
+      "title": "AssetControl",
+      "type": "object"
+    },
+    "BehaviorMemberOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "assetId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Assetid",
+          "type": "string"
+        },
+        "assignmentId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Assignmentid"
+        },
+        "code": {
+          "enum": [
+            "OK",
+            "UNAVAILABLE",
+            "NO_RESPONSE",
+            "POSITION_UNAVAILABLE",
+            "UNSUPPORTED_REFERENCE",
+            "ORDER_SUPERSEDED"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "entityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "accepted",
+            "skipped"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "enum": [
+                "hold",
+                "armed",
+                "patrolling",
+                "pursuing",
+                "reserve",
+                "blocked",
+                "interrupted",
+                "unavailable"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "State"
+        }
+      },
+      "required": [
+        "assetId",
+        "entityId",
+        "outcome",
+        "code",
+        "reason"
+      ],
+      "title": "BehaviorMemberOutcome",
+      "type": "object"
+    },
+    "BehaviorPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "boundaryId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Boundaryid"
+        },
+        "deadline": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Deadline"
+        },
+        "kind": {
+          "enum": [
+            "hold",
+            "intercept",
+            "patrol"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "reviewedFrameId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reviewedframeid"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "BehaviorPolicy",
+      "type": "object"
+    },
+    "BoundaryDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "untyped",
+            "annotation",
+            "friendly",
+            "patrol",
+            "restricted"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "vertices": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "maximum": 180,
+                "minimum": -180,
+                "type": "number"
+              },
+              {
+                "maximum": 90,
+                "minimum": -90,
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "maxItems": 32,
+          "minItems": 3,
+          "title": "Vertices",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "type",
+        "vertices"
+      ],
+      "title": "BoundaryDefinition",
+      "type": "object"
+    },
+    "BoundaryMutation": {
+      "additionalProperties": false,
+      "properties": {
+        "boundaryId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Boundaryid",
+          "type": "string"
+        },
+        "definition": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoundaryDefinition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Expectedrevision",
+          "type": "integer"
+        },
+        "operation": {
+          "enum": [
+            "upsert",
+            "delete"
+          ],
+          "title": "Operation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expectedRevision",
+        "operation",
+        "boundaryId"
+      ],
+      "title": "BoundaryMutation",
+      "type": "object"
+    },
+    "CommandRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "commandId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Commandid",
+          "type": "string"
+        },
+        "holderId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Holderid",
+          "type": "string"
+        },
+        "intent": {
+          "$ref": "#/$defs/Intent"
+        }
+      },
+      "required": [
+        "commandId",
+        "holderId",
+        "intent"
+      ],
+      "title": "CommandRequest",
+      "type": "object"
+    },
+    "CompletionSample": {
+      "additionalProperties": false,
+      "properties": {
+        "position": {
+          "$ref": "#/$defs/MovePosition"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "timestamp": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "trackId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Trackid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sequence",
+        "trackId",
+        "timestamp",
+        "position"
+      ],
+      "title": "CompletionSample",
+      "type": "object"
+    },
+    "ControlMemberOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "assetId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Assetid",
+          "type": "string"
+        },
+        "code": {
+          "enum": [
+            "OK",
+            "ORDER_SUPERSEDED",
+            "UNAVAILABLE"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "entityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "accepted",
+            "skipped"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "assetId",
+        "entityId",
+        "outcome",
+        "code",
+        "reason"
+      ],
+      "title": "ControlMemberOutcome",
+      "type": "object"
+    },
+    "CreateRunRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "creationId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Creationid",
+          "type": "string"
+        },
+        "scenario": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ScenarioRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "templateId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Templateid"
+        }
+      },
+      "required": [
+        "creationId"
+      ],
+      "title": "CreateRunRequest",
+      "type": "object"
+    },
+    "DemoEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "activeMissionId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Activemissionid"
+        },
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "schemaVersion": {
+          "const": "1.1",
+          "default": "1.1",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "templateId": {
+          "const": "singapore-local-v2",
+          "default": "singapore-local-v2",
+          "title": "Templateid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "enabled"
+      ],
+      "title": "DemoEntry",
+      "type": "object"
+    },
+    "DirectMemberOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "assetId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Assetid",
+          "type": "string"
+        },
+        "code": {
+          "enum": [
+            "OK",
+            "UNAVAILABLE",
+            "NO_RESPONSE",
+            "POSITION_UNAVAILABLE",
+            "UNSUPPORTED_REFERENCE",
+            "ORDER_SUPERSEDED"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "entityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "executionId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Executionid"
+        },
+        "outcome": {
+          "enum": [
+            "accepted",
+            "skipped"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "assetId",
+        "entityId",
+        "outcome",
+        "code",
+        "reason"
+      ],
+      "title": "DirectMemberOutcome",
+      "type": "object"
+    },
+    "DirectMoveIntent": {
+      "additionalProperties": false,
+      "properties": {
+        "anchor": {
+          "$ref": "#/$defs/MoveAnchor"
+        },
+        "deadline": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Deadline",
+          "type": "string"
+        },
+        "executorEpoch": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorepoch",
+          "type": "string"
+        },
+        "grantId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Grantid",
+          "type": "string"
+        },
+        "grantRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Grantrevision",
+          "type": "integer"
+        },
+        "intercept": {
+          "anyOf": [
+            {
+              "const": true,
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Intercept"
+        },
+        "members": {
+          "items": {
+            "$ref": "#/$defs/DirectMoveMember"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Members",
+          "type": "array"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "modelId": {
+          "const": "local-horizontal-v1",
+          "default": "local-horizontal-v1",
+          "title": "Modelid",
+          "type": "string"
+        },
+        "order": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Order",
+          "type": "integer"
+        },
+        "reviewedFrameId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Reviewedframeid",
+          "type": "string"
+        },
+        "runId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Runid",
+          "type": "string"
+        },
+        "sourceId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Sourceid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "missionId",
+        "runId",
+        "executorEpoch",
+        "sourceId",
+        "grantId",
+        "grantRevision",
+        "reviewedFrameId",
+        "deadline",
+        "order",
+        "anchor",
+        "members"
+      ],
+      "title": "DirectMoveIntent",
+      "type": "object"
+    },
+    "DirectMoveMember": {
+      "additionalProperties": false,
+      "properties": {
+        "assetId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Assetid",
+          "type": "string"
+        },
+        "bindingRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Bindingrevision",
+          "type": "integer"
+        },
+        "controlTrackId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Controltrackid"
+        },
+        "entityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "executorId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorid",
+          "type": "string"
+        },
+        "grantId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Grantid",
+          "type": "string"
+        },
+        "sourceId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Sourceid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "assetId",
+        "entityId",
+        "executorId",
+        "sourceId",
+        "grantId",
+        "bindingRevision"
+      ],
+      "title": "DirectMoveMember",
+      "type": "object"
+    },
+    "DirectMoveRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "commandId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Commandid",
+          "type": "string"
+        },
+        "direct": {
+          "$ref": "#/$defs/DirectMoveIntent"
+        },
+        "holderId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Holderid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "commandId",
+        "holderId",
+        "direct"
+      ],
+      "title": "DirectMoveRequest",
+      "type": "object"
+    },
+    "DirectOrderContext": {
+      "additionalProperties": false,
+      "properties": {
+        "executorEpoch": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorepoch",
+          "type": "string"
+        },
+        "grantId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Grantid",
+          "type": "string"
+        },
+        "grantRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Grantrevision",
+          "type": "integer"
+        },
+        "holderId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Holderid",
+          "type": "string"
+        },
+        "order": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Order",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "holderId",
+        "executorEpoch",
+        "grantId",
+        "grantRevision",
+        "order"
+      ],
+      "title": "DirectOrderContext",
+      "type": "object"
+    },
+    "ExecutionRead": {
+      "additionalProperties": false,
+      "properties": {
+        "executions": {
+          "items": {
+            "$ref": "#/$defs/MovementExecution"
+          },
+          "maxItems": 64,
+          "title": "Executions",
+          "type": "array"
+        },
+        "frameId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Frameid",
+          "type": "string"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "schemaVersion": {
+          "const": "1.3",
+          "default": "1.3",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "missionId",
+        "frameId",
+        "sequence",
+        "executions"
+      ],
+      "title": "ExecutionRead",
+      "type": "object"
+    },
+    "Intent": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "acquire",
+            "renew",
+            "reclaim",
+            "revoke",
+            "start",
+            "pause",
+            "resume",
+            "end",
+            "cancel",
+            "stop",
+            "return-to-script",
+            "boundary-edit",
+            "behavior"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "boundary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoundaryMutation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "executionId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Executionid"
+        },
+        "executionRevision": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Executionrevision"
+        },
+        "executorEpoch": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorepoch",
+          "type": "string"
+        },
+        "expiresAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Expiresat",
+          "type": "string"
+        },
+        "grantId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Grantid",
+          "type": "string"
+        },
+        "grantRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Grantrevision",
+          "type": "integer"
+        },
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Id",
+          "type": "string"
+        },
+        "issuedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Issuedat",
+          "type": "string"
+        },
+        "leaseRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Leaserevision",
+          "type": "integer"
+        },
+        "members": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/DirectMoveMember"
+              },
+              "maxItems": 32,
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Members"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "order": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Order"
+        },
+        "policy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BehaviorPolicy"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "recommendation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RecommendationAudit"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "runId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Runid",
+          "type": "string"
+        },
+        "runRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Runrevision",
+          "type": "integer"
+        },
+        "sourceId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Sourceid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "missionId",
+        "runId",
+        "executorEpoch",
+        "sourceId",
+        "grantId",
+        "grantRevision",
+        "runRevision",
+        "leaseRevision",
+        "action",
+        "issuedAt",
+        "expiresAt"
+      ],
+      "title": "Intent",
+      "type": "object"
+    },
+    "InteractiveRun": {
+      "additionalProperties": false,
+      "properties": {
+        "capabilities": {
+          "items": {
+            "enum": [
+              "run-control",
+              "scenario-pair",
+              "boundary-edit",
+              "fleet-policy",
+              "demo-outcome"
+            ],
+            "type": "string"
+          },
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "controls": {
+          "items": {
+            "$ref": "#/$defs/AssetControl"
+          },
+          "maxItems": 32,
+          "title": "Controls",
+          "type": "array"
+        },
+        "executions": {
+          "items": {
+            "$ref": "#/$defs/MovementExecution"
+          },
+          "maxItems": 64,
+          "title": "Executions",
+          "type": "array"
+        },
+        "executorEpoch": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorepoch",
+          "type": "string"
+        },
+        "executorId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorid",
+          "type": "string"
+        },
+        "grantId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Grantid",
+          "type": "string"
+        },
+        "grantRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Grantrevision",
+          "type": "integer"
+        },
+        "lastReportAt": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lastreportat"
+        },
+        "lease": {
+          "$ref": "#/$defs/Lease"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "movementModel": {
+          "const": "local-horizontal-v1",
+          "default": "local-horizontal-v1",
+          "title": "Movementmodel",
+          "type": "string"
+        },
+        "runId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Runid",
+          "type": "string"
+        },
+        "runRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Runrevision",
+          "type": "integer"
+        },
+        "schemaVersion": {
+          "const": "1.7",
+          "default": "1.7",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "sourceId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Sourceid",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "ready",
+            "running",
+            "paused",
+            "ended"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "supportedActions": {
+          "items": {
+            "enum": [
+              "acquire",
+              "renew",
+              "reclaim",
+              "revoke",
+              "start",
+              "pause",
+              "resume",
+              "end",
+              "cancel",
+              "stop",
+              "return-to-script",
+              "boundary-edit",
+              "behavior"
+            ],
+            "type": "string"
+          },
+          "title": "Supportedactions",
+          "type": "array"
+        },
+        "templateId": {
+          "default": "singapore-local-v2",
+          "enum": [
+            "singapore-local-v1",
+            "singapore-local-v2"
+          ],
+          "title": "Templateid",
+          "type": "string"
+        },
+        "tick": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Tick",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "missionId",
+        "runId",
+        "executorId",
+        "executorEpoch",
+        "sourceId",
+        "state",
+        "runRevision",
+        "grantId",
+        "grantRevision",
+        "capabilities",
+        "supportedActions",
+        "lease",
+        "tick",
+        "controls"
+      ],
+      "title": "InteractiveRun",
+      "type": "object"
+    },
+    "Lease": {
+      "additionalProperties": false,
+      "properties": {
+        "expiresAt": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expiresat"
+        },
+        "holderId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Holderid"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "revision"
+      ],
+      "title": "Lease",
+      "type": "object"
+    },
+    "LegacyD2DirectMemberOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "assetId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Assetid",
+          "type": "string"
+        },
+        "code": {
+          "enum": [
+            "OK",
+            "UNAVAILABLE",
+            "NO_RESPONSE",
+            "POSITION_UNAVAILABLE",
+            "UNSUPPORTED_REFERENCE",
+            "ORDER_SUPERSEDED"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "entityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "executionId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Executionid"
+        },
+        "outcome": {
+          "enum": [
+            "accepted",
+            "skipped"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "assetId",
+        "entityId",
+        "outcome",
+        "code",
+        "reason"
+      ],
+      "title": "LegacyD2DirectMemberOutcome",
+      "type": "object"
+    },
+    "LegacyD2Receipt": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted": {
+          "title": "Accepted",
+          "type": "boolean"
+        },
+        "code": {
+          "enum": [
+            "OK",
+            "NOT_INTERACTIVE",
+            "DEMO_DISABLED",
+            "ACTIVE_RUN_EXISTS",
+            "IDENTITY_CONFLICT",
+            "INTENT_INVALID",
+            "INTENT_EXPIRED",
+            "OBSOLETE_INTENT",
+            "REFERENCE_MISMATCH",
+            "CONTROL_HELD",
+            "CONTROL_REQUIRED",
+            "LEASE_EXPIRED",
+            "RECLAIM_REQUIRED",
+            "INVALID_TRANSITION",
+            "RUN_TERMINAL",
+            "INVALID_REQUEST",
+            "NOT_FOUND",
+            "SOURCE_UNHEALTHY",
+            "FRAME_INVALID",
+            "MOVE_EXPIRED",
+            "SELECTION_INVALID",
+            "BINDING_CHANGED",
+            "ASSET_BUSY",
+            "POSITION_UNAVAILABLE",
+            "UNSUPPORTED_REFERENCE",
+            "OUTSIDE_EXTENT",
+            "ENDPOINT_INVALID",
+            "EXECUTION_TERMINAL",
+            "NO_AVAILABLE_ASSETS",
+            "ORDER_SUPERSEDED"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "directOrder": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Directorder"
+        },
+        "executionIds": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Executionids",
+          "type": "array"
+        },
+        "frameId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frameid"
+        },
+        "memberOutcomes": {
+          "items": {
+            "$ref": "#/$defs/LegacyD2DirectMemberOutcome"
+          },
+          "maxItems": 32,
+          "title": "Memberoutcomes",
+          "type": "array"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "missionId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Missionid"
+        },
+        "operation": {
+          "enum": [
+            "create",
+            "acquire",
+            "renew",
+            "reclaim",
+            "revoke",
+            "start",
+            "pause",
+            "resume",
+            "end",
+            "move",
+            "cancel",
+            "direct-move"
+          ],
+          "title": "Operation",
+          "type": "string"
+        },
+        "recordedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Recordedat",
+          "type": "string"
+        },
+        "recordingId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recordingid"
+        },
+        "requestId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Requestid",
+          "type": "string"
+        },
+        "runId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Runid"
+        },
+        "schemaVersion": {
+          "const": "1.2",
+          "default": "1.2",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "sequence": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sequence"
+        }
+      },
+      "required": [
+        "requestId",
+        "operation",
+        "accepted",
+        "code",
+        "message",
+        "recordedAt"
+      ],
+      "title": "LegacyD2Receipt",
+      "type": "object"
+    },
+    "LegacyD3ControlMemberOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "assetId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Assetid",
+          "type": "string"
+        },
+        "code": {
+          "enum": [
+            "OK",
+            "ORDER_SUPERSEDED"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "entityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "accepted",
+            "skipped"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "assetId",
+        "entityId",
+        "outcome",
+        "code",
+        "reason"
+      ],
+      "title": "LegacyD3ControlMemberOutcome",
+      "type": "object"
+    },
+    "LegacyD3DirectMemberOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "assetId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Assetid",
+          "type": "string"
+        },
+        "code": {
+          "enum": [
+            "OK",
+            "UNAVAILABLE",
+            "NO_RESPONSE",
+            "POSITION_UNAVAILABLE",
+            "UNSUPPORTED_REFERENCE",
+            "ORDER_SUPERSEDED"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "entityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "executionId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Executionid"
+        },
+        "outcome": {
+          "enum": [
+            "accepted",
+            "skipped"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "assetId",
+        "entityId",
+        "outcome",
+        "code",
+        "reason"
+      ],
+      "title": "LegacyD3DirectMemberOutcome",
+      "type": "object"
+    },
+    "LegacyD3Receipt": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted": {
+          "title": "Accepted",
+          "type": "boolean"
+        },
+        "code": {
+          "enum": [
+            "OK",
+            "NOT_INTERACTIVE",
+            "DEMO_DISABLED",
+            "ACTIVE_RUN_EXISTS",
+            "IDENTITY_CONFLICT",
+            "INTENT_INVALID",
+            "INTENT_EXPIRED",
+            "OBSOLETE_INTENT",
+            "REFERENCE_MISMATCH",
+            "CONTROL_HELD",
+            "CONTROL_REQUIRED",
+            "LEASE_EXPIRED",
+            "RECLAIM_REQUIRED",
+            "INVALID_TRANSITION",
+            "RUN_TERMINAL",
+            "INVALID_REQUEST",
+            "NOT_FOUND",
+            "SOURCE_UNHEALTHY",
+            "FRAME_INVALID",
+            "MOVE_EXPIRED",
+            "SELECTION_INVALID",
+            "BINDING_CHANGED",
+            "ASSET_BUSY",
+            "POSITION_UNAVAILABLE",
+            "UNSUPPORTED_REFERENCE",
+            "OUTSIDE_EXTENT",
+            "ENDPOINT_INVALID",
+            "EXECUTION_TERMINAL",
+            "NO_AVAILABLE_ASSETS",
+            "ORDER_SUPERSEDED"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "controlOrder": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Controlorder"
+        },
+        "controlOutcomes": {
+          "items": {
+            "$ref": "#/$defs/LegacyD3ControlMemberOutcome"
+          },
+          "maxItems": 32,
+          "title": "Controloutcomes",
+          "type": "array"
+        },
+        "directOrder": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Directorder"
+        },
+        "executionIds": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Executionids",
+          "type": "array"
+        },
+        "frameId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frameid"
+        },
+        "memberOutcomes": {
+          "items": {
+            "$ref": "#/$defs/LegacyD3DirectMemberOutcome"
+          },
+          "maxItems": 32,
+          "title": "Memberoutcomes",
+          "type": "array"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "missionId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Missionid"
+        },
+        "operation": {
+          "enum": [
+            "create",
+            "acquire",
+            "renew",
+            "reclaim",
+            "revoke",
+            "start",
+            "pause",
+            "resume",
+            "end",
+            "move",
+            "cancel",
+            "direct-move",
+            "stop",
+            "return-to-script"
+          ],
+          "title": "Operation",
+          "type": "string"
+        },
+        "recordedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Recordedat",
+          "type": "string"
+        },
+        "recordingId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recordingid"
+        },
+        "requestId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Requestid",
+          "type": "string"
+        },
+        "runId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Runid"
+        },
+        "schemaVersion": {
+          "const": "1.3",
+          "default": "1.3",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "sequence": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sequence"
+        }
+      },
+      "required": [
+        "requestId",
+        "operation",
+        "accepted",
+        "code",
+        "message",
+        "recordedAt"
+      ],
+      "title": "LegacyD3Receipt",
+      "type": "object"
+    },
+    "LegacyD3aAssetControl": {
+      "additionalProperties": false,
+      "properties": {
+        "assetId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Assetid",
+          "type": "string"
+        },
+        "bindingRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Bindingrevision",
+          "type": "integer"
+        },
+        "busyRevision": {
+          "default": 0,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Busyrevision",
+          "type": "integer"
+        },
+        "capabilities": {
+          "items": {
+            "const": "move-horizontal",
+            "type": "string"
+          },
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "controlTrackId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Controltrackid"
+        },
+        "eligible": {
+          "default": false,
+          "title": "Eligible",
+          "type": "boolean"
+        },
+        "entityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "executorId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorid",
+          "type": "string"
+        },
+        "grantId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Grantid",
+          "type": "string"
+        },
+        "lastDirectOrder": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LegacyD3aDirectOrderContext"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "positionReference": {
+          "const": "ELLIPSOID/WGS84",
+          "title": "Positionreference",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "sourceId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Sourceid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "missionId",
+        "assetId",
+        "entityId",
+        "executorId",
+        "sourceId",
+        "grantId",
+        "bindingRevision",
+        "capabilities",
+        "positionReference",
+        "reason"
+      ],
+      "title": "LegacyD3aAssetControl",
+      "type": "object"
+    },
+    "LegacyD3aCompletionSample": {
+      "additionalProperties": false,
+      "properties": {
+        "position": {
+          "$ref": "#/$defs/LegacyD3aMovePosition"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "timestamp": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "trackId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Trackid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sequence",
+        "trackId",
+        "timestamp",
+        "position"
+      ],
+      "title": "LegacyD3aCompletionSample",
+      "type": "object"
+    },
+    "LegacyD3aControlMemberOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "assetId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Assetid",
+          "type": "string"
+        },
+        "code": {
+          "enum": [
+            "OK",
+            "ORDER_SUPERSEDED"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "entityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "accepted",
+            "skipped"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "assetId",
+        "entityId",
+        "outcome",
+        "code",
+        "reason"
+      ],
+      "title": "LegacyD3aControlMemberOutcome",
+      "type": "object"
+    },
+    "LegacyD3aDirectMemberOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "assetId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Assetid",
+          "type": "string"
+        },
+        "code": {
+          "enum": [
+            "OK",
+            "UNAVAILABLE",
+            "NO_RESPONSE",
+            "POSITION_UNAVAILABLE",
+            "UNSUPPORTED_REFERENCE",
+            "ORDER_SUPERSEDED"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "entityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "executionId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Executionid"
+        },
+        "outcome": {
+          "enum": [
+            "accepted",
+            "skipped"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "assetId",
+        "entityId",
+        "outcome",
+        "code",
+        "reason"
+      ],
+      "title": "LegacyD3aDirectMemberOutcome",
+      "type": "object"
+    },
+    "LegacyD3aDirectOrderContext": {
+      "additionalProperties": false,
+      "properties": {
+        "executorEpoch": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorepoch",
+          "type": "string"
+        },
+        "grantId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Grantid",
+          "type": "string"
+        },
+        "grantRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Grantrevision",
+          "type": "integer"
+        },
+        "holderId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Holderid",
+          "type": "string"
+        },
+        "order": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Order",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "holderId",
+        "executorEpoch",
+        "grantId",
+        "grantRevision",
+        "order"
+      ],
+      "title": "LegacyD3aDirectOrderContext",
+      "type": "object"
+    },
+    "LegacyD3aInteractiveRun": {
+      "additionalProperties": false,
+      "properties": {
+        "capabilities": {
+          "items": {
+            "enum": [
+              "run-control",
+              "scenario-pair",
+              "boundary-edit"
+            ],
+            "type": "string"
+          },
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "controls": {
+          "items": {
+            "$ref": "#/$defs/LegacyD3aAssetControl"
+          },
+          "maxItems": 32,
+          "title": "Controls",
+          "type": "array"
+        },
+        "executions": {
+          "items": {
+            "$ref": "#/$defs/LegacyD3aMovementExecution"
+          },
+          "maxItems": 64,
+          "title": "Executions",
+          "type": "array"
+        },
+        "executorEpoch": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorepoch",
+          "type": "string"
+        },
+        "executorId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorid",
+          "type": "string"
+        },
+        "grantId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Grantid",
+          "type": "string"
+        },
+        "grantRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Grantrevision",
+          "type": "integer"
+        },
+        "lastReportAt": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lastreportat"
+        },
+        "lease": {
+          "$ref": "#/$defs/LegacyD3aLease"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "movementModel": {
+          "const": "local-horizontal-v1",
+          "default": "local-horizontal-v1",
+          "title": "Movementmodel",
+          "type": "string"
+        },
+        "runId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Runid",
+          "type": "string"
+        },
+        "runRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Runrevision",
+          "type": "integer"
+        },
+        "schemaVersion": {
+          "const": "1.5",
+          "default": "1.5",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "sourceId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Sourceid",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "ready",
+            "running",
+            "paused",
+            "ended"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "supportedActions": {
+          "items": {
+            "enum": [
+              "acquire",
+              "renew",
+              "reclaim",
+              "revoke",
+              "start",
+              "pause",
+              "resume",
+              "end",
+              "cancel",
+              "stop",
+              "return-to-script",
+              "boundary-edit"
+            ],
+            "type": "string"
+          },
+          "title": "Supportedactions",
+          "type": "array"
+        },
+        "templateId": {
+          "default": "singapore-local-v2",
+          "enum": [
+            "singapore-local-v1",
+            "singapore-local-v2"
+          ],
+          "title": "Templateid",
+          "type": "string"
+        },
+        "tick": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Tick",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "missionId",
+        "runId",
+        "executorId",
+        "executorEpoch",
+        "sourceId",
+        "state",
+        "runRevision",
+        "grantId",
+        "grantRevision",
+        "capabilities",
+        "supportedActions",
+        "lease",
+        "tick",
+        "controls"
+      ],
+      "title": "LegacyD3aInteractiveRun",
+      "type": "object"
+    },
+    "LegacyD3aLease": {
+      "additionalProperties": false,
+      "properties": {
+        "expiresAt": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expiresat"
+        },
+        "holderId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Holderid"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "revision"
+      ],
+      "title": "LegacyD3aLease",
+      "type": "object"
+    },
+    "LegacyD3aMoveAltitude": {
+      "additionalProperties": false,
+      "properties": {
+        "datumId": {
+          "const": "WGS84",
+          "default": "WGS84",
+          "title": "Datumid",
+          "type": "string"
+        },
+        "metres": {
+          "title": "Metres",
+          "type": "number"
+        },
+        "reference": {
+          "const": "ELLIPSOID",
+          "default": "ELLIPSOID",
+          "title": "Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "metres"
+      ],
+      "title": "LegacyD3aMoveAltitude",
+      "type": "object"
+    },
+    "LegacyD3aMovePosition": {
+      "additionalProperties": false,
+      "properties": {
+        "altitude": {
+          "$ref": "#/$defs/LegacyD3aMoveAltitude"
+        },
+        "latitudeDeg": {
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Latitudedeg",
+          "type": "number"
+        },
+        "longitudeDeg": {
+          "maximum": 180,
+          "minimum": -180,
+          "title": "Longitudedeg",
+          "type": "number"
+        }
+      },
+      "required": [
+        "longitudeDeg",
+        "latitudeDeg",
+        "altitude"
+      ],
+      "title": "LegacyD3aMovePosition",
+      "type": "object"
+    },
+    "LegacyD3aMovementExecution": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Acceptedat",
+          "type": "string"
+        },
+        "acceptedSequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Acceptedsequence",
+          "type": "integer"
+        },
+        "assetId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Assetid",
+          "type": "string"
+        },
+        "bindingRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Bindingrevision",
+          "type": "integer"
+        },
+        "busyRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Busyrevision",
+          "type": "integer"
+        },
+        "commandId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Commandid",
+          "type": "string"
+        },
+        "completionSample": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LegacyD3aCompletionSample"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "controlTrackId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Controltrackid",
+          "type": "string"
+        },
+        "deadline": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Deadline",
+          "type": "string"
+        },
+        "destination": {
+          "$ref": "#/$defs/LegacyD3aMovePosition"
+        },
+        "directOrder": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Directorder"
+        },
+        "entityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "executorEpoch": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorepoch",
+          "type": "string"
+        },
+        "executorId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorid",
+          "type": "string"
+        },
+        "grantId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Grantid",
+          "type": "string"
+        },
+        "grantRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Grantrevision",
+          "type": "integer"
+        },
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "move",
+          "default": "move",
+          "title": "Kind",
+          "type": "string"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "origin": {
+          "$ref": "#/$defs/LegacyD3aMovePosition"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "remainingMetres": {
+          "minimum": 0,
+          "title": "Remainingmetres",
+          "type": "number"
+        },
+        "reservationRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Reservationrevision",
+          "type": "integer"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "runId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Runid",
+          "type": "string"
+        },
+        "sourceId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Sourceid",
+          "type": "string"
+        },
+        "speedMps": {
+          "default": 20.0,
+          "enum": [
+            20.0,
+            43.05555555555556
+          ],
+          "title": "Speedmps",
+          "type": "number"
+        },
+        "startedAt": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Startedat"
+        },
+        "startedTick": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Startedtick"
+        },
+        "state": {
+          "enum": [
+            "Accepted",
+            "Running",
+            "Suspended",
+            "Completed",
+            "Cancelled",
+            "Failed",
+            "Expired",
+            "Interrupted"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "terminalSequence": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Terminalsequence"
+        },
+        "travelledMetres": {
+          "minimum": 0,
+          "title": "Travelledmetres",
+          "type": "number"
+        }
+      },
+      "required": [
+        "assetId",
+        "entityId",
+        "executorId",
+        "sourceId",
+        "controlTrackId",
+        "grantId",
+        "bindingRevision",
+        "busyRevision",
+        "origin",
+        "destination",
+        "id",
+        "commandId",
+        "missionId",
+        "runId",
+        "executorEpoch",
+        "grantRevision",
+        "reservationRevision",
+        "state",
+        "revision",
+        "acceptedAt",
+        "acceptedSequence",
+        "deadline",
+        "travelledMetres",
+        "remainingMetres"
+      ],
+      "title": "LegacyD3aMovementExecution",
+      "type": "object"
+    },
+    "LegacyD3aReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted": {
+          "title": "Accepted",
+          "type": "boolean"
+        },
+        "boundaryRevision": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Boundaryrevision"
+        },
+        "code": {
+          "enum": [
+            "OK",
+            "NOT_INTERACTIVE",
+            "DEMO_DISABLED",
+            "ACTIVE_RUN_EXISTS",
+            "IDENTITY_CONFLICT",
+            "INTENT_INVALID",
+            "INTENT_EXPIRED",
+            "OBSOLETE_INTENT",
+            "REFERENCE_MISMATCH",
+            "CONTROL_HELD",
+            "CONTROL_REQUIRED",
+            "LEASE_EXPIRED",
+            "RECLAIM_REQUIRED",
+            "INVALID_TRANSITION",
+            "RUN_TERMINAL",
+            "INVALID_REQUEST",
+            "NOT_FOUND",
+            "SOURCE_UNHEALTHY",
+            "FRAME_INVALID",
+            "MOVE_EXPIRED",
+            "SELECTION_INVALID",
+            "BINDING_CHANGED",
+            "ASSET_BUSY",
+            "POSITION_UNAVAILABLE",
+            "UNSUPPORTED_REFERENCE",
+            "OUTSIDE_EXTENT",
+            "ENDPOINT_INVALID",
+            "EXECUTION_TERMINAL",
+            "NO_AVAILABLE_ASSETS",
+            "ORDER_SUPERSEDED",
+            "BOUNDARY_CONFLICT"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "controlOrder": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Controlorder"
+        },
+        "controlOutcomes": {
+          "items": {
+            "$ref": "#/$defs/LegacyD3aControlMemberOutcome"
+          },
+          "maxItems": 32,
+          "title": "Controloutcomes",
+          "type": "array"
+        },
+        "directOrder": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Directorder"
+        },
+        "executionIds": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Executionids",
+          "type": "array"
+        },
+        "frameId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frameid"
+        },
+        "memberOutcomes": {
+          "items": {
+            "$ref": "#/$defs/LegacyD3aDirectMemberOutcome"
+          },
+          "maxItems": 32,
+          "title": "Memberoutcomes",
+          "type": "array"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "missionId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Missionid"
+        },
+        "operation": {
+          "enum": [
+            "create",
+            "acquire",
+            "renew",
+            "reclaim",
+            "revoke",
+            "start",
+            "pause",
+            "resume",
+            "end",
+            "move",
+            "cancel",
+            "direct-move",
+            "stop",
+            "return-to-script",
+            "boundary-edit"
+          ],
+          "title": "Operation",
+          "type": "string"
+        },
+        "recordedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Recordedat",
+          "type": "string"
+        },
+        "recordingId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recordingid"
+        },
+        "requestId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Requestid",
+          "type": "string"
+        },
+        "runId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Runid"
+        },
+        "schemaVersion": {
+          "const": "1.4",
+          "default": "1.4",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "sequence": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sequence"
+        }
+      },
+      "required": [
+        "requestId",
+        "operation",
+        "accepted",
+        "code",
+        "message",
+        "recordedAt"
+      ],
+      "title": "LegacyD3aReceipt",
+      "type": "object"
+    },
+    "LegacyD3aRunRead": {
+      "additionalProperties": false,
+      "properties": {
+        "frameId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Frameid",
+          "type": "string"
+        },
+        "leaseState": {
+          "enum": [
+            "unclaimed",
+            "held",
+            "expired"
+          ],
+          "title": "Leasestate",
+          "type": "string"
+        },
+        "ownsControl": {
+          "title": "Ownscontrol",
+          "type": "boolean"
+        },
+        "run": {
+          "$ref": "#/$defs/LegacyD3aInteractiveRun"
+        },
+        "schemaVersion": {
+          "const": "1.5",
+          "default": "1.5",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "serverTime": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Servertime",
+          "type": "string"
+        }
+      },
+      "required": [
+        "serverTime",
+        "frameId",
+        "sequence",
+        "run",
+        "ownsControl",
+        "leaseState"
+      ],
+      "title": "LegacyD3aRunRead",
+      "type": "object"
+    },
+    "LegacyD4AssetControl": {
+      "additionalProperties": false,
+      "properties": {
+        "assetId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Assetid",
+          "type": "string"
+        },
+        "bindingRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Bindingrevision",
+          "type": "integer"
+        },
+        "busyRevision": {
+          "default": 0,
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Busyrevision",
+          "type": "integer"
+        },
+        "capabilities": {
+          "items": {
+            "enum": [
+              "move-horizontal",
+              "demo-intercept"
+            ],
+            "type": "string"
+          },
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "controlTrackId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Controltrackid"
+        },
+        "eligible": {
+          "default": false,
+          "title": "Eligible",
+          "type": "boolean"
+        },
+        "entityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "executorId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorid",
+          "type": "string"
+        },
+        "grantId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Grantid",
+          "type": "string"
+        },
+        "lastDirectOrder": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LegacyD4DirectOrderContext"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "positionReference": {
+          "const": "ELLIPSOID/WGS84",
+          "title": "Positionreference",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "sourceId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Sourceid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "missionId",
+        "assetId",
+        "entityId",
+        "executorId",
+        "sourceId",
+        "grantId",
+        "bindingRevision",
+        "capabilities",
+        "positionReference",
+        "reason"
+      ],
+      "title": "LegacyD4AssetControl",
+      "type": "object"
+    },
+    "LegacyD4BehaviorMemberOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "assetId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Assetid",
+          "type": "string"
+        },
+        "assignmentId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Assignmentid"
+        },
+        "code": {
+          "enum": [
+            "OK",
+            "UNAVAILABLE",
+            "NO_RESPONSE",
+            "POSITION_UNAVAILABLE",
+            "UNSUPPORTED_REFERENCE",
+            "ORDER_SUPERSEDED"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "entityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "accepted",
+            "skipped"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "enum": [
+                "hold",
+                "armed",
+                "patrolling",
+                "pursuing",
+                "reserve",
+                "blocked",
+                "interrupted",
+                "unavailable"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "State"
+        }
+      },
+      "required": [
+        "assetId",
+        "entityId",
+        "outcome",
+        "code",
+        "reason"
+      ],
+      "title": "LegacyD4BehaviorMemberOutcome",
+      "type": "object"
+    },
+    "LegacyD4CompletionSample": {
+      "additionalProperties": false,
+      "properties": {
+        "position": {
+          "$ref": "#/$defs/LegacyD4MovePosition"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "timestamp": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "trackId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Trackid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sequence",
+        "trackId",
+        "timestamp",
+        "position"
+      ],
+      "title": "LegacyD4CompletionSample",
+      "type": "object"
+    },
+    "LegacyD4ControlMemberOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "assetId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Assetid",
+          "type": "string"
+        },
+        "code": {
+          "enum": [
+            "OK",
+            "ORDER_SUPERSEDED",
+            "UNAVAILABLE"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "entityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "accepted",
+            "skipped"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "assetId",
+        "entityId",
+        "outcome",
+        "code",
+        "reason"
+      ],
+      "title": "LegacyD4ControlMemberOutcome",
+      "type": "object"
+    },
+    "LegacyD4DirectMemberOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "assetId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Assetid",
+          "type": "string"
+        },
+        "code": {
+          "enum": [
+            "OK",
+            "UNAVAILABLE",
+            "NO_RESPONSE",
+            "POSITION_UNAVAILABLE",
+            "UNSUPPORTED_REFERENCE",
+            "ORDER_SUPERSEDED"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "entityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "executionId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Executionid"
+        },
+        "outcome": {
+          "enum": [
+            "accepted",
+            "skipped"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "assetId",
+        "entityId",
+        "outcome",
+        "code",
+        "reason"
+      ],
+      "title": "LegacyD4DirectMemberOutcome",
+      "type": "object"
+    },
+    "LegacyD4DirectOrderContext": {
+      "additionalProperties": false,
+      "properties": {
+        "executorEpoch": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorepoch",
+          "type": "string"
+        },
+        "grantId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Grantid",
+          "type": "string"
+        },
+        "grantRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Grantrevision",
+          "type": "integer"
+        },
+        "holderId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Holderid",
+          "type": "string"
+        },
+        "order": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Order",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "holderId",
+        "executorEpoch",
+        "grantId",
+        "grantRevision",
+        "order"
+      ],
+      "title": "LegacyD4DirectOrderContext",
+      "type": "object"
+    },
+    "LegacyD4InteractiveRun": {
+      "additionalProperties": false,
+      "properties": {
+        "capabilities": {
+          "items": {
+            "enum": [
+              "run-control",
+              "scenario-pair",
+              "boundary-edit",
+              "fleet-policy",
+              "demo-outcome"
+            ],
+            "type": "string"
+          },
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "controls": {
+          "items": {
+            "$ref": "#/$defs/LegacyD4AssetControl"
+          },
+          "maxItems": 32,
+          "title": "Controls",
+          "type": "array"
+        },
+        "executions": {
+          "items": {
+            "$ref": "#/$defs/LegacyD4MovementExecution"
+          },
+          "maxItems": 64,
+          "title": "Executions",
+          "type": "array"
+        },
+        "executorEpoch": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorepoch",
+          "type": "string"
+        },
+        "executorId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorid",
+          "type": "string"
+        },
+        "grantId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Grantid",
+          "type": "string"
+        },
+        "grantRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Grantrevision",
+          "type": "integer"
+        },
+        "lastReportAt": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lastreportat"
+        },
+        "lease": {
+          "$ref": "#/$defs/LegacyD4Lease"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "movementModel": {
+          "const": "local-horizontal-v1",
+          "default": "local-horizontal-v1",
+          "title": "Movementmodel",
+          "type": "string"
+        },
+        "runId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Runid",
+          "type": "string"
+        },
+        "runRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Runrevision",
+          "type": "integer"
+        },
+        "schemaVersion": {
+          "const": "1.6",
+          "default": "1.6",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "sourceId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Sourceid",
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "ready",
+            "running",
+            "paused",
+            "ended"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "supportedActions": {
+          "items": {
+            "enum": [
+              "acquire",
+              "renew",
+              "reclaim",
+              "revoke",
+              "start",
+              "pause",
+              "resume",
+              "end",
+              "cancel",
+              "stop",
+              "return-to-script",
+              "boundary-edit",
+              "behavior"
+            ],
+            "type": "string"
+          },
+          "title": "Supportedactions",
+          "type": "array"
+        },
+        "templateId": {
+          "default": "singapore-local-v2",
+          "enum": [
+            "singapore-local-v1",
+            "singapore-local-v2"
+          ],
+          "title": "Templateid",
+          "type": "string"
+        },
+        "tick": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Tick",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "missionId",
+        "runId",
+        "executorId",
+        "executorEpoch",
+        "sourceId",
+        "state",
+        "runRevision",
+        "grantId",
+        "grantRevision",
+        "capabilities",
+        "supportedActions",
+        "lease",
+        "tick",
+        "controls"
+      ],
+      "title": "LegacyD4InteractiveRun",
+      "type": "object"
+    },
+    "LegacyD4Lease": {
+      "additionalProperties": false,
+      "properties": {
+        "expiresAt": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expiresat"
+        },
+        "holderId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Holderid"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "revision"
+      ],
+      "title": "LegacyD4Lease",
+      "type": "object"
+    },
+    "LegacyD4MoveAltitude": {
+      "additionalProperties": false,
+      "properties": {
+        "datumId": {
+          "const": "WGS84",
+          "default": "WGS84",
+          "title": "Datumid",
+          "type": "string"
+        },
+        "metres": {
+          "title": "Metres",
+          "type": "number"
+        },
+        "reference": {
+          "const": "ELLIPSOID",
+          "default": "ELLIPSOID",
+          "title": "Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "metres"
+      ],
+      "title": "LegacyD4MoveAltitude",
+      "type": "object"
+    },
+    "LegacyD4MovePosition": {
+      "additionalProperties": false,
+      "properties": {
+        "altitude": {
+          "$ref": "#/$defs/LegacyD4MoveAltitude"
+        },
+        "latitudeDeg": {
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Latitudedeg",
+          "type": "number"
+        },
+        "longitudeDeg": {
+          "maximum": 180,
+          "minimum": -180,
+          "title": "Longitudedeg",
+          "type": "number"
+        }
+      },
+      "required": [
+        "longitudeDeg",
+        "latitudeDeg",
+        "altitude"
+      ],
+      "title": "LegacyD4MovePosition",
+      "type": "object"
+    },
+    "LegacyD4MovementExecution": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Acceptedat",
+          "type": "string"
+        },
+        "acceptedSequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Acceptedsequence",
+          "type": "integer"
+        },
+        "assetId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Assetid",
+          "type": "string"
+        },
+        "bindingRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Bindingrevision",
+          "type": "integer"
+        },
+        "busyRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Busyrevision",
+          "type": "integer"
+        },
+        "commandId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Commandid",
+          "type": "string"
+        },
+        "completionSample": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LegacyD4CompletionSample"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "controlTrackId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Controltrackid",
+          "type": "string"
+        },
+        "deadline": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Deadline",
+          "type": "string"
+        },
+        "destination": {
+          "$ref": "#/$defs/LegacyD4MovePosition"
+        },
+        "directOrder": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Directorder"
+        },
+        "entityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "executorEpoch": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorepoch",
+          "type": "string"
+        },
+        "executorId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorid",
+          "type": "string"
+        },
+        "grantId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Grantid",
+          "type": "string"
+        },
+        "grantRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Grantrevision",
+          "type": "integer"
+        },
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "move",
+          "default": "move",
+          "title": "Kind",
+          "type": "string"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "origin": {
+          "$ref": "#/$defs/LegacyD4MovePosition"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "remainingMetres": {
+          "minimum": 0,
+          "title": "Remainingmetres",
+          "type": "number"
+        },
+        "reservationRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Reservationrevision",
+          "type": "integer"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "runId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Runid",
+          "type": "string"
+        },
+        "sourceId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Sourceid",
+          "type": "string"
+        },
+        "speedMps": {
+          "default": 20.0,
+          "enum": [
+            20.0,
+            43.05555555555556
+          ],
+          "title": "Speedmps",
+          "type": "number"
+        },
+        "startedAt": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Startedat"
+        },
+        "startedTick": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Startedtick"
+        },
+        "state": {
+          "enum": [
+            "Accepted",
+            "Running",
+            "Suspended",
+            "Completed",
+            "Cancelled",
+            "Failed",
+            "Expired",
+            "Interrupted"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "terminalSequence": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Terminalsequence"
+        },
+        "travelledMetres": {
+          "minimum": 0,
+          "title": "Travelledmetres",
+          "type": "number"
+        }
+      },
+      "required": [
+        "assetId",
+        "entityId",
+        "executorId",
+        "sourceId",
+        "controlTrackId",
+        "grantId",
+        "bindingRevision",
+        "busyRevision",
+        "origin",
+        "destination",
+        "id",
+        "commandId",
+        "missionId",
+        "runId",
+        "executorEpoch",
+        "grantRevision",
+        "reservationRevision",
+        "state",
+        "revision",
+        "acceptedAt",
+        "acceptedSequence",
+        "deadline",
+        "travelledMetres",
+        "remainingMetres"
+      ],
+      "title": "LegacyD4MovementExecution",
+      "type": "object"
+    },
+    "LegacyD4Receipt": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted": {
+          "title": "Accepted",
+          "type": "boolean"
+        },
+        "behaviorOrder": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Behaviororder"
+        },
+        "behaviorOutcomes": {
+          "items": {
+            "$ref": "#/$defs/LegacyD4BehaviorMemberOutcome"
+          },
+          "maxItems": 32,
+          "title": "Behavioroutcomes",
+          "type": "array"
+        },
+        "boundaryRevision": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Boundaryrevision"
+        },
+        "code": {
+          "enum": [
+            "OK",
+            "NOT_INTERACTIVE",
+            "DEMO_DISABLED",
+            "ACTIVE_RUN_EXISTS",
+            "IDENTITY_CONFLICT",
+            "INTENT_INVALID",
+            "INTENT_EXPIRED",
+            "OBSOLETE_INTENT",
+            "REFERENCE_MISMATCH",
+            "CONTROL_HELD",
+            "CONTROL_REQUIRED",
+            "LEASE_EXPIRED",
+            "RECLAIM_REQUIRED",
+            "INVALID_TRANSITION",
+            "RUN_TERMINAL",
+            "INVALID_REQUEST",
+            "NOT_FOUND",
+            "SOURCE_UNHEALTHY",
+            "FRAME_INVALID",
+            "MOVE_EXPIRED",
+            "SELECTION_INVALID",
+            "BINDING_CHANGED",
+            "ASSET_BUSY",
+            "POSITION_UNAVAILABLE",
+            "UNSUPPORTED_REFERENCE",
+            "OUTSIDE_EXTENT",
+            "ENDPOINT_INVALID",
+            "EXECUTION_TERMINAL",
+            "NO_AVAILABLE_ASSETS",
+            "ORDER_SUPERSEDED",
+            "BOUNDARY_CONFLICT"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "controlOrder": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Controlorder"
+        },
+        "controlOutcomes": {
+          "items": {
+            "$ref": "#/$defs/LegacyD4ControlMemberOutcome"
+          },
+          "maxItems": 32,
+          "title": "Controloutcomes",
+          "type": "array"
+        },
+        "directOrder": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Directorder"
+        },
+        "executionIds": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Executionids",
+          "type": "array"
+        },
+        "frameId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frameid"
+        },
+        "memberOutcomes": {
+          "items": {
+            "$ref": "#/$defs/LegacyD4DirectMemberOutcome"
+          },
+          "maxItems": 32,
+          "title": "Memberoutcomes",
+          "type": "array"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "missionId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Missionid"
+        },
+        "movementOrder": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Movementorder"
+        },
+        "operation": {
+          "enum": [
+            "create",
+            "acquire",
+            "renew",
+            "reclaim",
+            "revoke",
+            "start",
+            "pause",
+            "resume",
+            "end",
+            "move",
+            "cancel",
+            "direct-move",
+            "stop",
+            "return-to-script",
+            "boundary-edit",
+            "behavior",
+            "intercept-approach"
+          ],
+          "title": "Operation",
+          "type": "string"
+        },
+        "recordedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Recordedat",
+          "type": "string"
+        },
+        "recordingId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recordingid"
+        },
+        "requestId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Requestid",
+          "type": "string"
+        },
+        "runId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Runid"
+        },
+        "schemaVersion": {
+          "const": "1.5",
+          "default": "1.5",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "sequence": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sequence"
+        },
+        "targetScope": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Targetscope",
+          "type": "array"
+        }
+      },
+      "required": [
+        "requestId",
+        "operation",
+        "accepted",
+        "code",
+        "message",
+        "recordedAt"
+      ],
+      "title": "LegacyD4Receipt",
+      "type": "object"
+    },
+    "LegacyD4RunRead": {
+      "additionalProperties": false,
+      "properties": {
+        "frameId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Frameid",
+          "type": "string"
+        },
+        "leaseState": {
+          "enum": [
+            "unclaimed",
+            "held",
+            "expired"
+          ],
+          "title": "Leasestate",
+          "type": "string"
+        },
+        "ownsControl": {
+          "title": "Ownscontrol",
+          "type": "boolean"
+        },
+        "run": {
+          "$ref": "#/$defs/LegacyD4InteractiveRun"
+        },
+        "schemaVersion": {
+          "const": "1.6",
+          "default": "1.6",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "serverTime": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Servertime",
+          "type": "string"
+        }
+      },
+      "required": [
+        "serverTime",
+        "frameId",
+        "sequence",
+        "run",
+        "ownsControl",
+        "leaseState"
+      ],
+      "title": "LegacyD4RunRead",
+      "type": "object"
+    },
+    "LegacyM12Receipt": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted": {
+          "title": "Accepted",
+          "type": "boolean"
+        },
+        "code": {
+          "enum": [
+            "OK",
+            "NOT_INTERACTIVE",
+            "DEMO_DISABLED",
+            "ACTIVE_RUN_EXISTS",
+            "IDENTITY_CONFLICT",
+            "INTENT_INVALID",
+            "INTENT_EXPIRED",
+            "OBSOLETE_INTENT",
+            "REFERENCE_MISMATCH",
+            "CONTROL_HELD",
+            "CONTROL_REQUIRED",
+            "LEASE_EXPIRED",
+            "RECLAIM_REQUIRED",
+            "INVALID_TRANSITION",
+            "RUN_TERMINAL",
+            "INVALID_REQUEST",
+            "NOT_FOUND",
+            "SOURCE_UNHEALTHY",
+            "FRAME_INVALID",
+            "MOVE_EXPIRED",
+            "SELECTION_INVALID",
+            "BINDING_CHANGED",
+            "ASSET_BUSY",
+            "POSITION_UNAVAILABLE",
+            "UNSUPPORTED_REFERENCE",
+            "OUTSIDE_EXTENT",
+            "ENDPOINT_INVALID",
+            "EXECUTION_TERMINAL"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "executionIds": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Executionids",
+          "type": "array"
+        },
+        "frameId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frameid"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "missionId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Missionid"
+        },
+        "operation": {
+          "enum": [
+            "create",
+            "acquire",
+            "renew",
+            "reclaim",
+            "revoke",
+            "start",
+            "pause",
+            "resume",
+            "end",
+            "move",
+            "cancel"
+          ],
+          "title": "Operation",
+          "type": "string"
+        },
+        "recordedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Recordedat",
+          "type": "string"
+        },
+        "recordingId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recordingid"
+        },
+        "requestId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Requestid",
+          "type": "string"
+        },
+        "runId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Runid"
+        },
+        "schemaVersion": {
+          "const": "1.1",
+          "default": "1.1",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "sequence": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sequence"
+        }
+      },
+      "required": [
+        "requestId",
+        "operation",
+        "accepted",
+        "code",
+        "message",
+        "recordedAt"
+      ],
+      "title": "LegacyM12Receipt",
+      "type": "object"
+    },
+    "LegacyReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted": {
+          "title": "Accepted",
+          "type": "boolean"
+        },
+        "code": {
+          "enum": [
+            "OK",
+            "NOT_INTERACTIVE",
+            "DEMO_DISABLED",
+            "ACTIVE_RUN_EXISTS",
+            "IDENTITY_CONFLICT",
+            "INTENT_INVALID",
+            "INTENT_EXPIRED",
+            "OBSOLETE_INTENT",
+            "REFERENCE_MISMATCH",
+            "CONTROL_HELD",
+            "CONTROL_REQUIRED",
+            "LEASE_EXPIRED",
+            "RECLAIM_REQUIRED",
+            "INVALID_TRANSITION",
+            "RUN_TERMINAL",
+            "INVALID_REQUEST",
+            "NOT_FOUND"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "frameId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frameid"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "missionId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Missionid"
+        },
+        "operation": {
+          "enum": [
+            "create",
+            "acquire",
+            "renew",
+            "reclaim",
+            "revoke",
+            "start",
+            "pause",
+            "resume",
+            "end"
+          ],
+          "title": "Operation",
+          "type": "string"
+        },
+        "recordedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Recordedat",
+          "type": "string"
+        },
+        "recordingId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recordingid"
+        },
+        "requestId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Requestid",
+          "type": "string"
+        },
+        "runId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Runid"
+        },
+        "schemaVersion": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "sequence": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sequence"
+        }
+      },
+      "required": [
+        "requestId",
+        "operation",
+        "accepted",
+        "code",
+        "message",
+        "recordedAt"
+      ],
+      "title": "LegacyReceipt",
+      "type": "object"
+    },
+    "MoveAltitude": {
+      "additionalProperties": false,
+      "properties": {
+        "datumId": {
+          "const": "WGS84",
+          "default": "WGS84",
+          "title": "Datumid",
+          "type": "string"
+        },
+        "metres": {
+          "title": "Metres",
+          "type": "number"
+        },
+        "reference": {
+          "const": "ELLIPSOID",
+          "default": "ELLIPSOID",
+          "title": "Reference",
+          "type": "string"
+        }
+      },
+      "required": [
+        "metres"
+      ],
+      "title": "MoveAltitude",
+      "type": "object"
+    },
+    "MoveAnchor": {
+      "additionalProperties": false,
+      "properties": {
+        "latitudeDeg": {
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Latitudedeg",
+          "type": "number"
+        },
+        "longitudeDeg": {
+          "maximum": 180,
+          "minimum": -180,
+          "title": "Longitudedeg",
+          "type": "number"
+        }
+      },
+      "required": [
+        "longitudeDeg",
+        "latitudeDeg"
+      ],
+      "title": "MoveAnchor",
+      "type": "object"
+    },
+    "MoveIntent": {
+      "additionalProperties": false,
+      "properties": {
+        "anchor": {
+          "$ref": "#/$defs/MoveAnchor"
+        },
+        "deadline": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Deadline",
+          "type": "string"
+        },
+        "executorEpoch": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorepoch",
+          "type": "string"
+        },
+        "grantId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Grantid",
+          "type": "string"
+        },
+        "grantRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Grantrevision",
+          "type": "integer"
+        },
+        "members": {
+          "items": {
+            "$ref": "#/$defs/MoveMember"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Members",
+          "type": "array"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "modelId": {
+          "const": "local-horizontal-v1",
+          "default": "local-horizontal-v1",
+          "title": "Modelid",
+          "type": "string"
+        },
+        "reviewedFrameId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Reviewedframeid",
+          "type": "string"
+        },
+        "runId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Runid",
+          "type": "string"
+        },
+        "sourceId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Sourceid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "missionId",
+        "runId",
+        "executorEpoch",
+        "sourceId",
+        "grantId",
+        "grantRevision",
+        "reviewedFrameId",
+        "deadline",
+        "anchor",
+        "members"
+      ],
+      "title": "MoveIntent",
+      "type": "object"
+    },
+    "MoveMember": {
+      "additionalProperties": false,
+      "properties": {
+        "assetId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Assetid",
+          "type": "string"
+        },
+        "bindingRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Bindingrevision",
+          "type": "integer"
+        },
+        "busyRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Busyrevision",
+          "type": "integer"
+        },
+        "controlTrackId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Controltrackid",
+          "type": "string"
+        },
+        "destination": {
+          "$ref": "#/$defs/MovePosition"
+        },
+        "entityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "executorId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorid",
+          "type": "string"
+        },
+        "grantId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Grantid",
+          "type": "string"
+        },
+        "origin": {
+          "$ref": "#/$defs/MovePosition"
+        },
+        "sourceId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Sourceid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "assetId",
+        "entityId",
+        "executorId",
+        "sourceId",
+        "controlTrackId",
+        "grantId",
+        "bindingRevision",
+        "busyRevision",
+        "origin",
+        "destination"
+      ],
+      "title": "MoveMember",
+      "type": "object"
+    },
+    "MovePosition": {
+      "additionalProperties": false,
+      "properties": {
+        "altitude": {
+          "$ref": "#/$defs/MoveAltitude"
+        },
+        "latitudeDeg": {
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Latitudedeg",
+          "type": "number"
+        },
+        "longitudeDeg": {
+          "maximum": 180,
+          "minimum": -180,
+          "title": "Longitudedeg",
+          "type": "number"
+        }
+      },
+      "required": [
+        "longitudeDeg",
+        "latitudeDeg",
+        "altitude"
+      ],
+      "title": "MovePosition",
+      "type": "object"
+    },
+    "MoveRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "commandId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Commandid",
+          "type": "string"
+        },
+        "holderId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Holderid",
+          "type": "string"
+        },
+        "move": {
+          "$ref": "#/$defs/MoveIntent"
+        },
+        "order": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Order"
+        }
+      },
+      "required": [
+        "commandId",
+        "holderId",
+        "move"
+      ],
+      "title": "MoveRequest",
+      "type": "object"
+    },
+    "MovementExecution": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Acceptedat",
+          "type": "string"
+        },
+        "acceptedSequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Acceptedsequence",
+          "type": "integer"
+        },
+        "assetId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Assetid",
+          "type": "string"
+        },
+        "bindingRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Bindingrevision",
+          "type": "integer"
+        },
+        "busyRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Busyrevision",
+          "type": "integer"
+        },
+        "commandId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Commandid",
+          "type": "string"
+        },
+        "completionSample": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CompletionSample"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "controlTrackId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Controltrackid",
+          "type": "string"
+        },
+        "deadline": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Deadline",
+          "type": "string"
+        },
+        "destination": {
+          "$ref": "#/$defs/MovePosition"
+        },
+        "directOrder": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Directorder"
+        },
+        "entityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "executorEpoch": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorepoch",
+          "type": "string"
+        },
+        "executorId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorid",
+          "type": "string"
+        },
+        "grantId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Grantid",
+          "type": "string"
+        },
+        "grantRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Grantrevision",
+          "type": "integer"
+        },
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "move",
+          "default": "move",
+          "title": "Kind",
+          "type": "string"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "origin": {
+          "$ref": "#/$defs/MovePosition"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "remainingMetres": {
+          "minimum": 0,
+          "title": "Remainingmetres",
+          "type": "number"
+        },
+        "reservationRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Reservationrevision",
+          "type": "integer"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "runId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Runid",
+          "type": "string"
+        },
+        "sourceId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Sourceid",
+          "type": "string"
+        },
+        "speedMps": {
+          "default": 20.0,
+          "exclusiveMinimum": 0,
+          "maximum": 77.77777777777777,
+          "title": "Speedmps",
+          "type": "number"
+        },
+        "startedAt": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Startedat"
+        },
+        "startedTick": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Startedtick"
+        },
+        "state": {
+          "enum": [
+            "Accepted",
+            "Running",
+            "Suspended",
+            "Completed",
+            "Cancelled",
+            "Failed",
+            "Expired",
+            "Interrupted"
+          ],
+          "title": "State",
+          "type": "string"
+        },
+        "suspendedBy": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Suspendedby"
+        },
+        "terminalSequence": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Terminalsequence"
+        },
+        "travelledMetres": {
+          "minimum": 0,
+          "title": "Travelledmetres",
+          "type": "number"
+        }
+      },
+      "required": [
+        "assetId",
+        "entityId",
+        "executorId",
+        "sourceId",
+        "controlTrackId",
+        "grantId",
+        "bindingRevision",
+        "busyRevision",
+        "origin",
+        "destination",
+        "id",
+        "commandId",
+        "missionId",
+        "runId",
+        "executorEpoch",
+        "grantRevision",
+        "reservationRevision",
+        "state",
+        "revision",
+        "acceptedAt",
+        "acceptedSequence",
+        "deadline",
+        "travelledMetres",
+        "remainingMetres"
+      ],
+      "title": "MovementExecution",
+      "type": "object"
+    },
+    "Receipt": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted": {
+          "title": "Accepted",
+          "type": "boolean"
+        },
+        "behaviorOrder": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Behaviororder"
+        },
+        "behaviorOutcomes": {
+          "items": {
+            "$ref": "#/$defs/BehaviorMemberOutcome"
+          },
+          "maxItems": 32,
+          "title": "Behavioroutcomes",
+          "type": "array"
+        },
+        "boundaryRevision": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Boundaryrevision"
+        },
+        "code": {
+          "enum": [
+            "OK",
+            "NOT_INTERACTIVE",
+            "DEMO_DISABLED",
+            "ACTIVE_RUN_EXISTS",
+            "IDENTITY_CONFLICT",
+            "INTENT_INVALID",
+            "INTENT_EXPIRED",
+            "OBSOLETE_INTENT",
+            "REFERENCE_MISMATCH",
+            "CONTROL_HELD",
+            "CONTROL_REQUIRED",
+            "LEASE_EXPIRED",
+            "RECLAIM_REQUIRED",
+            "INVALID_TRANSITION",
+            "RUN_TERMINAL",
+            "INVALID_REQUEST",
+            "NOT_FOUND",
+            "SOURCE_UNHEALTHY",
+            "FRAME_INVALID",
+            "MOVE_EXPIRED",
+            "SELECTION_INVALID",
+            "BINDING_CHANGED",
+            "ASSET_BUSY",
+            "POSITION_UNAVAILABLE",
+            "UNSUPPORTED_REFERENCE",
+            "OUTSIDE_EXTENT",
+            "ENDPOINT_INVALID",
+            "EXECUTION_TERMINAL",
+            "NO_AVAILABLE_ASSETS",
+            "ORDER_SUPERSEDED",
+            "BOUNDARY_CONFLICT"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "controlOrder": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Controlorder"
+        },
+        "controlOutcomes": {
+          "items": {
+            "$ref": "#/$defs/ControlMemberOutcome"
+          },
+          "maxItems": 32,
+          "title": "Controloutcomes",
+          "type": "array"
+        },
+        "directOrder": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Directorder"
+        },
+        "executionIds": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Executionids",
+          "type": "array"
+        },
+        "frameId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frameid"
+        },
+        "memberOutcomes": {
+          "items": {
+            "$ref": "#/$defs/DirectMemberOutcome"
+          },
+          "maxItems": 32,
+          "title": "Memberoutcomes",
+          "type": "array"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "missionId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Missionid"
+        },
+        "movementOrder": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Movementorder"
+        },
+        "operation": {
+          "enum": [
+            "create",
+            "acquire",
+            "renew",
+            "reclaim",
+            "revoke",
+            "start",
+            "pause",
+            "resume",
+            "end",
+            "move",
+            "cancel",
+            "direct-move",
+            "stop",
+            "return-to-script",
+            "boundary-edit",
+            "behavior",
+            "intercept-approach"
+          ],
+          "title": "Operation",
+          "type": "string"
+        },
+        "recordedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Recordedat",
+          "type": "string"
+        },
+        "recordingId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recordingid"
+        },
+        "requestId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Requestid",
+          "type": "string"
+        },
+        "runId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Runid"
+        },
+        "schemaVersion": {
+          "const": "1.6",
+          "default": "1.6",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "sequence": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sequence"
+        },
+        "targetScope": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Targetscope",
+          "type": "array"
+        }
+      },
+      "required": [
+        "requestId",
+        "operation",
+        "accepted",
+        "code",
+        "message",
+        "recordedAt"
+      ],
+      "title": "Receipt",
+      "type": "object"
+    },
+    "RecommendationAudit": {
+      "additionalProperties": false,
+      "properties": {
+        "assignmentCount": {
+          "maximum": 32,
+          "minimum": 0,
+          "title": "Assignmentcount",
+          "type": "integer"
+        },
+        "createdAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Createdat",
+          "type": "string"
+        },
+        "eligibleTargetIds": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Eligibletargetids",
+          "type": "array"
+        },
+        "executorEpoch": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorepoch",
+          "type": "string"
+        },
+        "expiresAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Expiresat",
+          "type": "string"
+        },
+        "fingerprint": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Fingerprint",
+          "type": "string"
+        },
+        "inputFrameId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Inputframeid",
+          "type": "string"
+        },
+        "members": {
+          "items": {
+            "$ref": "#/$defs/RecommendationMember"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Members",
+          "type": "array"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "option": {
+          "$ref": "#/$defs/RecommendationOption"
+        },
+        "recommendationId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Recommendationid",
+          "type": "string"
+        },
+        "runId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Runid",
+          "type": "string"
+        },
+        "schemaVersion": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "selectedEntityIds": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Selectedentityids",
+          "type": "array"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "situation": {
+          "maxLength": 1200,
+          "title": "Situation",
+          "type": "string"
+        },
+        "source": {
+          "const": "rules",
+          "default": "rules",
+          "title": "Source",
+          "type": "string"
+        },
+        "sourceId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Sourceid",
+          "type": "string"
+        },
+        "unavailableReason": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unavailablereason"
+        }
+      },
+      "required": [
+        "missionId",
+        "runId",
+        "executorEpoch",
+        "sourceId",
+        "inputFrameId",
+        "sequence",
+        "createdAt",
+        "expiresAt",
+        "fingerprint",
+        "selectedEntityIds",
+        "members",
+        "eligibleTargetIds",
+        "assignmentCount",
+        "situation",
+        "recommendationId",
+        "option"
+      ],
+      "title": "RecommendationAudit",
+      "type": "object"
+    },
+    "RecommendationMember": {
+      "additionalProperties": false,
+      "properties": {
+        "available": {
+          "title": "Available",
+          "type": "boolean"
+        },
+        "entityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "exclusion": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exclusion"
+        },
+        "label": {
+          "maxLength": 256,
+          "title": "Label",
+          "type": "string"
+        },
+        "state": {
+          "maxLength": 500,
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "entityId",
+        "label",
+        "available",
+        "state"
+      ],
+      "title": "RecommendationMember",
+      "type": "object"
+    },
+    "RecommendationOption": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SuggestedAction"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "consequences": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 6,
+          "title": "Consequences",
+          "type": "array"
+        },
+        "explanation": {
+          "maxLength": 1200,
+          "minLength": 1,
+          "title": "Explanation",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "unchangedEntityIds": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Unchangedentityids",
+          "type": "array"
+        },
+        "unchangedReasons": {
+          "items": {
+            "$ref": "#/$defs/RecommendationUnchanged"
+          },
+          "maxItems": 32,
+          "title": "Unchangedreasons",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "explanation",
+        "consequences",
+        "unchangedEntityIds",
+        "unchangedReasons"
+      ],
+      "title": "RecommendationOption",
+      "type": "object"
+    },
+    "RecommendationRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "entityIds": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Entityids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "entityIds"
+      ],
+      "title": "RecommendationRequest",
+      "type": "object"
+    },
+    "RecommendationSet": {
+      "additionalProperties": false,
+      "properties": {
+        "assignmentCount": {
+          "maximum": 32,
+          "minimum": 0,
+          "title": "Assignmentcount",
+          "type": "integer"
+        },
+        "createdAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Createdat",
+          "type": "string"
+        },
+        "eligibleTargetIds": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Eligibletargetids",
+          "type": "array"
+        },
+        "executorEpoch": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Executorepoch",
+          "type": "string"
+        },
+        "expiresAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Expiresat",
+          "type": "string"
+        },
+        "fingerprint": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Fingerprint",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Id",
+          "type": "string"
+        },
+        "inputFrameId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Inputframeid",
+          "type": "string"
+        },
+        "members": {
+          "items": {
+            "$ref": "#/$defs/RecommendationMember"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Members",
+          "type": "array"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "options": {
+          "items": {
+            "$ref": "#/$defs/RecommendationOption"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "title": "Options",
+          "type": "array"
+        },
+        "runId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Runid",
+          "type": "string"
+        },
+        "schemaVersion": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "selectedEntityIds": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Selectedentityids",
+          "type": "array"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "situation": {
+          "maxLength": 1200,
+          "title": "Situation",
+          "type": "string"
+        },
+        "source": {
+          "const": "rules",
+          "default": "rules",
+          "title": "Source",
+          "type": "string"
+        },
+        "sourceId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Sourceid",
+          "type": "string"
+        },
+        "unavailableReason": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unavailablereason"
+        }
+      },
+      "required": [
+        "missionId",
+        "runId",
+        "executorEpoch",
+        "sourceId",
+        "inputFrameId",
+        "sequence",
+        "createdAt",
+        "expiresAt",
+        "fingerprint",
+        "selectedEntityIds",
+        "members",
+        "eligibleTargetIds",
+        "assignmentCount",
+        "situation",
+        "id",
+        "options"
+      ],
+      "title": "RecommendationSet",
+      "type": "object"
+    },
+    "RecommendationUnchanged": {
+      "additionalProperties": false,
+      "properties": {
+        "disposition": {
+          "enum": [
+            "unchanged",
+            "excluded"
+          ],
+          "title": "Disposition",
+          "type": "string"
+        },
+        "entityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Entityid",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "entityId",
+        "disposition",
+        "reason"
+      ],
+      "title": "RecommendationUnchanged",
+      "type": "object"
+    },
+    "RunRead": {
+      "additionalProperties": false,
+      "properties": {
+        "frameId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Frameid",
+          "type": "string"
+        },
+        "leaseState": {
+          "enum": [
+            "unclaimed",
+            "held",
+            "expired"
+          ],
+          "title": "Leasestate",
+          "type": "string"
+        },
+        "ownsControl": {
+          "title": "Ownscontrol",
+          "type": "boolean"
+        },
+        "run": {
+          "$ref": "#/$defs/InteractiveRun"
+        },
+        "schemaVersion": {
+          "const": "1.7",
+          "default": "1.7",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "serverTime": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Servertime",
+          "type": "string"
+        },
+        "unitProfiles": {
+          "patternProperties": {
+            "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+              "$ref": "#/$defs/UnitProfile"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 256,
+            "minLength": 1
+          },
+          "title": "Unitprofiles",
+          "type": "object"
+        }
+      },
+      "required": [
+        "serverTime",
+        "frameId",
+        "sequence",
+        "run",
+        "ownsControl",
+        "leaseState"
+      ],
+      "title": "RunRead",
+      "type": "object"
+    },
+    "ScenarioRef": {
+      "additionalProperties": false,
+      "properties": {
+        "contentHash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Contenthash",
+          "type": "string"
+        },
+        "definitionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Definitionid",
+          "type": "string"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "definitionId",
+        "revision",
+        "contentHash"
+      ],
+      "title": "ScenarioRef",
+      "type": "object"
+    },
+    "SuggestedAction": {
+      "additionalProperties": false,
+      "properties": {
+        "members": {
+          "items": {
+            "$ref": "#/$defs/DirectMoveMember"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Members",
+          "type": "array"
+        },
+        "operation": {
+          "enum": [
+            "behavior",
+            "stop",
+            "return-to-script"
+          ],
+          "title": "Operation",
+          "type": "string"
+        },
+        "policy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BehaviorPolicy"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "operation",
+        "members"
+      ],
+      "title": "SuggestedAction",
+      "type": "object"
+    },
+    "UnitProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "cruiseMps": {
+          "exclusiveMinimum": 0,
+          "title": "Cruisemps",
+          "type": "number"
+        },
+        "id": {
+          "enum": [
+            "hornet-10-v1",
+            "sting-v1",
+            "lancet-3-v1",
+            "shahed-136-v1"
+          ],
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "model": {
+          "const": "notional-unit-speed-v1",
+          "default": "notional-unit-speed-v1",
+          "title": "Model",
+          "type": "string"
+        },
+        "pursuitMps": {
+          "exclusiveMinimum": 0,
+          "title": "Pursuitmps",
+          "type": "number"
+        },
+        "reference": {
+          "title": "Reference",
+          "type": "string"
+        },
+        "referenceDate": {
+          "const": "2026-09-18",
+          "default": "2026-09-18",
+          "title": "Referencedate",
+          "type": "string"
+        },
+        "variant": {
+          "title": "Variant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "variant",
+        "cruiseMps",
+        "pursuitMps",
+        "reference"
+      ],
+      "title": "UnitProfile",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Export root; no route accepts this aggregate.",
+  "properties": {
+    "command": {
+      "$ref": "#/$defs/CommandRequest"
+    },
+    "creation": {
+      "$ref": "#/$defs/CreateRunRequest"
+    },
+    "directMove": {
+      "$ref": "#/$defs/DirectMoveRequest"
+    },
+    "entry": {
+      "$ref": "#/$defs/DemoEntry"
+    },
+    "executions": {
+      "$ref": "#/$defs/ExecutionRead"
+    },
+    "intent": {
+      "$ref": "#/$defs/Intent"
+    },
+    "legacyD3AStatus": {
+      "$ref": "#/$defs/LegacyD3aRunRead"
+    },
+    "legacyD4Status": {
+      "$ref": "#/$defs/LegacyD4RunRead"
+    },
+    "move": {
+      "$ref": "#/$defs/MoveRequest"
+    },
+    "receipt": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Receipt"
+        },
+        {
+          "$ref": "#/$defs/LegacyD4Receipt"
+        },
+        {
+          "$ref": "#/$defs/LegacyD3aReceipt"
+        },
+        {
+          "$ref": "#/$defs/LegacyD3Receipt"
+        },
+        {
+          "$ref": "#/$defs/LegacyD2Receipt"
+        },
+        {
+          "$ref": "#/$defs/LegacyM12Receipt"
+        },
+        {
+          "$ref": "#/$defs/LegacyReceipt"
+        }
+      ],
+      "title": "Receipt"
+    },
+    "recommendationRequest": {
+      "$ref": "#/$defs/RecommendationRequest"
+    },
+    "recommendations": {
+      "$ref": "#/$defs/RecommendationSet"
+    },
+    "status": {
+      "$ref": "#/$defs/RunRead"
+    }
+  },
+  "required": [
+    "intent",
+    "command",
+    "creation",
+    "receipt",
+    "status",
+    "legacyD4Status",
+    "legacyD3AStatus",
+    "entry",
+    "move",
+    "directMove",
+    "executions",
+    "recommendationRequest",
+    "recommendations"
+  ],
+  "title": "CommandContracts",
+  "type": "object"
+}

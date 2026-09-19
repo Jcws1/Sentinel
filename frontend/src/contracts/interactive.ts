@@ -1,5 +1,5 @@
 import Ajv2020 from 'ajv/dist/2020';
-import schema from '../../../contracts/sentinel/v1.11/interactive.schema.json';
+import schema from '../../../contracts/sentinel/v1.12/interactive.schema.json';
 import type {
   DemoEntry,
   Intent,
@@ -16,6 +16,7 @@ import type {
   RunRead,
   InteractiveRun,
   MovePosition,
+  RecommendationSet,
 } from './generated';
 import type { DeepReadonly, ImmutableFrame } from './types';
 import { calendarInstant, invariant } from './integrity';
@@ -41,6 +42,59 @@ function decoder<T>(name: string) {
   };
 }
 export const decodeEntry = decoder<DemoEntry>('DemoEntry');
+const recommendations = decoder<RecommendationSet>('RecommendationSet');
+export function decodeRecommendations(value: unknown) {
+  const result = recommendations(value);
+  calendarInstant(result.createdAt);
+  calendarInstant(result.expiresAt);
+  invariant(
+    Date.parse(result.expiresAt) - Date.parse(result.createdAt) === 15000,
+    'Invalid suggestion lifetime',
+  );
+  const selected = new Set(result.selectedEntityIds);
+  invariant(
+    selected.size === result.selectedEntityIds.length &&
+      result.members.length === selected.size &&
+      new Set(result.members.map((m) => m.entityId)).size === selected.size &&
+      result.members.every((m) => selected.has(m.entityId)),
+    'Invalid suggestion scope',
+  );
+  invariant(
+    new Set(result.options.map((o) => o.id)).size === result.options.length,
+    'Duplicate suggestion options',
+  );
+  for (const option of result.options) {
+    const affected = new Set(
+      option.action?.members.map((m) => m.entityId) ?? [],
+    );
+    const unchanged = new Set(option.unchangedEntityIds);
+    invariant(
+      option.unchangedReasons.length === unchanged.size &&
+        new Set(option.unchangedReasons.map((r) => r.entityId)).size ===
+          unchanged.size &&
+        option.unchangedReasons.every((r) => unchanged.has(r.entityId)),
+      'Each unchanged member needs exactly one option-specific reason',
+    );
+    invariant(
+      affected.size === (option.action?.members.length ?? 0) &&
+        unchanged.size === option.unchangedEntityIds.length &&
+        [...affected].every((id) => selected.has(id) && !unchanged.has(id)) &&
+        [...unchanged].every((id) => selected.has(id)) &&
+        affected.size + unchanged.size === selected.size,
+      'Suggestion scope does not partition the selection',
+    );
+    if (option.action)
+      invariant(
+        (option.action.operation === 'behavior') === !!option.action.policy,
+        'Invalid suggested policy',
+      );
+  }
+  invariant(
+    !result.unavailableReason || result.options.every((o) => !o.action),
+    'Unavailable suggestions cannot contain actions',
+  );
+  return result;
+}
 const intent = decoder<Intent>('Intent');
 export function decodeIntent(value: unknown) {
   const result = intent(value);

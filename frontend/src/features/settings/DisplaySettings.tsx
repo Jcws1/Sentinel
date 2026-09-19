@@ -1,5 +1,7 @@
-import { useSyncExternalStore } from 'react';
-import { useOperationalRuntime } from '../../app/OperationalContext';
+import {
+  useOperationalRuntime,
+  useOperationalSnapshot,
+} from '../../app/OperationalContext';
 import {
   defaultDisplayPreferences,
   type DisplayPreferences,
@@ -9,7 +11,7 @@ import './settings.css';
 
 export function DisplaySettings({ bridge }: { bridge: WorkspaceBridge }) {
   const runtime = useOperationalRuntime()!;
-  const state = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);
+  const state = useOperationalSnapshot(runtime);
   const p = state.display ?? defaultDisplayPreferences;
   const update = (patch: Partial<DisplayPreferences>) =>
     runtime.setDisplayPreferences(patch);

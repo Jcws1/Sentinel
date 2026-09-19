@@ -1,9 +1,12 @@
 import { scriptControlReason } from '../../world/scriptControl';
 import { behaviorLabel } from '../../world/behavior';
 import { BehaviorControls } from './BehaviorControls';
-import { useSyncExternalStore } from 'react';
+import { SuggestionsDisclosure } from './DecisionSuggestions';
 import { Drone, CircleSlash } from 'lucide-react';
-import { useOperationalRuntime } from '../../app/OperationalContext';
+import {
+  useOperationalRuntime,
+  useOperationalSnapshot,
+} from '../../app/OperationalContext';
 import type { ApplicationRuntime } from '../../app/runtime';
 import type { WorkspaceBridge } from '../workspace/workspaceBridge';
 import { managedRows, availability, assetStatus } from './presentation';
@@ -27,7 +30,7 @@ function Fleet({
   runtime: ApplicationRuntime;
   bridge: WorkspaceBridge;
 }) {
-  const state = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot),
+  const state = useOperationalSnapshot(runtime),
     frame = state.presentation.frame,
     rows = managedRows(state);
   const selected = new Set(state.session.selection.items.map((i) => i.id));
@@ -52,6 +55,7 @@ function Fleet({
       </div>
       <MovementToolbar state={state} runtime={runtime} bridge={bridge} />
       <BehaviorControls state={state} runtime={runtime} />
+      <SuggestionsDisclosure state={state} runtime={runtime} bridge={bridge} />
       {frame?.interactive && (
         <div
           className="fleet-script-controls"

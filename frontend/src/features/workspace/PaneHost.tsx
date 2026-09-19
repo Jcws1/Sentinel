@@ -4,7 +4,10 @@ import type { TabNode } from 'flexlayout-react';
 import type { WorkspaceBridge } from './workspaceBridge';
 import { viewRegistry, viewKind, viewTitle, type ViewId } from './viewRegistry';
 import { OperationalReadout } from '../mission/OperationalReadout';
-import { useOperationalRuntime } from '../../app/OperationalContext';
+import {
+  PaneVisibilityContext,
+  useOperationalRuntime,
+} from '../../app/OperationalContext';
 import { TacticalMap } from '../map/TacticalMap';
 import { Credits } from '../credits/Credits';
 import { TracksBrowser } from '../entities/TracksBrowser';
@@ -14,6 +17,7 @@ import { MovementPane } from '../movement/MovementPane';
 import { UnitsPane } from '../units/UnitsPane';
 import { DisplaySettings } from '../settings/DisplaySettings';
 import { CockpitPane } from '../cockpit/CockpitPane';
+import { DecisionSuggestions } from '../entities/DecisionSuggestions';
 
 export type PaneLifecycleEvent =
   | { type: 'mount' | 'dispose'; viewId: ViewId }
@@ -105,37 +109,41 @@ export function PaneHost({
         }
       }}
     >
-      {kind === 'cockpit' && runtime ? (
-        <CockpitPane bridge={bridge} visible={visible} />
-      ) : kind === 'settings' && runtime ? (
-        <DisplaySettings bridge={bridge} />
-      ) : kind === 'credits' ? (
-        <Credits />
-      ) : kind === 'conductor' && runtime ? (
-        <ConductorPane bridge={bridge} visible={visible} />
-      ) : kind === 'units' && runtime ? (
-        <UnitsPane bridge={bridge} />
-      ) : kind === 'movement' && runtime ? (
-        <MovementPane bridge={bridge} />
-      ) : kind === 'tracks' && runtime ? (
-        <TracksBrowser bridge={bridge} />
-      ) : kind === 'details' && runtime ? (
-        <EntityDetails bridge={bridge} />
-      ) : kind === 'inspector' && runtime ? (
-        <EntityInspector id={id} bridge={bridge} />
-      ) : tactical ? (
-        <TacticalMap viewId={id} visible={visible} bridge={bridge} />
-      ) : (
-        <div className="placeholder">
-          <span className="constraint-tag">NOT IMPLEMENTED</span>
-          <OperationalReadout
-            view={{ ...view, title }}
-            viewId={id}
-            bridge={bridge}
-          />
-          {renderExtension?.(id)}
-        </div>
-      )}
+      <PaneVisibilityContext.Provider value={visible}>
+        {kind === 'suggestions' && runtime ? (
+          <DecisionSuggestions bridge={bridge} />
+        ) : kind === 'cockpit' && runtime ? (
+          <CockpitPane bridge={bridge} visible={visible} />
+        ) : kind === 'settings' && runtime ? (
+          <DisplaySettings bridge={bridge} />
+        ) : kind === 'credits' ? (
+          <Credits />
+        ) : kind === 'conductor' && runtime ? (
+          <ConductorPane bridge={bridge} visible={visible} />
+        ) : kind === 'units' && runtime ? (
+          <UnitsPane bridge={bridge} />
+        ) : kind === 'movement' && runtime ? (
+          <MovementPane bridge={bridge} />
+        ) : kind === 'tracks' && runtime ? (
+          <TracksBrowser bridge={bridge} />
+        ) : kind === 'details' && runtime ? (
+          <EntityDetails bridge={bridge} />
+        ) : kind === 'inspector' && runtime ? (
+          <EntityInspector id={id} bridge={bridge} />
+        ) : tactical ? (
+          <TacticalMap viewId={id} visible={visible} bridge={bridge} />
+        ) : (
+          <div className="placeholder">
+            <span className="constraint-tag">NOT IMPLEMENTED</span>
+            <OperationalReadout
+              view={{ ...view, title }}
+              viewId={id}
+              bridge={bridge}
+            />
+            {renderExtension?.(id)}
+          </div>
+        )}
+      </PaneVisibilityContext.Provider>
     </section>
   );
 }

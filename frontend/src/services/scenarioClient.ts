@@ -25,6 +25,7 @@ import {
   decodeScenarioRevision,
   decodeScenarioWrite,
   decodeScenarioReview,
+  MAX_SCENARIO_UNITS,
 } from '../contracts/scenarios';
 import { immutableCopy } from '../world/immutable';
 
@@ -193,7 +194,7 @@ function readActionEdit(
     (value.batch &&
       (!Array.isArray(value.batch) ||
         value.batch.length < 1 ||
-        value.batch.length > 32 ||
+        value.batch.length > MAX_SCENARIO_UNITS ||
         new Set(value.batch.map((m) => m.id)).size !== value.batch.length ||
         new Set(value.batch.map((m) => m.unitId)).size !== value.batch.length ||
         value.batch.some(

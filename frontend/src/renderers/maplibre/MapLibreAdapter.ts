@@ -143,9 +143,12 @@ export class MapLibreAdapter {
   private pendingProvider = false;
   private providerLoading = false;
   private sourceSignature?: string;
+  private submittedObjects: readonly SceneObject[] = [];
+  private motionDeferred = false;
+  private submittedFrame?: { frameId?: string; sequence?: number };
   private gridSignature?: string;
   private filtersHidden = false;
-  private filterRestoreQueued = false;
+  private restoreSceneFilters?: () => void;
   private renderedFrames = 0;
   private sceneDraws = 0;
   private attribution?: maplibregl.AttributionControl;
@@ -236,6 +239,20 @@ export class MapLibreAdapter {
     this.map.on('render', () => {
       this.renderedFrames++;
       this.positionAcknowledgement();
+      if (!this.active || !this.installed || !this.map.isSourceLoaded(sourceId))
+        return;
+      if (this.rendererTimer) clearTimeout(this.rendererTimer);
+      this.rendererTimer = undefined;
+      if (this.submittedFrame) {
+        this.appliedFrameId = this.submittedFrame.frameId;
+        this.appliedSequence = this.submittedFrame.sequence;
+        this.submittedFrame = undefined;
+      }
+      // A continuously moving scene need never emit global `idle`. Reveal the
+      // new mission once its source has actually painted, independently of motion.
+      this.restoreSceneFilters?.();
+      this.restoreSceneFilters = undefined;
+      if (this.motionDeferred && this.scene) this.setMotion(this.scene.objects);
     });
     this.map.on('idle', () => {
       if (!this.installed || this.disposed) return;
@@ -588,6 +605,8 @@ export class MapLibreAdapter {
       return;
     }
     const changedMission = this.scene?.missionId !== scene.missionId;
+    const changedBasemap =
+      Boolean(this.scene?.localGrid) !== Boolean(scene.localGrid);
     if (changedMission || this.scene?.context !== scene.context) {
       this.gestures.reset();
       this.framed = false;
@@ -651,6 +670,7 @@ export class MapLibreAdapter {
       }
     }
     this.scene = scene;
+    if (changedBasemap) this.setProvider(this.provider);
     if (this.installed)
       this.map.setFilter(`${prefix}script-intent`, [
         '==',
@@ -688,10 +708,18 @@ export class MapLibreAdapter {
       this.scene.context === 'authoring'
     )
       return;
-    const prior = new Map(
-      this.scene.objects.map((o) => [o.ref.id, o.position]),
-    );
     this.scene = { ...this.scene, objects };
+    // One worker/tile update at a time. Intermediate presentation samples are
+    // replaceable; the next render submits the newest shared sample, never a queue
+    // of old coordinates. Authoritative frames still pass through the shared store.
+    if (!this.map.isSourceLoaded(sourceId)) {
+      this.motionDeferred = true;
+      return;
+    }
+    this.motionDeferred = false;
+    const prior = new Map(
+      this.submittedObjects.map((o) => [o.ref.id, o.position]),
+    );
     const update: { id: string; newGeometry: Geometry }[] = objects
       .filter((o) => {
         const p = prior.get(o.ref.id);
@@ -721,7 +749,11 @@ export class MapLibreAdapter {
         });
       }
       (this.map.getSource(sourceId) as GeoJSONSource)?.updateData({ update });
-      this.sourceSignature = undefined;
+      this.submittedObjects = objects;
+      this.submittedFrame = {
+        frameId: this.scene.frameId,
+        sequence: this.scene.sequence,
+      };
     }
   }
 
@@ -729,6 +761,10 @@ export class MapLibreAdapter {
     if (this.disposed) return;
     this.installed = true;
     this.sourceSignature = undefined;
+    this.submittedObjects = [];
+    this.motionDeferred = false;
+    this.submittedFrame = undefined;
+    this.restoreSceneFilters = undefined;
     this.gridSignature = undefined;
     this.filtersHidden = false;
     this.applyPresentation();
@@ -1246,22 +1282,38 @@ export class MapLibreAdapter {
         },
       });
     }
-    const signature = JSON.stringify(features);
+    // Moving coordinates use the incremental path. Replacing the entire source
+    // on every health/status publication needlessly rebuilds all static geometry
+    // and competes with the interpolation updates already in flight.
+    const signature = JSON.stringify(
+      features.map((feature) =>
+        scene.context !== 'authoring' && feature.properties?.kind === 'entity'
+          ? { ...feature, geometry: undefined }
+          : feature,
+      ),
+    );
     if (signature !== this.sourceSignature) {
       this.sourceSignature = signature;
       this.sceneDraws++;
+      this.submittedObjects = scene.objects;
+      this.submittedFrame = {
+        frameId: scene.frameId,
+        sequence: scene.sequence,
+      };
       (this.map.getSource(sourceId) as GeoJSONSource).setData({
         type: 'FeatureCollection',
         features: features.map((f, i) => ({ ...f, id: f.id ?? `static:${i}` })),
       });
-    } else if (this.map.loaded()) {
-      // A new frame with identical geometry is already fully represented.
-      this.appliedFrameId = scene.frameId;
-      this.appliedSequence = scene.sequence;
+    } else {
+      this.setMotion(scene.objects);
+      if (this.map.isSourceLoaded(sourceId)) {
+        // A new frame with identical geometry is already fully represented.
+        this.appliedFrameId = scene.frameId;
+        this.appliedSequence = scene.sequence;
+      }
     }
     // Filters include mission identity through source replacement. Hide until worker catches up after a switch.
     const restoreFilters = () => {
-      this.filterRestoreQueued = false;
       if (this.disposed || !this.installed || !this.filtersHidden) return;
       this.filtersHidden = false;
       this.map.setFilter(`${prefix}script-intent`, [
@@ -1309,10 +1361,7 @@ export class MapLibreAdapter {
       for (const [layer, filter] of Object.entries(boundaryFilters))
         this.map.setFilter(`${prefix}${layer}`, filter);
     };
-    if (this.filtersHidden && !this.filterRestoreQueued) {
-      this.filterRestoreQueued = true;
-      this.map.once('idle', restoreFilters);
-    }
+    if (this.filtersHidden) this.restoreSceneFilters = restoreFilters;
     if (!this.framed && (scene.frameId || scene.context === 'authoring')) {
       if (this.initialCamera) {
         this.focusHeightM = this.initialCamera.focusHeightM;
@@ -1570,7 +1619,7 @@ export class MapLibreAdapter {
     const generation = ++this.providerGeneration;
     this.failed = false;
     this.terrainFailed = false;
-    if (!hasTacticalCredentials(provider)) {
+    if (this.scene?.localGrid || !hasTacticalCredentials(provider)) {
       this.providerLoading = false;
       const wasHosted = this.hosted;
       this.hosted = false;

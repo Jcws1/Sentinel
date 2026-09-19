@@ -15,10 +15,14 @@ import {
   RotateCcw,
   ChevronRight,
 } from 'lucide-react';
-import { useOperationalRuntime } from '../../app/OperationalContext';
+import {
+  useOperationalRuntime,
+  useOperationalSnapshot,
+} from '../../app/OperationalContext';
 import type { WorkspaceBridge } from '../workspace/workspaceBridge';
 import type { ViewId } from '../workspace/viewRegistry';
 import { createScene } from '../../renderers/scene';
+import { MAX_SCENARIO_UNITS } from '../../contracts/scenarios';
 import { defaultDisplayPreferences } from '../../state/displayPreferences';
 import { interceptSelection } from '../../world/behavior';
 import { BoundaryMapMenu } from '../units/BoundaryMapMenu';
@@ -64,7 +68,7 @@ export function TacticalMap({
   bridge: WorkspaceBridge;
 }) {
   const runtime = useOperationalRuntime()!;
-  const state = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);
+  const state = useOperationalSnapshot(runtime);
   useSyncExternalStore(bridge.subscribe, bridge.getSnapshot);
   const projection = bridge.getMapMode(viewId);
   const interceptMode = interceptSelection(state);
@@ -990,7 +994,8 @@ export function TacticalMap({
         <div className="scenario-map-context" role="status">
           <strong>AUTHORING</strong>
           <span>
-            {state.scenario.draft.name} · {state.scenario.draft.units.length}/32
+            {state.scenario.draft.name} · {state.scenario.draft.units.length}/
+            {MAX_SCENARIO_UNITS}
             units
           </span>
           <span>
@@ -1085,7 +1090,11 @@ export function TacticalMap({
             {provider.kind === 'local' && (
               <>
                 <span>{threeD ? 'LOCAL GLOBE' : 'LOCAL GRID'}</span>
-                <span className="constraint-tag">CREDENTIAL REQUIRED</span>
+                <span className="constraint-tag">
+                  {!threeD && scene.localGrid
+                    ? 'EMPTY FIXTURE'
+                    : 'CREDENTIAL REQUIRED'}
+                </span>
               </>
             )}
             {provider.kind === 'loading' && (

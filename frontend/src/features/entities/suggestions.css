@@ -1,0 +1,229 @@
+.fleet-suggestions {
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 8px 10px;
+  flex-shrink: 0;
+}
+.fleet-suggestions summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+.fleet-suggestions summary::-webkit-details-marker {
+  display: none;
+}
+.fleet-suggestions summary svg {
+  flex-shrink: 0;
+}
+.fleet-suggestions[open] summary svg {
+  transform: rotate(90deg);
+}
+.fleet-suggestions p {
+  margin: 7px 0;
+}
+.fleet-suggestions p,
+.fleet-suggestions small {
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.fleet-suggestions small {
+  display: block;
+  margin-top: 6px;
+}
+.decision-suggestions {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  color: var(--text-primary);
+  background: var(--surface-base);
+  font-size: 12px;
+  container-type: inline-size;
+}
+.suggestions-header {
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.suggestions-source {
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.065em;
+  text-transform: uppercase;
+}
+.suggestions-header > div:first-of-type {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+.suggestions-header h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+.suggestions-count {
+  color: var(--text-secondary);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.suggestions-header p {
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 8px 0 12px;
+}
+.suggestions-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.suggestions-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.suggestions-toolbar button[aria-disabled='true'] {
+  opacity: 0.6;
+}
+.suggestions-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 14px;
+}
+.suggestions-empty,
+.suggestions-footnote {
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+.suggestions-notice {
+  border-left: 2px solid var(--text-secondary);
+  padding: 8px 10px;
+  margin: 0 0 12px;
+  background: var(--surface-raised);
+  line-height: 1.5;
+}
+.suggestions-notice[data-state='outdated'] {
+  border-color: var(--status-warning, #dbc98c);
+}
+.suggestions-situation {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.suggestions-situation > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 10px;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.suggestions-situation > div > span {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.suggestions-situation p {
+  color: var(--text-secondary);
+  line-height: 1.55;
+  margin: 8px 0;
+}
+.suggestions-body details {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.suggestions-body summary {
+  cursor: pointer;
+  padding: 5px 0;
+  line-height: 1.5;
+}
+.suggestions-body details ul {
+  list-style: none;
+  margin: 5px 0;
+  padding: 0;
+}
+.suggestions-body details li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px 0;
+  overflow-wrap: anywhere;
+}
+.suggestions-body details li strong {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.suggestion-cards {
+  display: grid;
+  gap: 10px;
+}
+.suggestion-card {
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-raised);
+}
+.suggestion-card h3 {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+  line-height: 1.45;
+}
+.suggestion-card > p {
+  color: var(--text-secondary);
+  line-height: 1.55;
+  margin: 7px 0 8px;
+}
+.suggestion-card[data-noop='true'] {
+  background: transparent;
+}
+.suggestion-card-action {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.suggestion-card-action > span {
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+.suggestion-card-action button {
+  margin-left: auto;
+  min-width: 68px;
+}
+.suggestion-subheading {
+  display: block;
+  margin-top: 8px;
+  font-weight: 500;
+}
+.suggestion-consequences {
+  border-top: 1px solid var(--border-subtle);
+}
+.suggestions-footer {
+  margin-top: 16px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.suggestions-footer p {
+  margin: 0 0 5px;
+}
+.decision-suggestions button:focus-visible,
+.decision-suggestions summary:focus-visible,
+.fleet-suggestions summary:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 3px;
+}
+@container (min-width: 720px) {
+  .suggestion-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}

@@ -1,8 +1,11 @@
-import { useId, useRef, useState, useSyncExternalStore } from 'react';
+import { useId, useRef, useState } from 'react';
 import * as Menu from '@radix-ui/react-dropdown-menu';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Check, ChevronDown, ChevronRight, RefreshCw, X } from 'lucide-react';
-import { useOperationalRuntime } from '../../app/OperationalContext';
+import {
+  useOperationalRuntime,
+  useOperationalSnapshot,
+} from '../../app/OperationalContext';
 import type { ApplicationRuntime } from '../../app/runtime';
 import type { Mission } from '../../contracts/generated';
 import type { DeepReadonly } from '../../contracts/types';
@@ -43,7 +46,7 @@ function Controls({
   runtime: ApplicationRuntime;
   bridge?: WorkspaceBridge;
 }) {
-  const state = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);
+  const state = useOperationalSnapshot(runtime);
   const [replaceId, setReplaceId] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const picker = useRef<HTMLButtonElement>(null);
@@ -357,7 +360,7 @@ export function MissionStatus() {
   );
 }
 function Status({ runtime }: { runtime: ApplicationRuntime }) {
-  const state = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);
+  const state = useOperationalSnapshot(runtime);
   const mission =
     state.catalog.missions.find((m) => m.id === state.missionId) ??
     state.presentation.frame?.mission;

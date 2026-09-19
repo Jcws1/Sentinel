@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   flexRender,
   getCoreRowModel,
@@ -8,7 +8,10 @@ import {
   type SortingState,
 } from '@tanstack/react-table';
 import { ArrowDown, ArrowUp, Search, X } from 'lucide-react';
-import { useOperationalRuntime } from '../../app/OperationalContext';
+import {
+  useOperationalRuntime,
+  useOperationalSnapshot,
+} from '../../app/OperationalContext';
 import { entityRows, type EntityRow } from '../../world/entityRows';
 import type { WorkspaceBridge } from '../workspace/workspaceBridge';
 import { EntityFilters, filtersActive } from './EntityFilters';
@@ -87,7 +90,7 @@ const columns: ColumnDef<EntityRow>[] = [
 
 export function TracksBrowser({ bridge }: { bridge: WorkspaceBridge }) {
   const runtime = useOperationalRuntime()!;
-  const state = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);
+  const state = useOperationalSnapshot(runtime);
   const frame = state.presentation.frame;
   const rows = useMemo(
     () => (frame ? entityRows(frame, state.session.filters) : []),

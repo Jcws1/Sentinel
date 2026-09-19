@@ -1,6 +1,15 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { Columns2, RotateCcw, ScanLine, VideoOff } from 'lucide-react';
-import { useOperationalRuntime } from '../../app/OperationalContext';
+import {
+  useOperationalRuntime,
+  useOperationalSnapshot,
+} from '../../app/OperationalContext';
 import type { WorkspaceBridge } from '../workspace/workspaceBridge';
 import type {
   MapRenderer,
@@ -10,6 +19,7 @@ import type {
 import { cesiumProvider } from '../../renderers/cesium/config';
 import type { RendererLease } from '../../renderers/rendererPool';
 import { cockpitKey, type CockpitState } from '../../world/cockpit';
+import { videoOverlayFrame } from '../../world/videoOverlay';
 import {
   cockpitNotice,
   cockpitPoseAge,
@@ -17,6 +27,8 @@ import {
   hasGoogleEnvironment,
   readCockpitEnvironment,
   saveCockpitEnvironment,
+  readVideoOverlays,
+  saveVideoOverlays,
   type CockpitEnvironment,
 } from './presentation';
 import './cockpit.css';
@@ -39,7 +51,7 @@ export function CockpitPane({
   visible: boolean;
 }) {
   const runtime = useOperationalRuntime()!;
-  const snapshot = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);
+  const snapshot = useOperationalSnapshot(runtime);
   const workspace = useSyncExternalStore(bridge.subscribe, bridge.getSnapshot);
   const state = snapshot.cockpit ?? initial;
   const latest = useRef(state);
@@ -56,6 +68,16 @@ export function CockpitPane({
   );
   const environmentRef = useRef(environment);
   environmentRef.current = environment;
+  const [overlays, setOverlays] = useState(readVideoOverlays);
+  const overlayFrame = useMemo(
+    () =>
+      overlays
+        ? videoOverlayFrame(state, snapshot.presentation, snapshot.session)
+        : undefined,
+    [overlays, state, snapshot.presentation, snapshot.session],
+  );
+  const overlayRef = useRef(overlayFrame);
+  overlayRef.current = overlayFrame;
   const age = useRef<HTMLSpanElement>(null);
   const noticeAge = useRef<HTMLSpanElement>(null);
   const notice = cockpitNotice(state);
@@ -65,7 +87,11 @@ export function CockpitPane({
     const s = latest.current,
       b = s.binding,
       p = s.pose;
-    if (!b || !p) return;
+    if (!b || !p) {
+      renderer.setVideoOverlay?.(undefined);
+      return;
+    }
+    const sampledAt = now ?? performance.now();
     const bindingKey = cockpitKey(b);
     if (activeLease.current) activeLease.current.subject = bindingKey;
     renderer.setCockpitPose?.({
@@ -76,16 +102,42 @@ export function CockpitPane({
       effectiveAt: p.effectiveAt,
       position:
         s.interpolating && b.trackId
-          ? runtime.motion.sampleTrack(p.frameId, b.trackId, p.position, now)
+          ? runtime.motion.sampleTrack(
+              p.frameId,
+              b.trackId,
+              p.position,
+              sampledAt,
+            )
           : p.position,
       headingTrueDeg: p.headingTrueDeg,
       yaw: s.yaw,
       pitch: s.pitch,
     });
+    const overlay = overlayRef.current;
+    renderer.setVideoOverlay?.(
+      overlay && {
+        ...overlay,
+        objects: s.interpolating
+          ? overlay.objects.map((o) =>
+              o.stale || o.condition !== 'operational'
+                ? o
+                : {
+                    ...o,
+                    position: runtime.motion.sampleTrack(
+                      overlay.frameId,
+                      o.trackId,
+                      o.position,
+                      sampledAt,
+                    ),
+                  },
+            )
+          : overlay.objects,
+      },
+    );
   };
   useEffect(() => {
     if (adapter.current) apply.current(adapter.current);
-  }, [state]);
+  }, [state, overlayFrame]);
   useEffect(() => {
     if (!visible || !hasPose) return;
     return runtime.motion.subscribe((now) => {
@@ -261,7 +313,7 @@ export function CockpitPane({
   return (
     <article
       className="cockpit-pane"
-      aria-label="Simulated cockpit"
+      aria-label="Video Feed"
       data-binding={b && cockpitKey(b)}
       data-state={state.status}
       data-phase={state.phase}
@@ -284,7 +336,7 @@ export function CockpitPane({
           <span>{b?.label ?? 'No subject bound'}</span>
           <button
             className="icon-button"
-            aria-label="Place cockpit beside map"
+            aria-label="Place Video Feed beside map"
             title="Place beside map on a wide workspace"
             onClick={() => bridge.openToSide('cockpit')}
           >
@@ -333,7 +385,7 @@ export function CockpitPane({
               <strong>Renderer unavailable</strong>
               <p>The simulated pose is retained.</p>
               <button className="text-control" onClick={restart}>
-                Restart cockpit renderer
+                Restart Video Feed renderer
               </button>
             </div>
           )}
@@ -369,7 +421,7 @@ export function CockpitPane({
                   </div>
                 ))}
               <button className="text-control" onClick={restart}>
-                Retry cockpit
+                Retry Video Feed
               </button>
             </div>
           )}
@@ -399,6 +451,21 @@ export function CockpitPane({
             >
               <RotateCcw size={13} /> Reset view
             </button>
+          </div>
+          <div className="video-overlay-controls">
+            <label>
+              <input
+                type="checkbox"
+                checked={overlays}
+                aria-describedby="video-overlay-help"
+                onChange={(event) => {
+                  setOverlays(event.target.checked);
+                  saveVideoOverlays(event.target.checked);
+                }}
+              />
+              Simulated entities
+            </label>
+            <span id="video-overlay-help">Visibility not assessed</span>
           </div>
         </div>
         <footer className="cockpit-footer">
@@ -472,7 +539,7 @@ export function CockpitPane({
             <label>
               Environment
               <select
-                aria-label="Cockpit environment"
+                aria-label="Video Feed environment"
                 value={environment}
                 onChange={(e) => {
                   const value = e.target.value as CockpitEnvironment;
@@ -533,11 +600,17 @@ export function CockpitPane({
               Look-around changes only this view. Pitch 0°, roll 0°, FOV 60° are
               presentation defaults.
             </p>
+            <p className="cockpit-note">
+              Simulated entity overlays show known Track positions. Brackets
+              mark positions, not object size or a target lock. Annotations may
+              appear over scenery; detection and line of sight are not assessed.
+              Full entity details remain available in Tracks.
+            </p>
             <label>
               Look left / right
               <input
                 type="range"
-                aria-label="Cockpit look yaw"
+                aria-label="Video Feed look yaw"
                 min={-90}
                 max={90}
                 step={5}
@@ -553,7 +626,7 @@ export function CockpitPane({
               Look down / up
               <input
                 type="range"
-                aria-label="Cockpit look pitch"
+                aria-label="Video Feed look pitch"
                 min={-45}
                 max={45}
                 step={5}

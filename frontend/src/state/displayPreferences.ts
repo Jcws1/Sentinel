@@ -12,7 +12,7 @@ export const displayPreferenceKey = 'sentinel.display.v1';
 export const defaultDisplayPreferences: Readonly<DisplayPreferences> =
   Object.freeze({
     destinationStyle: 'ring',
-    entityStyle: 'minimal',
+    entityStyle: 'silhouette',
     iconSize: 28,
     labels: 'all',
     plansVisible: true,

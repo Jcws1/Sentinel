@@ -255,7 +255,7 @@ await withD5Runtime(
       await patrol();
       const opened = globalThis.performance.now();
       await page
-        .getByRole('button', { name: 'Simulated cockpit', exact: true })
+        .getByRole('button', { name: 'Video Feed', exact: true })
         .click();
       await expect
         .poll(async () => (await inspect()).cockpit?.ready, { timeout: 30000 })
@@ -282,14 +282,14 @@ await withD5Runtime(
       await page.screenshot({
         path: resolve(output, 'three-views-patrol.png'),
       });
-      await tab('Simulated cockpit', 'Close view');
+      await tab('Video Feed', 'Close view');
       await page
         .getByRole('button', { name: 'Open Details', exact: true })
         .click();
       await measure('maps-only-2');
       const reopen = globalThis.performance.now();
       await page
-        .getByRole('button', { name: 'Simulated cockpit', exact: true })
+        .getByRole('button', { name: 'Video Feed', exact: true })
         .click();
       await expect
         .poll(async () => (await inspect()).cockpit?.ready)
@@ -365,7 +365,7 @@ await withD5Runtime(
       report.cases.push(
         'Owned backend restart changes epoch, recovers paused same-run camera without movement',
       );
-      await tab('Simulated cockpit', 'Close view');
+      await tab('Video Feed', 'Close view');
       await page.setViewportSize({ width: 3840, height: 2160 });
       for (const [title, id] of [
         ['3D Map 2', 'tactical:3'],
@@ -386,7 +386,7 @@ await withD5Runtime(
         .getByRole('button', { name: 'Open Details', exact: true })
         .click();
       await page
-        .getByRole('button', { name: 'Simulated cockpit', exact: true })
+        .getByRole('button', { name: 'Video Feed', exact: true })
         .click();
       await expect(c()).toContainText('Renderer capacity reached');
       expect((await inspect()).pool).toMatchObject({ alive: 4, active: 4 });

@@ -170,6 +170,7 @@ export class WorkspaceBridge {
         'conductor',
         'settings',
         'cockpit',
+        'suggestions',
       ].includes(viewKind(id))
     );
   }

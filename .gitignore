@@ -53,6 +53,7 @@ htmlcov/
 # Already tracked documents remain tracked and their edits stay visible.
 docs/
 
+
 # Generated logs and operating-system metadata.
 *.log
 .DS_Store

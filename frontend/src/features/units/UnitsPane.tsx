@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Drone, CircleHelp, Plus, Save, Play, Search } from 'lucide-react';
-import { useOperationalRuntime } from '../../app/OperationalContext';
+import {
+  useOperationalRuntime,
+  useOperationalSnapshot,
+} from '../../app/OperationalContext';
 import type { ScenarioContent } from '../../contracts/generated';
+import { MAX_SCENARIO_UNITS } from '../../contracts/scenarios';
 import './units.css';
 import { BoundaryPanel, LiveBoundaryList } from './BoundaryPanel';
 import { UnitEditor } from './UnitEditor';
@@ -32,7 +36,7 @@ const categories = [
 ] as const;
 export function UnitsPane({ bridge }: { bridge: WorkspaceBridge }) {
   const runtime = useOperationalRuntime()!;
-  const state = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot),
+  const state = useOperationalSnapshot(runtime),
     scenario = state.scenario;
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState<'friendly' | 'hostile'>();
@@ -328,7 +332,9 @@ export function UnitsPane({ bridge }: { bridge: WorkspaceBridge }) {
             <section className="units-palette" aria-label="Unit palette">
               <div className="units-section-title">
                 <h2>Place units</h2>
-                <span>{scenario.draft.units.length}/32</span>
+                <span>
+                  {scenario.draft.units.length}/{MAX_SCENARIO_UNITS}
+                </span>
               </div>
               <label className="units-search">
                 <Search size={14} />
@@ -354,7 +360,7 @@ export function UnitsPane({ bridge }: { bridge: WorkspaceBridge }) {
                         !!scenario.boundaryEdit ||
                         scenario.reviewing ||
                         !targetMap ||
-                        scenario.draft.units.length >= 32
+                        scenario.draft.units.length >= MAX_SCENARIO_UNITS
                       }
                       aria-pressed={
                         scenario.placement?.category === c.id &&
@@ -393,7 +399,7 @@ export function UnitsPane({ bridge }: { bridge: WorkspaceBridge }) {
                               !!scenario.boundaryEdit ||
                               scenario.reviewing ||
                               !targetMap ||
-                              scenario.draft.units.length >= 32
+                              scenario.draft.units.length >= MAX_SCENARIO_UNITS
                             }
                             aria-pressed={
                               scenario.placement?.profileId === id &&
@@ -543,7 +549,10 @@ export function UnitsPane({ bridge }: { bridge: WorkspaceBridge }) {
                   scenario.reviewing
                 }
                 canLocate={!!targetMap}
-                canDuplicate={!!targetMap && scenario.draft.units.length < 32}
+                canDuplicate={
+                  !!targetMap &&
+                  scenario.draft.units.length < MAX_SCENARIO_UNITS
+                }
                 onLocate={() => {
                   if (targetMap)
                     runtime.locateScenarioUnit(selected.id, targetMap);

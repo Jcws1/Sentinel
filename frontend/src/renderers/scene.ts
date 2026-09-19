@@ -51,6 +51,9 @@ export function createScene(
       }),
       unlocatedCount: 0,
     });
+  const localGrid =
+    frame.mission.id === 'fixture-blank-grid' &&
+    frame.mission.extensions?.['sentinel.fixture'] != null;
   const rows = entityRows(frame, session.filters);
   const objects: SceneObject[] = rows
     .filter((r) => r.visible && r.track)
@@ -191,6 +194,7 @@ export function createScene(
         )
       : [];
   return Object.freeze({
+    localGrid,
     display: preferences,
     routes: Object.freeze(plans.routes),
     missionId: frame.mission.id,
@@ -229,18 +233,27 @@ export function createScene(
     unlocatedCount: rows.filter((r) => !r.tracks.length).length,
     referencePoint: frame.mission.referencePoint ?? undefined,
     localHome:
-      frame.interactive?.templateId?.startsWith('singapore-local-v') &&
-      frame.mission.referencePoint
+      localGrid && frame.mission.referencePoint
         ? {
             center: {
-              longitudeDeg: frame.mission.referencePoint.longitudeDeg + 0.002,
-              latitudeDeg: frame.mission.referencePoint.latitudeDeg + 0.002,
+              longitudeDeg: frame.mission.referencePoint.longitudeDeg,
+              latitudeDeg: frame.mission.referencePoint.latitudeDeg,
             },
             groundSpanM: 1100,
             headingTrueDeg: 0,
-            focusHeightM: 150,
           }
-        : undefined,
+        : frame.interactive?.templateId?.startsWith('singapore-local-v') &&
+            frame.mission.referencePoint
+          ? {
+              center: {
+                longitudeDeg: frame.mission.referencePoint.longitudeDeg + 0.002,
+                latitudeDeg: frame.mission.referencePoint.latitudeDeg + 0.002,
+              },
+              groundSpanM: 1100,
+              headingTrueDeg: 0,
+              focusHeightM: 150,
+            }
+          : undefined,
     region:
       regionalMissions[frame.mission.id] ??
       (frame.interactive?.templateId?.startsWith('singapore-local-v')

@@ -23,8 +23,9 @@ export function SimulationControls({
     !!run &&
     current?.run.executorEpoch === run.executorEpoch &&
     current.run.runRevision === run.runRevision &&
-    current.run.lease.revision === run.lease.revision;
-  const pending = ui.busy || !!ui.pending || ui.startingDemo;
+    (current.run.lease.revision === run.lease.revision || ui.renewing);
+  const pending =
+    ((ui.busy || !!ui.pending) && !ui.renewing) || ui.startingDemo;
   const activeElsewhere =
     ui.entry?.activeMissionId && ui.entry.activeMissionId !== state.missionId;
   const ownershipConflict = !!run && !ended && synced && !current?.ownsControl;

@@ -7,7 +7,7 @@ from uuid import uuid4
 from app.domain.models import Mission, WorldFrame
 from app.recording.sqlite_repository import RecordingRepository
 from app.world.contracts import DeltaMessage, ResyncRequiredMessage, SnapshotMessage
-from app.world.serialization import canonical, utc_now, validated_frame, read_frame
+from app.world.serialization import canonical, utc_now, read_frame
 
 
 class SequenceConflict(Exception):
@@ -70,7 +70,8 @@ class MissionService:
             return self.commit_locked(mission_id, build, expected_sequence)
 
     def commit_locked(self, mission_id: str, build: Callable, expected_sequence: int | None = None,
-                      effects: Callable | None = None, publish: bool = True) -> WorldFrame:
+                      effects: Callable | None = None, publish: bool = True,
+                      deferred_messages: list[str] | None = None) -> WorldFrame:
         """Internal port: caller owns the mission lock; outer transactions publish later."""
         recording = self.repository.recording_for(mission_id)  # Must precede build.
         previous_text = self.repository.latest_text(mission_id)
@@ -93,8 +94,8 @@ class MissionService:
                         recentEvents=(event_tail + events)[-100:])
         if proposed.get("mission", {}).get("id") != mission_id:
             raise ValueError("source frame mission differs from authority context")
-        committed_text = validated_frame(proposed)
-        frame = WorldFrame.model_validate_json(committed_text)
+        frame = WorldFrame.model_validate_json(canonical(proposed))
+        committed_text = canonical(frame)
         # Build/validate transport before commit, but distribute only AFTER it.
         message = self._delta(previous, json.loads(committed_text), events) if previous else canonical(
             SnapshotMessage(type="snapshot", schema_version="1.10", mission_id=mission_id, stream_epoch=frame.stream_epoch, sequence=frame.sequence, frame=frame))
@@ -106,7 +107,11 @@ class MissionService:
             self.repository.commit(committed_text, events)
         if publish:
             self._publish(mission_id, message)
-        return WorldFrame.model_validate_json(committed_text)
+        elif deferred_messages is not None:
+            # The outer transaction owner publishes this already validated message
+            # only after checkpoint/receipt/world commit together successfully.
+            deferred_messages.append(message)
+        return frame
 
     def _delta(self, previous: dict, current: dict, events: list[dict]) -> str:
         changes = {"mission": current["mission"], "events": events, "interactive": current.get("interactive"), "scenario": current.get("scenario"), "boundaryRules": current.get("boundaryRules"), "scenarioSchedule": current.get("scenarioSchedule"), "liveBoundaries": current.get("liveBoundaries"), "fleetBehavior": current.get("fleetBehavior")}

@@ -8,9 +8,10 @@ from uuid import uuid4
 
 from app.commands.contracts import (CommandRequest, CreateRunRequest, DemoEntry, Intent, InteractiveRun,
                                     Receipt, RunRead, LegacyReceipt, LegacyM12Receipt, LegacyD2Receipt, MoveRequest,
-                                    DirectMoveRequest, MoveMember, MovementExecution, ExecutionRead, LegacyD3Receipt, LegacyD3aReceipt)
+                                    DirectMoveRequest, MoveMember, MovementExecution, ExecutionRead, LegacyD3Receipt, LegacyD3aReceipt,
+                                    RecommendationSet, RecommendationAudit, RecommendationRef)
 from app.commands.errors import CommandError
-from app.commands import movement, scheduler, selected_control, live_boundaries, behaviors, engagements, rts_behavior
+from app.commands import movement, scheduler, selected_control, live_boundaries, behaviors, engagements, rts_behavior, recommendations
 from app.commands.unit_profiles import entity_speed
 from app.commands.legacy_d4 import LegacyD4Receipt
 from app.commands.kinematics import endpoints, distance, in_extent, cruise_speed
@@ -29,6 +30,7 @@ class InteractiveService:
         self._creation_lock = asyncio.Lock()
         self._intents: dict[str, str] = {}
         self._credentials: dict[str, str] = {}  # Private process memory only.
+        self._recommendations: dict[str, str] = {}  # Bounded advisory bytes, not world state.
 
     def _run(self, mid):
         try:
@@ -57,10 +59,47 @@ class InteractiveService:
         return RunRead(server_time=now, frame_id=frame.frame_id, sequence=frame.sequence, run=run, unit_profiles=frame.unit_profiles,
                        owns_control=lease_state == "held" and self._owns(mid, credential), lease_state=lease_state)
 
-    async def issue_intent(self, mid, action, execution_id=None, members=None, order=None, boundary=None, policy=None):
+    async def suggest(self, mid, selection, credential):
         self._enabled()
         async with self.authority._lock(mid):
-            run, now = self._run(mid).interactive, self.authority.clock()
+            frame, now = self._run(mid), self.authority.clock()
+            self._recommendations = {k: v for k, v in self._recommendations.items() if json.loads(v)["expiresAt"] > now}
+            if len(self._recommendations) >= recommendations.MAX_SETS:
+                raise CommandError("INVALID_REQUEST", "Suggestion capacity reached; retry after expiry.", 429)
+            if frame.interactive.state == "ended":
+                raise CommandError("RUN_TERMINAL", "Recorded and ended runs are read-only.")
+            result = recommendations.generate(json.loads(canonical(frame)), self.repository.checkpoint(mid), selection.entity_ids,
+                owns_control=self.status(mid, credential).owns_control, now=now,
+                expires_at=plus(now, recommendations.TTL_SECONDS), identity=str(uuid4()))
+            self._recommendations[result.id] = canonical(result)
+            return result
+
+    def _review_recommendation(self, mid, reference, action, members, policy, frame, checkpoint, now):
+        saved = self._recommendations.get(reference.recommendation_id)
+        if not saved:
+            raise CommandError("OBSOLETE_INTENT", "Out of date — refresh. Suggestion is no longer available.")
+        proposal = RecommendationSet.model_validate_json(saved)
+        if proposal.mission_id != mid or proposal.run_id != frame.interactive.run_id or proposal.executor_epoch != frame.interactive.executor_epoch:
+            raise CommandError("REFERENCE_MISMATCH", "Out of date — refresh. Run context changed.")
+        if now >= proposal.expires_at:
+            raise CommandError("INTENT_EXPIRED", "Out of date — refresh. Suggestion expired.")
+        option = next((o for o in proposal.options if o.id == reference.option_id), None)
+        if not option or not option.action or (option.action.operation, [canonical(m) for m in option.action.members], canonical(option.action.policy)) != (action, [canonical(m) for m in members or []], canonical(policy)):
+            raise CommandError("INTENT_INVALID", "Suggestion action or exact members changed; refresh.")
+        current = recommendations.fingerprint(json.loads(canonical(frame)), checkpoint, proposal.selected_entity_ids, now)
+        if current != proposal.fingerprint:
+            raise CommandError("OBSOLETE_INTENT", "Out of date — refresh. Availability, orders, assignments, boundaries or eligibility changed.")
+        data = json.loads(canonical(proposal))
+        data.pop("id")
+        data.pop("options")
+        return RecommendationAudit.model_validate(dict(data, recommendationId=proposal.id, option=json.loads(canonical(option))))
+
+    async def issue_intent(self, mid, action, execution_id=None, members=None, order=None, boundary=None, policy=None, recommendation=None):
+        self._enabled()
+        async with self.authority._lock(mid):
+            frame, now = self._run(mid), self.authority.clock()
+            run = frame.interactive
+            audit = self._review_recommendation(mid, recommendation, action, members, policy, frame, self.repository.checkpoint(mid), now) if recommendation else None
             # Expired evidence may be discarded; it can never regain admission.
             self._intents = {k: v for k, v in self._intents.items() if json.loads(v)["expiresAt"] > now}
             if len(self._intents) >= 4096:
@@ -74,7 +113,7 @@ class InteractiveService:
                             source_id=run.source_id, grant_id=run.grant_id, grant_revision=run.grant_revision,
                             run_revision=run.run_revision, lease_revision=run.lease.revision, action=action,
                             issued_at=now, expires_at=plus(now, 30), execution_id=execution_id,
-                            execution_revision=execution.revision if execution else None, members=members, order=order, boundary=boundary, policy=policy)
+                            execution_revision=execution.revision if execution else None, members=members, order=order, boundary=boundary, policy=policy, recommendation=audit)
             self._intents[intent.id] = canonical(intent)
             return intent
 
@@ -115,7 +154,7 @@ class InteractiveService:
                 "extensions": {"sentinel.interactive": {"requestId": identity, "holderId": holder}}}
 
     def _commit(self, mid, proposed, events, checkpoint, receipt_factory=None):
-        previous = json.loads(canonical(self.authority.read(mid)))
+        previous = json.loads(self.repository.latest_text(mid))
         movement.project(proposed, checkpoint, max(self.authority.clock(), previous["recordedAt"]))
         scheduler.project(proposed, checkpoint)
         behaviors.project(proposed, checkpoint)
@@ -126,12 +165,11 @@ class InteractiveService:
             self.repository.save_checkpoint(mid, checkpoint)
             if receipt_factory:
                 receipt = receipt_factory(frame)
+        messages = []
         with self.repository.transaction():
-            frame = self.authority.commit_locked(mid, lambda _: (proposed, events), effects=effects, publish=False)
-        current = json.loads(canonical(frame))
-        last = previous["recentEvents"][-1]["sequence"] if previous["recentEvents"] else -1
-        appended = [e for e in current["recentEvents"] if e["sequence"] > last]
-        self.authority._publish(mid, self.authority._delta(previous, current, appended))
+            frame = self.authority.commit_locked(mid, lambda _: (proposed, events), effects=effects,
+                                                 publish=False, deferred_messages=messages)
+        self.authority._publish(mid, messages[0])
         return receipt or frame
 
     async def create(self, request: CreateRunRequest):
@@ -237,6 +275,10 @@ class InteractiveService:
             behavior_outcomes, routes = [], {}
             try:
                 self._validate(mid, request, credential, run, now)
+                if request.intent.recommendation:
+                    audit = request.intent.recommendation
+                    self._review_recommendation(mid, RecommendationRef(recommendation_id=audit.recommendation_id, option_id=audit.option.id),
+                        request.intent.action, request.intent.members, request.intent.policy, frame, checkpoint, now)
                 if request.intent.action == "boundary-edit":
                     live_boundaries.candidate(json.loads(canonical(frame)), request.intent.boundary)
                 if request.intent.action in {"stop", "return-to-script", "behavior"}:

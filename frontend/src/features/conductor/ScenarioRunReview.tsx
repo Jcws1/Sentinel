@@ -1,11 +1,14 @@
-import { useRef, useSyncExternalStore } from 'react';
-import { useOperationalRuntime } from '../../app/OperationalContext';
+import { useRef } from 'react';
+import {
+  useOperationalRuntime,
+  useOperationalSnapshot,
+} from '../../app/OperationalContext';
 import { missionDisplayName } from '../mission/MissionControls';
 
 /** Presentation only: every action delegates to the existing session owner. */
 export function ScenarioRunReview() {
   const runtime = useOperationalRuntime()!,
-    state = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot),
+    state = useOperationalSnapshot(runtime),
     s = state.scenario;
   const focus = useRef<HTMLDivElement>(null);
   const activeId = state.interactive.entry?.activeMissionId;

@@ -23,7 +23,7 @@ def test_rest_ws_snapshot_atomic_delta_heartbeat_and_reconnect(tmp_path):
         catalog = client.get("/api/missions")
         assert catalog.headers["cache-control"] == "no-store"
         assert catalog.json()["fixtureAdvanceEnabled"] is True
-        assert len(catalog.json()["missions"]) == 4
+        assert len(catalog.json()["missions"]) == 5
         before = client.get("/api/missions/fixture-alpha/world").json()
         with client.websocket_connect("/api/missions/fixture-alpha/stream") as websocket:
             snapshot = websocket.receive_json()

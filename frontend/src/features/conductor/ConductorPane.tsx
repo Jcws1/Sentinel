@@ -9,7 +9,10 @@ import {
   Save,
   Trash2,
 } from 'lucide-react';
-import { useOperationalRuntime } from '../../app/OperationalContext';
+import {
+  useOperationalRuntime,
+  useOperationalSnapshot,
+} from '../../app/OperationalContext';
 import { orderedActions } from '../../services/scenarioClient';
 import type { ScheduledAction } from '../../contracts/generated';
 import {
@@ -32,7 +35,7 @@ export function ConductorPane({
   visible: boolean;
 }) {
   const runtime = useOperationalRuntime()!,
-    state = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot),
+    state = useOperationalSnapshot(runtime),
     s = state.scenario;
   const workspace = useSyncExternalStore(bridge.subscribe, bridge.getSnapshot);
   const [mapId, setMapId] = useState<ViewId>('tactical');

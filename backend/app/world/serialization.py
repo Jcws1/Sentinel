@@ -15,11 +15,6 @@ def canonical(value: Model | dict) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
 
 
-def validated_frame(value: Model | dict | str) -> str:
-    text = value if isinstance(value, str) else canonical(value)
-    return canonical(WorldFrame.model_validate_json(text))
-
-
 def read_frame(text: str) -> WorldFrame:
     """Validate legacy bytes before adapting only the in-memory representation."""
     value = json.loads(text)

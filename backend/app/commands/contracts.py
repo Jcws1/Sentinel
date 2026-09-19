@@ -244,7 +244,97 @@ class InteractiveRun(Model):
 
 
 
+class SuggestedAction(Model):
+    operation: Literal["behavior", "stop", "return-to-script"]
+    members: list[DirectMoveMember] = Field(min_length=1, max_length=32)
+    policy: BehaviorPolicy | None = None
+
+    @model_validator(mode="after")
+    def exact_action(self):
+        if (self.operation == "behavior") != (self.policy is not None):
+            raise ValueError("Suggested behavior requires its exact policy")
+        if len({m.entity_id for m in self.members}) != len(self.members) or len({m.asset_id for m in self.members}) != len(self.members):
+            raise ValueError("Suggested members must be unique")
+        return self
+
+
+class RecommendationUnchanged(Model):
+    entity_id: Id
+    disposition: Literal["unchanged", "excluded"]
+    reason: str = Field(min_length=1, max_length=500)
+
+
+class RecommendationOption(Model):
+    id: Id
+    title: str = Field(min_length=1, max_length=160)
+    explanation: str = Field(min_length=1, max_length=1200)
+    consequences: list[str] = Field(max_length=6)
+    unchanged_entity_ids: list[Id] = Field(max_length=32)
+    unchanged_reasons: list[RecommendationUnchanged] = Field(max_length=32)
+    action: SuggestedAction | None = None
+
+    @model_validator(mode="after")
+    def explain_unchanged(self):
+        if len(self.unchanged_reasons) != len(set(self.unchanged_entity_ids)) or {r.entity_id for r in self.unchanged_reasons} != set(self.unchanged_entity_ids):
+            raise ValueError("Every unchanged member requires exactly one option-specific reason")
+        return self
+
+
+class RecommendationMember(Model):
+    entity_id: Id
+    label: str = Field(max_length=256)
+    available: bool
+    state: str = Field(max_length=500)
+    exclusion: str | None = Field(default=None, max_length=500)
+
+
+class RecommendationContext(Model):
+    schema_version: Literal["1.0"] = "1.0"
+    source: Literal["rules"] = "rules"
+    mission_id: Id
+    run_id: Id
+    executor_epoch: Id
+    source_id: Id
+    input_frame_id: Id
+    sequence: Sequence
+    created_at: UtcInstant
+    expires_at: UtcInstant
+    fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
+    selected_entity_ids: list[Id] = Field(min_length=1, max_length=32)
+    members: list[RecommendationMember] = Field(min_length=1, max_length=32)
+    eligible_target_ids: list[Id] = Field(max_length=32)
+    assignment_count: int = Field(ge=0, le=32)
+    situation: str = Field(max_length=1200)
+    unavailable_reason: str | None = Field(default=None, max_length=500)
+
+
+class RecommendationSet(RecommendationContext):
+    id: Id
+    options: list[RecommendationOption] = Field(min_length=1, max_length=4)
+
+
+class RecommendationRef(Model):
+    recommendation_id: Id
+    option_id: Id
+
+
+class RecommendationAudit(RecommendationContext):
+    recommendation_id: Id
+    option: RecommendationOption
+
+
+class RecommendationRequest(Model):
+    entity_ids: list[Id] = Field(min_length=1, max_length=32)
+
+    @model_validator(mode="after")
+    def unique_selection(self):
+        if len(set(self.entity_ids)) != len(self.entity_ids):
+            raise ValueError("Select each entity once")
+        return self
+
+
 class Intent(Model):
+    recommendation: RecommendationAudit | None = None
     policy: BehaviorPolicy | None = None
     id: Id
     mission_id: Id
@@ -266,6 +356,8 @@ class Intent(Model):
 
     @model_validator(mode="after")
     def target(self):
+        if self.recommendation is not None and self.action not in {"behavior", "stop", "return-to-script"}:
+            raise ValueError("Recommendation audit requires an existing selected command")
         if (self.action == "behavior") != (self.policy is not None):
             raise ValueError("Behavior requires its exact policy")
         if (self.action == "boundary-edit") != (self.boundary is not None):
@@ -282,6 +374,7 @@ class Intent(Model):
 
 
 class IntentRequest(Model):
+    recommendation: RecommendationRef | None = None
     policy: BehaviorPolicy | None = None
     action: Action
     boundary: BoundaryMutation | None = None
@@ -291,6 +384,8 @@ class IntentRequest(Model):
 
     @model_validator(mode="after")
     def selection(self):
+        if self.recommendation is not None and self.action not in {"behavior", "stop", "return-to-script"}:
+            raise ValueError("Recommendations only reference selected commands")
         if (self.action == "behavior") != (self.policy is not None):
             raise ValueError("Behavior requires its exact policy")
         if (self.action == "boundary-edit") != (self.boundary is not None):
@@ -426,3 +521,5 @@ class CommandContracts(Model):
     move: MoveRequest
     direct_move: DirectMoveRequest
     executions: ExecutionRead
+    recommendation_request: RecommendationRequest
+    recommendations: RecommendationSet

@@ -1,13 +1,16 @@
-import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { useEffect, useRef } from 'react';
 import { Pentagon, Pencil, Trash2 } from 'lucide-react';
-import { useOperationalRuntime } from '../../app/OperationalContext';
+import {
+  useOperationalRuntime,
+  useOperationalSnapshot,
+} from '../../app/OperationalContext';
 import { boundaryLabels, boundaryContains } from '../../world/boundaryGeometry';
 import type { BoundaryDefinition } from '../../contracts/generated';
 import { boundaryEditorContext } from '../../world/boundaryContext';
 
 export function BoundaryPanel({ viewId }: { viewId?: string }) {
   const runtime = useOperationalRuntime()!;
-  const state = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot),
+  const state = useOperationalSnapshot(runtime),
     scenario = boundaryEditorContext(state);
   const edit = scenario.boundaryEdit,
     error = useRef<HTMLDivElement>(null),
@@ -321,7 +324,7 @@ export function BoundaryPanel({ viewId }: { viewId?: string }) {
 
 export function LiveBoundaryList() {
   const runtime = useOperationalRuntime()!;
-  const state = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot),
+  const state = useOperationalSnapshot(runtime),
     frame = state.presentation.frame;
   if (!frame?.boundaryRules) return null;
   return (

@@ -65,7 +65,7 @@ await withD5Runtime(
         .getByRole('checkbox', { name: 'Select F-01', exact: true })
         .check();
       await page
-        .getByRole('button', { name: 'Simulated cockpit', exact: true })
+        .getByRole('button', { name: 'Video Feed', exact: true })
         .click();
       await expect
         .poll(async () => (await inspect()).cockpit?.ready)
@@ -96,7 +96,7 @@ await withD5Runtime(
         'Backend restart: valid new executor epoch, same exact paused anchor, no camera travel',
       );
       await page.screenshot({ path: resolve(output, 'restart-paused.png') });
-      await tab('Simulated cockpit', 'Close view');
+      await tab('Video Feed', 'Close view');
       await page.setViewportSize({ width: 3840, height: 2160 });
       for (let index = 2; index <= 4; index++) {
         await tab(
@@ -121,7 +121,7 @@ await withD5Runtime(
         .getByRole('button', { name: 'Open Details', exact: true })
         .click();
       await page
-        .getByRole('button', { name: 'Simulated cockpit', exact: true })
+        .getByRole('button', { name: 'Video Feed', exact: true })
         .click();
       await expect(page.locator('.cockpit-pane')).toContainText(
         'Renderer capacity reached',

@@ -4,6 +4,30 @@ import type { CockpitPose, CockpitState } from '../../world/cockpit';
 export type CockpitEnvironment = 'standard' | 'photorealistic';
 export const cockpitEnvironmentKey = 'sentinel.cockpit.environment.v1';
 type PreferenceStorage = Pick<Storage, 'getItem' | 'setItem'>;
+export const videoOverlaysKey = 'sentinel.videoFeed.overlays.v1';
+export function readVideoOverlays(storage?: PreferenceStorage): boolean {
+  try {
+    return (
+      (storage ?? globalThis.localStorage)?.getItem(videoOverlaysKey) !==
+      'false'
+    );
+  } catch {
+    return true;
+  }
+}
+export function saveVideoOverlays(
+  enabled: boolean,
+  storage?: PreferenceStorage,
+) {
+  try {
+    (storage ?? globalThis.localStorage)?.setItem(
+      videoOverlaysKey,
+      String(enabled),
+    );
+  } catch {
+    /* The explicit current-session choice still applies. */
+  }
+}
 
 export const hasGoogleEnvironment = (provider: CesiumProvider) =>
   !!(provider.googleKey || (provider.token && provider.photorealisticAssetId));
@@ -41,7 +65,7 @@ export function saveCockpitEnvironment(
 export function cockpitNotice(state: CockpitState) {
   switch (state.phase) {
     case 'non-op':
-      return { title: 'VIEW INACTIVE', detail: 'Connection Lost' };
+      return { title: 'VIEW INACTIVE', detail: 'NON-OP · simulated loss' };
     case 'ended':
       return { title: 'DEMO ENDED', detail: 'Frozen simulated viewpoint' };
     case 'disconnected':

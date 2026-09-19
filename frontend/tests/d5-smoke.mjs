@@ -52,7 +52,7 @@ await withD5Runtime(
         .getByRole('checkbox', { name: 'Select F-01', exact: true })
         .check();
       await page
-        .getByRole('button', { name: 'Simulated cockpit', exact: true })
+        .getByRole('button', { name: 'Video Feed', exact: true })
         .click();
       await expect
         .poll(
@@ -69,7 +69,7 @@ await withD5Runtime(
       );
       await page.screenshot({ path: resolve(output, '01-standard.png') });
       await page
-        .getByLabel('Cockpit environment', { exact: true })
+        .getByLabel('Video Feed environment', { exact: true })
         .selectOption('photorealistic');
       await expect
         .poll(

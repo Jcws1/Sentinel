@@ -124,12 +124,14 @@ export function symbolCanvas(
   const context = canvas.getContext('2d')!;
   context.scale(2, 2);
   context.translate(14, 14);
+  const glyph =
+    style === 'silhouette' && profileId ? unitGlyphs[profileId] : undefined;
   if (selected || keyboard) {
     context.strokeStyle = selected ? '#eef2f5' : '#aab4bf';
     context.lineWidth = 1;
     if (keyboard && !selected) context.setLineDash([2, 2]);
     context.beginPath();
-    context.arc(0, 0, 12, 0, Math.PI * 2);
+    context.arc(0, 0, glyph ? 13 : 12, 0, Math.PI * 2);
     context.stroke();
     context.setLineDash([]);
   }
@@ -137,33 +139,34 @@ export function symbolCanvas(
   context.globalAlpha = nonOperational ? 1 : stale || unavailable ? 0.55 : 1;
   context.fillStyle = '#0b1015';
   context.strokeStyle = nonOperational ? '#9ba5af' : symbol.color;
-  context.lineWidth = 2;
+  context.lineWidth = glyph ? 1.5 : 2;
   context.beginPath();
-  if (symbol.shape === 'circle') context.arc(0, 0, 7, 0, Math.PI * 2);
+  if (symbol.shape === 'circle')
+    context.arc(0, 0, glyph ? 9 : 7, 0, Math.PI * 2);
   else if (symbol.shape === 'diamond') {
-    context.moveTo(0, -9);
-    context.lineTo(9, 0);
-    context.lineTo(0, 9);
-    context.lineTo(-9, 0);
+    const radius = glyph ? 11 : 9;
+    context.moveTo(0, -radius);
+    context.lineTo(radius, 0);
+    context.lineTo(0, radius);
+    context.lineTo(-radius, 0);
     context.closePath();
-  } else if (symbol.shape === 'rectangle') context.rect(-9, -6, 18, 12);
+  } else if (symbol.shape === 'rectangle') {
+    if (glyph) context.rect(-10, -7, 20, 14);
+    else context.rect(-9, -6, 18, 12);
+  } else if (glyph) context.rect(-8, -8, 16, 16);
   else context.rect(-7, -7, 14, 14);
   context.fill();
   context.stroke();
-  const glyph =
-    style === 'silhouette' && profileId ? unitGlyphs[profileId] : undefined;
   if (glyph) {
     // Type is shared across affiliations; the surrounding frame retains meaning without colour.
-    context.fillStyle = '#0b1015';
-    context.fillRect(-8, -5, 16, 10);
+    context.fillStyle = context.strokeStyle;
     context.save();
-    context.scale(0.72, 0.72);
+    // Keep the complete silhouette inside every affiliation frame.
+    const scale = symbol.shape === 'diamond' ? 0.46 : 0.52;
+    context.scale(scale, scale);
     context.translate(-12, -12);
-    context.lineWidth = 1.7;
-    context.lineJoin = 'round';
     const path = new Path2D(glyph);
     context.fill(path);
-    context.stroke(path);
     context.restore();
   }
   if (nonOperational) {

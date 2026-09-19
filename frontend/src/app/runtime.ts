@@ -1,4 +1,8 @@
 import { captureScriptControl } from '../world/scriptControl';
+import {
+  createRecommendationClient,
+  type RecommendationState,
+} from '../services/recommendationClient';
 import { captureBehavior, interceptSelection } from '../world/behavior';
 import { createEngagementCues } from '../world/engagementCues';
 import { createMotionPresentation } from '../world/motionPresentation';
@@ -27,6 +31,7 @@ import { decodeStream } from '../contracts/decode';
 import {
   withinScenarioExtent,
   decodeScenarioWrite,
+  MAX_SCENARIO_UNITS,
 } from '../contracts/scenarios';
 import {
   createScenarioClient,
@@ -62,6 +67,7 @@ import {
 } from '../world/observedHistory';
 
 export interface RuntimeSnapshot {
+  recommendations?: Readonly<RecommendationState>;
   cockpit?: Readonly<CockpitState>;
   display?: Readonly<DisplayPreferences>;
   displayPersistence?: 'local' | 'session';
@@ -167,16 +173,17 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
     publish,
     timeoutMs: requestTimeout,
   });
+  const recommendations = createRecommendationClient({
+    input: () => snapshot,
+    interactive,
+    publish,
+  });
   const liveBoundaries = createLiveBoundaryEditor({
     publish,
     submit: (mutation) =>
-      interactive.perform(
-        'boundary-edit',
-        undefined,
-        undefined,
-        undefined,
-        mutation,
-      ),
+      interactive
+        .perform('boundary-edit', undefined, undefined, undefined, mutation)
+        .then(() => undefined),
   });
   const boundaryOwner = () =>
     scenarios.get().active ? scenarios : liveBoundaries;
@@ -204,7 +211,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       !!operational.overlays.history,
       operational.overlays.historyWindowSeconds ?? 60,
     );
-    snapshot = Object.freeze({
+    const nextSnapshot = {
       cockpit: cockpit.sync({
         presentation,
         session: operational,
@@ -232,6 +239,10 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       session: immutableCopy(operational),
       advancing,
       advanceError,
+    };
+    snapshot = Object.freeze({
+      ...nextSnapshot,
+      recommendations: recommendations.sync(nextSnapshot),
     });
     motion.update(
       presentation,
@@ -890,8 +901,10 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       let unit = draft.units.find((u) => u.id === placement.replaceId);
       if (unit) unit.position = { ...unit.position, longitudeDeg, latitudeDeg };
       else {
-        if (draft.units.length >= 32) {
-          scenarios.report('This demo supports up to 32 units.');
+        if (draft.units.length >= MAX_SCENARIO_UNITS) {
+          scenarios.report(
+            `This demo supports up to ${MAX_SCENARIO_UNITS} units.`,
+          );
           return;
         }
         unit = {
@@ -1002,6 +1015,9 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
         );
       }
     },
+    requestSuggestions: () => recommendations.refresh(),
+    applySuggestion: (id: string) => recommendations.apply(id),
+    dismissSuggestions: () => recommendations.dismiss(),
     applyBehavior: (kind: BehaviorPolicy['kind'], boundaryId?: string) => {
       try {
         const { members, policy } = captureBehavior(snapshot, kind, boundaryId);
@@ -1167,6 +1183,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       motion.dispose();
       if (disposed) return;
       disposed = true;
+      recommendations.dispose();
       interactive.dispose();
       scenarios.dispose();
       missionGeneration++;

@@ -71,7 +71,7 @@ await withD5Runtime(
         .getByRole('checkbox', { name: 'Select F-01', exact: true })
         .check();
       await page
-        .getByRole('button', { name: 'Simulated cockpit', exact: true })
+        .getByRole('button', { name: 'Video Feed', exact: true })
         .click();
       const c = page.locator('.cockpit-pane');
       await expect(c).toContainText('north default');
@@ -153,9 +153,7 @@ await withD5Runtime(
       report.cases.push(
         'Real wall-time hidden suspension and 120-second expiry dispose cockpit',
       );
-      await page
-        .getByRole('tab', { name: 'Simulated cockpit', exact: true })
-        .click();
+      await page.getByRole('tab', { name: 'Video Feed', exact: true }).click();
       await expect
         .poll(
           () =>

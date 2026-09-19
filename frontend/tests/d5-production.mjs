@@ -40,7 +40,7 @@ await withD5Runtime(
         .getByRole('checkbox', { name: 'Select F-01', exact: true })
         .check();
       await page
-        .getByRole('button', { name: 'Simulated cockpit', exact: true })
+        .getByRole('button', { name: 'Video Feed', exact: true })
         .click();
       await expect(page.locator('.cockpit-pane canvas')).toBeVisible();
       await expect(page.locator('.cockpit-state')).toHaveText(
@@ -58,7 +58,7 @@ await withD5Runtime(
         'Built production cockpit operates; verification hooks absent',
       );
       await page.locator('.cockpit-options summary').click();
-      await page.getByRole('slider', { name: 'Cockpit look pitch' }).focus();
+      await page.getByRole('slider', { name: 'Video Feed look pitch' }).focus();
       await page.keyboard.press('Home');
       await expect(
         page.getByText('SIMULATED VIEW · no video feed', { exact: true }),
@@ -103,7 +103,7 @@ await withD5Runtime(
         .getByRole('checkbox', { name: 'Select F-01', exact: true })
         .check();
       await page
-        .getByRole('button', { name: 'Simulated cockpit', exact: true })
+        .getByRole('button', { name: 'Video Feed', exact: true })
         .click();
       await expect(page.locator('.cockpit-state')).toHaveText(
         'Ended · frozen simulated viewpoint',

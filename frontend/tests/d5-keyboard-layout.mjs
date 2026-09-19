@@ -77,7 +77,7 @@ await withD5Runtime(
         .getByRole('button', { name: 'Inspect F-01', exact: true })
         .click();
       await page
-        .getByRole('button', { name: 'Simulated cockpit', exact: true })
+        .getByRole('button', { name: 'Video Feed', exact: true })
         .click();
       await expect
         .poll(() =>
@@ -87,7 +87,10 @@ await withD5Runtime(
         )
         .toBe(true);
       await cockpit
-        .getByRole('button', { name: 'Place cockpit beside map', exact: true })
+        .getByRole('button', {
+          name: 'Place Video Feed beside map',
+          exact: true,
+        })
         .click();
       await page
         .getByRole('tab', { name: 'Tactical Map', exact: true })
@@ -120,17 +123,17 @@ await withD5Runtime(
         if ((await options.getAttribute('open')) === null)
           await options.locator('summary').click();
         for (const name of [
-          'Place cockpit beside map',
+          'Place Video Feed beside map',
           'Follow selection',
-          'Cockpit environment',
-          'Cockpit look yaw',
-          'Cockpit look pitch',
+          'Video Feed environment',
+          'Video Feed look yaw',
+          'Video Feed look pitch',
           'Reset view',
         ]) {
           const element =
             name === 'Follow selection'
               ? cockpit.getByRole('checkbox')
-              : name === 'Cockpit environment'
+              : name === 'Video Feed environment'
                 ? cockpit.getByLabel(name, { exact: true })
                 : name.startsWith('Cockpit look')
                   ? cockpit.getByRole('slider', { name, exact: true })
@@ -148,7 +151,7 @@ await withD5Runtime(
           .locator('.workspace-scroll')
           .evaluate((e) => (e.scrollLeft = e.scrollWidth));
         await cockpit
-          .getByRole('slider', { name: 'Cockpit look pitch', exact: true })
+          .getByRole('slider', { name: 'Video Feed look pitch', exact: true })
           .focus();
         await verify(`${width} return from horizontal workspace scroll`);
         await cockpit
@@ -162,11 +165,14 @@ await withD5Runtime(
       if ((await fleet.getAttribute('aria-expanded')) !== 'true')
         await fleet.click();
       await cockpit
-        .getByRole('slider', { name: 'Cockpit look pitch', exact: true })
+        .getByRole('slider', { name: 'Video Feed look pitch', exact: true })
         .focus();
       await verify('760 Fleet open focus pitch');
       await cockpit
-        .getByRole('button', { name: 'Place cockpit beside map', exact: true })
+        .getByRole('button', {
+          name: 'Place Video Feed beside map',
+          exact: true,
+        })
         .focus();
       await verify('760 Fleet open focus placement');
       await page.screenshot({ path: resolve(output, '760-fleet-open.png') });

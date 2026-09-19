@@ -8,13 +8,22 @@ import {
   Info,
   Settings2,
   Camera,
+  ListChecks,
 } from 'lucide-react';
 
 // View kinds describe capabilities, never domain objects or individual pane instances.
 export const viewRegistry = {
+  suggestions: {
+    unavailable: '',
+    title: 'Suggestions',
+    category: 'Rules-based simulation choices',
+    icon: ListChecks,
+    description: 'Review existing Fleet actions before explicit Apply.',
+    future: '',
+  },
   cockpit: {
     unavailable: '',
-    title: 'Simulated cockpit',
+    title: 'Video Feed',
     category: 'Simulated viewpoint',
     icon: Camera,
     description: 'One pinned simulated drone viewpoint. No video feed.',

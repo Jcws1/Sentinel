@@ -1,5 +1,7 @@
-import { useSyncExternalStore } from 'react';
-import { useOperationalRuntime } from '../../app/OperationalContext';
+import {
+  useOperationalRuntime,
+  useOperationalSnapshot,
+} from '../../app/OperationalContext';
 import type { ApplicationRuntime } from '../../app/runtime';
 import type { ViewId } from '../workspace/viewRegistry';
 import type { WorkspaceBridge } from '../workspace/workspaceBridge';
@@ -43,7 +45,7 @@ function Readout({
   viewId: ViewId;
   bridge: WorkspaceBridge;
 }) {
-  const state = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);
+  const state = useOperationalSnapshot(runtime);
   const frame = state.presentation.frame;
   if (!frame) return <EmptyView view={view} />;
   const selection = state.session.selection.primary;

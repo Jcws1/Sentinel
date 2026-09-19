@@ -1,7 +1,9 @@
-import { useSyncExternalStore } from 'react';
 import * as Menu from '@radix-ui/react-dropdown-menu';
 import { Info, ListChecks, CircleAlert, LoaderCircle } from 'lucide-react';
-import { useOperationalRuntime } from '../../app/OperationalContext';
+import {
+  useOperationalRuntime,
+  useOperationalSnapshot,
+} from '../../app/OperationalContext';
 import type { ApplicationRuntime } from '../../app/runtime';
 import type { WorkspaceBridge } from '../workspace/workspaceBridge';
 import { terminalExecution } from '../../world/movement';
@@ -19,7 +21,7 @@ function Chrome({
   runtime: ApplicationRuntime;
   bridge: WorkspaceBridge;
 }) {
-  const state = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot),
+  const state = useOperationalSnapshot(runtime),
     ui = state.interactive,
     frame = state.presentation.frame;
   const executions = frame?.interactive?.executions ?? [],

@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import { format, resolveConfig } from 'prettier';
 
 const frontend = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const contractDir = resolve(frontend, '../contracts/sentinel/v1.11');
+const contractDir = resolve(frontend, '../contracts/sentinel/v1.13');
 const files = [
   'world.schema.json',
   'stream.schema.json',
@@ -66,7 +66,8 @@ function normalize(value) {
     value.additionalItems = false;
     delete value.prefixItems;
   }
-  if (value.title && value.type !== 'object') delete value.title;
+  if (typeof value.title === 'string' && value.type !== 'object')
+    delete value.title;
   Object.values(value).forEach(normalize);
 }
 normalize(schema);
@@ -79,7 +80,7 @@ const fingerprint = createHash('sha256')
   .digest('hex');
 const generated = await compile(schema, 'BackendContracts', {
   unreachableDefinitions: true,
-  bannerComment: `/* Generated from backend contract package v1.11 JSON Schemas; do not edit.\n * Source SHA-256: ${fingerprint}\n */`,
+  bannerComment: `/* Generated from backend contract package v1.13 JSON Schemas; do not edit.\n * Source SHA-256: ${fingerprint}\n */`,
   style: { singleQuote: true, semi: true },
 });
 const target = resolve(frontend, 'src/contracts/generated.ts');

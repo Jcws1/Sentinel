@@ -1,7 +1,9 @@
-import { useSyncExternalStore } from 'react';
 import { Camera, Drone, Pin, X } from 'lucide-react';
 import { cockpitCandidate } from '../../world/cockpit';
-import { useOperationalRuntime } from '../../app/OperationalContext';
+import {
+  useOperationalRuntime,
+  useOperationalSnapshot,
+} from '../../app/OperationalContext';
 import { entityRows, type EntityRow } from '../../world/entityRows';
 import { observedSegments } from '../../world/observedSegments';
 import type { ApplicationRuntime, RuntimeSnapshot } from '../../app/runtime';
@@ -137,7 +139,7 @@ export function EntityDetails({
   id?: ViewId;
 }) {
   const runtime = useOperationalRuntime()!,
-    state = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);
+    state = useOperationalSnapshot(runtime);
   const pinned = id !== 'details',
     identity = pinned ? inspectorIdentity(id) : undefined,
     frame = state.presentation.frame;
@@ -330,10 +332,10 @@ export function EntityDetails({
                   },
                   row.entity.id,
                 ).reason ??
-                'Open or rebind the one simulated cockpit. Viewing does not acquire control.'
+                'Open or rebind the one simulated video view. Viewing does not acquire control.'
               }
             >
-              <Camera size={14} aria-hidden="true" /> Simulated cockpit
+              <Camera size={14} aria-hidden="true" /> Video Feed
             </button>
           )}
           {state.presentation.status === 'stale' && (

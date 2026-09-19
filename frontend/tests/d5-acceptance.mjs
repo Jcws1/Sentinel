@@ -86,7 +86,7 @@ await withD5Runtime(
     };
     const open = async () => {
       await page
-        .getByRole('button', { name: 'Simulated cockpit', exact: true })
+        .getByRole('button', { name: 'Video Feed', exact: true })
         .click();
     };
     const ready = async () =>
@@ -163,7 +163,7 @@ await withD5Runtime(
       );
       await shot('01-ready');
       await page
-        .getByRole('button', { name: 'Place cockpit beside map' })
+        .getByRole('button', { name: 'Place Video Feed beside map' })
         .click();
       await select('F-02');
       expect(JSON.parse(await cockpit().getAttribute('data-binding'))[3]).toBe(
@@ -253,10 +253,12 @@ await withD5Runtime(
       await cockpit()
         .getByText('View controls and pose', { exact: true })
         .click();
-      await cockpit().getByRole('slider', { name: 'Cockpit look yaw' }).focus();
+      await cockpit()
+        .getByRole('slider', { name: 'Video Feed look yaw' })
+        .focus();
       await page.keyboard.press('End');
       await cockpit()
-        .getByRole('slider', { name: 'Cockpit look pitch' })
+        .getByRole('slider', { name: 'Video Feed look pitch' })
         .focus();
       await page.keyboard.press('Home');
       expect((await inspect()).cockpit.actualPosition).toEqual(frozen);
@@ -363,7 +365,7 @@ await withD5Runtime(
       );
       await expect(cockpit()).toContainText('Renderer unavailable');
       await cockpit()
-        .getByRole('button', { name: 'Restart cockpit renderer' })
+        .getByRole('button', { name: 'Restart Video Feed renderer' })
         .click();
       await ready();
       check('Context failure and explicit renderer restart');
@@ -375,7 +377,7 @@ await withD5Runtime(
       const mid = initial.mission.id;
       report.ended = await world(mid);
       await shot('ended');
-      await tab('Simulated cockpit', 'Close view');
+      await tab('Video Feed', 'Close view');
       expect((await pool()).leases.some((l) => l.role === 'cockpit')).toBe(
         false,
       );

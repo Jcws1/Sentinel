@@ -5,6 +5,26 @@ import {
   validateBoundary,
 } from '../../src/world/boundaryGeometry';
 import { layoutLabels } from '../../src/renderers/labelLayout';
+
+it('retains a valid 3D label offset during small camera changes', () => {
+  const anchor = {
+    id: 'a',
+    x: 100,
+    y: 15,
+    width: 70,
+    height: 20,
+    offsetX: 18,
+    offsetY: 0,
+  };
+  const first = layoutLabels([anchor], 400, 300)[0];
+  const next = layoutLabels(
+    [{ ...anchor, y: 19, previous: first }],
+    400,
+    300,
+  )[0];
+  expect(first.offsetY).toBe(28);
+  expect(next.offsetY).toBe(first.offsetY);
+});
 import { MapGestures } from '../../src/renderers/gestures';
 import type { BoundaryDefinition } from '../../src/contracts/generated';
 function setup() {

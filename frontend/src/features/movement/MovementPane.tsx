@@ -1,5 +1,8 @@
-import { useState, useSyncExternalStore } from 'react';
-import { useOperationalRuntime } from '../../app/OperationalContext';
+import { useState } from 'react';
+import {
+  useOperationalRuntime,
+  useOperationalSnapshot,
+} from '../../app/OperationalContext';
 import type { ApplicationRuntime, RuntimeSnapshot } from '../../app/runtime';
 import type { DeepReadonly } from '../../contracts/types';
 import type { MovementExecution } from '../../contracts/generated';
@@ -372,7 +375,7 @@ function CommandResult({
 
 export function MovementPane({ bridge }: { bridge: WorkspaceBridge }) {
   const runtime = useOperationalRuntime()!,
-    state = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);
+    state = useOperationalSnapshot(runtime);
   const [longitude, setLongitude] = useState(''),
     [latitude, setLatitude] = useState(''),
     [coordinateError, setCoordinateError] = useState<string>();

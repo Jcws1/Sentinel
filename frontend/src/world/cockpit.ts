@@ -104,7 +104,7 @@ export function cockpitCandidate(
   if (!entity)
     return { reason: 'The selected entity is missing from this frame.' };
   if (entity.affiliation !== 'friendly' || !drone(frame, entityId))
-    return { reason: 'Only friendly simulated drones support a cockpit view.' };
+    return { reason: 'Only friendly simulated drones support a Video Feed.' };
   const controls =
     frame.interactive?.controls.filter((c) => c.entityId === entityId) ?? [];
   if (controls.length > 1)
@@ -148,8 +148,7 @@ export function createCockpitPresentation() {
     status: 'View unavailable',
     phase: 'unavailable',
     interpolating: false,
-    reason:
-      'Select a friendly simulated drone and open Simulated cockpit in Details.',
+    reason: 'Select a friendly simulated drone and open Video Feed in Details.',
   };
   let lastHeading: number | undefined;
   let lastPose: CockpitPose | undefined;
@@ -271,7 +270,7 @@ export function createCockpitPresentation() {
         )
       )
         return unavailable(
-          'The declared control Track changed. Reopen the cockpit explicitly.',
+          'The declared control Track changed. Reopen Video Feed explicitly.',
         );
       const sample = track.latest;
       const p = sample.position;
@@ -285,7 +284,7 @@ export function createCockpitPresentation() {
       const height = visualHeight(p.altitude);
       if (!height || height.quality !== 'ellipsoid')
         return unavailable(
-          `Unsupported cockpit altitude: ${p.altitude.reference}${p.altitude.datumId ? ` / ${p.altitude.datumId}` : ''}. A supported WGS84 ellipsoid height is required.`,
+          `Unsupported Video Feed altitude: ${p.altitude.reference}${p.altitude.datumId ? ` / ${p.altitude.datumId}` : ''}. A supported WGS84 ellipsoid height is required.`,
         );
       const nonOp = entity.condition === 'non-operational';
       const ended =

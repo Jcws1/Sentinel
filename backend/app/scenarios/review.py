@@ -4,15 +4,16 @@ from pydantic import Field, model_validator
 from app.domain.base import Model, Finite, Id, UtcInstant
 from app.scenarios.contracts import ScenarioRef
 from app.commands.unit_profiles import UnitProfile
+from app.domain.capacity import MAX_SCENARIO_UNITS
 
 
 class ScenarioCounts(Model):
-    total: int = Field(ge=0, le=32)
-    friendly: int = Field(ge=0, le=32)
-    hostile: int = Field(ge=0, le=32)
-    unknown: int = Field(ge=0, le=32)
+    total: int = Field(ge=0, le=MAX_SCENARIO_UNITS)
+    friendly: int = Field(ge=0, le=MAX_SCENARIO_UNITS)
+    hostile: int = Field(ge=0, le=MAX_SCENARIO_UNITS)
+    unknown: int = Field(ge=0, le=MAX_SCENARIO_UNITS)
     controlled: int = Field(ge=0, le=32)
-    observation_only: int = Field(ge=0, le=32)
+    observation_only: int = Field(ge=0, le=MAX_SCENARIO_UNITS)
 
     @model_validator(mode="after")
     def totals(self):
@@ -46,7 +47,7 @@ class ScriptTimingReview(Model):
 
 
 class ScenarioReview(Model):
-    schema_version: Literal["1.4"] = "1.4"
+    schema_version: Literal["1.4", "1.5"] = "1.4"
     reference: ScenarioRef
     name: str
     checked_at: UtcInstant
@@ -62,6 +63,8 @@ class ScenarioReview(Model):
 
     @model_validator(mode="after")
     def evidence(self):
+        if self.schema_version == "1.4" and self.counts.total > 32:
+            raise ValueError("Expanded capacity requires scenario review 1.5")
         if self.can_run != (not self.issues):
             raise ValueError("Review eligibility and issues disagree")
         return self

@@ -1,6 +1,6 @@
 import re
 from fastapi import APIRouter, Request
-from app.commands.contracts import CommandRequest, CreateRunRequest, DemoEntry, Intent, IntentRequest, ReceiptRead, RunRead, MoveRequest, DirectMoveRequest, ExecutionRead
+from app.commands.contracts import CommandRequest, CreateRunRequest, DemoEntry, Intent, IntentRequest, ReceiptRead, RunRead, MoveRequest, DirectMoveRequest, ExecutionRead, RecommendationRequest, RecommendationSet
 from app.commands.service import CommandError
 
 router = APIRouter(prefix="/api/interactive", tags=["local synthetic demo"])
@@ -37,7 +37,13 @@ async def status(mission_id: str, request: Request):
 
 @router.post("/{mission_id}/intents", response_model=Intent, response_model_exclude_none=True)
 async def intent(mission_id: str, command: IntentRequest, request: Request):
-    return await request.app.state.interactive.issue_intent(mission_id, command.action, command.execution_id, command.members, command.order, command.boundary, command.policy)
+    return await request.app.state.interactive.issue_intent(mission_id, command.action, command.execution_id, command.members, command.order, command.boundary, command.policy, command.recommendation)
+
+
+@router.post("/{mission_id}/recommendations", response_model=RecommendationSet, response_model_exclude_none=True)
+async def recommendations(mission_id: str, selection: RecommendationRequest, request: Request):
+    # POST carries a bounded selection; this endpoint never writes authoritative state.
+    return await request.app.state.interactive.suggest(mission_id, selection, credential(request))
 
 
 @router.post("/{mission_id}/commands", response_model=ReceiptRead, response_model_exclude_none=True)

@@ -60,7 +60,7 @@ await withD5Runtime(
     };
     const open = async () => {
       await page
-        .getByRole('button', { name: 'Simulated cockpit', exact: true })
+        .getByRole('button', { name: 'Video Feed', exact: true })
         .click();
       await expect
         .poll(async () => (await inspect())?.ready, { timeout: 45000 })
@@ -164,7 +164,7 @@ await withD5Runtime(
       viewing = true;
       await open();
       await expect(
-        c.getByLabel('Cockpit environment', { exact: true }),
+        c.getByLabel('Video Feed environment', { exact: true }),
       ).toHaveValue('photorealistic');
       await expect
         .poll(async () => (await inspect())?.environment.photoVisibleTiles, {
@@ -181,15 +181,13 @@ await withD5Runtime(
       const binding = await c.getAttribute('data-binding'),
         anchor = (await inspect()).cockpit.actualPosition;
       await select('Refine Quad');
-      await page
-        .getByRole('tab', { name: 'Simulated cockpit', exact: true })
-        .click();
+      await page.getByRole('tab', { name: 'Video Feed', exact: true }).click();
       expect(await c.getAttribute('data-binding')).toBe(binding);
       await c.getByRole('checkbox', { name: /Follow selection/ }).check();
       await expect(c).toContainText('Refine Quad');
       await c.getByRole('checkbox', { name: /Follow selection/ }).uncheck();
       await c
-        .getByLabel('Cockpit environment', { exact: true })
+        .getByLabel('Video Feed environment', { exact: true })
         .selectOption('standard');
       await expect
         .poll(async () => (await inspect())?.spatial, { timeout: 60000 })
@@ -202,10 +200,10 @@ await withD5Runtime(
       await page.waitForTimeout(3500);
       report.standard = await inspect();
       await shot('02-standard-quad');
-      await tab('Simulated cockpit', 'Close view');
+      await tab('Video Feed', 'Close view');
       await open();
       await expect(
-        c.getByLabel('Cockpit environment', { exact: true }),
+        c.getByLabel('Video Feed environment', { exact: true }),
       ).toHaveValue('standard');
       report.checks.push(
         'Explicit standard choice survives close/reopen; pinned and follow selection rebind the same viewer',
@@ -214,7 +212,7 @@ await withD5Runtime(
         route.fulfill({ status: 503, body: '' }),
       );
       await c
-        .getByLabel('Cockpit environment', { exact: true })
+        .getByLabel('Video Feed environment', { exact: true })
         .selectOption('photorealistic');
       await expect(c.locator('.cockpit-provider-status')).toContainText(
         'Google 3D unavailable or incomplete',
@@ -239,7 +237,10 @@ await withD5Runtime(
       await select('Refine STING');
       await open();
       await c
-        .getByRole('button', { name: 'Place cockpit beside map', exact: true })
+        .getByRole('button', {
+          name: 'Place Video Feed beside map',
+          exact: true,
+        })
         .click();
       await tab('Tactical Map', 'New Tactical pane');
       await page
@@ -251,7 +252,7 @@ await withD5Runtime(
       const mapBefore = await page.evaluate(
         () => globalThis.__sentinelCesiumTest.inspect('tactical:2').camera,
       );
-      await c.getByRole('slider', { name: 'Cockpit look pitch' }).focus();
+      await c.getByRole('slider', { name: 'Video Feed look pitch' }).focus();
       await page.keyboard.press('ArrowLeft');
       expect((await inspect()).cockpit.actualPosition).toEqual(anchor);
       const mapAfter = await page.evaluate(
@@ -409,7 +410,7 @@ await withD5Runtime(
       await open();
       await expect(c.locator('.cockpit-notice')).toContainText('DEMO ENDED');
       await shot('06-ended');
-      await tab('Simulated cockpit', 'Close view');
+      await tab('Video Feed', 'Close view');
       await open();
       await expect(c.locator('.cockpit-notice')).toContainText('DEMO ENDED');
       report.checks.push(

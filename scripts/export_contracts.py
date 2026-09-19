@@ -48,7 +48,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
     options = parser.parse_args()
-    output = ROOT / "contracts" / "sentinel" / "v1.11"
+    output = ROOT / "contracts" / "sentinel" / "v1.13"
     failures = []
     for name, value in exports().items():
         text = json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False) + "\n"

@@ -79,6 +79,8 @@ import type { CesiumProvider } from './config';
 import { ionImagery } from './ionImagery';
 import { RequestRecovery } from './requestRecovery';
 import { presentCredits } from './attribution';
+import { VideoEntityOverlay } from './VideoEntityOverlay';
+import type { VideoOverlayFrame } from '../../world/videoOverlay';
 
 const counts = { created: 0, disposed: 0, active: 0 };
 const probes = new Map<string, CesiumAdapter>();
@@ -113,6 +115,7 @@ const initialSpatial = (): SpatialStatus => ({
 /** Renderer-owned WebGL/resources only. The complete shared scene is its sole world input. */
 export class CesiumAdapter implements MapRenderer {
   private readonly viewer: Viewer;
+  private readonly videoOverlay?: VideoEntityOverlay;
   private readonly observer: ResizeObserver;
   private readonly gestures?: MapGestures;
   private cockpitPose?: CockpitCameraFrame;
@@ -225,7 +228,28 @@ export class CesiumAdapter implements MapRenderer {
     private readonly role: 'map' | 'cockpit' = 'map',
   ) {
     this.bookmark = initialCamera;
-    this.viewer = new Viewer(container, {
+    // The image and credits have separate layout boxes. The SDK still owns all
+    // provider attribution and its dialog; retained leases move them together.
+    const surface =
+      role === 'cockpit'
+        ? container.ownerDocument.createElement('div')
+        : container;
+    const creditContainer =
+      role === 'cockpit'
+        ? container.ownerDocument.createElement('div')
+        : undefined;
+    if (creditContainer) {
+      surface.className = 'video-render-surface';
+      creditContainer.className = 'video-attribution';
+      creditContainer.setAttribute(
+        'aria-label',
+        'Rendered environment attribution',
+      );
+      creditContainer.setAttribute('role', 'group');
+      container.classList.add('video-render-layout');
+      container.append(surface, creditContainer);
+    }
+    this.viewer = new Viewer(surface, {
       // Never allow Viewer to implicitly subscribe to default imagery or geocoding.
       baseLayer: false,
       baseLayerPicker: false,
@@ -249,7 +273,12 @@ export class CesiumAdapter implements MapRenderer {
       useBrowserRecommendedResolution: false,
       showRenderLoopErrors: false,
       creditViewport: container,
+      creditContainer,
     });
+    if (role === 'cockpit')
+      this.videoOverlay = new VideoEntityOverlay(surface, () =>
+        this.viewer.scene.requestRender(),
+      );
     this.removers.push(
       presentCredits(this.viewer, container, () => this.photorealistic),
     );
@@ -310,7 +339,7 @@ export class CesiumAdapter implements MapRenderer {
     canvas.tabIndex = role === 'cockpit' ? -1 : 0;
     canvas.setAttribute(
       'aria-label',
-      role === 'cockpit' ? 'Simulated cockpit environment' : '3D map',
+      role === 'cockpit' ? 'Video Feed rendered environment' : '3D map',
     );
     canvas.setAttribute(
       'aria-describedby',
@@ -362,6 +391,7 @@ export class CesiumAdapter implements MapRenderer {
           this.positionAcknowledgement();
           this.layoutBoundaryLabels();
         }
+        this.videoOverlay?.render(this.viewer.camera);
         this.scheduleClearance();
       }),
     );
@@ -419,7 +449,7 @@ export class CesiumAdapter implements MapRenderer {
       resize();
       this.saveCamera();
     });
-    this.observer.observe(container);
+    this.observer.observe(surface);
     if (role === 'map')
       this.restoreCamera(
         initialCamera ?? {
@@ -966,6 +996,7 @@ export class CesiumAdapter implements MapRenderer {
   }
   setActive(active: boolean) {
     if (this.disposed || active === this.active) return;
+    this.videoOverlay?.setActive(active);
     if (!active) {
       this.pendingWheel = undefined;
       if (this.wheelFrame !== undefined) cancelAnimationFrame(this.wheelFrame);
@@ -1054,6 +1085,7 @@ export class CesiumAdapter implements MapRenderer {
     if (!this.active) return;
     this.cockpitAppliedPose = pose;
     if (previous?.bindingKey !== pose.bindingKey) {
+      this.videoOverlay?.setFrame(undefined);
       this.cockpitIntersects = undefined;
       this.cockpitGeometryAt = 0;
       this.sampledGeometryRevision = -1;
@@ -1109,7 +1141,19 @@ export class CesiumAdapter implements MapRenderer {
       },
     });
     this.cockpitCameraUpdates++;
+    this.videoOverlay?.cameraChanged();
     this.viewer.scene.requestRender();
+  }
+  setVideoOverlay(frame?: VideoOverlayFrame) {
+    if (this.disposed || this.resourceFailed || this.role !== 'cockpit') return;
+    const pose = this.cockpitPose;
+    this.videoOverlay?.setFrame(
+      frame &&
+        frame.bindingKey === pose?.bindingKey &&
+        frame.frameId === pose.frameId
+        ? frame
+        : undefined,
+    );
   }
   setMotion(objects: readonly SceneObject[]) {
     if (this.role === 'cockpit') return;
@@ -1646,6 +1690,10 @@ export class CesiumAdapter implements MapRenderer {
         height: lines.length * 14 + 6,
         offsetX: boundary ? 6 : 18,
         offsetY: boundary ? -14 : 0,
+        previous: (() => {
+          const offset = label.pixelOffset?.getValue(time);
+          return offset && { offsetX: offset.x, offsetY: offset.y };
+        })(),
       });
     }
     // Keep legacy scenes' layout intact; deleting the last draft footprint also
@@ -2260,7 +2308,12 @@ export class CesiumAdapter implements MapRenderer {
         cacheBytes: 256 * 1024 * 1024,
         maximumCacheOverflowBytes: 128 * 1024 * 1024,
         showCreditsOnScreen: true,
-        enableCollision: true,
+        // The fixed Video eye does not use CPU collision/clamping. Leaving this
+        // enabled makes Scene.initializeFrame read whole tile meshes back from
+        // the GPU on each pose update, even with camera collision disabled.
+        // Our bounded public sampleHeight depth pass still reports intersections
+        // without moving the supplied eye. Navigable maps retain collision.
+        enableCollision: this.role === 'map',
         preloadFlightDestinations: false,
         preloadWhenHidden: false,
         loadSiblings: false,
@@ -2428,6 +2481,24 @@ export class CesiumAdapter implements MapRenderer {
       : undefined;
     return {
       role: this.role,
+      videoOverlay: this.videoOverlay?.inspect(),
+      ...(import.meta.env.MODE === 'verification' && this.videoOverlay
+        ? {
+            sdkOverlayProjection: this.videoOverlay
+              .inspect()
+              .candidates?.map((o) => {
+                const point = SceneTransforms.worldToWindowCoordinates(
+                  this.viewer.scene,
+                  Cartesian3.fromDegrees(
+                    o.position.longitudeDeg,
+                    o.position.latitudeDeg,
+                    o.position.altitude.metres,
+                  ),
+                );
+                return { id: o.id, x: point?.x, y: point?.y };
+              }),
+          }
+        : {}),
       cockpit: this.cockpitPose && {
         ...this.cockpitPose,
         actualPosition: (() => {
@@ -2523,6 +2594,7 @@ export class CesiumAdapter implements MapRenderer {
           this.photorealistic?.maximumScreenSpaceError,
         globeShown: this.viewer.scene.globe.show,
         photorealisticLoaded: this.photorealistic?.tilesLoaded ?? false,
+        photorealisticCollision: this.photorealistic?.enableCollision,
         photorealisticBytes: this.photorealistic?.totalMemoryUsageInBytes ?? 0,
         photoVisibleTiles: this.photoVisibleTiles,
         photoFailures: this.photoFailures,
@@ -2606,6 +2678,7 @@ export class CesiumAdapter implements MapRenderer {
     this.clearPhotorealistic();
     for (const layer of ['imagery', 'terrain', 'buildings'] as const)
       this.clearLayer(layer);
+    this.videoOverlay?.dispose();
     this.viewer.destroy();
     this.markers.clear();
     this.symbols.clear();

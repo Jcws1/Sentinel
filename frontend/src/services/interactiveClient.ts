@@ -18,10 +18,13 @@ import type {
   MoveRequest,
   DirectMoveIntent,
   DirectMoveRequest,
+  RecommendationSet,
+  RecommendationOption,
 } from '../contracts/generated';
 import {
   decodeEntry,
   decodeIntent,
+  decodeRecommendations,
   decodeReceipt,
   decodeRunRead,
   decodeDirectMoveRequest,
@@ -86,6 +89,7 @@ export interface InteractiveState {
     | LegacyM12Receipt
   >;
   now?: string;
+  renewing?: boolean;
   holderId: string;
 }
 const pendingKey = 'sentinel.interactive.pending.v1';
@@ -170,8 +174,10 @@ export function createInteractiveClient(options: {
     disposed = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let abort: AbortController | undefined;
+  const advisoryReads = new Set<AbortController>();
   let polling = false;
   let managing = false;
+  let renewal: Promise<unknown> | undefined;
   let creatingDemo = false;
   const directSending = new Set<string>();
   let latestDirectId: string | undefined;
@@ -209,9 +215,11 @@ export function createInteractiveClient(options: {
     method = 'GET',
     body?: unknown,
     control = false,
+    advisory = false,
   ) {
     const controller = new AbortController();
-    if (method === 'POST') abort = controller;
+    if (advisory) advisoryReads.add(controller);
+    else if (method === 'POST') abort = controller;
     const deadline = setTimeout(
       () => controller.abort(),
       options.timeoutMs ?? 10_000,
@@ -249,6 +257,7 @@ export function createInteractiveClient(options: {
     } finally {
       clearTimeout(deadline);
       if (abort === controller) abort = undefined;
+      advisoryReads.delete(controller);
     }
   }
   async function refresh() {
@@ -419,11 +428,17 @@ export function createInteractiveClient(options: {
     members?: DirectMoveMember[],
     boundary?: BoundaryMutation,
     policy?: BehaviorPolicy,
+    recommendation?: {
+      set: RecommendationSet;
+      option: RecommendationOption;
+      current: () => boolean;
+    },
   ) {
     if (disposed || state.busy || pending) return;
     const gen = generation,
       mid = missionId;
     emit({ busy: true, error: undefined });
+    let submittedId: string | undefined;
     try {
       const session = identity();
       if (action === 'create') {
@@ -447,9 +462,49 @@ export function createInteractiveClient(options: {
             ...selection,
             ...(boundary ? { boundary } : {}),
             ...(policy ? { policy } : {}),
+            ...(recommendation
+              ? {
+                  recommendation: {
+                    recommendationId: recommendation.set.id,
+                    optionId: recommendation.option.id,
+                  },
+                }
+              : {}),
           }),
         );
         if (disposed || gen !== generation) return;
+        if (recommendation && !recommendation.current())
+          throw new Error('Suggestion context changed; refresh.');
+        if (recommendation) {
+          const {
+            id,
+            options: reviewedOptions,
+            ...context
+          } = recommendation.set;
+          if (
+            !reviewedOptions.some(
+              (option) =>
+                canonicalCommand(option) ===
+                canonicalCommand(recommendation.option),
+            )
+          )
+            throw new Error(
+              'Option is not part of the reviewed suggestion set.',
+            );
+          const expected = {
+            ...context,
+            recommendationId: id,
+            option: recommendation.option,
+          };
+          if (
+            canonicalCommand(intent.recommendation) !==
+            canonicalCommand(expected)
+          )
+            throw new Error(
+              'Suggestion audit differs from the reviewed option.',
+            );
+        } else if (intent.recommendation)
+          throw new Error('Unexpected suggestion audit.');
         if (
           intent.missionId !== mid ||
           intent.action !== action ||
@@ -478,7 +533,14 @@ export function createInteractiveClient(options: {
           },
         });
       }
+      submittedId =
+        'commandId' in pending!.body
+          ? pending!.body.commandId
+          : pending!.body.creationId;
       await transmit(pending!, gen);
+      return state.receipt?.requestId === submittedId
+        ? state.receipt
+        : undefined;
     } catch (e) {
       if (!disposed && gen === generation)
         emit({
@@ -491,6 +553,12 @@ export function createInteractiveClient(options: {
     } finally {
       if (!disposed && gen === generation) emit({ busy: false });
     }
+  }
+  async function foreground(...args: Parameters<typeof perform>) {
+    const requestedGeneration = generation;
+    if (renewal) await renewal;
+    if (requestedGeneration !== generation) return;
+    return perform(...args);
   }
   async function reconcile(resend = false) {
     if (!pending || state.busy || disposed) return;
@@ -520,6 +588,9 @@ export function createInteractiveClient(options: {
     }
   }
   async function submitMove(move: MoveIntent, commandId: string) {
+    const requestedGeneration = generation;
+    if (renewal) await renewal;
+    if (requestedGeneration !== generation) return;
     if (disposed || state.busy || pending || move.missionId !== missionId)
       return;
     const gen = generation;
@@ -898,8 +969,18 @@ export function createInteractiveClient(options: {
       Date.parse(current.run.lease.expiresAt!) -
         Date.parse(current.serverTime) <=
         20_000
-    )
-      await perform('renew');
+    ) {
+      // Give a foreground command the completed lease revision instead of silently
+      // dropping its click while the shared owner is renewing in the background.
+      renewal = Promise.resolve().then(() => perform('renew'));
+      emit({ renewing: true });
+      try {
+        await renewal;
+      } finally {
+        renewal = undefined;
+        if (!disposed) emit({ renewing: false });
+      }
+    }
     if (!disposed)
       timer = setTimeout(
         () => {
@@ -911,13 +992,46 @@ export function createInteractiveClient(options: {
   return {
     get: () => immutableCopy(state),
     reportControlError: (error: string) => emit({ error }),
-    perform,
+    perform: foreground,
+    async requestSuggestions(entityIds: string[]) {
+      if (!missionId || disposed) throw new Error('Open a current demo.');
+      const mid = missionId,
+        gen = generation;
+      const value = decodeRecommendations(
+        await request(
+          `/${encodeURIComponent(mid)}/recommendations`,
+          'POST',
+          { entityIds },
+          true,
+          true,
+        ),
+      );
+      if (disposed || gen !== generation || value.missionId !== mid)
+        throw new Error('Suggestion context changed; refresh.');
+      return value;
+    },
+    applySuggestion(
+      set: RecommendationSet,
+      option: RecommendationOption,
+      current: () => boolean,
+    ) {
+      if (!option.action) return Promise.resolve(undefined);
+      return foreground(
+        option.action.operation,
+        undefined,
+        undefined,
+        structuredClone(option.action.members),
+        undefined,
+        option.action.policy ?? undefined,
+        { set: structuredClone(set), option: structuredClone(option), current },
+      );
+    },
     selectedControl: (
       action: 'stop' | 'return-to-script',
       members: DirectMoveMember[],
-    ) => perform(action, undefined, undefined, structuredClone(members)),
+    ) => foreground(action, undefined, undefined, structuredClone(members)),
     applyBehavior: (members: DirectMoveMember[], policy: BehaviorPolicy) =>
-      perform(
+      foreground(
         'behavior',
         undefined,
         undefined,
@@ -936,6 +1050,7 @@ export function createInteractiveClient(options: {
       if (missionId === mid) return;
       generation++;
       abort?.abort();
+      for (const controller of advisoryReads) controller.abort();
       missionId = mid;
       const latest = directPending
         .filter((p) => p.missionId === mid)
@@ -974,6 +1089,7 @@ export function createInteractiveClient(options: {
       disposed = true;
       generation++;
       abort?.abort();
+      for (const controller of advisoryReads) controller.abort();
       clearTimeout(timer);
       clearInterval(healthTimer);
     },

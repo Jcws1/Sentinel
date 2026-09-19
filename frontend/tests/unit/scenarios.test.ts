@@ -10,6 +10,8 @@ import {
   decodeScenarioWrite,
   decodeScenarioReceipt,
   decodeScenarioReview,
+  decodeScenarioRevision,
+  decodeScenarioList,
   withinScenarioExtent,
 } from '../../src/contracts/scenarios';
 import { validateFrame } from '../../src/contracts/decode';
@@ -38,6 +40,79 @@ const content: ScenarioContent = {
     },
   ],
 };
+
+it('accepts 20v20, rejects 41 placements and 33 controlled units, and keeps old versions bounded', () => {
+  const forty: ScenarioContent = {
+    ...content,
+    units: Array.from({ length: 40 }, (_, i) => ({
+      ...structuredClone(content.units[0]),
+      id: `u-${i}`,
+      category: i < 20 ? 'friendly' : 'hostile',
+      commandRole: i < 20 ? 'sentinel' : 'observation',
+    })),
+  };
+  const body = { requestId: 'capacity', expectedRevision: 0, content: forty };
+  expect(decodeScenarioWrite(body).content.units).toHaveLength(40);
+  expect(() =>
+    decodeScenarioWrite({
+      ...body,
+      content: {
+        ...forty,
+        units: [...forty.units, { ...forty.units[0], id: 'extra' }],
+      },
+    }),
+  ).toThrow();
+  expect(() =>
+    decodeScenarioWrite({
+      ...body,
+      content: {
+        ...forty,
+        units: forty.units.map((u, i) =>
+          i < 33 ? { ...u, category: 'friendly', commandRole: 'sentinel' } : u,
+        ),
+      },
+    }),
+  ).toThrow(/32/);
+  const expanded = { ...revision(body), schemaVersion: '1.5' };
+  expect(decodeScenarioRevision(expanded).content.units).toHaveLength(40);
+  expect(() =>
+    decodeScenarioRevision({ ...expanded, schemaVersion: '1.4' }),
+  ).toThrow(/version/);
+  const receipt = { ...accepted(body), schemaVersion: '1.5', result: expanded };
+  expect(decodeScenarioReceipt(receipt).result?.content.units).toHaveLength(40);
+  expect(() =>
+    decodeScenarioReceipt({ ...receipt, schemaVersion: '1.4' }),
+  ).toThrow(/envelope/);
+  expect(
+    decodeScenarioList({ schemaVersion: '1.5', scenarios: [expanded] })
+      .scenarios,
+  ).toHaveLength(1);
+  for (const old of ['1.0', '1.1', '1.2', '1.3', '1.4'])
+    expect(() =>
+      decodeScenarioList({ schemaVersion: old, scenarios: [expanded] }),
+    ).toThrow(/envelope/);
+  const archived = {
+    ...expanded,
+    schemaVersion: '1.4',
+    content: {
+      ...forty,
+      units: forty.units
+        .slice(0, 32)
+        .map((u) => ({ ...u, profileId: 'hornet-10-v1' })),
+    },
+  };
+  expect(
+    decodeScenarioReceipt({
+      ...receipt,
+      schemaVersion: '1.4',
+      result: archived,
+    }).result?.content.units,
+  ).toHaveLength(32);
+  expect(
+    decodeScenarioList({ schemaVersion: '1.0', scenarios: [archived] })
+      .scenarios,
+  ).toHaveLength(1);
+});
 function revision(body: ScenarioWrite): ScenarioRevision {
   return {
     schemaVersion: '1.0',

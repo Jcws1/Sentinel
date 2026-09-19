@@ -9,15 +9,19 @@ import { setTimeout as sleep } from 'node:timers/promises';
 export async function withD5Runtime(options, run) {
   const {
     tag,
+    phase = 'd5',
     frontendPort = 5315,
     backendPort = 8115,
     configured = false,
     previewDir,
     viteConfig,
+    evidenceRoot,
+    backendDirectory,
   } = options;
-  if (!/^[a-z0-9-]+$/.test(tag)) throw Error('Invalid D5 task tag');
-  const output = resolve(`../docs/d5/${tag}`);
-  const database = resolve(`.cache/d5-${tag}-${process.pid}.sqlite3`);
+  if (!/^[a-z0-9-]+$/.test(tag) || !/^d[1-7]$/.test(phase))
+    throw Error('Invalid task tag');
+  const output = resolve(evidenceRoot ?? `../docs/${phase}`, tag);
+  const database = resolve(`.cache/${phase}-${tag}-${process.pid}.sqlite3`);
   mkdirSync(output, { recursive: true });
   mkdirSync('.cache', { recursive: true });
   const children = [],
@@ -60,7 +64,7 @@ export async function withD5Runtime(options, run) {
         String(backendPort),
       ],
       {
-        cwd: resolve('../backend'),
+        cwd: resolve(backendDirectory ?? '../backend'),
         env: {
           ...process.env,
           PYTHONDONTWRITEBYTECODE: '1',
@@ -153,7 +157,7 @@ export async function withD5Runtime(options, run) {
     if (report.servicesStopped && children.length) {
       const cleanup = spawnSync(
         resolve('../backend/.venv/Scripts/python.exe'),
-        [resolve('../docs/d5/cleanup_runtime.py'), database],
+        [resolve(`../docs/${phase}/cleanup_runtime.py`), database],
         { windowsHide: true, encoding: 'utf8', timeout: 20000 },
       );
       report.cleanupOk = cleanup.status === 0;

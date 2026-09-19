@@ -1,6 +1,7 @@
 """Opt-in deterministic synthetic source, independent of simulation semantics.
 
-The manifest explicitly declares one managed resource. No readiness, confidence,
+Alpha/Bravo explicitly declare one managed resource; the blank grid has none.
+No readiness, confidence,
 assignment, drone class, health, resolution or simulation lifecycle is fabricated.
 Coordinates describe an arbitrary non-operational test area.
 """
@@ -13,7 +14,8 @@ from app.missions.tactical_fixture import TACTICAL_FIXTURE_ID, tactical_mission,
 from app.missions.observation_fixture import OBSERVATION_FIXTURE_ID, observation_mission, observation_source
 from app.world.serialization import canonical
 
-FIXTURE_IDS = ("fixture-alpha", "fixture-bravo", TACTICAL_FIXTURE_ID, OBSERVATION_FIXTURE_ID)
+BLANK_GRID_FIXTURE_ID = "fixture-blank-grid"
+FIXTURE_IDS = ("fixture-alpha", "fixture-bravo", TACTICAL_FIXTURE_ID, OBSERVATION_FIXTURE_ID, BLANK_GRID_FIXTURE_ID)
 BASE_TIME = datetime(2026, 9, 10, 0, 0, 0, tzinfo=timezone.utc)
 
 
@@ -22,6 +24,14 @@ def instant(sequence: int) -> str:
 
 
 def fixture_mission(mission_id: str) -> Mission:
+    if mission_id == BLANK_GRID_FIXTURE_ID:
+        return Mission(
+            id=mission_id, name="Blank grid", domain="synthetic-map-foundation",
+            lifecycle="active", created_at=instant(0), updated_at=instant(0),
+            reference_point={"longitude_deg": 103.85, "latitude_deg": 1.29,
+                             "altitude": {"metres": 0.0, "reference": "ELLIPSOID", "datumId": "WGS84"}},
+            extensions={"sentinel.fixture": {"version": 1, "description": "Empty local grid. No entities or boundaries."}},
+        )
     if mission_id == OBSERVATION_FIXTURE_ID:
         return observation_mission()
     if mission_id == TACTICAL_FIXTURE_ID:
@@ -45,6 +55,8 @@ def fixture_source(mission_id: str, sequence: int, recorded_at: str) -> tuple[di
     provenance = {"source": source, "effectiveAt": effective_at, "recordedAt": recorded_at}
     frame = {"mission": mission, "effectiveAt": effective_at, "entities": {}, "tracks": {},
              "assets": {}, "sensors": {}, "zones": {}, "tasks": {}}
+    if mission_id == BLANK_GRID_FIXTURE_ID:
+        return frame, []
     count = (3 if mission_id == "fixture-alpha" else 2) + sequence % 2
     for index in range(count):
         entity_id = f"{mission_id}-object-{index + 1:02d}"
