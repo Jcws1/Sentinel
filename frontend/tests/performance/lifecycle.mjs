@@ -9,6 +9,9 @@ import { operatorUI } from '../support/operator-ui.mjs';
 import { loadPerformanceScenario } from './support.mjs';
 
 const perSide = Number(process.env.PERF_COUNT ?? 20);
+const soakSeconds = Number(process.env.PERF_SOAK_SECONDS ?? 120);
+if (![120, 600].includes(soakSeconds))
+  throw Error('Use the bounded 120 or 600 second soak');
 await withIsolatedRuntime(
   {
     tag: process.argv[2] ?? 'perf-lifecycle',
@@ -35,6 +38,10 @@ await withIsolatedRuntime(
       u = operatorUI(page, frontend);
     page.setDefaultTimeout(25000);
     const r = {
+      browser: browser.version(),
+      soakSeconds,
+      source:
+        'Foreground headed Edge, blank grid unless configured; 2560x1440 physical display, 144 Hz. Layout dimensions are emulated CSS viewports, DPR 1.',
       cases: [],
       errors: [],
       input: [],
@@ -42,6 +49,23 @@ await withIsolatedRuntime(
       resources: [],
       commands: [],
     };
+    const transport = {
+      opened: 0,
+      closed: 0,
+      messages: 0,
+      bytes: 0,
+      heartbeats: 0,
+    };
+    page.on('websocket', (socket) => {
+      transport.opened++;
+      socket.on('close', () => transport.closed++);
+      socket.on('framereceived', ({ payload }) => {
+        transport.messages++;
+        transport.bytes += payload.length;
+        if (JSON.parse(String(payload)).type === 'heartbeat')
+          transport.heartbeats++;
+      });
+    });
     page.on('pageerror', (e) =>
       r.errors.push(
         e.name +
@@ -75,6 +99,11 @@ await withIsolatedRuntime(
         heap: metrics.JSHeapUsedSize,
         nodes: metrics.Nodes,
         listeners: metrics.JSEventListeners,
+        foreground: await page.evaluate(() => ({
+          visible: document.visibilityState,
+          focused: document.hasFocus(),
+        })),
+        transport: { ...transport },
         state: await inspect(),
         services: JSON.parse(
           execFileSync(
@@ -95,6 +124,17 @@ await withIsolatedRuntime(
           }
         }, 0),
       });
+      writeFileSync(
+        resolve(output, 'progress.json'),
+        JSON.stringify(r, null, 2),
+      );
+      globalThis.console.log(
+        JSON.stringify({
+          resource: label,
+          heap: metrics.JSHeapUsedSize,
+          listeners: metrics.JSEventListeners,
+        }),
+      );
     };
     const command = async (
       label,
@@ -119,8 +159,14 @@ await withIsolatedRuntime(
       });
     };
     try {
-      await loadPerformanceScenario(page, frontend, perSide);
-      await u.tab('Conductor', 'Close view');
+      await loadPerformanceScenario(
+        page,
+        frontend,
+        perSide,
+        soakSeconds === 600 ? { routeHalfSpanDeg: 0.035 } : undefined,
+      );
+      await page.bringToFront();
+      await u.tab('Orchestrator', 'Close view');
       await u.select('Friendly 01');
       await page.evaluate(() =>
         globalThis.__sentinelMapTest.setCamera('tactical', {
@@ -250,7 +296,7 @@ await withIsolatedRuntime(
         .getByRole('button', { name: 'Open Tracks from Views', exact: true })
         .click();
       await page.getByRole('tab', { name: '3D Map', exact: true }).click();
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 10; i++) {
         await expect
           .poll(async () => (await inspect()).threeD?.retainable)
           .toBe(true);
@@ -266,15 +312,36 @@ await withIsolatedRuntime(
         await page.getByRole('tab', { name: '3D Map', exact: true }).click();
         await page.waitForTimeout(300);
       }
-      await resource('after-five-hide-reopen', true);
+      await resource('after-twenty-tab-transitions', true);
       r.cases.push(
         'Hidden 3D render count stays fixed; repeated reopening retains bounded renderer ownership',
       );
-      // Two minute foreground moving workload; coarse checkpoints do not busy-poll renderers.
-      for (let i = 0; i < 4; i++) {
+      // Observe every 30 seconds; the ten-minute route uses longer, supported
+      // destinations inside the same square, unchanged speeds and simulation time.
+      let previous = await u.world();
+      r.soakStarted = Date.now();
+      for (let i = 0; i < soakSeconds / 30; i++) {
         await page.waitForTimeout(30000);
         await resource(`soak-${(i + 1) * 30}s`);
+        const current = await u.world();
+        const changed = Object.values(previous.tracks).filter(
+          (t) =>
+            JSON.stringify(t.latest.position) !==
+            JSON.stringify(current.tracks[t.id].latest.position),
+        ).length;
+        const sample = r.resources.at(-1);
+        sample.movingTracks = changed;
+        sample.tick = current.interactive.tick;
+        expect(changed).toBe(perSide * 2);
+        expect(sample.transport.opened - sample.transport.closed).toBe(1);
+        expect(sample.state.pool.alive).toBeLessThanOrEqual(4);
+        expect(sample.foreground).toEqual({
+          visible: 'visible',
+          focused: true,
+        });
+        previous = current;
       }
+      r.soakElapsedMs = Date.now() - r.soakStarted;
       await resource('soak-final-collected', true);
       expect(r.resources.at(-1).state.pool.alive).toBeLessThanOrEqual(4);
       await command('Pause', 'pause');

@@ -1,3 +1,4 @@
+import { armPlacement, openAuthoringTab } from './authoringActions';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -10,11 +11,44 @@ import {
   newDemo,
 } from './rtsActions';
 import { closeTab } from './actions';
-import type { ScenarioRevision } from '../../src/contracts/generated';
+import type {
+  ScenarioRevision,
+  WorldFrame,
+} from '../../src/contracts/generated';
+import { metric } from '../../src/world/movement';
 const evidence = resolve('test-results/browser/evidence');
-const units = (p: Page) => p.locator('[data-view="units"]');
-const conductor = (p: Page) => p.locator('[data-view="conductor"]');
+const units = (p: Page) => p.locator('[data-view="orchestrator"]');
+const conductor = (p: Page) => p.locator('[data-view="orchestrator"]');
 const map = (p: Page) => p.locator('.tactical-view[data-view-id="tactical"]');
+function v2(world: WorldFrame) {
+  const fleet = world.fleetBehavior!;
+  expect(fleet.ruleVersion).toBe('local-fleet-v2');
+  expect(fleet.model.acquisitionRadiusM).toBe(700);
+  expect(fleet.members).toBeDefined();
+  expect(fleet.assignments).toBeDefined();
+  expect(fleet.outcomes).toBeDefined();
+  expect(fleet.members!.some((m) => m.state === 'reserve')).toBe(false);
+  const active = fleet.assignments!.filter((a) => a.state === 'active');
+  expect(new Set(active.map((a) => a.interceptorId)).size).toBe(active.length);
+  expect(new Set(active.map((a) => a.targetId)).size).toBe(active.length);
+  return {
+    ...fleet,
+    members: fleet.members!,
+    assignments: fleet.assignments!,
+    outcomes: fleet.outcomes!,
+  };
+}
+function sourcePosition(world: WorldFrame, entityId: string) {
+  return Object.values(world.tracks).find(
+    (t) =>
+      t.entityId === entityId && t.source.id === world.interactive!.sourceId,
+  )!.latest.position;
+}
+function separation(world: WorldFrame, first: string, second: string) {
+  const a = metric(sourcePosition(world, first), world);
+  const b = metric(sourcePosition(world, second), world);
+  return Math.hypot(a[0] - b[0], a[1] - b[1]);
+}
 type Probe = {
   ready: boolean;
   destinations: { id: string; label: string }[];
@@ -71,9 +105,7 @@ async function place(
   longitude: string,
   latitude: string,
 ) {
-  await units(page)
-    .getByRole('button', { name: new RegExp(`^${category}`) })
-    .click();
+  await armPlacement(units(page), category);
   await units(page).locator('.units-numeric summary').click();
   await units(page)
     .getByLabel('Placement longitude', { exact: true })
@@ -91,12 +123,13 @@ async function place(
 test.beforeAll(() => mkdir(evidence, { recursive: true }).then(() => {}));
 test.use({ actionTimeout: 12000 });
 
-test('mixed controlled members arm, approach and stop with explicit unavailable skips', async ({
+test('v2 mixed controlled members retain ordinary movement receipts and Stop with explicit unavailable skips', async ({
   page,
 }) => {
   test.setTimeout(75000);
   await page.setViewportSize({ width: 1440, height: 900 });
   await newDemo(page);
+  v2(await readWorld(page));
   const fleet = page.locator('.fleet-sidebar');
   try {
     await fleetSelect(page, ['F-01', 'F-02', 'F-03', 'F-04']);
@@ -112,9 +145,9 @@ test('mixed controlled members arm, approach and stop with explicit unavailable 
     expect(
       armed.behaviorOutcomes.map((o: { outcome: string }) => o.outcome),
     ).toEqual(['accepted', 'accepted', 'skipped', 'skipped']);
-    await expect(fleet).toContainText('INTERCEPT ARMED');
+    await expect(fleet).toContainText('INTERCEPT ENABLED');
     await expect(
-      fleet.getByRole('button', { name: 'Intercept', exact: true }),
+      fleet.getByRole('button', { name: 'Move · Intercept', exact: true }),
     ).toBeEnabled();
     await map(page)
       .getByRole('button', { name: 'Map layers', exact: true })
@@ -136,16 +169,52 @@ test('mixed controlled members arm, approach and stop with explicit unavailable 
       .locator('canvas')
       .first()
       .click({ button: 'right', position: { x: target.x, y: target.y } });
-    const approach = await (await approached).json();
+    const response = await approached;
+    const sent = response.request().postDataJSON();
+    const approach = await response.json();
+    expect(sent.direct.intercept ?? false).toBe(false);
     expect(approach.accepted).toBe(true);
-    expect(approach.targetScope).toHaveLength(1);
+    expect(approach.operation).toBe('direct-move');
+    expect(approach.requestId).toBe(sent.commandId);
+    expect(approach.directOrder).toBe(sent.direct.order);
+    expect(approach.targetScope).toEqual([]);
+    expect(approach.behaviorOutcomes).toEqual([]);
     expect(
-      approach.behaviorOutcomes.filter(
-        (o: { outcome: string }) => o.outcome === 'skipped',
+      approach.memberOutcomes.map(
+        (o: { entityId: string; outcome: string; code: string }) => ({
+          label: o.entityId.split(':').at(-1),
+          outcome: o.outcome,
+          code: o.code,
+        }),
       ),
-    ).toHaveLength(2);
-    await expect(fleet).toContainText(
-      '1 assigned · 1 held reserves · 2 skipped',
+    ).toEqual([
+      { label: 'F-01', outcome: 'accepted', code: 'OK' },
+      { label: 'F-02', outcome: 'accepted', code: 'OK' },
+      { label: 'F-03', outcome: 'skipped', code: 'POSITION_UNAVAILABLE' },
+      { label: 'F-04', outcome: 'skipped', code: 'NO_RESPONSE' },
+    ]);
+    expect(approach.executionIds).toHaveLength(2);
+    const beforeMove = await readWorld(page);
+    expect(
+      v2(beforeMove).assignments.filter((a) => a.state === 'active'),
+    ).toHaveLength(0);
+    await expect
+      .poll(async () => (await readWorld(page)).interactive!.tick)
+      .toBeGreaterThan(beforeMove.interactive!.tick + 2);
+    const moved = await readWorld(page);
+    for (const label of ['F-01', 'F-02']) {
+      const id = Object.values(moved.entities).find(
+        (e) => e.label === label,
+      )!.id;
+      expect(sourcePosition(moved, id)).not.toEqual(
+        sourcePosition(beforeMove, id),
+      );
+      expect(v2(moved).members.find((m) => m.entityId === id)?.policy).toBe(
+        'intercept',
+      );
+    }
+    await expect(page.locator('.operational-attention')).toContainText(
+      '2 moving · 2 skipped',
     );
     const stopped = page.waitForResponse(
       (r) => r.request().method() === 'POST' && r.url().endsWith('/commands'),
@@ -191,7 +260,7 @@ test('mixed controlled members arm, approach and stop with explicit unavailable 
   }
 });
 
-test('saved revision, both-map authoring isolation, armed approach, held reserve deployment and persistent losses', async ({
+test('v2 saved revision, both-map authoring isolation, unassigned movement, later acquisition and persistent losses', async ({
   page,
 }) => {
   test.setTimeout(180000);
@@ -205,27 +274,22 @@ test('saved revision, both-map authoring isolation, armed approach, held reserve
   ).json();
   expect(entry.enabled).toBe(true);
   expect(entry.activeMissionId).toBeFalsy();
-  await page
-    .getByRole('button', { name: 'Open Units', exact: true })
-    .first()
-    .click();
+  await openAuthoringTab(page, 'Units');
   await units(page)
     .getByRole('button', { name: 'Open scenario editor', exact: true })
     .click();
   const name = `D4 operator exercise ${Date.now()}`;
   await units(page).getByLabel('Arrangement name', { exact: true }).fill(name);
-  await place(page, 'Friendly drone', '103.850', '1.290');
-  await place(page, 'Friendly drone', '103.850', '1.29025');
-  await place(page, 'Hostile drone', '103.852', '1.290');
-  await place(page, 'Hostile drone', '103.856', '1.29025');
-  await page
-    .getByRole('button', { name: 'Open Conductor', exact: true })
-    .first()
-    .click();
+  await place(page, 'Friendly', '103.850', '1.290');
+  await place(page, 'Friendly', '103.850', '1.29025');
+  await place(page, 'Hostile', '103.852', '1.290');
+  // Keep the second target outside 700 m even after the first destination.
+  await place(page, 'Hostile', '103.8586', '1.29025');
+  await openAuthoringTab(page, 'Conductor');
   const c = conductor(page);
   for (const [actor, seconds, longitude, latitude] of [
     ['Hostile 3', '0', '103.8518', '1.29'],
-    ['Hostile 4', '60', '103.8561', '1.29025'],
+    ['Hostile 4', '60', '103.8587', '1.29025'],
   ] as const) {
     await c.getByRole('button', { name: 'Add action', exact: true }).click();
     await c
@@ -300,7 +364,9 @@ test('saved revision, both-map authoring isolation, armed approach, held reserve
         async () => (await readWorld(page)).scenarioSchedule?.actions[0].state,
       )
       .toBe('Completed');
-    expect((await readWorld(page)).scenario?.revision).toBe(saved.revision);
+    const running = await readWorld(page);
+    expect(running.scenario?.revision).toBe(saved.revision);
+    v2(running);
     await noScript(page, true);
     await projection(page);
     await noScript(page);
@@ -311,11 +377,8 @@ test('saved revision, both-map authoring isolation, armed approach, held reserve
     await noScript(page);
     await projection(page, true);
     await noScript(page, true);
-    await closeTab(page, 'Conductor');
-    await page
-      .getByRole('button', { name: 'Open Conductor', exact: true })
-      .first()
-      .click();
+    await closeTab(page, 'Orchestrator');
+    await openAuthoringTab(page, 'Conductor');
     await noScript(page, true);
     // Inspecting a saved definition remains authoring even while the demo exists.
     await page
@@ -327,7 +390,7 @@ test('saved revision, both-map authoring isolation, armed approach, held reserve
     await expect
       .poll(async () => (await inspect(page, true))?.destinations?.length)
       .toBe(2);
-    await expect(c).toContainText('Saved revision 1');
+    await expect(c).toContainText('Saved r1');
     await c
       .getByRole('button', { name: 'Return to active demo', exact: true })
       .click();
@@ -340,14 +403,14 @@ test('saved revision, both-map authoring isolation, armed approach, held reserve
       .getByLabel('Behavior', { exact: true })
       .selectOption('intercept');
     await fleet.getByRole('button', { name: 'Apply', exact: true }).click();
-    await expect(fleet).toContainText('INTERCEPT ARMED');
+    await expect(fleet).toContainText('INTERCEPT ENABLED');
     expect((await readWorld(page)).fleetBehavior?.assignments).toHaveLength(0);
     await page
       .getByRole('button', { name: 'Resume', exact: true })
       .first()
       .click();
     await expect(
-      fleet.getByRole('button', { name: 'Intercept', exact: true }),
+      fleet.getByRole('button', { name: 'Move · Intercept', exact: true }),
     ).toBeEnabled();
     const w = await readWorld(page),
       hostile = Object.values(w.entities).find((e) => e.label === 'Hostile 3')!;
@@ -364,9 +427,39 @@ test('saved revision, both-map authoring isolation, armed approach, held reserve
           ).length,
       )
       .toBe(1);
-    await expect(fleet).toContainText('held reserve');
+    const acquiring = await readWorld(page);
+    const active = v2(acquiring).assignments.filter(
+      (a) => a.state === 'active',
+    );
+    expect(active).toHaveLength(1);
+    expect(active[0].targetId).toBe(hostile.id);
+    const unassignedBefore = v2(acquiring).members.find(
+      (m) => m.state === 'armed',
+    )!;
+    expect(unassignedBefore).toBeDefined();
+    const farther = Object.values(acquiring.entities).find(
+      (e) => e.label === 'Hostile 4',
+    )!;
+    expect(
+      separation(acquiring, unassignedBefore.entityId, farther.id),
+    ).toBeGreaterThan(700);
+    await expect
+      .poll(
+        async () =>
+          (await readWorld(page)).interactive!.executions!.find(
+            (e) =>
+              e.entityId === unassignedBefore.entityId &&
+              e.id === unassignedBefore.movementExecutionId,
+          )?.state,
+      )
+      .toBe('Running');
+    await expect
+      .poll(async () =>
+        sourcePosition(await readWorld(page), unassignedBefore.entityId),
+      )
+      .not.toEqual(sourcePosition(acquiring, unassignedBefore.entityId));
     await page.screenshot({
-      path: resolve(evidence, 'intercept-and-held-reserve.png'),
+      path: resolve(evidence, 'intercept-and-unassigned-movement.png'),
     });
     await expect
       .poll(
@@ -391,14 +484,14 @@ test('saved revision, both-map authoring isolation, armed approach, held reserve
       path: resolve(evidence, 'persistent-loss-3d.png'),
     });
     const loss = await readWorld(page),
-      reserve = loss.fleetBehavior!.members!.find(
-        (m) => m.state === 'reserve',
-      )!;
+      unassigned = v2(loss).members.find((m) => m.state === 'armed')!;
+    expect(unassigned.entityId).toBe(unassignedBefore.entityId);
+    expect(loss.entities[unassigned.entityId].condition).toBe('operational');
     for (const input of await fleet.getByRole('checkbox').all())
       await input.uncheck();
     await fleet
       .getByRole('checkbox', {
-        name: `Select ${loss.entities[reserve.entityId].label}`,
+        name: `Select ${loss.entities[unassigned.entityId].label}`,
         exact: true,
       })
       .check();
@@ -409,7 +502,7 @@ test('saved revision, both-map authoring isolation, armed approach, held reserve
       .poll(
         async () =>
           (await readWorld(page)).fleetBehavior!.members!.find(
-            (m) => m.entityId === reserve.entityId,
+            (m) => m.entityId === unassigned.entityId,
           )?.policy,
       )
       .toBe('hold');
@@ -417,14 +510,14 @@ test('saved revision, both-map authoring isolation, armed approach, held reserve
       .getByLabel('Behavior', { exact: true })
       .selectOption('intercept');
     await fleet.getByRole('button', { name: 'Apply', exact: true }).click();
-    await expect(fleet).toContainText('INTERCEPT ARMED');
+    await expect(fleet).toContainText('INTERCEPT ENABLED');
     await projection(page);
     await page
       .getByRole('button', { name: 'Resume', exact: true })
       .first()
       .click();
     await expect(
-      fleet.getByRole('button', { name: 'Intercept', exact: true }),
+      fleet.getByRole('button', { name: 'Move · Intercept', exact: true }),
     ).toBeEnabled();
     const remaining = Object.values(loss.entities).find(
       (e) => e.label === 'Hostile 4',
@@ -432,18 +525,77 @@ test('saved revision, both-map authoring isolation, armed approach, held reserve
     const later = (await inspect(page)).points.find(
       (p) => p.id === remaining.id,
     )!;
+    const beforeLater = await readWorld(page);
+    const distanceM = separation(
+      beforeLater,
+      unassigned.entityId,
+      remaining.id,
+    );
+    const cruiseMps = beforeLater.unitProfiles![unassigned.entityId].cruiseMps;
+    expect(distanceM).toBeGreaterThan(
+      v2(beforeLater).model.acquisitionRadiusM!,
+    );
+    // This case deliberately begins outside acquisition range. Allow its
+    // published ordinary travel time plus the standard 5 s assertion budget.
+    const acquisitionBudgetMs =
+      ((distanceM - v2(beforeLater).model.acquisitionRadiusM!) / cruiseMps) *
+        1000 +
+      5000;
+    const laterResponse = page.waitForResponse(
+      (r) =>
+        r.request().method() === 'POST' && r.url().endsWith('/direct-moves'),
+    );
     await map(page)
       .locator('canvas')
       .first()
       .click({ button: 'right', position: { x: later.x, y: later.y } });
+    const laterReceipt = await (await laterResponse).json();
+    expect(laterReceipt.accepted).toBe(true);
+    expect(laterReceipt.operation).toBe('direct-move');
+    expect(laterReceipt.executionIds).toHaveLength(1);
+    expect(
+      laterReceipt.memberOutcomes.map(
+        (o: { entityId: string; outcome: string; code: string }) => ({
+          entityId: o.entityId,
+          outcome: o.outcome,
+          code: o.code,
+        }),
+      ),
+    ).toEqual([
+      { entityId: unassigned.entityId, outcome: 'accepted', code: 'OK' },
+    ]);
     await expect
       .poll(
         async () =>
-          (await readWorld(page)).fleetBehavior?.assignments?.filter(
+          v2(await readWorld(page)).assignments.filter(
             (a) => a.state === 'active',
           ).length,
+        { timeout: acquisitionBudgetMs },
       )
       .toBe(1);
+    const acquired = await readWorld(page);
+    expect(
+      v2(acquired)
+        .assignments.filter((a) => a.state === 'active')
+        .map((a) => ({
+          interceptorId: a.interceptorId,
+          targetId: a.targetId,
+        })),
+    ).toEqual([{ interceptorId: unassigned.entityId, targetId: remaining.id }]);
+    await writeFile(
+      resolve(evidence, 'v2-later-acquisition.json'),
+      JSON.stringify(
+        {
+          distanceM,
+          cruiseMps,
+          acquisitionBudgetMs,
+          ruleVersion: acquired.fleetBehavior!.ruleVersion,
+          receipt: laterReceipt,
+        },
+        null,
+        2,
+      ),
+    );
     await expect
       .poll(
         async () => (await readWorld(page)).fleetBehavior?.outcomes?.length,
@@ -454,6 +606,20 @@ test('saved revision, both-map authoring isolation, armed approach, held reserve
       .getByRole('button', { name: 'Pause', exact: true })
       .first()
       .click();
+    const finalLoss = await readWorld(page);
+    const outcomes = v2(finalLoss).outcomes;
+    expect(outcomes).toHaveLength(2);
+    expect(new Set(outcomes.map((o) => o.id)).size).toBe(2);
+    expect(
+      Object.values(finalLoss.entities).filter(
+        (e) => e.condition === 'non-operational',
+      ),
+    ).toHaveLength(4);
+    expect(
+      Object.values(finalLoss.tracks).every(
+        (t) => t.latest.position.altitude.metres === 150.125,
+      ),
+    ).toBe(true);
     await expect(fleet.locator('[data-non-operational="true"]')).toHaveCount(2);
     await expect(
       page.getByLabel('Current behavior and condition'),

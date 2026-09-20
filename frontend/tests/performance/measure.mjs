@@ -8,6 +8,7 @@ import process from 'node:process';
 import { withIsolatedRuntime } from '../support/isolated-runtime.mjs';
 import { operatorUI } from '../support/operator-ui.mjs';
 import { performanceScenario } from './scenario.mjs';
+import { validateSavedScenario } from './support.mjs';
 
 const tag = process.argv[2] ?? 'measurement';
 const configured = process.argv.includes('--configured');
@@ -505,6 +506,8 @@ await withIsolatedRuntime(
           });
           r.capacity.push({ perSide: n, status: reply.status() });
           if (!reply.ok()) continue;
+          const savedReceipt = await reply.json();
+          expect(savedReceipt.accepted).toBe(true);
           await page.goto(frontend);
           await page
             .getByRole('button', { name: 'Load mission', exact: true })
@@ -514,19 +517,16 @@ await withIsolatedRuntime(
               name: new RegExp(`${content.name} · r1.*Saved plan`),
             })
             .click();
-          const conductor = page.locator('[data-view="conductor"]');
-          await conductor
-            .getByRole('button', {
-              name: 'Validate saved revision',
-              exact: true,
-            })
-            .click();
-          await expect(conductor).toContainText('Ready to run');
+          const conductor = page.locator('[data-view="orchestrator"]');
+          r.loading.push({
+            workload: label,
+            ...(await validateSavedScenario(page, savedReceipt.result)),
+          });
           await conductor
             .getByRole('button', { name: 'Run saved revision 1', exact: true })
             .click();
           await page.locator('[data-run-state="running"]').first().waitFor();
-          await u.tab('Conductor', 'Close view');
+          await u.tab('Orchestrator', 'Close view');
           await u.select('Friendly 01');
         } else {
           r.capacity.push({ template: 'singapore-local-v2', status: 200 });

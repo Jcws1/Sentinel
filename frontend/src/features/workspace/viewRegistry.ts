@@ -37,20 +37,12 @@ export const viewRegistry = {
     description: 'Entity symbols, destinations and movement overlays.',
     future: '',
   },
-  conductor: {
+  orchestrator: {
     unavailable: '',
-    title: 'Conductor',
+    title: 'Orchestrator',
     category: 'Scenario authoring',
     icon: Clock3,
-    description: 'Author and inspect timed source motion.',
-    future: '',
-  },
-  units: {
-    unavailable: '',
-    title: 'Units',
-    category: 'Scenario authoring',
-    icon: Box,
-    description: 'Compose and save a local simulation arrangement.',
+    description: 'Arrange units, author actions and run a saved scenario.',
     future: '',
   },
   details: {
@@ -141,7 +133,16 @@ export const viewRegistry = {
   },
 } as const;
 export type ViewKind = keyof typeof viewRegistry;
-export type ViewId = ViewKind | `tactical:${number}` | `inspector:${string}`;
+// Legacy pane IDs remain accepted at workspace entry points, but are never new panes.
+export type ViewId =
+  | ViewKind
+  | 'units'
+  | 'conductor'
+  | `tactical:${number}`
+  | `inspector:${string}`;
+export function canonicalViewId(id: ViewId): ViewId {
+  return id === 'units' || id === 'conductor' ? 'orchestrator' : id;
+}
 export function inspectorId(missionId: string, entityId: string): ViewId {
   return `inspector:${encodeURIComponent(JSON.stringify([missionId, entityId]))}`;
 }
@@ -166,6 +167,7 @@ export function inspectorIdentity(
 // Navigation opens the primary instance of each view kind.
 export const viewIds = Object.keys(viewRegistry) as ViewKind[];
 export function viewKind(id: ViewId): ViewKind {
+  if (id === 'units' || id === 'conductor') return 'orchestrator';
   if (id.startsWith('inspector:')) return 'inspector';
   return id.startsWith('tactical:') ? 'tactical' : (id as ViewKind);
 }
@@ -177,6 +179,7 @@ export function viewTitle(id: ViewId): string {
     : viewRegistry[viewKind(id)].title;
 }
 export function isViewId(value: string): value is ViewId {
+  if (value === 'units' || value === 'conductor') return true;
   if (inspectorIdentity(value)) return true;
   if (Object.hasOwn(viewRegistry, value)) return true;
   if (!/^tactical:[1-9]\d*$/.test(value)) return false;

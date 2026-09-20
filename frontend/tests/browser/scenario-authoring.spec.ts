@@ -1,4 +1,8 @@
-import { armPlacement } from './authoringActions';
+import {
+  armPlacement,
+  openAuthoringTab,
+  openScenarioFile,
+} from './authoringActions';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -6,15 +10,12 @@ import { resolve } from 'node:path';
 import { rtsOrigin, readWorld, endDemo } from './rtsActions';
 import type { CameraIntent } from '../../src/renderers/contracts';
 const evidence = resolve('test-results/browser/scenario-authoring');
-const units = (page: Page) => page.locator('.units-pane');
+const units = (page: Page) => page.locator('[data-view="orchestrator"]');
 const map = (page: Page, id = 'tactical') =>
   page.locator(`.tactical-view[data-view-id="${id}"]`);
 async function open(page: Page) {
   await page.goto(rtsOrigin);
-  await page
-    .getByRole('button', { name: 'Open Units', exact: true })
-    .first()
-    .click();
+  await openAuthoringTab(page, 'Units');
   await page
     .getByRole('button', { name: 'Open scenario editor', exact: true })
     .click();
@@ -105,7 +106,9 @@ test('keyboard placement, explicit-position duplication, remapped copy recovery 
   await units(page)
     .getByRole('textbox', { name: 'Arrangement name' })
     .fill('D1b keyboard composition');
-  const friendly = units(page).getByRole('button', { name: /^Friendly drone/ });
+  const friendly = units(page)
+    .locator('.units-palette')
+    .getByRole('button', { name: /^Friendly/ });
   await friendly.focus();
   await page.keyboard.press('Enter');
   const profile = units(page)
@@ -161,6 +164,7 @@ test('keyboard placement, explicit-position duplication, remapped copy recovery 
     copiedId = (await response.json()).result.definitionId;
     await route.abort('failed');
   });
+  await openScenarioFile(page);
   await units(page)
     .getByRole('button', { name: 'Save as new', exact: true })
     .click();
@@ -168,10 +172,7 @@ test('keyboard placement, explicit-position duplication, remapped copy recovery 
     units(page).getByRole('button', { name: 'Check save', exact: true }),
   ).toBeEnabled();
   await page.reload();
-  await page
-    .getByRole('button', { name: 'Open Units', exact: true })
-    .first()
-    .click();
+  await openAuthoringTab(page, 'Units');
   await units(page)
     .getByRole('button', { name: 'Check save', exact: true })
     .click();
@@ -211,7 +212,9 @@ test('keyboard placement, explicit-position duplication, remapped copy recovery 
   await expect(units(page).locator('.units-review')).toContainText(
     'per unit profile',
   );
-  await expect(units(page).locator('.units-review')).toBeFocused();
+  await expect(
+    units(page).getByLabel('Scenario validation review'),
+  ).toBeFocused();
   await page.screenshot({ path: resolve(evidence, 'validated-copy.png') });
   await run.click();
   await expect(page.locator('.simulation-run-state')).toHaveText('Running', {
@@ -250,6 +253,7 @@ test('two-map ownership, preview, Locate isolation, projection cancellation and 
       timeout: 20000,
     })
     .toBe(true);
+  await openScenarioFile(page);
   await units(page)
     .getByRole('combobox', { name: 'Authoring map' })
     .selectOption('tactical:2');
@@ -288,7 +292,7 @@ test('two-map ownership, preview, Locate isolation, projection cancellation and 
   expect((await probe(page, 'tactical'))!.camera.center).toEqual(
     firstBefore.center,
   );
-  await armPlacement(units(page), 'Hostile drone');
+  await armPlacement(units(page), 'Hostile');
   await map(page, 'tactical:2')
     .getByRole('button', { name: 'Tactical', exact: true })
     .click();
@@ -313,6 +317,7 @@ test('two-map ownership, preview, Locate isolation, projection cancellation and 
     [3840, 2160],
   ]) {
     await page.setViewportSize({ width, height });
+    await openAuthoringTab(page, 'Units');
     await expect
       .poll(() => units(page).evaluate((e) => e.scrollWidth <= e.clientWidth))
       .toBe(true);
@@ -347,7 +352,9 @@ test('two-map ownership, preview, Locate isolation, projection cancellation and 
     }
     await validate.focus();
     await page.keyboard.press('Enter');
-    await expect(units(page).locator('.units-review')).toBeFocused();
+    await expect(
+      units(page).getByLabel('Scenario validation review'),
+    ).toBeFocused();
     await expect(
       units(page).getByRole('button', {
         name: 'Run saved revision 1',
@@ -356,10 +363,17 @@ test('two-map ownership, preview, Locate isolation, projection cancellation and 
     ).toBeEnabled();
     await page.screenshot({ path: resolve(evidence, `layout-${width}.png`) });
     const a11y = await new AxeBuilder({ page })
-      .include('.units-pane')
+      .include('.orchestrator-pane')
       .analyze();
     expect(a11y.violations).toEqual([]);
     results.push({ width, height, violations: a11y.violations });
+    await units(page)
+      .getByRole('button', { name: 'Back to Units', exact: true })
+      .focus();
+    await page.keyboard.press('Enter');
+    await expect(
+      units(page).getByRole('tab', { name: 'Units', exact: true }),
+    ).toBeFocused();
   }
   await writeFile(
     resolve(evidence, 'responsive-accessibility.json'),
@@ -461,7 +475,7 @@ test('narrow invalid edits and numeric placement keep one focused visible error 
 }) => {
   await page.setViewportSize({ width: 820, height: 800 });
   await open(page);
-  await armPlacement(units(page), 'Friendly drone');
+  await armPlacement(units(page), 'Friendly');
   await numeric(page, '103.85', '1.29', true);
   const height = units(page).getByRole('textbox', {
     name: 'Unit altitude',
@@ -487,7 +501,7 @@ test('narrow invalid edits and numeric placement keep one focused visible error 
   await expect(units(page).getByRole('alert')).toHaveCount(0);
   await expect(height).toHaveValue('250.125');
   await page.setViewportSize({ width: 760, height: 800 });
-  await armPlacement(units(page), 'Hostile drone');
+  await armPlacement(units(page), 'Hostile');
   await units(page).locator('.units-numeric summary').focus();
   await page.keyboard.press('Enter');
   const longitude = units(page).getByRole('textbox', {
@@ -520,7 +534,9 @@ test('narrow invalid edits and numeric placement keep one focused visible error 
   await page.screenshot({
     path: resolve(evidence, 'narrow-placement-validation.png'),
   });
-  const a11y = await new AxeBuilder({ page }).include('.units-pane').analyze();
+  const a11y = await new AxeBuilder({ page })
+    .include('.orchestrator-pane')
+    .analyze();
   expect(a11y.violations).toEqual([]);
   await longitude.fill('103.854');
   await place.focus();

@@ -1,4 +1,8 @@
-import { armPlacement } from './authoringActions';
+import {
+  armPlacement,
+  openAuthoringTab,
+  openScenarioFile,
+} from './authoringActions';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -15,8 +19,8 @@ import type {
   WorldFrame,
 } from '../../src/contracts/generated';
 const evidence = resolve('test-results/browser/conductor');
-const units = (p: Page) => p.locator('[data-view="units"]');
-const conductor = (p: Page) => p.locator('[data-view="conductor"]');
+const units = (p: Page) => p.locator('[data-view="orchestrator"]');
+const conductor = (p: Page) => p.locator('[data-view="orchestrator"]');
 const map = (p: Page, id = 'tactical') =>
   p.locator(`.tactical-view[data-view-id="${id}"]`);
 test.use({ actionTimeout: 10000 });
@@ -38,10 +42,7 @@ async function open(p: Page, name: string) {
     (await (await p.request.get(`${rtsOrigin}/api/interactive/entry`)).json())
       .enabled,
   ).toBe(true);
-  await p
-    .getByRole('button', { name: 'Open Units', exact: true })
-    .first()
-    .click();
+  await openAuthoringTab(p, 'Units');
   await units(p)
     .getByRole('button', { name: 'Open scenario editor', exact: true })
     .click();
@@ -74,10 +75,7 @@ async function unit(
     .click();
 }
 async function toConductor(p: Page) {
-  await p
-    .getByRole('button', { name: 'Open Conductor', exact: true })
-    .first()
-    .click();
+  await openAuthoringTab(p, 'Conductor');
 }
 async function action(
   p: Page,
@@ -118,8 +116,8 @@ async function reviewRun(p: Page) {
   await conductor(p)
     .getByRole('button', { name: 'Save revision', exact: true })
     .click();
-  await expect(conductor(p).locator('.conductor-context')).toContainText(
-    'Saved revision',
+  await expect(conductor(p).locator('.orchestrator-status')).toContainText(
+    'Saved r',
   );
   await conductor(p)
     .getByRole('button', { name: 'Validate saved revision', exact: true })
@@ -146,7 +144,7 @@ test('raw name recovery and repeated validation stay usable with readable primar
 }) => {
   test.setTimeout(90000);
   await open(page, 'Name editing regression');
-  await unit(page, 'Friendly drone', '103.851');
+  await unit(page, 'Friendly', '103.851');
   const name = units(page).getByLabel('Arrangement name', { exact: true });
   await name.focus();
   await page.keyboard.press('ControlOrMeta+A');
@@ -154,10 +152,7 @@ test('raw name recovery and repeated validation stay usable with readable primar
   await expect(name).toHaveValue('');
   await expect(name).toBeFocused();
   await page.reload();
-  await page
-    .getByRole('button', { name: 'Open Units', exact: true })
-    .first()
-    .click();
+  await openAuthoringTab(page, 'Units');
   await units(page)
     .getByRole('button', { name: 'Open scenario editor', exact: true })
     .click();
@@ -197,7 +192,7 @@ test('raw name recovery and repeated validation stay usable with readable primar
     await page.keyboard.press('Enter');
     await expect(error).toBeFocused();
     const body = (await conductor(page)
-      .locator('.conductor-body')
+      .locator('.orchestrator-pane')
       .boundingBox())!;
     const box = (await error.boundingBox())!;
     expect(box.y).toBeGreaterThanOrEqual(body.y);
@@ -252,8 +247,8 @@ test('Conductor keyboard editing, two-map picks, recovery, exact copy and layout
   page.on('pageerror', (e) => errors.push(e.message));
   await page.setViewportSize({ width: 1920, height: 1080 });
   await open(page, 'D3 authoring review');
-  await unit(page, 'Friendly drone', '103.85');
-  await unit(page, 'Hostile drone', '103.853');
+  await unit(page, 'Friendly', '103.85');
+  await unit(page, 'Hostile', '103.853');
   await page
     .getByRole('tab', { name: 'Tactical Map', exact: true })
     .click({ button: 'right' });
@@ -269,11 +264,11 @@ test('Conductor keyboard editing, two-map picks, recovery, exact copy and layout
     .focus();
   await page.keyboard.press('Enter');
   await expect(
-    conductor(page).getByRole('combobox', {
-      name: 'Script actor',
-      exact: true,
-    }),
+    conductor(page).getByLabel('Script actor', { exact: true }),
   ).toBeFocused();
+  await conductor(page)
+    .getByLabel('Script actor', { exact: true })
+    .selectOption({ label: 'Friendly 1 · controlled' });
   await page.keyboard.press('Tab');
   await expect(
     conductor(page).getByLabel('Movement timing mode'),
@@ -348,7 +343,7 @@ test('Conductor keyboard editing, two-map picks, recovery, exact copy and layout
   await page.reload();
   await toConductor(page);
   await conductor(page)
-    .getByRole('button', { name: 'Open Conductor editor', exact: true })
+    .getByRole('button', { name: 'Open scenario editor', exact: true })
     .click();
   await expect(
     conductor(page).getByRole('textbox', {
@@ -425,7 +420,7 @@ test('Conductor keyboard editing, two-map picks, recovery, exact copy and layout
     });
   }
   const accessibility = await new AxeBuilder({ page })
-    .include('[data-view="conductor"]')
+    .include('[data-view="orchestrator"]')
     .analyze();
   expect(accessibility.violations).toEqual([]);
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -451,16 +446,17 @@ test('Conductor keyboard editing, two-map picks, recovery, exact copy and layout
   await conductor(page)
     .getByRole('button', { name: 'Check save', exact: true })
     .click();
-  await expect(conductor(page).locator('.conductor-context')).toContainText(
-    'Saved revision 1',
+  await expect(conductor(page).locator('.orchestrator-status')).toContainText(
+    'Saved r1',
   );
   expect(writes).toBe(1);
   const originalRevision = await saved(page, 'D3 authoring review');
   expect(originalRevision.content.actions).toHaveLength(3);
   expect(originalRevision.content).toEqual(JSON.parse(lost).content);
   await conductor(page)
-    .getByRole('button', { name: 'Units', exact: true })
+    .getByRole('tab', { name: 'Units', exact: true })
     .click();
+  await openScenarioFile(page);
   await units(page)
     .getByRole('button', { name: 'Save as new', exact: true })
     .click();
@@ -497,11 +493,11 @@ test('three hostile ticks, two friendlies, observation-only motion, manual overr
 }) => {
   test.setTimeout(210000);
   await open(page, 'D3 complete operator run');
-  await unit(page, 'Friendly drone', '103.847');
-  await unit(page, 'Friendly drone', '103.848');
-  await unit(page, 'Friendly drone', '103.849', '1.296', true);
+  await unit(page, 'Friendly', '103.847');
+  await unit(page, 'Friendly', '103.848');
+  await unit(page, 'Friendly', '103.849', '1.296', true);
   for (const lon of ['103.850', '103.851', '103.852'])
-    await unit(page, 'Hostile drone', lon, '1.298');
+    await unit(page, 'Hostile', lon, '1.298');
   await unit(page, 'Unknown entity', '103.854', '1.292');
   await toConductor(page);
   for (const [label, time] of [
@@ -669,10 +665,7 @@ test('three hostile ticks, two friendlies, observation-only motion, manual overr
   for (const kind of ['create', 'start', 'stop', 'end'])
     expect(lost.has(kind)).toBe(true);
   await toConductor(page);
-  await page
-    .getByRole('button', { name: 'Open Units', exact: true })
-    .first()
-    .click();
+  await openAuthoringTab(page, 'Units');
   await units(page)
     .getByRole('button', { name: 'Open scenario editor', exact: true })
     .click();

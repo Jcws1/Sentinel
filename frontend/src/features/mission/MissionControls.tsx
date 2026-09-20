@@ -194,7 +194,7 @@ function Controls({
             ))}
             {!state.scenario.catalog.length && (
               <div className="catalog-message">
-                Save an arrangement in Units to list it here.
+                Save a scenario in Orchestrator to list it here.
               </div>
             )}
             <Menu.Separator className="menu-separator" />

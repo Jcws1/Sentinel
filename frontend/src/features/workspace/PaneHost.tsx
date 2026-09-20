@@ -1,4 +1,4 @@
-import { ConductorPane } from '../conductor/ConductorPane';
+import { OrchestratorPane } from '../orchestrator/OrchestratorPane';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { TabNode } from 'flexlayout-react';
 import type { WorkspaceBridge } from './workspaceBridge';
@@ -14,7 +14,6 @@ import { TracksBrowser } from '../entities/TracksBrowser';
 import { EntityInspector } from '../entities/EntityInspector';
 import { EntityDetails } from '../entities/EntityDetails';
 import { MovementPane } from '../movement/MovementPane';
-import { UnitsPane } from '../units/UnitsPane';
 import { DisplaySettings } from '../settings/DisplaySettings';
 import { CockpitPane } from '../cockpit/CockpitPane';
 import { DecisionSuggestions } from '../entities/DecisionSuggestions';
@@ -118,10 +117,8 @@ export function PaneHost({
           <DisplaySettings bridge={bridge} />
         ) : kind === 'credits' ? (
           <Credits />
-        ) : kind === 'conductor' && runtime ? (
-          <ConductorPane bridge={bridge} visible={visible} />
-        ) : kind === 'units' && runtime ? (
-          <UnitsPane bridge={bridge} />
+        ) : kind === 'orchestrator' && runtime ? (
+          <OrchestratorPane bridge={bridge} visible={visible} />
         ) : kind === 'movement' && runtime ? (
           <MovementPane bridge={bridge} />
         ) : kind === 'tracks' && runtime ? (

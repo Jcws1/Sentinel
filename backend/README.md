@@ -1,6 +1,6 @@
 # Sentinel backend
 
-FastAPI owns world authority, fixed-step simulation, validated commands, saved scenarios, atomic outcomes and durable SQLite recordings. Current exports are in [v1.13](../contracts/sentinel/v1.13/README.md). Historical readers and migrations remain necessary for earlier recordings.
+FastAPI owns world authority, fixed-step simulation, validated commands, saved scenarios, atomic outcomes and durable SQLite recordings. Current exports are in [v1.14](../contracts/sentinel/v1.14/README.md). Historical readers and migrations remain necessary for earlier recordings.
 
 ## Run
 

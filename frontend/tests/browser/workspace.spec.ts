@@ -172,12 +172,9 @@ test('keyboard focus, tab activation and closure, menus, dialog and divider resi
   ).toBeFocused();
   await page.keyboard.press('ArrowDown');
   await expect(
-    page.getByRole('button', { name: 'Open Units', exact: true }),
+    page.getByRole('button', { name: 'Open Orchestrator', exact: true }),
   ).toBeFocused();
-  await page.keyboard.press('ArrowDown');
-  await expect(
-    page.getByRole('button', { name: 'Open Conductor', exact: true }),
-  ).toBeFocused();
+
   await page.keyboard.press('ArrowDown');
   await expect(
     page.getByRole('button', { name: 'Open Tracks', exact: true }),

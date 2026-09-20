@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  memo,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useSyncExternalStore,
+} from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -6,7 +12,6 @@ import {
   Crosshair,
   Pencil,
   Plus,
-  Save,
   Trash2,
 } from 'lucide-react';
 import {
@@ -21,24 +26,26 @@ import {
   scriptPlan,
 } from '../../world/scriptPlan';
 import { actionPreviewRows } from '../../world/scriptAuthoring';
-import { ScenarioRunReview } from './ScenarioRunReview';
 import type { WorkspaceBridge } from '../workspace/workspaceBridge';
 import { viewKind, type ViewId } from '../workspace/viewRegistry';
 import '../units/units.css';
 import './conductor.css';
 
-export function ConductorPane({
+export const ConductorPane = memo(function ConductorPane({
   bridge,
   visible,
+  mapId,
+  setMapId,
 }: {
   bridge: WorkspaceBridge;
   visible: boolean;
+  mapId?: ViewId;
+  setMapId: (id: ViewId) => void;
 }) {
   const runtime = useOperationalRuntime()!,
     state = useOperationalSnapshot(runtime),
     s = state.scenario;
   const workspace = useSyncExternalStore(bridge.subscribe, bridge.getSnapshot);
-  const [mapId, setMapId] = useState<ViewId>('tactical');
   const maps = workspace.views.filter(
     (v) => ['tactical', 'three-d'].includes(viewKind(v.id)) && v.selectedInPane,
   );
@@ -59,6 +66,15 @@ export function ConductorPane({
     .map((i) => i.id);
   const selectedActions =
     s.selectedActionIds ?? (s.selectedActionId ? [s.selectedActionId] : []);
+  const selectedCategories = new Set(
+    s.draft.units
+      .filter((u) => selectedActors.includes(u.id))
+      .map((u) => u.category),
+  );
+  const groupEligible =
+    selectedActors.length > 0 &&
+    selectedCategories.size === 1 &&
+    !selectedCategories.has('unknown');
   const nominal = s.active ? scriptPlan(s.draft) : [];
   const batchPreview = edit ? actionPreviewRows(s.draft, edit) : [];
   const locked =
@@ -70,16 +86,20 @@ export function ConductorPane({
     !!s.boundaryEdit ||
     !!s.placement ||
     s.reviewing;
+  const body = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (visible && body.current)
+      body.current.scrollTop = bridge.authoringScroll.get('conductor') ?? 0;
+  }, [bridge, visible]);
   const root = useRef<HTMLDivElement>(null),
     actorInput = useRef<HTMLSelectElement>(null),
-    error = useRef<HTMLDivElement>(null),
     focusReturn = useRef<HTMLElement | null>(null);
   const previousEdit = useRef(edit),
     previousPick = useRef(edit?.viewId);
   useEffect(() => {
-    if (edit && !previousEdit.current)
+    if (visible && edit && !previousEdit.current)
       requestAnimationFrame(() => actorInput.current?.focus());
-    if (!edit && previousEdit.current)
+    if (visible && !edit && previousEdit.current)
       requestAnimationFrame(() => {
         if (
           focusReturn.current?.isConnected &&
@@ -92,7 +112,7 @@ export function ConductorPane({
             ?.focus();
       });
     previousEdit.current = edit;
-  }, [edit]);
+  }, [edit, visible]);
   useEffect(() => {
     if (previousPick.current && edit && !edit.viewId && visible)
       requestAnimationFrame(() =>
@@ -104,13 +124,6 @@ export function ConductorPane({
       );
     previousPick.current = edit?.viewId;
   }, [edit, visible]);
-  useEffect(() => {
-    if (s.active && s.error && visible)
-      requestAnimationFrame(() => {
-        error.current?.focus();
-        error.current?.scrollIntoView({ block: 'nearest' });
-      });
-  }, [s.error, s.active, visible]);
   useEffect(() => {
     if (!visible) runtime.disarmAction();
   }, [runtime, visible]);
@@ -145,39 +158,15 @@ export function ConductorPane({
         }
       }}
     >
-      <header className="units-header">
-        <span className="units-eyebrow">LOCAL SIMULATION · CONDUCTOR</span>
-        <h1>{s.active ? 'Scenario script' : 'Script execution'}</h1>
-        <p>
-          {s.active
-            ? 'Arrange motion on the simulation clock'
-            : 'Committed source actions · inspection only'}
-        </p>
-      </header>
-      <div className="units-body conductor-body">
-        {!s.active && !schedule && (
-          <div className="units-intro">
-            <p>
-              Schedule movement for friendly and hostile actors from a saved
-              arrangement. Unknown entities stay stationary.
-            </p>
-            <button
-              className="units-primary"
-              disabled={
-                state.interactive.startingDemo || !!state.interactive.pending
-              }
-              onClick={() => runtime.enterAuthoring()}
-            >
-              Open Conductor editor
-            </button>
-            <button onClick={() => bridge.open('units')}>Open Units</button>
-          </div>
-        )}
+      <div
+        className="units-body conductor-body"
+        ref={body}
+        onScroll={(e) =>
+          bridge.authoringScroll.set('conductor', e.currentTarget.scrollTop)
+        }
+      >
         {!s.active && schedule && (
           <div className="conductor-context">
-            <strong>
-              {frame?.scenario?.name} · revision {frame?.scenario?.revision}
-            </strong>
             <span>
               {frame?.interactive?.state.toUpperCase()} ·{' '}
               {((frame?.interactive?.tick ?? 0) * 0.2).toFixed(1)} s
@@ -188,42 +177,17 @@ export function ConductorPane({
             </p>
           </div>
         )}
+        {!s.active && !schedule && (
+          <p className="units-empty">
+            No scenario schedule is selected. Open the editor below to author
+            actions, or choose a recorded demo from Missions.
+          </p>
+        )}
         {s.active && (
           <>
-            <div className="conductor-context">
-              <strong>{s.draft.name}</strong>
-              <span>
-                {edit
-                  ? 'Unapplied action edit'
-                  : s.dirty
-                    ? 'Unsaved changes'
-                    : s.saved
-                      ? `Saved revision ${s.saved.revision}`
-                      : 'Unsaved arrangement'}
-              </span>
-              <p>{actions.length}/128 actions · 0–600 seconds · 200 ms ticks</p>
-            </div>
-            {s.pending && (
-              <div className="units-notice">
-                <p>
-                  {s.busy
-                    ? 'Saving the exact request…'
-                    : 'Save outcome unknown. Your exact request is retained.'}
-                </p>
-                <button
-                  disabled={s.busy}
-                  onClick={() => void runtime.reconcileScenario()}
-                >
-                  Check save
-                </button>
-                <button
-                  disabled={s.busy}
-                  onClick={() => void runtime.reconcileScenario(true)}
-                >
-                  Retry saved request
-                </button>
-              </div>
-            )}
+            <p className="units-hint">
+              {actions.length}/128 actions · 0–600 seconds · 200 ms ticks
+            </p>
             <div className="conductor-toolbar">
               <button
                 data-add-action
@@ -238,13 +202,12 @@ export function ConductorPane({
                 <Plus size={14} />
                 Add action
               </button>
-              <button onClick={() => bridge.open('units')}>Units</button>
             </div>
             <details className="conductor-actor-picker">
               <summary>Actors · {selectedActors.length} selected</summary>
               <p className="units-hint">
-                Shift-click or drag-select actors on the map, or use these
-                checkboxes. Choose one category.
+                Select actors in Units or on the map, or use these checkboxes.
+                Choose one category.
               </p>
               <button
                 disabled={locked || !!edit || !selectedActors.length}
@@ -276,12 +239,19 @@ export function ConductorPane({
                 </label>
               ))}
               <button
-                disabled={locked || !!edit || !selectedActors.length}
+                disabled={locked || !!edit || !groupEligible}
                 onClick={() => runtime.beginActionBatch(selectedActors)}
               >
                 Add movement for {selectedActors.length} selected{' '}
                 {selectedActors.length === 1 ? 'actor' : 'actors'}
               </button>
+              {!!selectedActors.length && !groupEligible && (
+                <p className="units-notice">
+                  Group movement requires actors from one affiliation; Unknown
+                  entities cannot be scripted. Adjust the selection in Units or
+                  here.
+                </p>
+              )}
             </details>
             {!s.draft.units.some((u) => u.category !== 'unknown') && (
               <p className="units-hint">
@@ -381,7 +351,16 @@ export function ConductorPane({
                           <button
                             disabled={!!edit}
                             aria-label={`Select action ${label(a.unitId)} ${actionTime(a)}`}
-                            onClick={() => runtime.selectAction(a.id)}
+                            onClick={() => {
+                              runtime.selectAction(a.id);
+                              requestAnimationFrame(() =>
+                                root.current
+                                  ?.querySelector<HTMLElement>(
+                                    '.conductor-selection',
+                                  )
+                                  ?.scrollIntoView({ block: 'nearest' }),
+                              );
+                            }}
                           >
                             {a.afterActionId
                               ? `After previous + ${(a.delayMs ?? 0) / 1000}s`
@@ -558,8 +537,14 @@ export function ConductorPane({
                   e.preventDefault();
                   if (!runtime.applyAction())
                     requestAnimationFrame(() => {
-                      error.current?.focus();
-                      error.current?.scrollIntoView({ block: 'nearest' });
+                      root.current
+                        ?.closest('.orchestrator-pane')
+                        ?.querySelector<HTMLElement>('.orchestrator-notice')
+                        ?.focus();
+                      root.current
+                        ?.closest('.orchestrator-pane')
+                        ?.querySelector('.orchestrator-notice')
+                        ?.scrollIntoView({ block: 'nearest' });
                     });
                 }}
               >
@@ -790,50 +775,7 @@ export function ConductorPane({
             )}
           </>
         )}
-        {s.active && s.error && (
-          <div className="units-notice" role="alert" ref={error} tabIndex={-1}>
-            {s.error}
-          </div>
-        )}
-        {s.active && s.message && (
-          <p className="units-hint" role="status">
-            {s.message}
-          </p>
-        )}
-        {s.active && (
-          <p className="units-hint">
-            Scripted observation-only actors remain outside Sentinel live
-            control. Apply changes, save a revision, then validate and run
-            below.
-          </p>
-        )}
-        {s.active && <ScenarioRunReview />}
       </div>
-      {s.active && (
-        <footer className="units-footer conductor-footer">
-          <button
-            disabled={locked || !!edit || (!s.dirty && !!s.saved)}
-            onClick={() => void runtime.saveScenario()}
-          >
-            <Save size={14} />
-            Save revision
-          </button>
-          <button
-            className="units-primary"
-            disabled={locked || !!edit || s.dirty || !s.saved}
-            onClick={() => {
-              void runtime.validateScenario();
-              requestAnimationFrame(() =>
-                root.current
-                  ?.querySelector('[aria-label="Saved scenario launch"]')
-                  ?.scrollIntoView({ block: 'nearest' }),
-              );
-            }}
-          >
-            Validate → Run review
-          </button>
-        </footer>
-      )}
     </div>
   );
-}
+});

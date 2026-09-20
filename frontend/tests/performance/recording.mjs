@@ -41,7 +41,7 @@ await withIsolatedRuntime(
     );
     try {
       await loadPerformanceScenario(page, frontend);
-      await u.tab('Conductor', 'Close view');
+      await u.tab('Orchestrator', 'Close view');
       await u.select('Friendly 01');
       await page.waitForTimeout(1200);
       const surface = page.locator('[data-view-id="tactical"] .map-canvas');

@@ -39,7 +39,7 @@ await withIsolatedRuntime(
     try {
       await loadPerformanceScenario(page, frontend);
       await ui.action('Pause');
-      await ui.tab('Conductor', 'Close view');
+      await ui.tab('Orchestrator', 'Close view');
       await ui.select('Friendly 01');
       r.worldBefore = await ui.world();
       await page

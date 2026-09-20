@@ -1,0 +1,271 @@
+[
+  {
+    "name": "scenario-20v20",
+    "fixture": "frontend/tests/fixtures/scenario-20v20.json",
+    "planSha256": "3b9602b726faa1127aae5de828931e1c5bf2614f50d75b30ba58f15627e7f158"
+  },
+  {
+    "name": "remote-20v20",
+    "fixture": "frontend/tests/fixtures/scenario-location/remote-20v20.json",
+    "planSha256": "f24c5d610e187ee430746ea3ae3647a85c934025ae12e93f76d8f48f1b573577"
+  },
+  {
+    "name": "blocked-dependency",
+    "content": {
+      "name": "Mixed arrangement",
+      "units": [
+        {
+          "id": "unit-0",
+          "label": "Friendly controlled",
+          "category": "friendly",
+          "commandRole": "sentinel",
+          "position": {
+            "longitudeDeg": 103.85,
+            "latitudeDeg": 1.29,
+            "altitude": {
+              "metres": 150.125,
+              "reference": "ELLIPSOID",
+              "datumId": "WGS84"
+            }
+          },
+          "headingTrueDeg": 27.5
+        },
+        {
+          "id": "unit-1",
+          "label": "Friendly observer",
+          "category": "friendly",
+          "commandRole": "observation",
+          "position": {
+            "longitudeDeg": 103.851,
+            "latitudeDeg": 1.29,
+            "altitude": {
+              "metres": 151.125,
+              "reference": "ELLIPSOID",
+              "datumId": "WGS84"
+            }
+          },
+          "headingTrueDeg": 28.5
+        },
+        {
+          "id": "unit-2",
+          "label": "Hostile",
+          "category": "hostile",
+          "commandRole": "observation",
+          "position": {
+            "longitudeDeg": 103.85199999999999,
+            "latitudeDeg": 1.29,
+            "altitude": {
+              "metres": 152.125,
+              "reference": "ELLIPSOID",
+              "datumId": "WGS84"
+            }
+          },
+          "headingTrueDeg": 29.5
+        },
+        {
+          "id": "unit-3",
+          "label": "Unknown",
+          "category": "unknown",
+          "commandRole": "observation",
+          "position": {
+            "longitudeDeg": 103.853,
+            "latitudeDeg": 1.29,
+            "altitude": {
+              "metres": 153.125,
+              "reference": "ELLIPSOID",
+              "datumId": "WGS84"
+            }
+          },
+          "headingTrueDeg": 30.5
+        }
+      ],
+      "scheduleRuleVersion": "local-schedule-v2",
+      "actions": [
+        {
+          "id": "first",
+          "unitId": "unit-0",
+          "kind": "move",
+          "offsetMs": 0,
+          "ordinal": 0,
+          "destination": {
+            "longitudeDeg": 103.850134781,
+            "latitudeDeg": 1.29
+          }
+        },
+        {
+          "id": "second",
+          "unitId": "unit-0",
+          "kind": "move",
+          "afterActionId": "first",
+          "delayMs": 0,
+          "ordinal": 1,
+          "destination": {
+            "longitudeDeg": 103.85031449,
+            "latitudeDeg": 1.29
+          }
+        },
+        {
+          "id": "third",
+          "unitId": "unit-0",
+          "kind": "move",
+          "afterActionId": "second",
+          "delayMs": 0,
+          "ordinal": 2,
+          "destination": {
+            "longitudeDeg": 103.850494199,
+            "latitudeDeg": 1.29
+          }
+        }
+      ],
+      "boundaryRuleVersion": "local-boundary-v1",
+      "boundaries": [
+        {
+          "id": "wall",
+          "name": "Wall",
+          "type": "restricted",
+          "vertices": [
+            [
+              103.850179709,
+              1.289820337
+            ],
+            [
+              103.850269563,
+              1.289820337
+            ],
+            [
+              103.850269563,
+              1.290179663
+            ],
+            [
+              103.850179709,
+              1.290179663
+            ]
+          ]
+        }
+      ]
+    },
+    "planSha256": "ddccf5a823ec2bbc2fe88844f6572c77528df7af84a7149da4192ae870e1f3c3"
+  },
+  {
+    "name": "timed-conflict",
+    "content": {
+      "name": "Mixed arrangement",
+      "units": [
+        {
+          "id": "unit-0",
+          "label": "Friendly controlled",
+          "category": "friendly",
+          "commandRole": "sentinel",
+          "position": {
+            "longitudeDeg": 103.85,
+            "latitudeDeg": 1.29,
+            "altitude": {
+              "metres": 150.125,
+              "reference": "ELLIPSOID",
+              "datumId": "WGS84"
+            }
+          },
+          "headingTrueDeg": 27.5
+        },
+        {
+          "id": "unit-1",
+          "label": "Friendly observer",
+          "category": "friendly",
+          "commandRole": "observation",
+          "position": {
+            "longitudeDeg": 103.851,
+            "latitudeDeg": 1.29,
+            "altitude": {
+              "metres": 151.125,
+              "reference": "ELLIPSOID",
+              "datumId": "WGS84"
+            }
+          },
+          "headingTrueDeg": 28.5
+        },
+        {
+          "id": "unit-2",
+          "label": "Hostile",
+          "category": "hostile",
+          "commandRole": "observation",
+          "position": {
+            "longitudeDeg": 103.85199999999999,
+            "latitudeDeg": 1.29,
+            "altitude": {
+              "metres": 152.125,
+              "reference": "ELLIPSOID",
+              "datumId": "WGS84"
+            }
+          },
+          "headingTrueDeg": 29.5
+        },
+        {
+          "id": "unit-3",
+          "label": "Unknown",
+          "category": "unknown",
+          "commandRole": "observation",
+          "position": {
+            "longitudeDeg": 103.853,
+            "latitudeDeg": 1.29,
+            "altitude": {
+              "metres": 153.125,
+              "reference": "ELLIPSOID",
+              "datumId": "WGS84"
+            }
+          },
+          "headingTrueDeg": 30.5
+        }
+      ],
+      "scheduleRuleVersion": "local-schedule-v2",
+      "actions": [
+        {
+          "id": "first",
+          "unitId": "unit-0",
+          "kind": "move",
+          "offsetMs": 0,
+          "ordinal": 0,
+          "destination": {
+            "longitudeDeg": 103.850134781,
+            "latitudeDeg": 1.29
+          }
+        },
+        {
+          "id": "second",
+          "unitId": "unit-0",
+          "kind": "move",
+          "afterActionId": "first",
+          "delayMs": 0,
+          "ordinal": 1,
+          "destination": {
+            "longitudeDeg": 103.85031449,
+            "latitudeDeg": 1.29
+          }
+        },
+        {
+          "id": "third",
+          "unitId": "unit-0",
+          "kind": "move",
+          "afterActionId": "second",
+          "delayMs": 0,
+          "ordinal": 2,
+          "destination": {
+            "longitudeDeg": 103.850494199,
+            "latitudeDeg": 1.29
+          }
+        },
+        {
+          "id": "timed",
+          "unitId": "unit-0",
+          "kind": "move",
+          "offsetMs": 600,
+          "ordinal": 3,
+          "destination": {
+            "longitudeDeg": 103.850673907,
+            "latitudeDeg": 1.29
+          }
+        }
+      ]
+    },
+    "planSha256": "0dc44e0cdcc9beadb6b4b1e1200c4a057cd26b399914cb1330054bb346060586"
+  }
+]

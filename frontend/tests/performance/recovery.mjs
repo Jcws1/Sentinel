@@ -13,7 +13,7 @@ await withIsolatedRuntime(
     frontendPort: 5373,
     backendPort: 8173,
     evidenceRoot: 'test-results/performance',
-    previewDir: 'dist-performance',
+    previewDir: process.env.PERF_BUILD ?? 'dist-performance',
   },
   async ({ frontend, output, restartBackend }) => {
     const browser = await chromium.launch({

@@ -138,7 +138,7 @@ export function operatorUI(page, frontend) {
     await page
       .getByRole('menuitem', { name: new RegExp(`${name} · r1.*Saved plan`) })
       .click();
-    const conductor = page.locator('[data-view="conductor"]');
+    const conductor = page.locator('[data-view="orchestrator"]');
     await conductor
       .getByRole('button', { name: 'Validate saved revision', exact: true })
       .click();

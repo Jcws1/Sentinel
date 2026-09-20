@@ -12,8 +12,11 @@ def restricted(frame):
 
 
 def blocked(frame, origin, destination=None):
+    rings = restricted(frame)
+    if not rings:
+        return None
     a, b = metric(origin, geometry=frame), metric(destination, geometry=frame) if destination is not None else None
-    for name, ring in restricted(frame):
+    for name, ring in rings:
         if crosses(a,b,ring) if b is not None else contains(a,ring):
             return f'Restricted boundary “{name}”: no entry, edge contact or crossing. Revise the destination or the next scenario revision.'
     return None

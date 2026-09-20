@@ -6,6 +6,7 @@ import {
   TabSetNode,
   RowNode,
   type IJsonTabNode,
+  type IJsonModel,
 } from 'flexlayout-react';
 import {
   createWorkspaceMetadata,
@@ -17,7 +18,12 @@ import {
   viewTitle,
   inspectorId,
   type ViewId,
+  canonicalViewId,
 } from './viewRegistry';
+import {
+  normalizeOrchestratorLayout,
+  type OrchestratorTab,
+} from './orchestratorLayout';
 import {
   defaultMapPresentation,
   type CameraIntent,
@@ -36,6 +42,8 @@ export class WorkspaceBridge {
   private bottomDetails = false;
   private sidebarMode: 'views' | 'fleet' = 'views';
   private sidebarOpen = true;
+  private orchestratorTab: OrchestratorTab = 'units';
+  readonly authoringScroll = new Map<OrchestratorTab, number>();
   private detailsReturnFocus?: HTMLElement;
   private readonly inspectorLabels = new Map<ViewId, string>();
   // Retain a closed view's presentation preference, like its camera bookmark.
@@ -55,34 +63,42 @@ export class WorkspaceBridge {
   readonly layoutModel: Model;
   readonly allowPopout: boolean;
   constructor(
-    options: { allowPopout?: boolean; initialViews?: ViewId[] } = {},
+    options: {
+      allowPopout?: boolean;
+      initialViews?: ViewId[];
+      initialLayout?: IJsonModel;
+    } = {},
   ) {
     this.allowPopout = options.allowPopout ?? false;
-    this.layoutModel = Model.fromJson({
-      global: {
-        tabEnableRename: false,
-        tabEnablePopout: this.allowPopout,
-        // Empty tabsets are removed only when both close and delete-when-empty are enabled.
-        tabSetEnableMaximize: false,
-        tabSetEnableClose: true,
-        tabSetEnableDeleteWhenEmpty: true,
-        tabSetMinWidth: 260,
-        tabSetMinHeight: 180,
+    const normalized = normalizeOrchestratorLayout(
+      options.initialLayout ?? {
+        global: {
+          tabEnableRename: false,
+          tabEnablePopout: this.allowPopout,
+          // Empty tabsets are removed only when both close and delete-when-empty are enabled.
+          tabSetEnableMaximize: false,
+          tabSetEnableClose: true,
+          tabSetEnableDeleteWhenEmpty: true,
+          tabSetMinWidth: 260,
+          tabSetMinHeight: 180,
+        },
+        layout: {
+          type: 'row',
+          children: [
+            {
+              type: 'tabset',
+              selected: 0,
+              active: true,
+              children: (options.initialViews ?? ['tactical', 'command']).map(
+                (id) => this.tab(id),
+              ),
+            },
+          ],
+        },
       },
-      layout: {
-        type: 'row',
-        children: [
-          {
-            type: 'tabset',
-            selected: 0,
-            active: true,
-            children: (options.initialViews ?? ['tactical', 'command']).map(
-              (id) => this.tab(id),
-            ),
-          },
-        ],
-      },
-    });
+    );
+    this.orchestratorTab = normalized.tab;
+    this.layoutModel = Model.fromJson(normalized.layout);
     this.layoutModel.setSplitterSize(8);
     this.layoutModel.addChangeListener(this.publish);
     this.publish();
@@ -151,6 +167,7 @@ export class WorkspaceBridge {
       revision: previous.revision + 1,
       sidebarMode: this.sidebarMode,
       sidebarOpen: this.sidebarOpen,
+      orchestratorTab: this.orchestratorTab,
     }));
   };
   setSidebar(mode: 'views' | 'fleet', open = true) {
@@ -159,6 +176,22 @@ export class WorkspaceBridge {
     this.sidebarOpen = open;
     this.publish();
   }
+  setOrchestratorTab(tab: OrchestratorTab) {
+    if (this.disposed || tab === this.orchestratorTab) return;
+    this.orchestratorTab = tab;
+    const pane = this.layoutModel.getNodeById('orchestrator');
+    if (pane instanceof TabNode)
+      this.layoutModel.doAction(
+        Actions.updateNodeAttributes('orchestrator', {
+          config: { ...pane.getConfig(), orchestratorTab: tab },
+        }),
+      );
+    else this.publish();
+  }
+  private resolveView(id: ViewId): ViewId {
+    if (id === 'units' || id === 'conductor') this.setOrchestratorTab(id);
+    return canonicalViewId(id);
+  }
   private auxiliary(id: string) {
     return (
       isViewId(id) &&
@@ -166,8 +199,7 @@ export class WorkspaceBridge {
         'details',
         'movement',
         'inspector',
-        'units',
-        'conductor',
+        'orchestrator',
         'settings',
         'cockpit',
         'suggestions',
@@ -190,7 +222,10 @@ export class WorkspaceBridge {
     const available =
       size ||
       (bottom ? 720 : this.viewportWidth - 40 - (this.sidebarOpen ? 220 : 0));
-    const desired = bottom ? 260 : 340;
+    const authoring = tabset
+      .getChildren()
+      .some((n) => n.getId() === 'orchestrator');
+    const desired = bottom ? (authoring ? 400 : 260) : authoring ? 380 : 340;
     const others =
       parent
         ?.getChildren()
@@ -206,9 +241,9 @@ export class WorkspaceBridge {
     this.layoutModel.doAction(
       Actions.updateNodeAttributes(tabset.getId(), {
         minWidth: bottom ? 260 : 300,
-        maxWidth: bottom ? 99999 : 440,
+        maxWidth: bottom ? 99999 : authoring ? 520 : 440,
         minHeight: bottom ? 220 : 180,
-        maxHeight: bottom ? 320 : 99999,
+        maxHeight: bottom ? (authoring ? 520 : 320) : 99999,
         weight: (others * desired) / Math.max(260, available - desired),
       }),
     );
@@ -275,6 +310,7 @@ export class WorkspaceBridge {
   }
   open(id: ViewId) {
     if (this.disposed) return;
+    id = this.resolveView(id);
     if (this.auxiliary(id)) {
       this.openAuxiliary(id);
       return;
@@ -293,6 +329,7 @@ export class WorkspaceBridge {
     this.focus(id);
   }
   focus(id: ViewId) {
+    id = this.resolveView(id);
     const node = this.layoutModel.getNodeById(id);
     if (this.disposed || !(node instanceof TabNode)) return;
     this.layoutModel.doAction(Actions.selectTab(id));
@@ -308,6 +345,7 @@ export class WorkspaceBridge {
     });
   }
   close(id: ViewId) {
+    id = canonicalViewId(id);
     if (this.disposed || !this.layoutModel.getNodeById(id)) return;
     this.endDestinationAuthoring(id);
     this.renderers.closeView(id);
@@ -342,6 +380,8 @@ export class WorkspaceBridge {
   }
   openToSide(id: ViewId, relativeTo?: ViewId) {
     if (this.disposed) return;
+    id = this.resolveView(id);
+    if (relativeTo) relativeTo = canonicalViewId(relativeTo);
     if (this.auxiliary(id) && id !== 'cockpit') {
       this.openAuxiliary(id);
       return;
@@ -487,11 +527,13 @@ export class WorkspaceBridge {
     });
   }
   popOut(id: ViewId) {
+    id = canonicalViewId(id);
     if (!this.allowPopout || this.disposed || !this.layoutModel.getNodeById(id))
       return;
     this.layoutModel.doAction(Actions.popoutTab(id, 'window'));
   }
   redock(id: ViewId) {
+    id = canonicalViewId(id);
     if (this.disposed || !this.layoutModel.getNodeById(id)) return;
     this.layoutModel.doAction(
       Actions.moveNode(

@@ -187,7 +187,10 @@ def advance(frame, checkpoint):
             events.extend(halt(frame, item, "Failed", reason))
             continue
         motion = item["motion"]
-        candidate = deepcopy(motion)
+        # step replaces only scalar progress fields and reads origin/destination.
+        # Keep a separate candidate for boundary refusal without recursively
+        # copying the unchanged geometry on every live and nominal source tick.
+        candidate = dict(motion)
         position, velocity = step(candidate, geometry=frame)
         track = frame["tracks"][item["trackId"]]
         reason = blocked(frame, track["latest"]["position"], position)

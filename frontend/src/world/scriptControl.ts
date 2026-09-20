@@ -7,13 +7,11 @@ export function captureScriptControl(
 ): DirectMoveMember[] {
   const run = state.presentation.frame?.interactive,
     current = state.interactive.current;
-  if (
-    state.scenario.active ||
-    state.presentation.mode !== 'live' ||
-    !run ||
-    !current ||
-    state.connection !== 'connected'
-  )
+  if (state.scenario.active || state.presentation.mode !== 'live' || !run)
+    throw new Error('Open a connected demo.');
+  if (run.state === 'ended')
+    throw new Error('Demo ended. Recorded inspection is read-only.');
+  if (!current || state.connection !== 'connected')
     throw new Error('Open a connected demo.');
   if (state.interactive.pending || state.interactive.busy)
     throw new Error('Resolve the pending command first.');

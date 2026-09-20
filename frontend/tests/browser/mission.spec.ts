@@ -109,6 +109,11 @@ test('backend committed frame and selection are shared without pane subscription
   ).toHaveText(bravo.frameId);
   expect(streams).toBe(2);
   await unloadMission(page);
+  // The inactive Command Picture is suspended. Reveal it to check that it
+  // catches up to the unload rather than expecting hidden subscriptions.
+  await page
+    .getByRole('button', { name: 'Open Command Picture', exact: true })
+    .click();
   await expect(page.locator('[data-readout]')).toHaveCount(0);
   await expect(page.locator('.mission-status')).toContainText(
     'No mission loaded',

@@ -35,7 +35,7 @@ await withIsolatedRuntime(
       screenshots: [],
     };
     page.on('pageerror', (e) => report.errors.push(e.message));
-    const pane = page.locator('.units-pane:not(.conductor-pane)'),
+    const pane = page.locator('[data-view="orchestrator"]'),
       map = page.locator('.tactical-view[data-view-id="tactical"]');
     const shot = async (name) => {
       await page.screenshot({ path: resolve(output, name + '.png') });
@@ -60,14 +60,23 @@ await withIsolatedRuntime(
     };
     const openUnits = async () => {
       await page
-        .getByRole('button', { name: 'Open Units', exact: true })
+        .getByRole('button', { name: 'Open Orchestrator', exact: true })
         .first()
         .click();
+      await pane.getByRole('tab', { name: 'Units', exact: true }).click();
+      const settings = pane.locator('.units-settings');
+      if (
+        (await settings.count()) &&
+        !(await settings.evaluate((el) => el.open))
+      )
+        await settings.locator(':scope > summary').click();
       const open = pane.getByRole('button', {
         name: 'Open scenario editor',
         exact: true,
       });
       if (await open.isVisible()) await open.click();
+      if (!(await settings.evaluate((el) => el.open)))
+        await settings.locator(':scope > summary').click();
     };
     const save = async () => {
       const response = page.waitForResponse(
@@ -149,7 +158,7 @@ await withIsolatedRuntime(
       mark(
         'Numeric preview, Cancel, map origin picking and explicit Apply; no unit accidentally placed',
       );
-      await pane.getByRole('button', { name: /^Friendly drone/ }).click();
+      await pane.getByRole('button', { name: /^Friendly Sentinel/ }).click();
       await pane
         .locator('.units-subtypes')
         .getByRole('button', { name: /^STING interceptor/ })

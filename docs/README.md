@@ -10,6 +10,9 @@ Start with the [repository README](../README.md) for installation and commands.
 | [Provider configuration](MAP_SERVICES_SETUP.md) | Existing environment variables and provider boundaries |
 | [Testing](../frontend/tests/README.md) | Repeatable checks and measurement tools |
 | [Performance results](reports/performance-stability.md) | Measured gains and unresolved acceptance limits |
+| [Orchestrator](orchestrator-ui/README.md) | Unified authoring, selection/deletion, workspace compatibility and verification |
+| [D7 integrated acceptance](integrated-acceptance/README.md) | Version-correct regressions, foreground demo/recovery, ten-minute workload and independent review |
+| [D7 performance closure](performance-closure/README.md) | Bounded validation optimization, matched measurements, recording attribution and remaining acceptance gates |
 | [Scenario locations](scenario-location/README.md) | Origin authoring, frozen geometry, compatibility and verification |
 | [Repository cleanup](repository-cleanup/REPORT.md) | Archive, attribution and verification of this organization pass |
 | [Archive index](ARCHIVE.md) | Historical raw evidence and restoration |

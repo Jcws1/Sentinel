@@ -56,7 +56,7 @@ await withIsolatedRuntime(
         context.serviceWorkers()[0] ??
         (await context.waitForEvent('serviceworker', { timeout: 10000 }));
       await loadPerformanceScenario(page, frontend);
-      await ui.tab('Conductor', 'Close view');
+      await ui.tab('Orchestrator', 'Close view');
       await ui.select('Friendly 01');
       await page
         .getByRole('button', { name: 'Video Feed', exact: true })

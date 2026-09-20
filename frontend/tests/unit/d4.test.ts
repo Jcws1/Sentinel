@@ -19,9 +19,36 @@ import { createScene } from '../../src/renderers/scene';
 import { initialSession } from '../../src/state/sessionStore';
 import { entityRows } from '../../src/world/entityRows';
 import { captureBehavior, behaviorLabel } from '../../src/world/behavior';
-import { captureDirectMove } from '../../src/world/directMovement';
+import {
+  captureDirectMove,
+  directContextReason,
+} from '../../src/world/directMovement';
 import { captureScriptControl } from '../../src/world/scriptControl';
 import type { RuntimeSnapshot } from '../../src/app/runtime';
+
+it.each([false, true])(
+  'explains ended inspection as read-only and refuses movement/control with ownsControl=%s',
+  (ownsControl) => {
+    const frame = validateFrame(structuredClone(armed));
+    frame.interactive!.state = 'ended';
+    const session = initialSession(frame.mission.id);
+    session.selection.items = [
+      { kind: 'entity', id: frame.interactive!.controls[0].entityId },
+    ];
+    const state = {
+      scenario: { active: false },
+      connection: 'connected',
+      session,
+      presentation: { frame, mode: 'live', status: 'current' },
+      interactive: { current: { run: frame.interactive, ownsControl } },
+    } as unknown as RuntimeSnapshot;
+    const message = 'Demo ended. Recorded inspection is read-only.';
+    expect(directContextReason(state)).toBe(message);
+    expect(() => captureDirectMove(state, 103.85, 1.29)).toThrow(message);
+    expect(() => captureScriptControl(state)).toThrow(message);
+    expect(() => captureBehavior(state, 'intercept')).toThrow(message);
+  },
+);
 
 it('keeps unavailable explicit bindings in selected capture while rejecting observations without authority', () => {
   const frame = validateFrame(structuredClone(armed));

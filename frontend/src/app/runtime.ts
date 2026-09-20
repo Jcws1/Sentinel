@@ -719,6 +719,18 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
     editScenarioUnit: (edit: ScenarioUnitEdit) => scenarios.editUnit(edit),
     applyScenarioUnitEdit: () => scenarios.applyEdit(),
     discardScenarioUnitEdit: () => scenarios.discardEdit(),
+    deleteScenarioUnits(ids: readonly string[]) {
+      if (!scenarios.deleteUnits(ids)) return false;
+      owner.selectScenarioUnits(
+        session
+          .getState()
+          .selection.items.filter(
+            (item) => item.kind === 'scenario-unit' && !ids.includes(item.id),
+          )
+          .map((item) => item.id),
+      );
+      return true;
+    },
     async saveScenario(asNew = false) {
       await scenarios.save(asNew);
       const id = session.getState().selection.primary?.id;
@@ -731,7 +743,14 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       if (id && !scenarios.get().draft.units.some((u) => u.id === id))
         owner.selectScenarioUnit();
     },
-    beginAction: scenarios.beginAction,
+    beginAction(id?: string, duplicate = false) {
+      const primary = session.getState().selection.primary;
+      scenarios.beginAction(
+        id,
+        duplicate,
+        primary?.kind === 'scenario-unit' ? primary.id : undefined,
+      );
+    },
     beginActionBatch: scenarios.beginBatch,
     setPlanPresentation: scenarios.setPlanPresentation,
     editAction: scenarios.editAction,
@@ -844,17 +863,8 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       const valid = [...new Set([...previous, ...ids])].filter((id) =>
         units.some((u) => u.id === id),
       );
-      const category = units.find((u) => u.id === valid[0])?.category;
-      if (
-        valid.some(
-          (id) => units.find((u) => u.id === id)?.category !== category,
-        )
-      ) {
-        scenarios.report(
-          'Select actors from one category for group authoring.',
-        );
-        return;
-      }
+      // Selection spans affiliations for draft bulk operations. beginBatch still
+      // enforces the existing same-category movement-authoring rule.
       const items = valid.map((id) => ({ kind: 'scenario-unit' as const, id }));
       const ref = items[0];
       session.setState({

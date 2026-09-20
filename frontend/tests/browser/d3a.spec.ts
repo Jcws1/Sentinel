@@ -1,12 +1,15 @@
+import { openAuthoringTab } from './authoringActions';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { rtsOrigin, readWorld, endDemo } from './rtsActions';
 import type { ScenarioRevision } from '../../src/contracts/generated';
+import type { CameraIntent } from '../../src/renderers/contracts';
+import { unchangedCamera } from './cameraAssertions';
 const evidence = resolve('test-results/browser/d3a-workflow');
-const units = (p: Page) => p.locator('[data-view="units"]');
-const conductor = (p: Page) => p.locator('[data-view="conductor"]');
+const units = (p: Page) => p.locator('[data-view="orchestrator"]');
+const conductor = (p: Page) => p.locator('[data-view="orchestrator"]');
 const map = (p: Page) => p.locator('.tactical-view[data-view-id="tactical"]');
 test.use({ actionTimeout: 12000 });
 test.beforeAll(() => mkdir(evidence, { recursive: true }).then(() => {}));
@@ -26,9 +29,11 @@ async function addUnit(
   lat: string,
   observer = false,
 ) {
-  const card = units(page).getByRole('button', {
-    name: new RegExp(`^${category}`),
-  });
+  const card = units(page)
+    .locator('.units-palette')
+    .getByRole('button', {
+      name: new RegExp(`^${category}`),
+    });
   if ((await card.getAttribute('aria-expanded')) !== 'true') await card.click();
   if (category !== 'Unknown entity')
     await units(page)
@@ -64,10 +69,7 @@ async function open(page: Page, name: string) {
   ).json();
   expect(entry.enabled).toBe(true);
   expect(entry.activeMissionId).toBeFalsy();
-  await page
-    .getByRole('button', { name: 'Open Units', exact: true })
-    .first()
-    .click();
+  await openAuthoringTab(page, 'Units');
   await units(page)
     .getByRole('button', { name: 'Open scenario editor', exact: true })
     .click();
@@ -84,7 +86,7 @@ async function inspect(page: Page, threeD = false) {
               ready: boolean;
               destinations: unknown[];
               destinationImagesReady?: boolean;
-              camera: unknown;
+              camera: CameraIntent;
             };
           }
         >
@@ -124,11 +126,8 @@ test('mixed timing preserves authoring leg identifiers and removes live previews
   test.setTimeout(90000);
   const name = `D3a stable legs ${Date.now()}`;
   await open(page, name);
-  await addUnit(page, 'Hostile drone', '103.85', '1.29');
-  await page
-    .getByRole('button', { name: 'Open Conductor', exact: true })
-    .first()
-    .click();
+  await addUnit(page, 'Hostile', '103.85', '1.29');
+  await openAuthoringTab(page, 'Conductor');
   const c = conductor(page);
   for (const [seconds, longitude] of [
     ['0', '103.85015'],
@@ -248,16 +247,13 @@ test('Missions loads a saved group script, actual completion dependencies execut
   for (let i = 0; i < 4; i++)
     await addUnit(
       page,
-      'Hostile drone',
+      'Hostile',
       String(103.85 + i * 0.0002),
       String(1.29 + i * 0.0001),
     );
-  await addUnit(page, 'Friendly drone', '103.849', '1.289', true);
+  await addUnit(page, 'Friendly', '103.849', '1.289', true);
   await addUnit(page, 'Unknown entity', '103.848', '1.288');
-  await page
-    .getByRole('button', { name: 'Open Conductor', exact: true })
-    .first()
-    .click();
+  await openAuthoringTab(page, 'Conductor');
   await conductor(page).locator('.conductor-actor-picker summary').click();
   await conductor(page)
     .getByRole('button', { name: 'Clear actor selection', exact: true })
@@ -316,8 +312,8 @@ test('Missions loads a saved group script, actual completion dependencies execut
   await conductor(page)
     .getByRole('button', { name: 'Save revision', exact: true })
     .click();
-  await expect(conductor(page).locator('.conductor-context')).toContainText(
-    'Saved revision 1',
+  await expect(conductor(page).locator('.orchestrator-status')).toContainText(
+    'Saved r1',
   );
   const saved = (
     await (await page.request.get(`${rtsOrigin}/api/scenarios`)).json()
@@ -352,6 +348,9 @@ test('Missions loads a saved group script, actual completion dependencies execut
     .click();
   let lost = true,
     creations = 0;
+  // Keep receipt lookup unavailable until explicit retry. Otherwise the existing
+  // automatic reconciliation can settle the lost response before this UI check.
+  await page.route('**/api/interactive/creations?*', (route) => route.abort());
   await page.route('**/api/interactive/runs', async (route) => {
     creations++;
     const response = await route.fetch();
@@ -365,12 +364,12 @@ test('Missions loads a saved group script, actual completion dependencies execut
     .click();
   await expect(
     conductor(page).getByRole('button', {
-      name: 'Retry saved Run request',
+      name: 'Retry Run request',
       exact: true,
     }),
   ).toBeVisible();
   await conductor(page)
-    .getByRole('button', { name: 'Retry saved Run request', exact: true })
+    .getByRole('button', { name: 'Retry Run request', exact: true })
     .click();
   await expect(page.locator('[data-run-state]').first()).toHaveAttribute(
     'data-run-state',
@@ -394,6 +393,7 @@ test('Missions loads a saved group script, actual completion dependencies execut
   );
   expect(first.interactive!.controls).toHaveLength(0);
   await page.unroute('**/api/interactive/runs');
+  await page.unroute('**/api/interactive/creations?*');
   await page.getByRole('button', { name: 'Load mission', exact: true }).click();
   await page
     .getByRole('menuitem', { name: new RegExp(`${name} · r1.*Saved plan`) })
@@ -490,7 +490,7 @@ test('Missions loads a saved group script, actual completion dependencies execut
   expect(
     (
       await new AxeBuilder({ page })
-        .include('[data-view="conductor"]')
+        .include('[data-view="orchestrator"]')
         .analyze()
     ).violations,
   ).toEqual([]);
@@ -507,14 +507,11 @@ test('batch edits preserve destination offsets, individual changes remain indepe
   for (let i = 0; i < 4; i++)
     await addUnit(
       page,
-      'Hostile drone',
+      'Hostile',
       String(103.85 + i * 0.0002),
       String(1.29 + i * 0.0001),
     );
-  await page
-    .getByRole('button', { name: 'Open Conductor', exact: true })
-    .first()
-    .click();
+  await openAuthoringTab(page, 'Conductor');
   const c = conductor(page);
   await c.locator('.conductor-actor-picker summary').click();
   await c
@@ -577,9 +574,7 @@ test('batch edits preserve destination offsets, individual changes remain indepe
     .getByRole('button', { name: 'Cancel action edit', exact: true })
     .click();
   await c.getByRole('button', { name: 'Save revision', exact: true }).click();
-  await expect(c.locator('.conductor-context')).toContainText(
-    'Saved revision 1',
-  );
+  await expect(c.locator('.orchestrator-status')).toContainText('Saved r1');
   const saved = (
     await (await page.request.get(`${rtsOrigin}/api/scenarios`)).json()
   ).scenarios.find(
@@ -621,10 +616,7 @@ test('batch edits preserve destination offsets, individual changes remain indepe
   const missionsBefore = (
     await (await page.request.get(`${rtsOrigin}/api/missions`)).json()
   ).missions.length;
-  await page
-    .getByRole('button', { name: 'Open Units', exact: true })
-    .first()
-    .click();
+  await openAuthoringTab(page, 'Units');
   await units(page)
     .getByLabel('Arrangement name', { exact: true })
     .fill('Unsaved retained arrangement');
@@ -655,9 +647,7 @@ test('batch edits preserve destination offsets, individual changes remain indepe
   await confirm
     .getByRole('button', { name: 'Discard changes and load', exact: true })
     .click();
-  await expect(c.locator('.conductor-context')).toContainText(
-    'Saved revision 1',
-  );
+  await expect(c.locator('.orchestrator-status')).toContainText('Saved r1');
   expect(
     (await (await page.request.get(`${rtsOrigin}/api/missions`)).json())
       .missions.length,
@@ -692,9 +682,7 @@ test('batch edits preserve destination offsets, individual changes remain indepe
     .click();
   await expect(c.locator('tbody tr')).toHaveCount(5);
   await c.getByRole('button', { name: 'Save revision', exact: true }).click();
-  await expect(c.locator('.conductor-context')).toContainText(
-    'Saved revision 2',
-  );
+  await expect(c.locator('.orchestrator-status')).toContainText('Saved r2');
   const revised = (await (
     await page.request.get(`${rtsOrigin}/api/scenarios/${saved.definitionId}`)
   ).json()) as ScenarioRevision;
@@ -710,7 +698,7 @@ test('normal Tactical and 3D live drawing, paused lost-response retry and occupi
   test.setTimeout(150000);
   await page.setViewportSize({ width: 1920, height: 1080 });
   await open(page, `D3a live tools ${Date.now()}`);
-  await addUnit(page, 'Friendly drone', '103.85', '1.29');
+  await addUnit(page, 'Friendly', '103.85', '1.29');
   await units(page)
     .getByRole('button', { name: 'Save revision', exact: true })
     .click();
@@ -806,7 +794,7 @@ test('normal Tactical and 3D live drawing, paused lost-response retry and occupi
     await expect(
       panel.getByRole('button', { name: 'Finish boundary', exact: true }),
     ).toHaveCount(0);
-    expect((await inspect(page, mode === '3D')).camera).toEqual(camera);
+    unchangedCamera((await inspect(page, mode === '3D')).camera, camera);
     await panel
       .getByLabel(`Type of ${mode} footprint`, { exact: true })
       .selectOption('friendly');

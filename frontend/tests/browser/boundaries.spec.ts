@@ -1,11 +1,18 @@
+import {
+  openAuthoringTab,
+  openScenarioFile,
+  openUnitsSettings,
+} from './authoringActions';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { rtsOrigin, readWorld, endDemo, fleetSelect } from './rtsActions';
 import type { ScenarioRevision } from '../../src/contracts/generated';
+import type { CameraIntent } from '../../src/renderers/contracts';
+import { unchangedCamera } from './cameraAssertions';
 const evidence = resolve('test-results/browser/boundaries');
-const units = (p: Page) => p.locator('.units-pane');
+const units = (p: Page) => p.locator('[data-view="orchestrator"]');
 const map = (p: Page, id = 'tactical') =>
   p.locator(`.tactical-view[data-view-id="${id}"]`);
 async function open(p: Page) {
@@ -14,10 +21,7 @@ async function open(p: Page) {
     (await (await p.request.get(`${rtsOrigin}/api/interactive/entry`)).json())
       .enabled,
   ).toBe(true);
-  await p
-    .getByRole('button', { name: 'Open Units', exact: true })
-    .first()
-    .click();
+  await openAuthoringTab(p, 'Units');
   await p
     .getByRole('button', { name: 'Open scenario editor', exact: true })
     .click();
@@ -25,7 +29,7 @@ async function open(p: Page) {
 }
 async function unit(p: Page, lon = '103.85', lat = '1.29') {
   await units(p)
-    .getByRole('button', { name: /^Friendly drone/ })
+    .getByRole('button', { name: /^Friendly/ })
     .click();
   await units(p)
     .locator('.units-subtypes')
@@ -49,6 +53,7 @@ const rectangle = [
   [103.854, 1.291],
 ];
 async function numeric(p: Page, name: string, vertices = rectangle) {
+  await openUnitsSettings(p);
   await units(p)
     .getByRole('button', { name: 'Draw boundary', exact: true })
     .focus();
@@ -97,7 +102,7 @@ async function inspect(p: Page, id = 'tactical', threeD = false) {
         {
           inspect(id: string): {
             ready: boolean;
-            camera: unknown;
+            camera: CameraIntent;
             zoneIds: string[];
           };
         }
@@ -152,6 +157,7 @@ test('keyboard boundaries, invalid edit recovery, exact copies, validated run an
       exact: true,
     }),
   ).toBeDisabled();
+  await units(page).getByRole('tab', { name: 'Units', exact: true }).click();
   await units(page)
     .getByRole('combobox', { name: 'Type of Transit exclusion' })
     .selectOption('restricted');
@@ -170,10 +176,7 @@ test('keyboard boundaries, invalid edit recovery, exact copies, validated run an
     units(page).getByRole('button', { name: 'Save revision', exact: true }),
   ).toBeDisabled();
   await page.reload();
-  await page
-    .getByRole('button', { name: 'Open Units', exact: true })
-    .first()
-    .click();
+  await openAuthoringTab(page, 'Units');
   await page
     .getByRole('button', { name: 'Open scenario editor', exact: true })
     .click();
@@ -196,6 +199,7 @@ test('keyboard boundaries, invalid edit recovery, exact copies, validated run an
     copied = (await response.json()).result;
     await route.abort('failed');
   });
+  await openScenarioFile(page);
   await units(page)
     .getByRole('button', { name: 'Save as new', exact: true })
     .click();
@@ -296,10 +300,7 @@ test('keyboard boundaries, invalid edit recovery, exact copies, validated run an
   await page.screenshot({ path: resolve(evidence, 'blocked-live.png') });
   await endDemo(page);
   const ended = await readWorld(page, first.mission.id);
-  await page
-    .getByRole('button', { name: 'Open Units', exact: true })
-    .first()
-    .click();
+  await openAuthoringTab(page, 'Units');
   await page
     .getByRole('button', { name: 'Open scenario editor', exact: true })
     .click();
@@ -346,6 +347,7 @@ test('both-map drawing, double-click final vertex, overlapping menu, edits and i
     ['tactical', false],
     ['tactical:2', true],
   ] as const) {
+    await openScenarioFile(page);
     await units(page)
       .getByRole('combobox', { name: 'Authoring map', exact: true })
       .selectOption(id);
@@ -368,7 +370,7 @@ test('both-map drawing, double-click final vertex, overlapping menu, edits and i
     await expect(
       units(page).getByRole('button', { name: 'Finish boundary', exact: true }),
     ).toHaveCount(0);
-    expect((await inspect(page, id, threeD)).camera).toEqual(before);
+    unchangedCamera((await inspect(page, id, threeD)).camera, before);
     await canvas.click({
       position: { x: box.width * 0.5, y: box.height * 0.5 },
       button: 'right',
@@ -419,7 +421,8 @@ test('both-map drawing, double-click final vertex, overlapping menu, edits and i
       path: resolve(evidence, `draw-${threeD ? '3d' : 'tactical'}.png`),
     });
   }
-  expect((await inspect(page, 'tactical:2', true)).camera).toEqual(
+  unchangedCamera(
+    (await inspect(page, 'tactical:2', true)).camera,
     secondCamera,
   );
 });
@@ -463,7 +466,7 @@ test('responsive keyboard feedback and accessible boundary controls', async ({
       width <= 900 ? 220 : 650,
     );
     const audit = await new AxeBuilder({ page })
-      .include('.units-pane')
+      .include('.orchestrator-pane')
       .analyze();
     expect(
       audit.violations.filter((v) =>
@@ -535,6 +538,7 @@ test('overlapping chooser is stable, type errors retain geometry, and restricted
     }),
   ).toBeDisabled();
   await page.screenshot({ path: resolve(evidence, 'restricted-occupant.png') });
+  await units(page).getByRole('tab', { name: 'Units', exact: true }).click();
   await units(page)
     .getByRole('button', { name: 'Edit Second footprint', exact: true })
     .click();
@@ -623,7 +627,7 @@ test('double-click drift, early Space release, failed sky completion and menu di
     await expect(
       units(page).getByRole('button', { name: 'Finish boundary', exact: true }),
     ).toHaveCount(0);
-    expect((await inspect(page, 'tactical', threeD)).camera).toEqual(before);
+    unchangedCamera((await inspect(page, 'tactical', threeD)).camera, before);
     await units(page)
       .getByRole('button', {
         name: `Edit Guarded ${threeD ? '3D' : 'Tactical'}`,
@@ -666,6 +670,7 @@ test('double-click drift, early Space release, failed sky completion and menu di
       timeout: 20000,
     })
     .toBe(true);
+  await openUnitsSettings(page);
   await units(page)
     .getByRole('button', { name: 'Draw boundary', exact: true })
     .click();
@@ -727,6 +732,7 @@ test('a refused 33rd final vertex preserves the full draft until explicit Finish
         timeout: 20000,
       })
       .toBe(true);
+    await openUnitsSettings(page);
     await units(page)
       .getByRole('button', { name: 'Draw boundary', exact: true })
       .click();

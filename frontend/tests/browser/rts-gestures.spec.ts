@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { newDemo, readWorld, endDemo } from './rtsActions';
 import { closeTab, tabAction } from './actions';
 import type { CameraIntent } from '../../src/renderers/contracts';
+import { unchangedCamera } from './cameraAssertions';
 
 test.use({ trace: 'off' });
 const evidence = resolve('test-results/browser/rts-gestures');
@@ -307,7 +308,7 @@ test('both projections share click/rectangle gestures, direct picking and indepe
   await pane(page, 'tactical:2')
     .getByRole('button', { name: 'Recenter', exact: true })
     .click();
-  expect((await inspect(page, 'three-d')).camera).toEqual(independent);
+  unchangedCamera((await inspect(page, 'three-d')).camera, independent);
   // Counts moved from the removed map footer to Fleet. Availability remains
   // distinct from run permission, and both renderers retain the same group.
   await page.locator('[data-activity-view="fleet"]').click();

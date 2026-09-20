@@ -5,6 +5,8 @@ import { App } from '../../src/app/App';
 import { WorkspaceBridge } from '../../src/features/workspace/workspaceBridge';
 import type { PaneLifecycleEvent } from '../../src/features/workspace/PaneHost';
 import type { ViewId } from '../../src/features/workspace/viewRegistry';
+import type { IJsonModel } from 'flexlayout-react';
+import legacyAuthoringLayout from '../fixtures/orchestrator-legacy-layout.json';
 import '../../src/styles/index.css';
 import './probe.css';
 
@@ -14,7 +16,12 @@ const context = createStore(() => ({
   time: 120,
   sequence: 0,
 }));
-const bridge = new WorkspaceBridge({ allowPopout: true });
+const bridge = new WorkspaceBridge({
+  allowPopout: true,
+  initialLayout: new URL(location.href).searchParams.has('legacy-authoring')
+    ? (legacyAuthoringLayout as IJsonModel)
+    : undefined,
+});
 const events: PaneLifecycleEvent[] = [];
 let timer: ReturnType<typeof setInterval> | undefined;
 let startedAt = 0;

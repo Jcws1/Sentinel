@@ -628,6 +628,9 @@ test('committed removals and stale/reconnect preserve selection, inspector ident
     page.getByRole('heading', { name: 'Entity unavailable' }),
   ).toBeVisible();
   await page.getByRole('tab', { name: 'Tactical Map', exact: true }).click();
+  // Pinning hides the reusable Details pane. Hidden panes deliberately retain
+  // their last snapshot; reveal it before asserting its current world contents.
+  await page.getByRole('button', { name: 'Open Details', exact: true }).click();
   await expect(page.locator('.selection-details')).toContainText(
     'missing from the presented frame',
   );

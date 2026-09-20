@@ -8,7 +8,6 @@ import {
   Files,
   ListFilter,
   Settings2,
-  Box,
 } from 'lucide-react';
 import { viewKind, type ViewId } from '../features/workspace/viewRegistry';
 
@@ -16,8 +15,12 @@ import { viewKind, type ViewId } from '../features/workspace/viewRegistry';
 export const modules = [
   { id: 'home', label: 'Home', icon: House },
   { id: 'map', label: 'Map', icon: Map, view: 'tactical' },
-  { id: 'units', label: 'Units', icon: Box, view: 'units' },
-  { id: 'conductor', label: 'Conductor', icon: Clock3, view: 'conductor' },
+  {
+    id: 'orchestrator',
+    label: 'Orchestrator',
+    icon: Clock3,
+    view: 'orchestrator',
+  },
   { id: 'tracks', label: 'Tracks', icon: ScanSearch, view: 'tracks' },
   { id: 'sensors', label: 'Sensors', icon: Radar },
   { id: 'command', label: 'Command Picture', icon: Crosshair, view: 'command' },

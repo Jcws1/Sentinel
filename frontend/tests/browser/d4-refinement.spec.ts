@@ -1,3 +1,4 @@
+import { openAuthoringTab } from './authoringActions';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -6,8 +7,8 @@ import { rtsOrigin, readWorld, endDemo, fleetSelect } from './rtsActions';
 import { closeTab } from './actions';
 import type { ScenarioContent } from '../../src/contracts/generated';
 const evidence = resolve('test-results/browser/evidence');
-const units = (p: Page) => p.locator('[data-view="units"]');
-const conductor = (p: Page) => p.locator('[data-view="conductor"]');
+const units = (p: Page) => p.locator('[data-view="orchestrator"]');
+const conductor = (p: Page) => p.locator('[data-view="orchestrator"]');
 const map = (p: Page) => p.locator('.tactical-view[data-view-id="tactical"]');
 const fleet = (p: Page) => p.locator('.fleet-sidebar');
 type Probe = {
@@ -67,7 +68,26 @@ async function stance(page: Page, value: string) {
   await fleet(page).getByRole('button', { name: 'Apply', exact: true }).click();
   expect((await (await result).json()).accepted).toBe(true);
 }
-async function groundMove(page: Page) {
+async function groundMove(page: Page, threeD = false) {
+  if (threeD) {
+    // A fixed fraction near the top of an oblique regional camera can pick
+    // kilometres beyond the scenario. Frame a known supported destination;
+    // the real canvas click must still pass normal ground picking/validation.
+    await page.evaluate(() => {
+      (
+        window as unknown as {
+          __sentinelCesiumTest: { setCamera(id: string, value: unknown): void };
+        }
+      ).__sentinelCesiumTest.setCamera('tactical', {
+        center: { longitudeDeg: 103.86, latitudeDeg: 1.29 },
+        groundSpanM: 1500,
+        headingTrueDeg: 0,
+        pitchFromNadirDeg: 35,
+        focusHeightM: 0,
+        projection: 'three-d',
+      });
+    });
+  }
   const canvas = map(page).locator('canvas').first(),
     box = (await canvas.boundingBox())!;
   const response = page.waitForResponse(
@@ -76,7 +96,10 @@ async function groundMove(page: Page) {
   const started = Date.now();
   await canvas.click({
     button: 'right',
-    position: { x: box.width * 0.72, y: box.height * 0.38 },
+    position: {
+      x: box.width * (threeD ? 0.5 : 0.72),
+      y: box.height * (threeD ? 0.5 : 0.38),
+    },
   });
   const receipt = await (await response).json();
   expect(receipt.accepted, receipt.message).toBe(true);
@@ -89,11 +112,13 @@ async function place(
   lon: number,
   lat: number,
 ) {
-  const card = units(page).getByRole('button', {
-    name: new RegExp(
-      `^${category === 'friendly' ? 'Friendly drone' : category === 'hostile' ? 'Hostile drone' : 'Unknown entity'}`,
-    ),
-  });
+  const card = units(page)
+    .locator('.units-palette')
+    .getByRole('button', {
+      name: new RegExp(
+        `^${category === 'friendly' ? 'Friendly' : category === 'hostile' ? 'Hostile' : 'Unknown entity'}`,
+      ),
+    });
   if (
     category === 'unknown' ||
     (await card.getAttribute('aria-expanded')) !== 'true'
@@ -250,10 +275,7 @@ test('typed authoring, exact saved revision, authored hostile movement and autho
       ).json()
     ).enabled,
   ).toBe(true);
-  await page
-    .getByRole('button', { name: 'Open Units', exact: true })
-    .first()
-    .click();
+  await openAuthoringTab(page, 'Units');
   await units(page)
     .getByRole('button', { name: 'Open scenario editor', exact: true })
     .click();
@@ -265,10 +287,7 @@ test('typed authoring, exact saved revision, authored hostile movement and autho
   await place(page, 'hostile', 'Lancet-3', 103.86, 1.291);
   await place(page, 'hostile', 'Shahed-136', 103.86, 1.292);
   await place(page, 'unknown', undefined, 103.85, 1.292);
-  await page
-    .getByRole('button', { name: 'Open Conductor', exact: true })
-    .first()
-    .click();
+  await openAuthoringTab(page, 'Conductor');
   await conductor(page)
     .getByRole('button', { name: 'Add action', exact: true })
     .click();
@@ -335,11 +354,8 @@ test('typed authoring, exact saved revision, authored hostile movement and autho
     await noScript(page);
     await projection(page, true);
     await noScript(page, true);
-    await closeTab(page, 'Conductor');
-    await page
-      .getByRole('button', { name: 'Open Conductor', exact: true })
-      .first()
-      .click();
+    await closeTab(page, 'Orchestrator');
+    await openAuthoringTab(page, 'Conductor');
     await noScript(page, true);
     await page
       .getByRole('button', { name: 'Resume', exact: true })
@@ -400,7 +416,7 @@ for (const [count, hostiles] of [
     expect(saved.ok()).toBe(true);
     try {
       await loadValidateRun(page, data.name);
-      await closeTab(page, 'Conductor');
+      await closeTab(page, 'Orchestrator');
       await fleetSelect(
         page,
         Array.from({ length: count }, (_, i) => `Friendly ${i + 1}`),
@@ -433,7 +449,7 @@ for (const [count, hostiles] of [
       if (measured) {
         expect(measured.changedPoses).toBeGreaterThan(20);
         await projection(page, true);
-        await groundMove(page);
+        await groundMove(page, true);
         const threeD = await sampleAnimation(page, true);
         expect(threeD.changedPoses).toBeGreaterThan(20);
         await writeFile(
@@ -548,7 +564,7 @@ test('idle Intercept produces persistent NON-OP on both maps and reload without 
   });
   try {
     await loadValidateRun(page, data.name);
-    await closeTab(page, 'Conductor');
+    await closeTab(page, 'Orchestrator');
     await fleetSelect(page, ['Friendly 1']);
     await stance(page, 'intercept');
     await expect

@@ -12,6 +12,8 @@ export function directContextReason(
     run = frame?.interactive,
     current = state.interactive.current;
   if (!frame || !run) return 'Open a demo to move drones.';
+  if (run.state === 'ended')
+    return 'Demo ended. Recorded inspection is read-only.';
   if (state.connection !== 'connected') return 'Connection lost.';
   if (
     state.presentation.sourceDelayed ||
@@ -33,10 +35,7 @@ export function directContextReason(
   const now = state.interactive.now ?? current.serverTime;
   if (!run.lease.expiresAt || now >= run.lease.expiresAt)
     return 'Control expired. Continue the demo to regain control.';
-  if (run.state !== 'running')
-    return run.state === 'ended'
-      ? 'Demo ended.'
-      : 'Resume the demo to move drones.';
+  if (run.state !== 'running') return 'Resume the demo to move drones.';
   if (
     !run.lastReportAt ||
     Date.parse(now) - Date.parse(run.lastReportAt) > 2000

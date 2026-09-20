@@ -1,4 +1,8 @@
-import { armPlacement } from './authoringActions';
+import {
+  armPlacement,
+  openAuthoringTab,
+  openScenarioFile,
+} from './authoringActions';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -13,14 +17,11 @@ import {
 
 const evidence = resolve('test-results/browser/scenarios');
 test.use({ actionTimeout: 10000 });
-const pane = (page: Page) => page.locator('.units-pane');
+const pane = (page: Page) => page.locator('[data-view="orchestrator"]');
 const map = (page: Page) =>
   page.locator('.tactical-view[data-view-id="tactical"]');
 async function editor(page: Page) {
-  await page
-    .getByRole('button', { name: 'Open Units', exact: true })
-    .first()
-    .click();
+  await openAuthoringTab(page, 'Units');
   const open = page.getByRole('button', {
     name: 'Open scenario editor',
     exact: true,
@@ -99,9 +100,9 @@ test('author both maps, exact poses and roles, reconcile save and Run, move only
   await pane(page)
     .getByRole('textbox', { name: 'Arrangement name' })
     .fill('Harbour exercise');
-  await place(page, 'Friendly drone', 0.43, 0.45);
+  await place(page, 'Friendly', 0.43, 0.45);
   await pose(page, 'Controlled One', '103.849125', 'sentinel');
-  await place(page, 'Friendly drone', 0.58, 0.45);
+  await place(page, 'Friendly', 0.58, 0.45);
   await pose(page, 'Observer One', '103.853125');
   await map(page).getByRole('button', { name: '3D', exact: true }).click();
   await expect
@@ -118,7 +119,7 @@ test('author both maps, exact poses and roles, reconcile save and Run, move only
       ),
     )
     .toBe(true);
-  await place(page, 'Hostile drone', 0.52, 0.55);
+  await place(page, 'Hostile', 0.52, 0.55);
   await pose(page, 'Hostile One', '103.851125');
   await place(page, 'Unknown entity', 0.62, 0.56);
   await pose(page, 'Unknown One', '103.847125');
@@ -134,6 +135,9 @@ test('author both maps, exact poses and roles, reconcile save and Run, move only
   await place(page, 'Unknown entity', 0.5, 0.6);
   await pane(page)
     .getByRole('button', { name: 'Delete selected unit' })
+    .click();
+  await pane(page)
+    .getByRole('button', { name: 'Confirm delete 1', exact: true })
     .click();
   await expect(pane(page).locator('.units-arrangement li')).toHaveCount(4);
   await map(page)
@@ -182,12 +186,13 @@ test('author both maps, exact poses and roles, reconcile save and Run, move only
   ).toEqual([37.125, 37.125, 37.125, 37.125]);
   await page.reload();
   await editor(page);
+  await openScenarioFile(page);
   await pane(page)
     .getByRole('button', { name: 'Load latest', exact: true })
     .click();
   await expect(pane(page).locator('.units-arrangement li')).toHaveCount(4);
   const accessibility = await new AxeBuilder({ page })
-    .include('.units-pane')
+    .include('.orchestrator-pane')
     .analyze();
   await writeFile(
     resolve(evidence, 'units-accessibility.json'),
@@ -284,7 +289,7 @@ test('conflicting saves retain both immutable revisions and keep local edits rec
   await pane(page)
     .getByRole('textbox', { name: 'Arrangement name' })
     .fill('Concurrent authoring');
-  await place(page, 'Friendly drone');
+  await place(page, 'Friendly');
   await save(page);
   const catalog = await (
     await page.request.get(`${rtsOrigin}/api/scenarios`)
@@ -333,6 +338,7 @@ test('conflicting saves retain both immutable revisions and keep local edits rec
     ).content.name,
   ).toBe('Other author wins');
   await page.screenshot({ path: resolve(evidence, 'revision-conflict.png') });
+  await openScenarioFile(page);
   await pane(page)
     .getByRole('button', { name: 'Save as new', exact: true })
     .click();
@@ -349,7 +355,7 @@ test('unapplied role and pose edits cannot silently Save or Run; reload retains 
   test.setTimeout(60000);
   await page.goto(rtsOrigin);
   await editor(page);
-  await armPlacement(pane(page), 'Friendly drone');
+  await armPlacement(pane(page), 'Friendly');
   await expect(
     pane(page).getByRole('button', { name: 'Cancel placement · Esc' }),
   ).toBeVisible();
@@ -357,7 +363,7 @@ test('unapplied role and pose edits cannot silently Save or Run; reload retains 
   await expect(
     pane(page).getByRole('button', { name: 'Cancel placement · Esc' }),
   ).toHaveCount(0);
-  await place(page, 'Friendly drone');
+  await place(page, 'Friendly');
   await save(page);
   await pane(page)
     .getByRole('combobox', { name: 'Command role' })
@@ -374,8 +380,8 @@ test('unapplied role and pose edits cannot silently Save or Run; reload retains 
       exact: true,
     }),
   ).toBeDisabled();
-  await expect(pane(page).locator('.units-revision')).toContainText(
-    'Unapplied unit edits',
+  await expect(pane(page).locator('.orchestrator-status')).toContainText(
+    'Unapplied unit edit',
   );
   await page.screenshot({
     path: resolve(evidence, 'unapplied-edits-guarded.png'),

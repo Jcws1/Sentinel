@@ -15,6 +15,7 @@ export async function withIsolatedRuntime(options, run) {
     previewDir,
     evidenceRoot,
     backendDirectory,
+    backendModule = 'app.main:app',
   } = options;
   if (!/^[a-z0-9-]+$/.test(tag)) throw Error('Invalid task tag');
   const output = resolve(evidenceRoot ?? 'test-results/performance', tag);
@@ -57,7 +58,7 @@ export async function withIsolatedRuntime(options, run) {
       [
         '-m',
         'uvicorn',
-        'app.main:app',
+        backendModule,
         '--host',
         '127.0.0.1',
         '--port',

@@ -1,5 +1,10 @@
 // Saved-plan input through the ordinary scenario API/Conductor workflow.
-export function performanceScenario(perSide = 20) {
+export function performanceScenario(
+  perSide = 20,
+  { routeHalfSpanDeg = 0.025 } = {},
+) {
+  if (![0.025, 0.035].includes(routeHalfSpanDeg))
+    throw Error('Unsupported bounded verification route span');
   const units = ['friendly', 'hostile'].flatMap((category, side) =>
     Array.from({ length: perSide }, (_, i) => ({
       id: `${category}-${i + 1}`,
@@ -33,7 +38,8 @@ export function performanceScenario(perSide = 20) {
         destination: {
           longitudeDeg:
             103.85 +
-            (unit.category === 'hostile' ? -1 : 1) * (leg % 2 ? -0.025 : 0.025),
+            (unit.category === 'hostile' ? -1 : 1) *
+              (leg % 2 ? -routeHalfSpanDeg : routeHalfSpanDeg),
           latitudeDeg: unit.position.latitudeDeg,
         },
       })),

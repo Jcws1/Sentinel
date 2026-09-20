@@ -10,6 +10,24 @@ Saved scenarios support forty entities, with at most thirty-two controlled actor
 
 New scenarios own versioned horizontal geometry, frozen into each run and recording. Legacy absence retains the historical origin. The ±5 km square is fixed; origin edits preserve geographic content and reject invalidating changes. Drafts and map viewports never own a running mission's geometry. See [scenario locations](scenario-location/README.md).
 
+## Orchestrator ownership
+
+One Orchestrator pane contains Units/Conductor tabs around the existing scenario client. Shared context and lifecycle controls own no second draft or transport. Internal tab visibility suspends runtime subscriptions while retaining form state; map-picking modes are disarmed on hiding/closing. The selected authoring map is shared, but its camera bookmark remains renderer-owned. Draft selection can include mixed affiliations; existing batch-movement eligibility still requires one known category. `scenarioDeletionImpact` and the scenario client's atomic deletion preserve action dependency rules and never mutate live entities.
+
+`WorkspaceBridge` accepts legacy view aliases and normalizes supplied FlexLayout JSON through `orchestratorLayout.ts`, retaining one editor and a deterministic internal tab without mutating adjacent panes or input JSON. The baseline has no automatic browser layout persistence. See [Orchestrator](orchestrator-ui/README.md) for the workflow and compatibility boundary. No backend schema or historical contract changes accompany this UI change.
+
+## Recovery acceptance
+
+D7's [integrated acceptance matrix](integrated-acceptance/RECOVERY.md) exercises these ownership boundaries with isolated writers. Transport connectivity and source freshness are separate: genuine heartbeats can continue while the simulator stops reporting. The shared presentation then retains committed positions, labels source delay and blocks positional commands/Suggestions. Nonpositional Stop and lifecycle controls retain their existing authority checks. A paused source is not treated as a stalled running source.
+
+The D7 performance follow-up preserves this architecture. Live and nominal
+schedule movement copy mutable scalar progress without recursively copying
+read-only motion geometry on every tick. Restricted-boundary checks read current
+rings each time and avoid coordinate calculations when none exist. There is no
+review cache or changed recording representation; strict readers, complete
+validation, transaction/publication order and SQLite schema 4 remain. See the
+[diagnosis and compatibility boundary](performance-closure/DIAGNOSIS.md).
+
 ## Files that remain intentionally
 
 - `backend/app/**/legacy*.py`: strict versioned compatibility readers, reached through current imports.

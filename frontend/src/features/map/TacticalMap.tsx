@@ -1058,7 +1058,7 @@ export function TacticalMap({
                       ? 'Placement belongs to another map'
                       : state.scenario.actionEdit
                         ? 'Script preview · straight intent, not route clearance'
-                        : 'Units to place · Conductor to script'}
+                        : 'Orchestrator · Units to arrange · Conductor to script'}
           </span>
         </div>
       ) : state.presentation.frame?.scenario ? (

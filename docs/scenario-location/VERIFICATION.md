@@ -1,5 +1,7 @@
 # Verification and evidence
 
+This is the historical scenario-location verification record. Subsequent authoring UI changes are documented in [Orchestrator verification](../orchestrator-ui/VERIFICATION.md); the source-match statement below refers to the location feature's delivered source state.
+
 Source baseline: clean `d85fc6e`, 19 September 2026. Before implementation: **365 backend tests**, **372 frontend tests**, existing archived contracts/specifications retained. Baseline database inventory records 437 existing database/WAL/SHM artifacts; final preservation is checked by size and nanosecond modification time without opening an operator database.
 
 **Final acceptance: independent round 3 recommends accept, 9.1/10, with no established remaining material blocker.** Its 198-file production manifest still matches the delivered source. Reports, reusable fixtures and verification runners remain in the checkout. Raw evidence was hash-verified into the local sibling archive `C:/Archive/Coding/Sentinel3-archive/2026-09-19-scenario-location/`; evidence links below require that local archive and are not uploaded by Git.

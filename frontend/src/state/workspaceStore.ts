@@ -12,6 +12,7 @@ export interface WorkspaceSnapshot {
   revision: number;
   sidebarMode: 'views' | 'fleet';
   sidebarOpen: boolean;
+  orchestratorTab: 'units' | 'conductor';
 }
 /** Derived workspace metadata. Only WorkspaceBridge writes it. No domain or GPU state. */
 export function createWorkspaceMetadata() {
@@ -20,5 +21,6 @@ export function createWorkspaceMetadata() {
     revision: 0,
     sidebarMode: 'views',
     sidebarOpen: true,
+    orchestratorTab: 'units',
   }));
 }

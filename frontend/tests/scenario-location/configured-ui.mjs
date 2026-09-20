@@ -47,7 +47,7 @@ await withIsolatedRuntime(
         return route.abort();
       return route.continue();
     });
-    const pane = page.locator('.units-pane:not(.conductor-pane)'),
+    const pane = page.locator('[data-view="orchestrator"]'),
       map = page.locator('.tactical-view[data-view-id="tactical"]');
     const inspect = () =>
       page.evaluate(() => globalThis.__sentinelMapTest?.inspect('tactical'));
@@ -61,9 +61,16 @@ await withIsolatedRuntime(
     };
     const openUnits = async () => {
       await page
-        .getByRole('button', { name: 'Open Units', exact: true })
+        .getByRole('button', { name: 'Open Orchestrator', exact: true })
         .first()
         .click();
+      await pane.getByRole('tab', { name: 'Units', exact: true }).click();
+      const settings = pane.locator('.units-settings');
+      if (
+        (await settings.count()) &&
+        !(await settings.evaluate((el) => el.open))
+      )
+        await settings.locator(':scope > summary').click();
     };
     try {
       const fixtures = {};
@@ -173,8 +180,8 @@ await withIsolatedRuntime(
       await pane
         .getByLabel('Type of Remote annotation', { exact: true })
         .selectOption('annotation');
-      await pane.getByRole('button', { name: /^Conductor ·/ }).click();
-      const conductor = page.locator('.conductor-pane');
+      await pane.getByRole('tab', { name: 'Conductor', exact: true }).click();
+      const conductor = pane;
       await conductor
         .getByRole('button', { name: /^Select action Friendly 01/ })
         .first()

@@ -1,0 +1,64 @@
+{
+  "global": { "tabEnableRename": false, "tabSetEnableMaximize": false },
+  "borders": [
+    {
+      "type": "border",
+      "location": "left",
+      "selected": -1,
+      "children": [
+        {
+          "type": "tab",
+          "id": "details",
+          "name": "Details",
+          "component": "details"
+        }
+      ]
+    }
+  ],
+  "layout": {
+    "type": "row",
+    "children": [
+      {
+        "type": "tabset",
+        "id": "legacy-map-group",
+        "weight": 65,
+        "selected": 0,
+        "children": [
+          {
+            "type": "tab",
+            "id": "tactical",
+            "name": "Tactical Map",
+            "component": "tactical"
+          },
+          {
+            "type": "tab",
+            "id": "units",
+            "name": "Units",
+            "component": "units"
+          }
+        ]
+      },
+      {
+        "type": "tabset",
+        "id": "legacy-editor-group",
+        "weight": 35,
+        "selected": 1,
+        "active": true,
+        "children": [
+          {
+            "type": "tab",
+            "id": "command",
+            "name": "Command Picture",
+            "component": "command"
+          },
+          {
+            "type": "tab",
+            "id": "conductor",
+            "name": "Conductor",
+            "component": "conductor"
+          }
+        ]
+      }
+    ]
+  }
+}

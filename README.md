@@ -26,7 +26,7 @@ In another terminal:
 npm --prefix frontend run dev
 ```
 
-Open <http://127.0.0.1:5180>. Choose **New demo**, or open **Units** to author a saved plan. Select a profile within a unit category before placing it. The default database is `backend/data/sentinel.sqlite3`; run **one backend process per database**. `SENTINEL_DB_PATH` selects another database without deleting existing recordings.
+Open <http://127.0.0.1:5180>. Choose **New demo**, or open **Orchestrator** to author a saved plan in its Units and Conductor tabs. Select a profile within a unit category before placing it. The default database is `backend/data/sentinel.sqlite3`; run **one backend process per database**. `SENTINEL_DB_PATH` selects another database without deleting existing recordings.
 
 No credentials are needed for the labelled grid/globe fallbacks. The optional regional map pack and existing providers are covered in [map setup](docs/MAP_REFINEMENT_SETUP.md). Local configuration, databases, dependencies, builds and the large map pack are ignored. Preserve any existing `.env.local` when following setup instructions.
 
@@ -68,11 +68,19 @@ npm --prefix frontend run test:browser
 
 Browser checks use installed Microsoft Edge and isolated databases on ports 8011, 5181 and 5182. Existing listeners are not reused. Verification builds share canonical public assets instead of repeatedly copying map packs. See [test instructions](frontend/tests/README.md) for 20v20 and foreground measurements.
 
+The [Orchestrator guide](docs/orchestrator-ui/README.md) describes shared Save/Validate/Run controls, draft multi-selection, dependency-safe deletion and legacy pane compatibility.
+
+[D7 integrated acceptance](docs/integrated-acceptance/README.md) records the current version-correct regression gate, foreground workflow/recovery checks and bounded resource evidence. Functional and recovery results are separate from the previously documented display-performance limits.
+
+The bounded [D7 performance follow-up](docs/performance-closure/README.md) reduces
+exact-revision validation work without changing simulation rules, recording format
+or fidelity. Storage and display acceptance are reported separately and remain open.
+
 ## Current limits
 
 Scenarios support **40 units**, including the verified **20 Friendly / 20 Hostile** moving workload. Controlled units remain capped at 32; existing command and assignment rules remain. Hostile interception semantics have not been added. Current exports are in [v1.14](contracts/sentinel/v1.14/README.md); individual wire versions differ by message.
 
-**Units → Scenario location** supports an explicit WGS84 origin while retaining a fixed ±5 km square and unchanged geographic positions/heights. See [location workflow, compatibility and verification](docs/scenario-location/README.md).
+**Orchestrator → Units → Location & boundaries → Scenario location** supports an explicit WGS84 origin while retaining a fixed ±5 km square and unchanged geographic positions/heights. See [location workflow, compatibility and verification](docs/scenario-location/README.md).
 
 Loaded Google Video did **not** meet sustained 60 FPS in the last performance pass. Intermittent ordinary-3D cold startup and dense 3D label overlap remain documented. [Performance results and limitations](docs/reports/performance-stability.md).
 

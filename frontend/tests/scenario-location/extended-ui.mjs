@@ -36,7 +36,7 @@ await withIsolatedRuntime(
       screenshots: [],
     };
     page.on('pageerror', (e) => report.errors.push(e.message));
-    const pane = page.locator('.units-pane:not(.conductor-pane)');
+    const pane = page.locator('[data-view="orchestrator"]');
     const map = page.locator('.tactical-view[data-view-id="tactical"]');
     const inspect = () =>
       page.evaluate(() => ({
@@ -55,14 +55,23 @@ await withIsolatedRuntime(
     };
     const openUnits = async () => {
       await page
-        .getByRole('button', { name: 'Open Units', exact: true })
+        .getByRole('button', { name: 'Open Orchestrator', exact: true })
         .first()
         .click();
+      await pane.getByRole('tab', { name: 'Units', exact: true }).click();
+      const settings = pane.locator('.units-settings');
+      if (
+        (await settings.count()) &&
+        !(await settings.evaluate((el) => el.open))
+      )
+        await settings.locator(':scope > summary').click();
       const open = pane.getByRole('button', {
         name: 'Open scenario editor',
         exact: true,
       });
       if (await open.isVisible()) await open.click();
+      if (!(await settings.evaluate((el) => el.open)))
+        await settings.locator(':scope > summary').click();
     };
     const origin = async (lon) => {
       await pane
@@ -189,6 +198,7 @@ await withIsolatedRuntime(
         ).content.localGeometry.origin.longitudeDeg,
       ).toBe(151.1773);
       await shot('01-save-conflict');
+      await pane.locator('.orchestrator-document > summary').click();
       await pane
         .getByRole('button', { name: 'Load latest', exact: true })
         .click();

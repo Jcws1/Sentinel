@@ -4,6 +4,7 @@ import {
   batchAnchor,
 } from '../world/scriptAuthoring';
 import { actionTime, scriptPlan } from '../world/scriptPlan';
+import { scenarioDeletionImpact } from '../world/scenarioSelection';
 import type {
   ScenarioContent,
   ScenarioRevision,
@@ -797,6 +798,55 @@ export function createScenarioClient(options: {
           true,
         );
     },
+    deleteUnits(ids: readonly string[]) {
+      if (
+        !state.active ||
+        state.locationEdit ||
+        state.edit ||
+        state.actionEdit ||
+        state.boundaryEdit ||
+        state.placement ||
+        state.blocked ||
+        state.pending ||
+        state.busy ||
+        state.reviewing
+      )
+        return false;
+      const impact = scenarioDeletionImpact(state.draft, ids);
+      if (!impact.canDelete) {
+        emit({
+          error: impact.actions.length
+            ? `No units deleted. Remove the ${impact.actions.length} referencing actions in Conductor first; dependent actions must be resolved before their predecessors.`
+            : 'The selection changed. Review the units before deleting.',
+        });
+        return false;
+      }
+      try {
+        const selected = new Set(ids);
+        const draft = readDraft({
+          ...state.draft,
+          units: state.draft.units.filter((unit) => !selected.has(unit.id)),
+        });
+        emit(
+          {
+            draft,
+            dirty: true,
+            error: undefined,
+            message: `${impact.units.length} ${impact.units.length === 1 ? 'unit' : 'units'} deleted from the draft. Save a new revision to keep this change.`,
+          },
+          true,
+        );
+        return true;
+      } catch (error) {
+        emit({
+          error:
+            error instanceof Error
+              ? error.message
+              : 'No units deleted. Resolve dependent authored items first.',
+        });
+        return false;
+      }
+    },
     update(draft: ScenarioContent) {
       if (
         state.active &&
@@ -1006,7 +1056,7 @@ export function createScenarioClient(options: {
             : [],
         });
     },
-    beginAction(id?: string, duplicate = false) {
+    beginAction(id?: string, duplicate = false, preferredUnitId?: string) {
       if (
         !state.active ||
         state.locationEdit ||
@@ -1025,6 +1075,9 @@ export function createScenarioClient(options: {
       }
       const unit =
         state.draft.units.find((u) => u.id === source?.unitId) ??
+        state.draft.units.find(
+          (u) => u.id === preferredUnitId && u.category !== 'unknown',
+        ) ??
         state.draft.units.find((u) => u.category !== 'unknown');
       if (!unit) {
         emit({
