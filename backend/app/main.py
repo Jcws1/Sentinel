@@ -58,6 +58,7 @@ def create_app(db_path: str | None = None, fixtures_enabled: bool | None = None,
                 runner.cancel()
                 with suppress(asyncio.CancelledError):
                     await runner
+            await application.state.scenarios.close()
             repository.close()
 
     application = FastAPI(title="Sentinel world authority", version="1.10.0", lifespan=lifespan)

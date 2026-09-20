@@ -11,6 +11,7 @@ from app.commands.kinematics import CRUISE_SPEED, distance
 from app.commands.service import InteractiveService
 from app.domain.models import WorldFrame, LegacyRtsWorldFrame
 from app.world.serialization import canonical, read_frame
+from app.recording.storage_codec import decode_text
 from test_interactive import Harness, CREDENTIAL
 from test_direct_movement import direct, issue
 from test_movement import ticks, execution, cancel
@@ -51,7 +52,7 @@ def test_new_demo_cruise_commits_positions_and_completion_beyond_admission_deadl
         assert completed.state == 'Completed' and completed.completion_sample
         stored = h.repo.db.execute('SELECT frame_json FROM frames WHERE sequence=? AND recording_id=?',
                                   (completed.terminal_sequence, receipt.recording_id)).fetchone()[0]
-        assert canonical(read_frame(stored).tracks[e.control_track_id].latest.position) == canonical(completed.completion_sample.position)
+        assert canonical(read_frame(decode_text(stored)).tracks[e.control_track_id].latest.position) == canonical(completed.completion_sample.position)
         assert (await h.service.direct_move(mid, request, None)) == receipt
     asyncio.run(run())
 
@@ -133,6 +134,7 @@ def test_template_speed_is_validated_and_retained_through_restart(template, spee
         e = execution(h, mid, receipt.execution_ids[0])
         assert e.speed_mps == speed and e.travelled_metres == speed * .2
         original = h.repo.latest_text(mid)
+        original_stored = h.repo.db.execute('SELECT frame_json FROM frames WHERE frame_id=?', (json.loads(original)['frameId'],)).fetchone()[0]
         frame = json.loads(original)
         frame['interactive']['executions'][0]['speedMps'] = 20 if speed != 20 else CRUISE_SPEED
         with pytest.raises(ValidationError, match='speed differs'):
@@ -141,5 +143,6 @@ def test_template_speed_is_validated_and_retained_through_restart(template, spee
         await h.service.recover()
         assert execution(h, mid, e.id).speed_mps == speed
         stored = h.repo.db.execute('SELECT frame_json FROM frames WHERE frame_id=?', (json.loads(original)['frameId'],)).fetchone()[0]
-        assert stored == original
+        assert stored == original_stored
+        assert decode_text(stored) == original
     asyncio.run(run())

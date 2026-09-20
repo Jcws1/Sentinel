@@ -1,0 +1,392 @@
+[
+  {
+    "tag": "d7-details-validation-before",
+    "fixture": "tests/fixtures/scenario-20v20.json",
+    "inputToReadyDomMs": [
+      2626.2999999970198,
+      2585.0,
+      2977.4000000059605,
+      2694.2000000029802
+    ],
+    "automationToVisibleAssertionMs": [
+      3113.3459999999995,
+      2924.1523000000007,
+      3301.491899999999,
+      2970.852500000001
+    ],
+    "warmInputDomMedianMs": 2694.2000000029802,
+    "warmAutomationMedianMs": 2970.852500000001,
+    "requestToHeadersMs": [
+      2366.1,
+      2326.606,
+      2720.5589999999997,
+      2444.679
+    ],
+    "transferBytes": [
+      29550,
+      29550,
+      29550,
+      29550
+    ],
+    "active": [
+      {
+        "revision": 1,
+        "elapsedMs": 2418.4700999999986,
+        "maxArrivalGapMs": 2465.5
+      },
+      {
+        "revision": 2,
+        "elapsedMs": 2470.8649000000005,
+        "maxArrivalGapMs": 2472.6000000089407
+      }
+    ],
+    "resume": [
+      {
+        "automationMs": 279.41259999999966,
+        "inputToDomMs": 103.70000000298023,
+        "inputToDispatchMs": 15.5771484375,
+        "requestToHeadersMs": 72.409,
+        "inputToParsedBodyMs": 144
+      },
+      {
+        "automationMs": 324.59400000000096,
+        "inputToDomMs": 210.59999999403954,
+        "inputToDispatchMs": 15.171630859375,
+        "requestToHeadersMs": 187.43699999999998,
+        "inputToParsedBodyMs": 248
+      },
+      {
+        "automationMs": 378.70350000000326,
+        "inputToDomMs": 130.0,
+        "inputToDispatchMs": 38.32275390625,
+        "requestToHeadersMs": 83.155,
+        "inputToParsedBodyMs": 136
+      }
+    ]
+  },
+  {
+    "tag": "d7-details-validation-before",
+    "fixture": "tests/fixtures/scenario-location/remote-20v20.json",
+    "inputToReadyDomMs": [
+      2148.4000000059605,
+      2167.9000000059605,
+      2149.1000000089407,
+      2165.7000000029802
+    ],
+    "automationToVisibleAssertionMs": [
+      2773.8689000000013,
+      2340.573400000001,
+      2299.9900000000052,
+      2319.629399999998
+    ],
+    "warmInputDomMedianMs": 2165.7000000029802,
+    "warmAutomationMedianMs": 2319.629399999998,
+    "requestToHeadersMs": [
+      2049.15,
+      2068.638,
+      2061.889,
+      2079.807
+    ],
+    "transferBytes": [
+      21635,
+      21635,
+      21635,
+      21635
+    ],
+    "active": [
+      {
+        "revision": 1,
+        "elapsedMs": 2338.1973999999973,
+        "maxArrivalGapMs": 2190.2999999970198
+      },
+      {
+        "revision": 2,
+        "elapsedMs": 2179.258700000006,
+        "maxArrivalGapMs": 2212.2999999970198
+      }
+    ],
+    "resume": [
+      {
+        "automationMs": 352.5280999999959,
+        "inputToDomMs": 118.5,
+        "inputToDispatchMs": 34.109130859375,
+        "requestToHeadersMs": 71.57900000000001,
+        "inputToParsedBodyMs": 119
+      },
+      {
+        "automationMs": 426.1644000000015,
+        "inputToDomMs": 195.70000000298023,
+        "inputToDispatchMs": 15.5859375,
+        "requestToHeadersMs": 171.039,
+        "inputToParsedBodyMs": 200
+      },
+      {
+        "automationMs": 309.1654000000053,
+        "inputToDomMs": 169.40000000596046,
+        "inputToDispatchMs": 14.7177734375,
+        "requestToHeadersMs": 146.481,
+        "inputToParsedBodyMs": 191
+      }
+    ]
+  },
+  {
+    "tag": "d7-details-validation-final",
+    "fixture": "tests/fixtures/scenario-20v20.json",
+    "inputToReadyDomMs": [
+      2678.6000000089407,
+      488.6000000089407,
+      482.40000000596046,
+      470.29999999701977
+    ],
+    "automationToVisibleAssertionMs": [
+      3074.8035999999997,
+      809.8463000000002,
+      789.3515000000007,
+      782.9162000000015
+    ],
+    "warmInputDomMedianMs": 482.40000000596046,
+    "warmAutomationMedianMs": 789.3515000000007,
+    "requestToHeadersMs": [
+      2434.193,
+      11.044,
+      11.412,
+      11.519
+    ],
+    "transferBytes": [
+      29550,
+      29550,
+      29550,
+      29550
+    ],
+    "active": [
+      {
+        "revision": 1,
+        "elapsedMs": 14.58389999999963,
+        "maxArrivalGapMs": 231.19999998807907
+      },
+      {
+        "revision": 2,
+        "elapsedMs": 4445.7785,
+        "maxArrivalGapMs": 287.20000000298023
+      }
+    ],
+    "resume": [
+      {
+        "automationMs": 306.3009999999995,
+        "inputToDomMs": 197.59999999403954,
+        "inputToDispatchMs": 42.912841796875,
+        "requestToHeadersMs": 146.471,
+        "inputToParsedBodyMs": 240
+      },
+      {
+        "automationMs": 314.0382000000027,
+        "inputToDomMs": 216.29999999701977,
+        "inputToDispatchMs": 17.3720703125,
+        "requestToHeadersMs": 191.123,
+        "inputToParsedBodyMs": 241
+      },
+      {
+        "automationMs": 469.4983000000029,
+        "inputToDomMs": 165.69999998807907,
+        "inputToDispatchMs": 62.008056640625,
+        "requestToHeadersMs": 95.268,
+        "inputToParsedBodyMs": 170
+      }
+    ]
+  },
+  {
+    "tag": "d7-details-validation-final",
+    "fixture": "tests/fixtures/scenario-location/remote-20v20.json",
+    "inputToReadyDomMs": [
+      2271.300000011921,
+      171.5,
+      175.5,
+      160.29999999701977
+    ],
+    "automationToVisibleAssertionMs": [
+      2869.6149000000005,
+      334.2962000000007,
+      305.51900000000023,
+      281.2749999999978
+    ],
+    "warmInputDomMedianMs": 171.5,
+    "warmAutomationMedianMs": 305.51900000000023,
+    "requestToHeadersMs": [
+      2173.742,
+      8.502,
+      8.870999999999999,
+      8.361
+    ],
+    "transferBytes": [
+      21635,
+      21635,
+      21635,
+      21635
+    ],
+    "active": [
+      {
+        "revision": 1,
+        "elapsedMs": 111.17569999999978,
+        "maxArrivalGapMs": 239.6000000089407
+      },
+      {
+        "revision": 2,
+        "elapsedMs": 4355.011700000003,
+        "maxArrivalGapMs": 272.1000000089407
+      }
+    ],
+    "resume": [
+      {
+        "automationMs": 329.7341000000015,
+        "inputToDomMs": 111.29999999701977,
+        "inputToDispatchMs": 30.953857421875,
+        "requestToHeadersMs": 65.511,
+        "inputToParsedBodyMs": 114
+      },
+      {
+        "automationMs": 313.0207999999984,
+        "inputToDomMs": 188.29999999701977,
+        "inputToDispatchMs": 14.856201171875,
+        "requestToHeadersMs": 159.12,
+        "inputToParsedBodyMs": 205
+      },
+      {
+        "automationMs": 230.28289999999834,
+        "inputToDomMs": 109.5,
+        "inputToDispatchMs": 29.390869140625,
+        "requestToHeadersMs": 72.21499999999999,
+        "inputToParsedBodyMs": 119
+      }
+    ]
+  },
+  {
+    "tag": "d7-details-validation-final-source",
+    "fixture": "tests/fixtures/scenario-20v20.json",
+    "inputToReadyDomMs": [
+      2570.5,
+      473.90000000596046,
+      464.59999999403954,
+      458.80000001192093
+    ],
+    "automationToVisibleAssertionMs": [
+      3755.546,
+      759.6660000000002,
+      750.7786999999998,
+      724.3432999999986
+    ],
+    "warmInputDomMedianMs": 464.59999999403954,
+    "warmAutomationMedianMs": 750.7786999999998,
+    "requestToHeadersMs": [
+      2320.539,
+      10.809999999999999,
+      11.219999999999999,
+      9.877
+    ],
+    "transferBytes": [
+      29550,
+      29550,
+      29550,
+      29550
+    ],
+    "active": [
+      {
+        "revision": 1,
+        "elapsedMs": 21.22479999999996,
+        "maxArrivalGapMs": 224.30000001192093
+      },
+      {
+        "revision": 2,
+        "elapsedMs": 4372.994100000002,
+        "maxArrivalGapMs": 281.6000000089407
+      }
+    ],
+    "resume": [
+      {
+        "automationMs": 174.6268999999993,
+        "inputToDomMs": 94.90000000596046,
+        "inputToDispatchMs": 15.799072265625,
+        "requestToHeadersMs": 64.852,
+        "inputToParsedBodyMs": 116
+      },
+      {
+        "automationMs": 236.95880000000034,
+        "inputToDomMs": 110.29999999701977,
+        "inputToDispatchMs": 15.77099609375,
+        "requestToHeadersMs": 81.771,
+        "inputToParsedBodyMs": 126
+      },
+      {
+        "automationMs": 315.48439999999755,
+        "inputToDomMs": 219.70000000298023,
+        "inputToDispatchMs": 20.59716796875,
+        "requestToHeadersMs": 191.196,
+        "inputToParsedBodyMs": 252
+      }
+    ]
+  },
+  {
+    "tag": "d7-details-validation-final-source",
+    "fixture": "tests/fixtures/scenario-location/remote-20v20.json",
+    "inputToReadyDomMs": [
+      2132,
+      170.0,
+      172.70000000298023,
+      154.09999999403954
+    ],
+    "automationToVisibleAssertionMs": [
+      2231.3329000000012,
+      289.84000000000015,
+      294.1819000000032,
+      276.52510000000257
+    ],
+    "warmInputDomMedianMs": 170.0,
+    "warmAutomationMedianMs": 289.84000000000015,
+    "requestToHeadersMs": [
+      2035.612,
+      9.599,
+      9.729999999999999,
+      8.088999999999999
+    ],
+    "transferBytes": [
+      21635,
+      21635,
+      21635,
+      21635
+    ],
+    "active": [
+      {
+        "revision": 1,
+        "elapsedMs": 90.81589999999778,
+        "maxArrivalGapMs": 248.3999999910593
+      },
+      {
+        "revision": 2,
+        "elapsedMs": 3515.094100000002,
+        "maxArrivalGapMs": 257.59999999403954
+      }
+    ],
+    "resume": [
+      {
+        "automationMs": 279.2604999999967,
+        "inputToDomMs": 171.20000000298023,
+        "inputToDispatchMs": 40.05908203125,
+        "requestToHeadersMs": 122.433,
+        "inputToParsedBodyMs": 197
+      },
+      {
+        "automationMs": 325.4941000000035,
+        "inputToDomMs": 172.29999999701977,
+        "inputToDispatchMs": 16.427978515625,
+        "requestToHeadersMs": 147.52100000000002,
+        "inputToParsedBodyMs": 211
+      },
+      {
+        "automationMs": 211.8550000000032,
+        "inputToDomMs": 93.90000000596046,
+        "inputToDispatchMs": 21.69677734375,
+        "requestToHeadersMs": 64.102,
+        "inputToParsedBodyMs": 129
+      }
+    ]
+  }
+]

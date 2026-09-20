@@ -20,6 +20,7 @@ await withIsolatedRuntime(
     configured: process.env.PERF_CONFIGURED === '1',
     evidenceRoot: 'test-results/performance',
     previewDir: process.env.PERF_BUILD ?? 'dist-performance',
+    reportStorage: true,
     ...(process.env.PERF_BACKEND_DIRECTORY
       ? {
           backendDirectory: process.env.PERF_BACKEND_DIRECTORY,
@@ -116,14 +117,28 @@ await withIsolatedRuntime(
             { windowsHide: true, encoding: 'utf8', timeout: 15000 },
           ),
         ),
-        recordingBytes: ['', '-wal', '-shm'].reduce((bytes, suffix) => {
-          try {
-            return bytes + statSync(database + suffix).size;
-          } catch {
-            return bytes;
-          }
-        }, 0),
+        recordingFiles: Object.fromEntries(
+          ['', '-wal', '-shm'].map((suffix) => {
+            try {
+              return [suffix || 'database', statSync(database + suffix).size];
+            } catch {
+              return [suffix || 'database', 0];
+            }
+          }),
+        ),
       });
+      if (
+        label === 'after-twenty-tab-transitions' ||
+        label === 'soak-final-collected'
+      ) {
+        r.resources.at(-1).storage = JSON.parse(
+          execFileSync(
+            resolve('../backend/.venv/Scripts/python.exe'),
+            [resolve('../scripts/recording_storage_report.py'), database],
+            { windowsHide: true, encoding: 'utf8', timeout: 30000 },
+          ),
+        );
+      }
       writeFileSync(
         resolve(output, 'progress.json'),
         JSON.stringify(r, null, 2),
@@ -166,6 +181,9 @@ await withIsolatedRuntime(
         soakSeconds === 600 ? { routeHalfSpanDeg: 0.035 } : undefined,
       );
       await page.bringToFront();
+      await page.evaluate(() => {
+        document.title = 'Sentinel D7 Details closure soak';
+      });
       await u.tab('Orchestrator', 'Close view');
       await u.select('Friendly 01');
       await page.evaluate(() =>

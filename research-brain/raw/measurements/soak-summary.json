@@ -1,0 +1,212 @@
+[
+  {
+    "tag": "d7-details-baseline-soak",
+    "passed": true,
+    "failure": null,
+    "actualSoakSeconds": 610.548,
+    "movingSamples": 20,
+    "movingCounts": [
+      40
+    ],
+    "firstObservedTick": 282,
+    "lastObservedTick": 3088,
+    "wholeRunFrames": 3206,
+    "wholeRunLogicalFrameBytes": 790434789,
+    "wholeRunStoredFrameBytes": 790434789,
+    "logicalBytesPerFrame": 246548.5929507174,
+    "storedBytesPerFrame": 246548.5929507174,
+    "closedDatabaseBytesPerFrame": 248229.60948222084,
+    "normalCloseFiles": {
+      "database": 795824128,
+      "-wal": 0,
+      "-shm": 0
+    },
+    "pragmas": {
+      "page_count": 194293,
+      "page_size": 4096,
+      "freelist_count": 38,
+      "user_version": 4
+    },
+    "heapSteadyRange": [
+      66086608,
+      106895020
+    ],
+    "gcHeapBeforeAfter": [
+      52059756,
+      59485964
+    ],
+    "gcListenersBeforeAfter": [
+      1257,
+      1291
+    ],
+    "maximumAliveRenderers": 2,
+    "activeSockets": [
+      1
+    ],
+    "transportBefore": {
+      "opened": 1,
+      "closed": 0,
+      "messages": 133,
+      "bytes": 16551620,
+      "heartbeats": 0
+    },
+    "transportAfter": {
+      "opened": 1,
+      "closed": 0,
+      "messages": 3149,
+      "bytes": 487128169,
+      "heartbeats": 0
+    },
+    "liveFilesBefore": {
+      "database": 26001408,
+      "-wal": 4408432,
+      "-shm": 32768
+    },
+    "liveFilesAfter": {
+      "database": 782106624,
+      "-wal": 5038792,
+      "-shm": 32768
+    },
+    "commands": [
+      {
+        "operation": "pause",
+        "elapsedMs": 659.0095999999903,
+        "accepted": true,
+        "affected": 0
+      },
+      {
+        "operation": "resume",
+        "elapsedMs": 376.109300000011,
+        "accepted": true,
+        "affected": 0
+      },
+      {
+        "operation": "stop",
+        "elapsedMs": 844.6189000000013,
+        "accepted": true,
+        "affected": 20
+      },
+      {
+        "operation": "return-to-script",
+        "elapsedMs": 1379.7563999999547,
+        "accepted": true,
+        "affected": 20
+      },
+      {
+        "operation": "end",
+        "elapsedMs": 993.0826999999117,
+        "accepted": true,
+        "affected": 0
+      }
+    ],
+    "servicesStopped": true,
+    "cleanupOk": true,
+    "databaseDeleted": true,
+    "caveat": "Whole-run totals include seeds, setup and teardown. Live baseline multi-query payload boundaries were not snapshot coherent. Primary exact-byte equivalence is established separately by deterministic matched probes."
+  },
+  {
+    "tag": "d7-details-final-soak",
+    "passed": true,
+    "failure": null,
+    "actualSoakSeconds": 610.386,
+    "movingSamples": 20,
+    "movingCounts": [
+      40
+    ],
+    "firstObservedTick": 300,
+    "lastObservedTick": 3133,
+    "wholeRunFrames": 3268,
+    "wholeRunLogicalFrameBytes": 808527221,
+    "wholeRunStoredFrameBytes": 54794700,
+    "logicalBytesPerFrame": 247407.35036719707,
+    "storedBytesPerFrame": 16767.044063647492,
+    "closedDatabaseBytesPerFrame": 18069.77723378213,
+    "normalCloseFiles": {
+      "database": 59052032,
+      "-wal": 0,
+      "-shm": 0
+    },
+    "pragmas": {
+      "page_count": 14417,
+      "page_size": 4096,
+      "freelist_count": 2,
+      "user_version": 5
+    },
+    "heapSteadyRange": [
+      64461028,
+      112541164
+    ],
+    "gcHeapBeforeAfter": [
+      51986000,
+      59143680
+    ],
+    "gcListenersBeforeAfter": [
+      1259,
+      1259
+    ],
+    "maximumAliveRenderers": 2,
+    "activeSockets": [
+      1
+    ],
+    "transportBefore": {
+      "opened": 1,
+      "closed": 0,
+      "messages": 149,
+      "bytes": 18551852,
+      "heartbeats": 0
+    },
+    "transportAfter": {
+      "opened": 1,
+      "closed": 0,
+      "messages": 3195,
+      "bytes": 496197855,
+      "heartbeats": 0
+    },
+    "liveFilesBefore": {
+      "database": 2424832,
+      "-wal": 4185952,
+      "-shm": 32768
+    },
+    "liveFilesAfter": {
+      "database": 56795136,
+      "-wal": 4247752,
+      "-shm": 32768
+    },
+    "commands": [
+      {
+        "operation": "pause",
+        "elapsedMs": 524.8509000000777,
+        "accepted": true,
+        "affected": 0
+      },
+      {
+        "operation": "resume",
+        "elapsedMs": 362.5524999999907,
+        "accepted": true,
+        "affected": 0
+      },
+      {
+        "operation": "stop",
+        "elapsedMs": 583.1622999999672,
+        "accepted": true,
+        "affected": 20
+      },
+      {
+        "operation": "return-to-script",
+        "elapsedMs": 528.1736000000965,
+        "accepted": true,
+        "affected": 20
+      },
+      {
+        "operation": "end",
+        "elapsedMs": 2968.4527000000235,
+        "accepted": true,
+        "affected": 0
+      }
+    ],
+    "servicesStopped": true,
+    "cleanupOk": true,
+    "databaseDeleted": true,
+    "caveat": "Whole-run totals include seeds, setup and teardown. Live baseline multi-query payload boundaries were not snapshot coherent. Primary exact-byte equivalence is established separately by deterministic matched probes."
+  }
+]

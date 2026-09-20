@@ -1,4 +1,4 @@
-import { Camera, Drone, Pin, X } from 'lucide-react';
+import { Camera, Pin, X } from 'lucide-react';
 import { cockpitCandidate } from '../../world/cockpit';
 import {
   useOperationalRuntime,
@@ -23,6 +23,7 @@ import {
 import { formatSgt } from '../../world/time';
 import { CopyValue } from './CopyValue';
 import { AssetPortrait } from './AssetPortrait';
+import { UnitSilhouette } from '../units/UnitSymbols';
 import { DemoProfile } from './DemoProfile';
 import { selectForDetails } from './selectionActions';
 import './entities.css';
@@ -165,6 +166,7 @@ export function EntityDetails({
     !frame?.scenario &&
     frame?.interactive?.templateId === 'singapore-local-v2' &&
     bindings.length > 0;
+  const unitProfile = row && frame?.unitProfiles?.[row.entity.id];
   const heading = sample?.velocity?.headingTrueDeg;
   const speed = sample?.velocity?.speedMps;
   const altitude = sample?.position.altitude;
@@ -213,28 +215,50 @@ export function EntityDetails({
               : row.observation
       }
     >
-      {row && <AssetPortrait drone={entityType(row, frame!) === 'Drone'} />}
       <header className="details-heading">
         <div>
           <span className="quiet-label">
-            {pinned
-              ? 'PINNED INSPECTOR'
-              : profile
-                ? 'STING · DEMO PROFILE'
-                : row && frame
-                  ? entityType(row, frame)
-                  : 'DETAILS'}
+            {pinned ? 'PINNED INSPECTOR' : 'DETAILS'}
           </span>
-          <h1>{row ? label : entityId ? 'Entity unavailable' : 'Details'}</h1>
+          {!row && <h1>{entityId ? 'Entity unavailable' : 'Details'}</h1>}
         </div>
-        <button
-          className="icon-button"
-          aria-label={pinned ? 'Close pinned inspector' : 'Close Details'}
-          onClick={() => bridge.close(id)}
-        >
-          <X size={16} />
-        </button>
+        <div className="details-header-actions">
+          {!pinned && row && (
+            <button
+              className="icon-button"
+              aria-label="Pin inspector"
+              title="Pin inspector"
+              onClick={() => bridge.openInspector(missionId!, entityId!, label)}
+            >
+              <Pin size={14} aria-hidden="true" />
+            </button>
+          )}
+          <button
+            className="icon-button"
+            aria-label={pinned ? 'Close pinned inspector' : 'Close Details'}
+            onClick={() => bridge.close(id)}
+          >
+            <X size={16} />
+          </button>
+        </div>
       </header>
+      {row && <AssetPortrait profileId={unitProfile?.id} />}
+      {row && frame && (
+        <div className="details-identity">
+          <UnitSilhouette profileId={unitProfile?.id} />
+          <div className="details-name">
+            <span className="details-type">
+              {unitProfile?.label ?? entityType(row, frame)}
+            </span>
+            <h1>{label}</h1>
+          </div>
+          <span
+            className={`details-affiliation affiliation-${row.entity.affiliation}`}
+          >
+            {row.entity.affiliation.toUpperCase()}
+          </span>
+        </div>
+      )}
       <p className="details-follow">
         {pinned
           ? 'Pinned to this mission and entity'
@@ -264,15 +288,6 @@ export function EntityDetails({
         </p>
       ) : (
         <>
-          <div className="details-identity">
-            <Drone size={22} strokeWidth={1.5} />
-            <div>
-              <span>{entityType(row, frame)}</span>
-              <span className={`affiliation-${row.entity.affiliation}`}>
-                {row.entity.affiliation.toUpperCase()}
-              </span>
-            </div>
-          </div>
           <p className="details-state">
             {status}
             {row.observation !== 'tracking' && observationText(row) !== status
@@ -656,12 +671,6 @@ export function EntityDetails({
       )}
       {!pinned && row && (
         <div className="details-actions">
-          <button
-            className="text-control"
-            onClick={() => bridge.openInspector(missionId!, entityId!, label)}
-          >
-            <Pin size={13} /> Pin inspector
-          </button>
           <button
             className="text-control"
             onClick={() => runtime.selectEntity(undefined)}

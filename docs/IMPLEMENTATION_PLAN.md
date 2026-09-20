@@ -1,6 +1,21 @@
 # Sentinel v3 — implementation plan and delivery status
 
-**Bounded follow-up — 20 September 2026: partial D7 performance closure.**
+**Milestone 1 — 20 September 2026: D7 corrections and Details refinement.**
+Lossless bounded frame/checkpoint storage, cooperative complete scenario analysis
+with a bounded exact-input cache, coalesced authority refresh and profile-bound
+supplied drone images are implemented. Final backend/frontend checks report
+438/414 passes, one complete 118/118 browser suite and 43 frozen guards; the independent final production critic
+scores the work 9.1/10. Matched ten-minute moving-20v20 soaks show 93.20% fewer
+stored frame bytes per frame and 92.72% fewer closed database bytes per frame.
+Strict display acceptance remains withheld; the configured Video attempt stopped
+at its provider budget. The current [delivery](d7-details-closure/README.md),
+[verification](d7-details-closure/VERIFICATION.md), [compatibility](d7-details-closure/COMPATIBILITY.md)
+and [critic](d7-details-closure/critic-round-3.md) govern this milestone, including
+any remaining final gates. SQLite marker 5 is used transactionally for new
+compressed storage; historical TEXT is retained and operator databases are not
+migrated by this task. **Stop after Milestone 1; no Phase 5, Phase 6, commit or push.**
+
+**Historical bounded follow-up — 20 September 2026: partial D7 performance closure.**
 The authorized 60-minute pass removes repeated movement-geometry copies and
 unnecessary unrestricted-boundary coordinate work from the shared scheduler.
 No recording format, migration, cache, UI, simulation rule or provider change.
@@ -11,7 +26,7 @@ The [current verification and independent review](performance-closure/README.md)
 govern this follow-up; historical D7 results below remain historical. No later
 roadmap phase is authorized by this entry.
 
-**Current delivery — 20 September 2026: D7 integrated acceptance.** The current uncommitted Orchestrator/scenario-location baseline passes 403 frontend tests, 397 backend tests, one complete 117/117 browser run, 43 frozen guards and required static/contract/build checks. D7 corrects ended-recording guidance and version-specific verification without changing simulation rules. Foreground remote 40-unit authoring/recovery and a ten-minute moving 20v20 soak passed. Fresh independent round 2 scores the change **9.0/10** and recommends scoped functional/recovery acceptance. **Performance and unqualified overall acceptance remain withheld:** configured Video pacing is incomplete, frame tails remain uneven and recording growth is substantial. [Delivery and limits](integrated-acceptance/README.md), [version expectations](integrated-acceptance/VERSION-MATRIX.md), [recovery matrix](integrated-acceptance/RECOVERY.md) and [critic](integrated-acceptance/critic-round-2.md) govern this pass. Older stop instructions, panel names and v1 reserve descriptions below are historical. Task services stopped; no commit/push or subsequent roadmap phase was performed. Stop after D7.
+**Historical delivery — 20 September 2026: D7 integrated acceptance.** The current uncommitted Orchestrator/scenario-location baseline passes 403 frontend tests, 397 backend tests, one complete 117/117 browser run, 43 frozen guards and required static/contract/build checks. D7 corrects ended-recording guidance and version-specific verification without changing simulation rules. Foreground remote 40-unit authoring/recovery and a ten-minute moving 20v20 soak passed. Fresh independent round 2 scores the change **9.0/10** and recommends scoped functional/recovery acceptance. **Performance and unqualified overall acceptance remain withheld:** configured Video pacing is incomplete, frame tails remain uneven and recording growth is substantial. [Delivery and limits](integrated-acceptance/README.md), [version expectations](integrated-acceptance/VERSION-MATRIX.md), [recovery matrix](integrated-acceptance/RECOVERY.md) and [critic](integrated-acceptance/critic-round-2.md) govern this pass. Older stop instructions, panel names and v1 reserve descriptions below are historical. Task services stopped; no commit/push or subsequent roadmap phase was performed. Stop after D7.
 
 **Historical verified delivery — 19 September 2026: D6, rules-based operator decision cards.** Select units, open **Fleet → Suggestions → Review options**, inspect exact affected/unchanged members and exclusions, then explicitly Apply through the existing command owner. Intercept remains the existing 700 m proximity stance; unassigned members keep ordinary movement and no held-reserve queue is added. Keep current orders is a no-op. Sets expire after 15 backend elapsed seconds and revalidate scope/authority/geometry; lost responses retain the exact persisted command identity and proposal audit. **362 backend tests, 365 frontend tests, 43 guards, static/generated/build checks and actual production/configured-provider UI checks pass.** Fresh independent round 2 accepts the corrected final application at **9.2/10**, with no unresolved material/high/critical issue. Package **1.12** adds advisory contracts/optional intent evidence; all existing world/status/receipt/execution/checkpoint/scenario versions and SQLite 4 remain. The latest [D5 Video Feed/overlay baseline](d5/video-overlay/REVIEW.md), restored Fleet/Details and original palette are preserved. [D6 delivery](d6/REVIEW.md), [verification](d6/VERIFICATION.md), [measurements](d6/PERFORMANCE.md) and [independent gate](d6/critic-round2/REVIEW.md) record evidence and limitations. Task services stopped and disposable outputs removed. **Stop after D6 for review; D7 and live LLM integration remain unimplemented.** Earlier dated entries below retain their historical names, versions and stopping points; this delivery and the linked latest decisions govern current behavior.
 

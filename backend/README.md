@@ -27,6 +27,13 @@ Use one process and one worker per database. The default is `backend/data/sentin
 
 World, checkpoint and receipt commit atomically before publication. Bounded subscriber queues request resynchronization on overflow; reconnect receives a fresh snapshot. Unknown client outcomes retain request identity. Simulation advances in fixed 200 ms steps without catch-up bursts. Persisted telemetry intentionally grows with history.
 
+Milestone 1 uses SQLite schema 5 for optional checksummed lossless compression
+of new frames/checkpoints. Historical TEXT rows and strict message readers remain
+supported; old binaries supporting only schema 4 cannot open a schema-5 store.
+There is no operator-data rewrite. Complete saved-revision analysis uses cooperative batches
+and a bounded exact-input cache while fresh admission stays authoritative.
+See [compatibility and recovery details](../docs/d7-details-closure/COMPATIBILITY.md).
+
 Scenarios allow 40 units and at most 32 controlled units. The 20v20 workload uses twenty controlled Friendly and twenty scripted observation-only Hostile units. Batch limits, Intercept eligibility, boundaries, ordering and NON-OP persistence remain unchanged. Expanded revisions/reviews use scenario version 1.5; older messages retain strict readers.
 
 `legacy_*` modules are reachable compatibility code. `drafts/` and unversioned foundation contracts remain used by `scripts/verify_phase0.py`; specifications and hash guards are preserved.

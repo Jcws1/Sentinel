@@ -53,6 +53,129 @@ const entry = {
   templateId: 'singapore-local-v2',
 };
 
+it.each(['switch', 'dispose'] as const)(
+  'an in-flight old status read cannot drop the next mission refresh (%s)',
+  async (transition) => {
+    vi.useFakeTimers();
+    const statusUrls: string[] = [],
+      publishedMissions: (string | undefined)[] = [];
+    let finishOld!: (value: Response) => void;
+    const status = (missionId: string) => ({
+      schemaVersion: '1.7',
+      run: {
+        ...structuredClone(demo.interactive!),
+        missionId,
+        lease: {
+          holderId: 'other-operator',
+          revision: 1,
+          expiresAt: '2026-09-14T01:00:00.000Z',
+        },
+      },
+      serverTime: evidence.issuedAt,
+      frameId: 'frame',
+      sequence: 1,
+      ownsControl: false,
+      leaseState: 'held',
+    });
+    expect(() => decodeRunRead(status('old'))).not.toThrow();
+    expect(() => decodeRunRead(status('new'))).not.toThrow();
+    const client = createInteractiveClient({
+      base: '/api',
+      storage: sessionStorage,
+      loadMission: () => {},
+      publish: () => {
+        publishedMissions.push(client.get().current?.run.missionId);
+      },
+      fetcher: async (url) => {
+        if (url.endsWith('/entry')) return Response.json(entry);
+        statusUrls.push(url);
+        if (url.endsWith('/old/status'))
+          return new Promise<Response>((resolve) => {
+            finishOld = resolve;
+          });
+        if (url.endsWith('/new/status')) return Response.json(status('new'));
+        throw Error('Unexpected route');
+      },
+    });
+    cleanup.push(client.dispose);
+    client.setMission('old');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(statusUrls).toEqual(['/api/interactive/old/status']);
+    client.setMission('new');
+    const refreshed = client.refresh();
+    if (transition === 'dispose') client.dispose();
+    finishOld(Response.json(status('old')));
+    await refreshed;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(publishedMissions).not.toContain('old');
+    if (transition === 'switch') {
+      expect(client.get().current?.run.missionId).toBe('new');
+      expect(statusUrls).toEqual([
+        '/api/interactive/old/status',
+        '/api/interactive/new/status',
+      ]);
+    } else {
+      expect(client.get().current).toBeUndefined();
+      expect(statusUrls).toEqual(['/api/interactive/old/status']);
+    }
+    // No periodic timer has run: correct authority is available immediately
+    // after the old read settles, without advancing the five-second poll clock.
+  },
+);
+
+it('coalesces overlapping authority refreshes and awaits the fresh status after a committed revision changes', async () => {
+  vi.useFakeTimers();
+  let finishFirst!: (value: Response) => void,
+    statusReads = 0;
+  const status = (revision: number) => ({
+    schemaVersion: '1.7',
+    run: {
+      ...structuredClone(demo.interactive!),
+      missionId: 'mid',
+      runRevision: revision,
+      lease: {
+        holderId: 'other-operator',
+        revision: 1,
+        expiresAt: '2026-09-14T01:00:00.000Z',
+      },
+    },
+    serverTime: evidence.issuedAt,
+    frameId: 'frame',
+    sequence: revision,
+    ownsControl: false,
+    leaseState: 'held',
+  });
+  expect(() => decodeRunRead(status(1))).not.toThrow();
+  expect(() => decodeRunRead(status(2))).not.toThrow();
+  const client = createInteractiveClient({
+    base: '/api',
+    storage: sessionStorage,
+    publish: () => {},
+    loadMission: () => {},
+    fetcher: async (url) => {
+      if (url.endsWith('/entry')) return Response.json(entry);
+      if (url.endsWith('/status')) {
+        statusReads++;
+        if (statusReads === 1)
+          return new Promise<Response>((resolve) => {
+            finishFirst = resolve;
+          });
+        return Response.json(status(2));
+      }
+      throw Error('No command may be sent by a status refresh');
+    },
+  });
+  cleanup.push(client.dispose);
+  client.setMission('mid');
+  await vi.advanceTimersByTimeAsync(0);
+  const waiting = [client.refresh(), client.refresh(), client.refresh()];
+  finishFirst(Response.json(status(1)));
+  await Promise.all(waiting);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(client.get().current?.run.runRevision).toBe(2);
+  expect(statusReads).toBe(2);
+});
+
 it.each(['accepted', 'lost', 'mission changed'] as const)(
   'serializes a foreground End behind background renewal (%s)',
   async (outcome) => {

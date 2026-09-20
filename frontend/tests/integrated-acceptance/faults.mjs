@@ -21,7 +21,8 @@ await withIsolatedRuntime(
     backendPort: 8201,
     backendModule: 'integrated_runtime:app',
     evidenceRoot: 'test-results/integrated-acceptance',
-    previewDir: 'dist-verification-integrated-acceptance',
+    previewDir:
+      process.env.PERF_BUILD ?? 'dist-verification-integrated-acceptance',
   },
   async ({ frontend, apiTarget, output }) => {
     const browser = await chromium.launch({

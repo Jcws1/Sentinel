@@ -7,6 +7,7 @@ from threading import RLock
 
 from app.domain.models import Mission, RecordingMetadata, SentinelEvent, WorldFrame
 from app.world.serialization import canonical
+from app.recording.storage_codec import encode_text, decode_text
 
 
 class RecordingRepository:
@@ -23,13 +24,13 @@ class RecordingRepository:
         self.db.row_factory = sqlite3.Row
         self._lock = RLock()
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, 2, 3, 4):
+        if version not in (0, 1, 2, 3, 4, 5):
             self.db.close()
             raise RuntimeError(f"Unsupported recording schema version: {version}")
         self.db.execute("PRAGMA foreign_keys = ON")
         self.db.execute("PRAGMA journal_mode = WAL")
         self.db.execute("PRAGMA synchronous = FULL")
-        self.db.executescript("""
+        self.db.executescript(f"""
             BEGIN IMMEDIATE;
             CREATE TABLE IF NOT EXISTS recordings (
                 id TEXT PRIMARY KEY, mission_id TEXT NOT NULL UNIQUE,
@@ -84,7 +85,7 @@ class RecordingRepository:
             CREATE TABLE IF NOT EXISTS scenario_runs (
                 mission_id TEXT PRIMARY KEY REFERENCES recordings(mission_id), revision_json TEXT NOT NULL
             );
-            PRAGMA user_version = 4;
+            PRAGMA user_version = {max(4, version)};
             COMMIT;
         """)
 
@@ -136,7 +137,25 @@ class RecordingRepository:
     def latest_text(self, mission_id: str) -> str | None:
         row = self.db.execute("""SELECT f.frame_json FROM frames f JOIN recordings r ON r.id=f.recording_id
                                  WHERE r.mission_id=? ORDER BY f.sequence DESC LIMIT 1""", (mission_id,)).fetchone()
+        return decode_text(row[0]) if row else None
+
+    def text_at(self, mission_id: str, frame_id: str) -> str | None:
+        row = self.db.execute("""SELECT f.frame_json FROM frames f JOIN recordings r ON r.id=f.recording_id
+            WHERE r.mission_id=? AND f.frame_id=?""", (mission_id, frame_id)).fetchone()
+        return decode_text(row[0]) if row else None
+
+    def latest_recorded_at(self, mission_id: str) -> str | None:
+        row = self.db.execute("""SELECT f.recorded_at FROM frames f JOIN recordings r ON r.id=f.recording_id
+            WHERE r.mission_id=? ORDER BY f.sequence DESC LIMIT 1""", (mission_id,)).fetchone()
         return row[0] if row else None
+
+    def _stored(self, text: str) -> str | bytes:
+        value = encode_text(text)
+        if isinstance(value, bytes) and self.db.execute("PRAGMA user_version").fetchone()[0] < 5:
+            # Called inside the enclosing frame/checkpoint transaction. Rollback
+            # restores the marker too; existing TEXT rows are never rewritten.
+            self.db.execute("PRAGMA user_version = 5")
+        return value
 
     def recording_for(self, mission_id: str) -> RecordingMetadata:
         row = self.db.execute("SELECT id FROM recordings WHERE mission_id=?", (mission_id,)).fetchone()
@@ -175,14 +194,14 @@ class RecordingRepository:
                 WHERE f.frame_id=? AND r.mission_id=?""", (frame_id, mission_id)).fetchone()
             if row is None:
                 raise KeyError("Committed mission frame not found")
-            anchor = read_frame(row[0])
+            anchor = read_frame(decode_text(row[0]))
             start = (instant(anchor.effective_at) - timedelta(seconds=window_seconds)).isoformat(timespec="milliseconds") + "Z"
             rows = self.db.execute("""WITH revisions AS (
                 SELECT frame_json, effective_at, ROW_NUMBER() OVER (PARTITION BY effective_at ORDER BY sequence DESC) AS revision
                 FROM frames WHERE recording_id=? AND sequence<=? AND effective_at>=? AND effective_at<=?)
                 SELECT frame_json FROM revisions WHERE revision=1 ORDER BY effective_at DESC LIMIT ?""",
                 (anchor.recording_id, anchor.sequence, start, anchor.effective_at, MAX_FRAMES + 1)).fetchall()
-        return project_history(anchor, entity_id, window_seconds, [r[0] for r in rows[:MAX_FRAMES]], len(rows) > MAX_FRAMES)
+        return project_history(anchor, entity_id, window_seconds, [decode_text(r[0]) for r in rows[:MAX_FRAMES]], len(rows) > MAX_FRAMES)
 
     def commit(self, frame_text: str, appended_events: list[dict]):
         # Revalidate even a caller-provided model copy; model_copy(update=...) can
@@ -199,8 +218,8 @@ class RecordingRepository:
                 expected = 0 if recording.latest_sequence is None else recording.latest_sequence + 1
                 if (frame.recording_id, frame.stream_epoch, frame.sequence) != (recording.id, recording.stream_epoch, expected):
                     raise ValueError("frame recording/epoch/sequence continuity mismatch")
-                previous_text = self.latest_text(frame.mission.id)
-                if previous_text and frame.recorded_at < json.loads(previous_text)["recordedAt"]:
+                previous_at = self.latest_recorded_at(frame.mission.id)
+                if previous_at and frame.recorded_at < previous_at:
                     raise ValueError("recorded time must not go backwards")
                 event_sequence = self.db.execute("SELECT COALESCE(MAX(sequence), -1) FROM events WHERE recording_id=?", (recording.id,)).fetchone()[0]
                 for index, event in enumerate(events, 1):
@@ -213,7 +232,7 @@ class RecordingRepository:
                 if canonical({"events": expected_tail}) != canonical({"events": [json.loads(canonical(event)) for event in frame.recent_events]}):
                     raise ValueError("frame recentEvents must match the append-only event journal")
                 self.db.execute("INSERT INTO frames VALUES (?, ?, ?, ?, ?, ?)",
-                                (frame.frame_id, frame.recording_id, frame.sequence, frame.effective_at, frame.recorded_at, frame_text))
+                                (frame.frame_id, frame.recording_id, frame.sequence, frame.effective_at, frame.recorded_at, self._stored(frame_text)))
                 for event in events:
                     self.db.execute("INSERT INTO events VALUES (?, ?, ?, ?, ?, ?, ?)",
                                     (event.id, frame.recording_id, event.sequence, frame.frame_id, event.effective_at, event.recorded_at, canonical(event)))
@@ -245,12 +264,12 @@ class RecordingRepository:
         row = self.db.execute("SELECT checkpoint_json FROM interactive_checkpoints WHERE mission_id=?", (mission_id,)).fetchone()
         if row is None:
             raise KeyError(mission_id)
-        return json.loads(row[0])
+        return json.loads(decode_text(row[0]))
 
     def save_checkpoint(self, mission_id: str, checkpoint: dict):
         run = checkpoint["run"]
         self.db.execute("INSERT INTO interactive_checkpoints VALUES (?,?,?,?) ON CONFLICT(mission_id) DO UPDATE SET terminal=excluded.terminal, checkpoint_json=excluded.checkpoint_json",
-                        (mission_id, run["runId"], int(run["state"] == "ended"), canonical(checkpoint)))
+                        (mission_id, run["runId"], int(run["state"] == "ended"), self._stored(canonical(checkpoint))))
 
     def receipt(self, request_id: str, mission_id: str | None = None):
         if mission_id is None:

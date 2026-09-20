@@ -1,0 +1,153 @@
+{
+  "created_utc": "2026-09-20T10:36:46.365752+00:00",
+  "scope": "Selected immutable evidence snapshots for the Sentinel abstract; not a complete research archive.",
+  "files": [
+    {
+      "original_path": "D:\\Downloads\\Sentinel_Report_Research_draft.docx",
+      "snapshot_path": "raw/inputs/Sentinel_Report_Research_draft.docx",
+      "bytes": 1194230,
+      "sha256": "95ea2abf7c6c91d0991249f84810f409ef88432fc63c5793a682398982aa62d7",
+      "source_modified_utc": "2026-09-20T10:18:18.750151+00:00"
+    },
+    {
+      "original_path": "D:\\Downloads\\DVL_Final_Deliverables_Guidelines (1).pdf",
+      "snapshot_path": "raw/inputs/DVL_Final_Deliverables_Guidelines.pdf",
+      "bytes": 144859,
+      "sha256": "13ee57bb0e8c05f435f12ccbf2c173fd2a772e85bb4ec2bf8c345741d9182c27",
+      "source_modified_utc": "2026-08-24T09:04:27.610525+00:00"
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3\\README.md",
+      "snapshot_path": "raw/repository/README.md",
+      "bytes": 6152,
+      "sha256": "8dd80136307ed1039c0d66f5ab3429957cdd04fad58bdb3d3bcb8a604184ce67",
+      "source_modified_utc": "2026-09-20T09:56:23.507701+00:00"
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3\\docs\\README.md",
+      "snapshot_path": "raw/repository/docs/README.md",
+      "bytes": 2348,
+      "sha256": "b10312fbd435bdfee00ebcf9a0351ff9c31579a1d8b3ba96c2f7c9164a739efe",
+      "source_modified_utc": "2026-09-20T08:13:33.832627+00:00"
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3\\docs\\architecture.md",
+      "snapshot_path": "raw/repository/docs/architecture.md",
+      "bytes": 6852,
+      "sha256": "27466c1d31b3e4831c5b6b07582dd7071aa0439d5eb25b49d4f4758f7aa98cfe",
+      "source_modified_utc": "2026-09-20T09:29:58.615875+00:00"
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3\\docs\\demo-runbook.md",
+      "snapshot_path": "raw/repository/docs/demo-runbook.md",
+      "bytes": 4802,
+      "sha256": "f4ee5cd25a43bef6faa5b8c5b97d1aab0837ff106c6d7d37416308d1e771d777",
+      "source_modified_utc": "2026-09-20T08:16:13.194903+00:00"
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3\\docs\\d7-details-closure\\README.md",
+      "snapshot_path": "raw/repository/docs/d7-details-closure/README.md",
+      "bytes": 7057,
+      "sha256": "1f28784c3d86cf6c6f606752a44b53924374bbced67f23a0cd9c6395a95b462c",
+      "source_modified_utc": "2026-09-20T10:27:49.054754+00:00"
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3\\docs\\d7-details-closure\\BASELINE.md",
+      "snapshot_path": "raw/repository/docs/d7-details-closure/BASELINE.md",
+      "bytes": 3796,
+      "sha256": "9db03e3a6088f3cc0105504f38533bc46bc03a52051e9ed8a3dcb3e1c3a569d1",
+      "source_modified_utc": "2026-09-20T08:21:59.722731+00:00"
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3\\docs\\d7-details-closure\\PERFORMANCE.md",
+      "snapshot_path": "raw/repository/docs/d7-details-closure/PERFORMANCE.md",
+      "bytes": 11733,
+      "sha256": "a603eaa0d39071948070a10a1e9f2a8aef78fe0dd650ee5b65b4dc2800d639e1",
+      "source_modified_utc": "2026-09-20T09:58:15.434078+00:00"
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3\\docs\\d7-details-closure\\VERIFICATION.md",
+      "snapshot_path": "raw/repository/docs/d7-details-closure/VERIFICATION.md",
+      "bytes": 8120,
+      "sha256": "31d55b63c710eab3b3b72bac33e3bc8958530aa5918788b4433a28a4010ee65b",
+      "source_modified_utc": "2026-09-20T10:27:47.897226+00:00"
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3\\docs\\d7-details-closure\\DECISIONS.md",
+      "snapshot_path": "raw/repository/docs/d7-details-closure/DECISIONS.md",
+      "bytes": 7769,
+      "sha256": "49f6d4b9c2ddf9d2a5554fc9e36b94a9f5de43353a6fa832c810b974bcc52ef8",
+      "source_modified_utc": "2026-09-20T09:58:17.050119+00:00"
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3\\docs\\d7-details-closure\\PACING.md",
+      "snapshot_path": "raw/repository/docs/d7-details-closure/PACING.md",
+      "bytes": 9532,
+      "sha256": "f748b4cd0278d59bf1d8e604af9bbad35215fa5ac4c5f44cc4ae840c9856bcfc",
+      "source_modified_utc": "2026-09-20T10:13:27.017588+00:00"
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3\\docs\\d7-details-closure\\EVIDENCE.md",
+      "snapshot_path": "raw/repository/docs/d7-details-closure/EVIDENCE.md",
+      "bytes": 5766,
+      "sha256": "173082ed0a9993d1cfdf68c136d452859297a8c4fa9f675893a27eab7770d6b8",
+      "source_modified_utc": "2026-09-20T10:27:46.831482+00:00"
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3\\docs\\d7-details-closure\\COMPATIBILITY.md",
+      "snapshot_path": "raw/repository/docs/d7-details-closure/COMPATIBILITY.md",
+      "bytes": 5047,
+      "sha256": "68feda2f10216f8a2a7d17d4315af9c8c21fa81705a35aed422ff6f22e38d995",
+      "source_modified_utc": "2026-09-20T09:19:11.713451+00:00"
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3\\docs\\integrated-acceptance\\RECOVERY.md",
+      "snapshot_path": "raw/repository/docs/integrated-acceptance/RECOVERY.md",
+      "bytes": 5717,
+      "sha256": "9e0ba3db654b067b98828ab3e5f9e8c744b7e2814db836125f714319243025a1",
+      "source_modified_utc": "2026-09-20T04:34:35.570795+00:00"
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3\\frontend\\tests\\performance\\validation.mjs",
+      "snapshot_path": "raw/repository/frontend/tests/performance/validation.mjs",
+      "bytes": 12048,
+      "sha256": "8630d1ad7867ac1eddb17c420128d2d3d71621eb4c52e4a342b999c24c02e075",
+      "source_modified_utc": "2026-09-20T08:01:20.188470+00:00"
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3\\frontend\\tests\\performance\\support.mjs",
+      "snapshot_path": "raw/repository/frontend/tests/performance/support.mjs",
+      "bytes": 2600,
+      "sha256": "240f86e63dcb28090886ea57d238b14998a3708188df374165d319d5781a395a",
+      "source_modified_utc": "2026-09-20T04:28:20.574333+00:00"
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3-archive\\2026-09-20-d7-details-closure\\test-results\\d7-details-closure\\validation-summary.json",
+      "snapshot_path": "raw/measurements/validation-summary.json",
+      "bytes": 10134,
+      "sha256": "57c6f02e616c2cb7eebf03299452ffda1dd617999bcea922a410e10cbd8b9dd5",
+      "source_modified_utc": "2026-09-20T09:40:50.161266+00:00"
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3-archive\\2026-09-20-d7-details-closure\\test-results\\d7-details-closure\\soak-summary.json",
+      "snapshot_path": "raw/measurements/soak-summary.json",
+      "bytes": 5212,
+      "sha256": "34b498021b7f34e618efb5bbd634007dc8a38a3a0367cde5de31d96b5511d2c8",
+      "source_modified_utc": "2026-09-20T09:36:25.162495+00:00"
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3-archive\\2026-09-20-d7-details-closure\\frontend\\test-results\\performance-closure\\d7-details-validation-before\\result.json",
+      "snapshot_path": "raw/measurements/validation-before-result.json",
+      "bytes": 28831,
+      "sha256": "f963cb8573280bcb7098a9587340666954eece475e8574bd8839bf69cea0b534",
+      "source_modified_utc": "2026-09-20T07:48:01.557060+00:00"
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3-archive\\2026-09-20-d7-details-closure\\frontend\\test-results\\performance-closure\\d7-details-validation-final-source\\result.json",
+      "snapshot_path": "raw/measurements/validation-final-result.json",
+      "bytes": 36401,
+      "sha256": "23fa917b10492bb473a7362630c8a92aea65fd4640bba47b0bfc34af1e10ec81",
+      "source_modified_utc": "2026-09-20T09:38:10.440749+00:00"
+    }
+  ]
+}

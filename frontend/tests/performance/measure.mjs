@@ -5,6 +5,8 @@ import { chromium, expect } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import process from 'node:process';
+import { createHash } from 'node:crypto';
+import { setTimeout, clearTimeout } from 'node:timers';
 import { withIsolatedRuntime } from '../support/isolated-runtime.mjs';
 import { operatorUI } from '../support/operator-ui.mjs';
 import { performanceScenario } from './scenario.mjs';
@@ -12,8 +14,10 @@ import { validateSavedScenario } from './support.mjs';
 
 const tag = process.argv[2] ?? 'measurement';
 const configured = process.argv.includes('--configured');
+const videoOnly = process.env.PERF_VIDEO_ONLY === '1';
 const previewDir = process.env.PERF_BUILD;
 const duration = Number(process.env.PERF_WINDOW_MS ?? 12000);
+const routeHalfSpanDeg = duration >= 30000 ? 0.035 : 0.025;
 const counts = (process.env.PERF_COUNTS ?? '1,10,20').split(',').map(Number);
 const extra = process.env.PERF_EXTENDED === '1';
 const viewport = {
@@ -23,10 +27,14 @@ const viewport = {
 const quantiles = (values) => {
   const sorted = [...values].sort((a, b) => a - b);
   const q = (p) =>
-    sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * p))] ?? null;
+    sorted[Math.max(0, Math.ceil(sorted.length * p) - 1)] ?? null;
   return {
     count: values.length,
-    median: q(0.5),
+    median: sorted.length
+      ? (sorted[Math.floor((sorted.length - 1) / 2)] +
+          sorted[Math.floor(sorted.length / 2)]) /
+        2
+      : null,
     p95: q(0.95),
     p99: q(0.99),
     max: q(1),
@@ -69,6 +77,7 @@ await withIsolatedRuntime(
           ? 'ready displayed provider with resident bytes and visible tiles; moving tile requests may remain pending'
           : 'tilesLoaded checkpoint before each visible-overlay window; streaming may continue during measurement',
       samples: [],
+      routeHalfSpanDeg,
       errors: [],
       capacity: [],
       network: {},
@@ -89,6 +98,21 @@ await withIsolatedRuntime(
     const providerRequestLimit = Number(
       process.env.PERF_MAX_PROVIDER_REQUESTS ?? Infinity,
     );
+    if (configured && !Number.isFinite(providerRequestLimit))
+      throw Error('Configured capture requires an explicit provider budget');
+    const requestKeys = new Map();
+    let providerDispatched = 0;
+    // Intercept before dispatch, so concurrent requests cannot overshoot the
+    // per-run allocation. Only aggregate identities are retained, never keys.
+    const watchdog = configured
+      ? setTimeout(
+          () => {
+            r.timeBudgetExceeded = true;
+            void page.close().catch(() => {});
+          },
+          Number(process.env.PERF_RUN_BUDGET_MS ?? 180000),
+        )
+      : undefined;
     page.on('pageerror', (e) =>
       r.errors.push(
         e.name +
@@ -101,6 +125,7 @@ await withIsolatedRuntime(
       const key = `${phase} ${url.hostname === '127.0.0.1' ? 'local' : url.hostname}`;
       r.network[key] = (r.network[key] ?? 0) + 1;
       if (
+        ['http:', 'https:'].includes(url.protocol) &&
         url.hostname !== '127.0.0.1' &&
         ++providerRequests > providerRequestLimit &&
         !r.providerBudgetExceeded
@@ -120,6 +145,80 @@ await withIsolatedRuntime(
       });
     });
     const cdp = await context.newCDPSession(page);
+    if (configured) {
+      // Use CDP directly: Playwright routing would disable HTTP caching and
+      // manufacture cache churn. Keep the normal cache enabled explicitly.
+      await cdp.send('Network.enable');
+      await cdp.send('Network.setCacheDisabled', { cacheDisabled: false });
+      const externalIds = new Set(),
+        cacheIds = new Set();
+      const transfers = {
+        responses: 0,
+        notModifiedResponses: 0,
+        cacheServedRequests: 0,
+        encodedTransferBytes: 0,
+      };
+      r.providerTransfers = transfers;
+      cdp.on('Network.requestWillBeSent', (event) => {
+        const url = new URL(event.request.url);
+        if (url.protocol.startsWith('http') && url.hostname !== '127.0.0.1')
+          externalIds.add(event.requestId);
+      });
+      const cached = (id) => {
+        if (externalIds.has(id) && !cacheIds.has(id)) {
+          cacheIds.add(id);
+          transfers.cacheServedRequests++;
+        }
+      };
+      cdp.on('Network.requestServedFromCache', (event) =>
+        cached(event.requestId),
+      );
+      cdp.on('Network.responseReceived', (event) => {
+        if (!externalIds.has(event.requestId)) return;
+        transfers.responses++;
+        if (event.response.status === 304) transfers.notModifiedResponses++;
+        if (event.response.fromDiskCache || event.response.fromServiceWorker)
+          cached(event.requestId);
+      });
+      cdp.on('Network.loadingFinished', (event) => {
+        if (externalIds.has(event.requestId))
+          transfers.encodedTransferBytes += event.encodedDataLength;
+      });
+      cdp.on('Fetch.requestPaused', async (event) => {
+        try {
+          const url = new URL(event.request.url);
+          if (url.hostname !== '127.0.0.1') {
+            if (providerDispatched >= providerRequestLimit) {
+              r.providerBudgetExceeded ??= {
+                limit: providerRequestLimit,
+                dispatched: providerDispatched,
+              };
+              await cdp.send('Fetch.failRequest', {
+                requestId: event.requestId,
+                errorReason: 'BlockedByClient',
+              });
+              void page.close().catch(() => {});
+              return;
+            }
+            providerDispatched++;
+            const key = createHash('sha256')
+              .update(url.origin + url.pathname)
+              .digest('hex');
+            requestKeys.set(key, (requestKeys.get(key) ?? 0) + 1);
+          }
+          await cdp.send('Fetch.continueRequest', {
+            requestId: event.requestId,
+          });
+        } catch {
+          // A budget stop closes the page with requests already in flight.
+        }
+      });
+      await cdp.send('Fetch.enable', {
+        patterns: [{ urlPattern: 'http*', requestStage: 'Request' }],
+      });
+      r.budgetInstrumentation =
+        'CDP request interception; normal HTTP cache enabled; interception adds unquantified overhead and counts cache-served attempts conservatively';
+    }
     await cdp.send('Performance.enable');
     const metrics = async () =>
       Object.fromEntries(
@@ -198,7 +297,7 @@ await withIsolatedRuntime(
         // If a turn is imminent, wait for it before the measured window.
         const imminentTurn =
           pose?.headingTrueDeg < 180 &&
-          (103.875 - pose.position.longitudeDeg) * 111000 <
+          (103.85 + routeHalfSpanDeg - pose.position.longitudeDeg) * 111000 <
             (duration / 1000 + 3) * 22.23;
         if (imminentTurn) {
           await expect
@@ -260,6 +359,14 @@ await withIsolatedRuntime(
             workload: label,
             providerReadyWaitMs: performance.now() - loadingStarted,
             provider: 'Google photorealistic 3D',
+            providerRequestAttempts: providerRequests,
+            providerDispatched,
+            state: await inspect(),
+          });
+          // Preserve visible provider/overlay/attribution evidence even if the
+          // finite request budget stops the subsequent pacing window.
+          await page.screenshot({
+            path: resolve(output, `${label}-provider-ready.png`),
           });
         }
         await page.waitForTimeout(700);
@@ -307,6 +414,9 @@ await withIsolatedRuntime(
         };
       }, duration);
       const after = await metrics();
+      // Capture the actual end of the window before collecting/serializing the
+      // large diagnostic trace; a later route turn is not part of this window.
+      const end = await inspect();
       const traceComplete = new Promise((ok) =>
         cdp.once('Tracing.tracingComplete', ok),
       );
@@ -314,14 +424,6 @@ await withIsolatedRuntime(
       await traceComplete;
       cdp.off('Tracing.dataCollected', traceListener);
       const profile = (await cdp.send('Profiler.stop')).profile;
-      const end = await inspect();
-      if (requiresOverlay) {
-        expect(end.video?.videoOverlay.points.length).toBeGreaterThan(0);
-        expect(end.video?.videoOverlay.labels.length).toBeGreaterThan(0);
-        expect(end.video?.cockpit.headingTrueDeg).toBe(
-          start.video?.cockpit.headingTrueDeg,
-        );
-      }
       const safe = (value) =>
         JSON.stringify(value).replace(/(https?:[^"\s?]*)[?][^"\s]*/g, '$1');
       writeFileSync(resolve(output, `${label}-cpu.json`), safe(profile));
@@ -332,6 +434,17 @@ await withIsolatedRuntime(
         ),
       );
       writeFileSync(resolve(output, `${label}-frames.json`), safe(frameEvents));
+      writeFileSync(
+        resolve(output, `${label}-window.json`),
+        JSON.stringify({ pacing, before, after, start, end }),
+      );
+      if (requiresOverlay) {
+        expect(end.video?.videoOverlay.points.length).toBeGreaterThan(0);
+        expect(end.video?.videoOverlay.labels.length).toBeGreaterThan(0);
+        expect(end.video?.cockpit.headingTrueDeg).toBe(
+          start.video?.cockpit.headingTrueDeg,
+        );
+      }
       const intervals = pacing.times
         .slice(1)
         .map((t, i) => t - pacing.times[i]);
@@ -496,7 +609,7 @@ await withIsolatedRuntime(
         const setupStarted = performance.now();
         const label = n ? `${n}v${n}` : 'existing-demo-6';
         if (n) {
-          const content = performanceScenario(n);
+          const content = performanceScenario(n, { routeHalfSpanDeg });
           const reply = await page.request.post(frontend + '/api/scenarios', {
             data: {
               requestId: crypto.randomUUID(),
@@ -509,6 +622,9 @@ await withIsolatedRuntime(
           const savedReceipt = await reply.json();
           expect(savedReceipt.accepted).toBe(true);
           await page.goto(frontend);
+          await page.evaluate(() => {
+            document.title = 'Sentinel D7 closure pacing';
+          });
           await page
             .getByRole('button', { name: 'Load mission', exact: true })
             .click();
@@ -574,7 +690,7 @@ await withIsolatedRuntime(
           state: await inspect(),
           note: 'Fresh context navigation; setup includes saved-plan/new-demo UI and 2.5 second warmup. Provider warmup after 3D/Video is separate.',
         });
-        if (process.env.PERF_LAYOUT_ONLY !== '1') {
+        if (process.env.PERF_LAYOUT_ONLY !== '1' && !videoOnly) {
           await measure(`${label}-tactical`);
           await diagnoseMotion(`${label}-tactical`);
         }
@@ -582,19 +698,24 @@ await withIsolatedRuntime(
           path: resolve(output, `${label}-tactical.png`),
         });
         const map = page.locator('[data-view-id="tactical"]');
-        await map.getByRole('button', { name: '3D', exact: true }).click();
-        await page.waitForTimeout(configured ? 12000 : 3500);
-        if (process.env.PERF_LAYOUT_ONLY !== '1') await measure(`${label}-3d`);
+        if (!videoOnly) {
+          await map.getByRole('button', { name: '3D', exact: true }).click();
+          await page.waitForTimeout(configured ? 12000 : 3500);
+          if (process.env.PERF_LAYOUT_ONLY !== '1')
+            await measure(`${label}-3d`);
+        }
         await page
           .getByRole('button', { name: 'Video Feed', exact: true })
           .click();
         const video = page.locator('.cockpit-pane');
-        await video
-          .getByRole('button', {
-            name: 'Place Video Feed beside map',
-            exact: true,
-          })
-          .click();
+        if (!videoOnly)
+          await video
+            .getByRole('button', {
+              name: 'Place Video Feed beside map',
+              exact: true,
+            })
+            .click();
+        if (videoOnly) await u.tab('Tactical Map', 'Close view');
         if (process.env.PERF_LOOK_NORTH === '1') {
           await video.locator('.cockpit-options > summary').click();
           const yaw = video.getByRole('slider', {
@@ -607,8 +728,8 @@ await withIsolatedRuntime(
         }
         await page.waitForTimeout(configured ? 12000 : 3000);
         if (process.env.PERF_LAYOUT_ONLY !== '1') {
-          await measure(`${label}-3d-video`);
-          await diagnoseMotion(`${label}-3d-video`);
+          await measure(`${label}-${videoOnly ? 'video' : '3d-video'}`);
+          await diagnoseMotion(`${label}-${videoOnly ? 'video' : '3d-video'}`);
         }
         await page.screenshot({
           path: resolve(output, `${label}-3d-video.png`),
@@ -627,7 +748,71 @@ await withIsolatedRuntime(
           }
           await page.setViewportSize(viewport);
         }
-        if (extra) {
+        if (videoOnly) {
+          const before = await inspect();
+          const visibleCounts = await page.evaluate(() =>
+            globalThis.__sentinelCesiumTest.stats(),
+          );
+          const externalBefore = providerDispatched;
+          // Video-only stays in its ordinary auxiliary stack beside Details;
+          // switching that sibling tab hides this viewer without destroying it.
+          await page.getByRole('tab', { name: 'Details', exact: true }).click();
+          await page.waitForTimeout(1000);
+          const hidden = await inspect();
+          const hiddenRequests = providerDispatched;
+          await page.waitForTimeout(1500);
+          const stillHidden = await inspect();
+          const requestsAfterHidden = providerDispatched;
+          expect(stillHidden.video?.active ?? false).toBe(false);
+          expect(stillHidden.video?.environment.renderedFrames).toBe(
+            hidden.video?.environment.renderedFrames,
+          );
+          const countsBefore = await page.evaluate(() =>
+            globalThis.__sentinelCesiumTest.stats(),
+          );
+          r.hiddenVideo = {
+            before,
+            hidden,
+            stillHidden,
+            visibleCounts,
+            countsBefore,
+            requestsBefore: externalBefore,
+            afterSettling: hiddenRequests,
+            afterHidden: requestsAfterHidden,
+          };
+          await page
+            .getByRole('tab', { name: 'Video Feed', exact: true })
+            .click();
+          await expect
+            .poll(async () => (await inspect()).video?.active)
+            .toBe(true);
+          const countsAfter = await page.evaluate(() =>
+            globalThis.__sentinelCesiumTest.stats(),
+          );
+          // Existing policy evicts a still-loading renderer rather than keeping
+          // unfinished provider work hidden. Never force tile-idle or relax the
+          // renderer limits to make a reuse claim.
+          if (before.video?.retainable)
+            expect(countsAfter.created).toBe(countsBefore.created);
+          else expect(countsAfter.created).toBe(countsBefore.created + 1);
+          r.hiddenVideo = {
+            before,
+            hidden,
+            stillHidden,
+            countsBefore,
+            countsAfter,
+            visibleCounts,
+            viewerReused: countsAfter.created === countsBefore.created,
+            existingPolicyEvictedLoadingViewer:
+              !before.video?.retainable &&
+              countsBefore.disposed > visibleCounts.disposed,
+            requestsBefore: externalBefore,
+            afterSettling: hiddenRequests,
+            afterHidden: requestsAfterHidden,
+            afterReopening: providerDispatched,
+          };
+        }
+        if (extra && !videoOnly) {
           await video
             .getByRole('checkbox', { name: 'Simulated entities', exact: true })
             .uncheck();
@@ -692,6 +877,19 @@ await withIsolatedRuntime(
         .catch(() => {});
       process.exitCode = 1;
     } finally {
+      clearTimeout(watchdog);
+      r.providerRequests = {
+        attempted: providerRequests,
+        dispatched: providerDispatched,
+        limit: Number.isFinite(providerRequestLimit)
+          ? providerRequestLimit
+          : null,
+        uniquePaths: requestKeys.size,
+        repeatedPathRequests: [...requestKeys.values()].reduce(
+          (n, v) => n + Math.max(0, v - 1),
+          0,
+        ),
+      };
       await context.close();
       await browser.close();
       mkdirSync(output, { recursive: true });

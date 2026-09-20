@@ -11,6 +11,7 @@ from app.commands.service import CommandError, InteractiveService, plus
 from app.domain.models import WorldFrame
 from app.main import create_app
 from app.world.serialization import canonical, read_frame
+from app.recording.storage_codec import decode_text
 from test_interactive import Harness, CREDENTIAL, OTHER
 
 
@@ -94,7 +95,7 @@ def test_single_completion_has_committed_position_sample_and_observer_evidence()
         assert result.state == 'Completed' and result.remaining_metres == 0
         sample = result.completion_sample
         raw = h.repo.db.execute('SELECT frame_json FROM frames WHERE recording_id=? AND sequence=?', (receipt.recording_id, sample.sequence)).fetchone()[0]
-        committed = read_frame(raw)
+        committed = read_frame(decode_text(raw))
         assert canonical(committed.tracks[sample.track_id].latest.position) == canonical(result.destination)
         assert committed.tracks[sample.track_id].latest.timestamp == sample.timestamp
         current = h.authority.read(mid)
@@ -355,7 +356,9 @@ def test_v11_record_and_v10_receipt_are_read_without_rewriting():
         h.repo.db.execute('UPDATE creation_receipts SET receipt_json=? WHERE creation_id=?', (old_receipt, 'old-creation'))
         assert json.loads(canonical(h.service.lookup('old-creation'))) == legacy
         assert h.repo.receipt('old-creation')[1] == old_receipt
-        assert h.repo.db.execute('PRAGMA user_version').fetchone()[0] == 4
+        # This store also contains a newly encoded checkpoint; legacy frame and
+        # receipt TEXT remain exact inside the explicitly versioned mixed store.
+        assert h.repo.db.execute('PRAGMA user_version').fetchone()[0] == 5
     asyncio.run(run())
 
 

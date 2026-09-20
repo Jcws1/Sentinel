@@ -1,3 +1,4 @@
+/* global document */
 import { chromium, expect } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -67,7 +68,94 @@ await withIsolatedRuntime(
     const shot = async (name) =>
       page.screenshot({ path: resolve(output, `${name}.png`) });
     try {
-      await loadPerformanceScenario(page, frontend);
+      await loadPerformanceScenario(page, frontend, 20, {
+        location: process.env.PERF_LOCATION ?? 'default',
+      });
+      await page.evaluate(() => {
+        document.title = 'Sentinel D7 closure recovery';
+      });
+      const initial = await u.world();
+      await expect
+        .poll(async () => {
+          const current = await u.world();
+          return Object.values(initial.tracks).filter(
+            (t) =>
+              JSON.stringify(t.latest.position) !==
+              JSON.stringify(current.tracks[t.id].latest.position),
+          ).length;
+        })
+        .toBe(40);
+      r.cases.push(
+        `All forty moving at ${process.env.PERF_LOCATION ?? 'default'} location`,
+      );
+      if (process.env.PERF_LOCATION === 'sydney') {
+        await u.tab('Orchestrator', 'Close view');
+        await u.select('Friendly 01');
+        const controlled = initial.interactive.controls.find(
+          (c) => initial.entities[c.entityId].label === 'Friendly 01',
+        );
+        expect(controlled).toBeTruthy();
+        await page.evaluate(() =>
+          globalThis.__sentinelMapTest.setCamera('tactical', {
+            center: { longitudeDeg: 151.1772, latitudeDeg: -33.9461 },
+            groundSpanM: 2500,
+            headingTrueDeg: 0,
+            pitchFromNadirDeg: 0,
+          }),
+        );
+        const surface = page.locator('[data-view-id="tactical"] .map-canvas');
+        const box = await surface.boundingBox();
+        const directReply = page.waitForResponse(
+          (response) =>
+            response.request().method() === 'POST' &&
+            response.url().endsWith('/direct-moves'),
+        );
+        await surface.click({
+          button: 'right',
+          position: { x: box.width * 0.58, y: box.height * 0.56 },
+        });
+        const direct = await (await directReply).json();
+        expect(direct.accepted).toBe(true);
+        const manualStart = await u.world();
+        await expect
+          .poll(async () =>
+            JSON.stringify(
+              (await u.world()).tracks[controlled.controlTrackId].latest
+                .position,
+            ),
+          )
+          .not.toBe(
+            JSON.stringify(
+              manualStart.tracks[controlled.controlTrackId].latest.position,
+            ),
+          );
+        await u.behavior('patrol');
+        await expect
+          .poll(
+            async () =>
+              (await u.world()).fleetBehavior.members.find(
+                (m) => m.entityId === controlled.entityId,
+              )?.policy,
+          )
+          .toBe('patrol');
+        await shot('00-sydney-manual-patrol');
+        for (const [name, action] of [
+          ['Stop selected', 'stop'],
+          ['Return to script', 'return-to-script'],
+        ]) {
+          const response = page.waitForResponse(
+            (reply) =>
+              reply.request().method() === 'POST' &&
+              reply.url().endsWith('/commands') &&
+              reply.request().postDataJSON()?.intent?.action === action,
+          );
+          await u.fleet.getByRole('button', { name, exact: true }).click();
+          expect((await (await response).json()).accepted).toBe(true);
+        }
+        r.cases.push(
+          'Sydney actual ground-click manual movement, Patrol, movement Stop and Return to script retain geographic authority',
+        );
+      }
       await u.action('Pause');
       await u.select(
         ...Array.from(
@@ -92,14 +180,30 @@ await withIsolatedRuntime(
       await expect(u.pane).toContainText('Out of date');
       await u.refresh();
       r.cases.push('Ordinary Fleet policy change invalidates open cards');
+      // Block receipt reconciliation before losing the response. A successful
+      // background reconciliation is correct behavior, but would remove the
+      // pending identity before this explicit reload/retry case can inspect it.
+      holdReceipts = true;
       lose = true;
       await u.pane
         .getByRole('button', { name: /^Apply Stop selected/ })
         .click();
       await expect(u.pane).toContainText('Outcome unknown');
+      const pendingBeforeReload = await page.evaluate(() =>
+        globalThis.sessionStorage.getItem('sentinel.interactive.pending.v1'),
+      );
+      expect(pendingBeforeReload).not.toBe(null);
       await shot('01-lost-response');
-      holdReceipts = true;
       await page.reload();
+      await expect
+        .poll(() =>
+          page.evaluate(() =>
+            globalThis.sessionStorage.getItem(
+              'sentinel.interactive.pending.v1',
+            ),
+          ),
+        )
+        .toBe(pendingBeforeReload);
       await page.getByRole('button', { name: /^Attention:/ }).click();
       await page
         .getByRole('menuitem', { name: 'Retry saved request', exact: true })

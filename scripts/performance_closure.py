@@ -35,6 +35,10 @@ from test_interactive import Harness
 from test_scenarios import write, run_request
 from app.scenarios.service import ScenarioService
 from app.world.serialization import canonical
+try:
+    from app.recording.storage_codec import decode_text
+except ImportError:
+    decode_text = lambda value: value
 
 out = ROOT / 'test-results/performance-closure' / args.tag
 out.mkdir(parents=True, exist_ok=True)
@@ -60,7 +64,9 @@ def storage(h, path):
         columns = [r[1] for r in h.repo.db.execute('PRAGMA table_info('+name+')') if r[1].endswith('_json')]
         expression = '+'.join('length(CAST('+c+' AS BLOB))' for c in columns)
         count, size = h.repo.db.execute('SELECT count(*), coalesce(sum('+expression+'),0) FROM '+name).fetchone()
-        result['tables'][name] = dict(rows=count, jsonBytes=size)
+        logical = sum(len(decode_text(value).encode('utf-8')) for row in h.repo.db.execute(
+            'SELECT ' + ','.join(columns) + ' FROM ' + name) for value in row)
+        result['tables'][name] = dict(rows=count, jsonBytes=logical, logicalJsonBytes=logical, storedJsonBytes=size)
     return result
 
 
@@ -81,7 +87,7 @@ async def probe(fixture, per_side):
                 timings = []
                 for _ in range(args.samples + 1):
                     start = time.perf_counter()
-                    review = service.review(reference)
+                    review = await service.review_async(reference) if hasattr(service, 'review_async') else service.review(reference)
                     timings.append((time.perf_counter() - start)*1000)
                     assert review.can_run
                 value = json.loads(canonical(review))
@@ -128,6 +134,8 @@ async def probe(fixture, per_side):
                 assert (await h.act(mid, 'end')).accepted
                 result['ended'] = storage(h, database)
         finally:
+            if hasattr(service, 'close'):
+                await service.close()
             h.repo.close()
         result['afterNormalClose'] = components(database)
     result['databaseRemoved'] = not database.exists()

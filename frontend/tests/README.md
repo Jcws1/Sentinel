@@ -70,6 +70,20 @@ Keep the browser foreground and avoid competing test/build work. Default windows
 
 For configured-provider work, explicitly set `PERF_CONFIGURED=1` while building a separate `PERF_BUILD=dist-performance-configured`, then pass `--configured` to `measure.mjs`. Retain a bounded `PERF_MAX_PROVIDER_REQUESTS` limit. Do not use real credentials for ordinary regression tests. `PERF_BACKEND_DIRECTORY` optionally names a separately prepared backend checkout for a deliberate comparison; no hidden historical checkout is assumed.
 
+Configured capture now requires a finite request cap. `PERF_VIDEO_ONLY=1` avoids
+spending that allocation on earlier ordinary-3D windows; `PERF_VISIBLE_PROVIDER=1`
+uses visible ready content with resident tiles instead of waiting indefinitely
+for moving-camera network idle. `PERF_RUN_BUDGET_MS` defaults to 180000. The
+configured probe intercepts requests with CDP, explicitly keeps HTTP caching
+enabled, and fails/ends before dispatch beyond its allocation. Interception adds
+unquantified overhead and conservative request counts; record this limitation.
+Always share a total request ledger across implementer and critic runs.
+
+`PERF_WINDOW_MS=30000` selects the longer supported ±0.035° route used by the
+ten-minute soak. End-of-window renderer state is captured before trace export,
+so a later turn during diagnostic serialization is not misattributed to the
+measured window. Failed window timing and frame events are retained as well.
+
 Other entry points are `lifecycle.mjs` (reopen/resource soak), `geometry.mjs` (synthetic intersection correctness), `recording.mjs` (short movement/layout clip) and `zoom.mjs` (actual isolated browser zoom). Recording requires the Playwright FFmpeg runtime; use `npx playwright install ffmpeg` if that optional component is missing. Geometry and headless functional checks are not display-performance certification.
 
 Backend-only timing from the repository root:
@@ -108,3 +122,47 @@ node tests/performance/lifecycle.mjs d7-soak-local
 The faults runner owns ports5401/8201 and explicitly opts into `backend/tests/integrated_runtime.py`; the normal app has no verification routes. The guard rejects databases outside the exact disposable directory/naming convention. It freezes the existing tick loop and injects one receipt-write failure inside the sole writer. It tests truthful source delay, exact lost Stop/retry identity, rollback before publication, reload, long Pause and persisted End. It does not write to a second operator connection.
 
 The lifecycle helper defaults to120s and also accepts600s. The longer case keeps unchanged profiles/speeds but uses supported ±0.035° route destinations inside the same scenario square, observes movement for every entity at each30s checkpoint, requires one active WebSocket, captures renderer/heap/listener/service/recording growth and performs20 tab transitions. GC diagnostics are labelled separately from the uncollected steady window. All40 moving is a workload condition, not a display-FPS assertion. Keep raw evidence outside tracked source using the [archive convention](../../docs/ARCHIVE.md).
+
+## Milestone 1 D7 and Details
+
+`browser/details-closure.spec.ts` uses the shared real-interaction helper in
+`support/details-closure.mjs` for a supported Sydney forty-unit scenario. It checks
+supplied image/profile/silhouette identity, supported cross-affiliation mapping,
+fallback, pinned selection, narrow layouts, load failure and ended inspection.
+`performance/details.mjs` runs the same interactions in a fresh headed context;
+actual desktop visibility must be verified separately on sandboxed Windows.
+`unit/assetPortrait.test.tsx` covers unsupported/prototype-like identities and
+image failure without contaminating a different selection.
+
+Backend `test_storage_codec.py`, `test_recording_equivalence.py` and
+`test_scenario_analysis.py` cover encoding/rollback/restart and complete cached
+analysis ownership. `scripts/performance_closure.py --source-root ...` compares
+isolated current-source snapshots, separating logical payload, stored payload,
+database allocation and normal-close components. `recording_storage_report.py`
+reads task-owned copies; it does not measure physical write volume. Never compare
+a main timed tick window with bytes from extra profiling/teardown frames.
+
+`unit/interactiveClient.test.ts` also holds an old status response across a
+mission switch and overlaps refresh callers after a revision change. It verifies
+the coalesced fresh read without advancing the periodic poll clock, strict status
+decoding, rejection of old-generation data and disposal without a late read.
+
+Foreground `performance/recovery.mjs` accepts `PERF_LOCATION=sydney` and needs a
+verification bundle through `PERF_BUILD` because its geographic click setup uses
+the map verification hook. It blocks receipt lookup before simulating a lost
+Apply response, then checks the exact persisted pending body across reload and
+the exact command body/identity on explicit retry. Allowing successful background
+reconciliation before blocking lookup would invalidate that fault setup.
+
+The `performance/measure.mjs` Video-only mode (`PERF_VIDEO_ONLY=1`) keeps Video in
+its ordinary auxiliary stack so Details can exercise actual hidden-tab suspension.
+`PERF_VISIBLE_PROVIDER=1` permits resident visible tiles while moving-camera
+streaming continues; readiness is distinct from the fixed initial warmup and
+the subsequent compositor window. Configured runs require an explicit
+`PERF_MAX_PROVIDER_REQUESTS` dispatch-gate allocation and finite
+`PERF_RUN_BUDGET_MS`; charge all observed attempts, including concurrently blocked
+ones and cache-served requests, against a shared pass ledger. Use CDP interception
+with normal caching; Playwright request routing would disable HTTP caching.
+Do not rerun a budget-stopped capture without checking the remaining approved
+allocation. Current [Milestone 1 provider evidence](../../docs/d7-details-closure/PROVIDER.md)
+retains its incomplete configured window rather than claiming an FPS pass.

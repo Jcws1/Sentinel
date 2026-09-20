@@ -229,6 +229,21 @@ def project(frame, checkpoint):
 
 def nominal_plan(content):
     """Read-only deterministic dry run of the same rules, never execution authority."""
+    steps = nominal_steps(content)
+    while True:
+        try:
+            next(steps)
+        except StopIteration as finished:
+            return finished.value
+
+
+def nominal_steps(content):
+    """The identical dry run, yielding only between complete nominal ticks.
+
+    API review can schedule bounded batches without changing any live tick,
+    nominal transition, termination condition or synchronous caller's result.
+    The generator's return value is the complete plan, never a partial review.
+    """
     if not content.actions:
         return []
     source = dict(id="nominal", kind="simulation", mode="simulated")
@@ -253,6 +268,7 @@ def nominal_plan(content):
         advance(frame, checkpoint)
         if all(e["state"] in TERMINAL for e in checkpoint["scenarioSchedule"]["actions"]):
             break
+        yield
     return checkpoint["scenarioSchedule"]["actions"]
 
 

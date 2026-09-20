@@ -90,6 +90,7 @@ async function groundMove(page: Page, threeD = false) {
   }
   const canvas = map(page).locator('canvas').first(),
     box = (await canvas.boundingBox())!;
+  const before = await inspect(page, threeD);
   const response = page.waitForResponse(
     (r) => r.request().method() === 'POST' && r.url().endsWith('/direct-moves'),
   );
@@ -101,7 +102,18 @@ async function groundMove(page: Page, threeD = false) {
       y: box.height * (threeD ? 0.5 : 0.38),
     },
   });
-  const receipt = await (await response).json();
+  const reply = await response;
+  const receipt = await reply.json();
+  await test.info().attach(`ground-pick-${threeD ? '3d' : 'tactical'}`, {
+    body: JSON.stringify({
+      box,
+      before,
+      after: await inspect(page, threeD),
+      request: reply.request().postDataJSON(),
+      receipt,
+    }),
+    contentType: 'application/json',
+  });
   expect(receipt.accepted, receipt.message).toBe(true);
   return { receipt, latencyMs: Date.now() - started };
 }

@@ -154,8 +154,8 @@ class InteractiveService:
                 "extensions": {"sentinel.interactive": {"requestId": identity, "holderId": holder}}}
 
     def _commit(self, mid, proposed, events, checkpoint, receipt_factory=None):
-        previous = json.loads(self.repository.latest_text(mid))
-        movement.project(proposed, checkpoint, max(self.authority.clock(), previous["recordedAt"]))
+        previous_at = self.repository.latest_recorded_at(mid)
+        movement.project(proposed, checkpoint, max(self.authority.clock(), previous_at))
         scheduler.project(proposed, checkpoint)
         behaviors.project(proposed, checkpoint)
         receipt = None
@@ -368,7 +368,7 @@ class InteractiveService:
             return
         async with self.authority._lock(mid):
             frame = self._run(mid)
-            proposed = json.loads(canonical(frame))
+            proposed = frame.model_dump(mode="json", by_alias=True, exclude_none=True)
             now = max(self.authority.clock(), frame.recorded_at)
             if frame.interactive.state == "running":
                 effective = plus(frame.effective_at, .2)
@@ -380,7 +380,7 @@ class InteractiveService:
                         track["latest"]["timestamp"] = effective
                         track["latest"]["discontinuity"] = False
             checkpoint = self.repository.checkpoint(mid)
-            before = json.loads(canonical(frame))
+            before = frame.model_dump(mode="json", by_alias=True, exclude_none=True)
             events = rts_behavior.prepare(proposed, checkpoint, before, now)
             if rts_behavior.enabled(checkpoint):
                 events.extend(behaviors.revalidate(proposed, checkpoint))
@@ -427,11 +427,10 @@ class InteractiveService:
             self._commit(mid, proposed, [self._event(proposed, "restarted-paused")] + events, checkpoint)
 
     def frame_at(self, mid, frame_id):
-        row = self.repository.db.execute("""SELECT f.frame_json FROM frames f JOIN recordings r ON r.id=f.recording_id
-            WHERE r.mission_id=? AND f.frame_id=?""", (mid, frame_id)).fetchone()
-        if not row:
+        text = self.repository.text_at(mid, frame_id)
+        if text is None:
             raise CommandError("FRAME_INVALID", "Reviewed frame is not a committed frame of this mission.")
-        return self.repository.display_frame(read_frame(row[0]))
+        return self.repository.display_frame(read_frame(text))
 
     def _validate_behavior_position(self, mid, intent, frame, now):
         policy, run = intent.policy, frame.interactive

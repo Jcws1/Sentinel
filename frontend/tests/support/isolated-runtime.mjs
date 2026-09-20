@@ -16,6 +16,7 @@ export async function withIsolatedRuntime(options, run) {
     evidenceRoot,
     backendDirectory,
     backendModule = 'app.main:app',
+    reportStorage = false,
   } = options;
   if (!/^[a-z0-9-]+$/.test(tag)) throw Error('Invalid task tag');
   const output = resolve(evidenceRoot ?? 'test-results/performance', tag);
@@ -173,7 +174,12 @@ export async function withIsolatedRuntime(options, run) {
           '../backend/.venv',
           process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python',
         ),
-        [resolve('../scripts/end_test_demo.py'), database, '--delete'],
+        [
+          resolve('../scripts/end_test_demo.py'),
+          database,
+          '--delete',
+          ...(reportStorage ? ['--report-storage'] : []),
+        ],
         { windowsHide: true, encoding: 'utf8', timeout: 20000 },
       );
       report.cleanupOk = cleanup.status === 0;

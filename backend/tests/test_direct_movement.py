@@ -14,6 +14,7 @@ from app.commands.service import CommandError, InteractiveService, plus
 from app.domain.models import LegacyMovementWorldFrame
 from app.main import create_app
 from app.world.serialization import canonical, read_frame
+from app.recording.storage_codec import decode_text
 from test_interactive import Harness, CREDENTIAL, OTHER
 from test_movement import started, ticks, execution, cancel
 
@@ -53,7 +54,7 @@ def test_direct_completion_duplicate_reconciliation_and_conflicting_payload():
         assert e.state == 'Completed' and e.completion_sample
         sample = h.repo.db.execute('SELECT frame_json FROM frames WHERE sequence=? AND recording_id=?',
                                   (e.terminal_sequence, receipt.recording_id)).fetchone()[0]
-        assert canonical(read_frame(sample).tracks[e.control_track_id].latest.position) == canonical(e.destination)
+        assert canonical(read_frame(decode_text(sample)).tracks[e.control_track_id].latest.position) == canonical(e.destination)
         assert h.service.lookup(request.command_id, mid) == receipt
         sequence = h.authority.read(mid).sequence
         assert await h.service.direct_move(mid, request, None) == receipt

@@ -19,7 +19,7 @@ async def creation_receipt(identity: str, request: Request):
 
 @router.post("/validate", response_model=ScenarioReview, response_model_exclude_none=True)
 async def validate(body: ScenarioRef, request: Request):
-    return request.app.state.scenarios.review(body)
+    return await request.app.state.scenarios.review_async(body)
 
 @router.get("/{definition_id}", response_model=ScenarioRevision, response_model_exclude_none=True)
 async def read(definition_id: str, request: Request, revision: int | None = None):

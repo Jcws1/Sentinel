@@ -1,0 +1,1278 @@
+{
+  "browser": "153.0.4234.48",
+  "samples": [
+    {
+      "fixture": "tests/fixtures/scenario-20v20.json",
+      "index": 0,
+      "sampleKind": "cold-context",
+      "phase": "scenario-validation-ready",
+      "bodyReceivedMs": 3642.8169999999996,
+      "visibleReviewMs": 3755.546,
+      "requestTiming": {
+        "startTime": 1789897054199.882,
+        "domainLookupStart": 0.117,
+        "domainLookupEnd": 0.327,
+        "connectStart": 0.327,
+        "secureConnectionStart": -1,
+        "connectEnd": 0.563,
+        "requestStart": 0.625,
+        "responseStart": 2321.164,
+        "responseEnd": 2321.81
+      },
+      "bodyBytes": 29550,
+      "browser": {
+        "visibility": "visible",
+        "focused": true,
+        "probe": {
+          "input": 2179.4000000059605,
+          "reviewDom": 4749.9000000059605
+        },
+        "resources": [
+          {
+            "startTime": 2180.7000000029802,
+            "requestStart": 2181.6000000089407,
+            "responseStart": 4502.100000008941,
+            "responseEnd": 4502.4000000059605,
+            "transferSize": 29850
+          }
+        ]
+      }
+    },
+    {
+      "fixture": "tests/fixtures/scenario-20v20.json",
+      "index": 1,
+      "sampleKind": "repeated",
+      "phase": "scenario-validation-ready",
+      "bodyReceivedMs": 735.9758000000002,
+      "visibleReviewMs": 759.6660000000002,
+      "requestTiming": {
+        "startTime": 1789897056953.829,
+        "domainLookupStart": 0.088,
+        "domainLookupEnd": 0.262,
+        "connectStart": 0.262,
+        "secureConnectionStart": -1,
+        "connectEnd": 0.475,
+        "requestStart": 0.524,
+        "responseStart": 11.334,
+        "responseEnd": 11.943
+      },
+      "bodyBytes": 29550,
+      "browser": {
+        "visibility": "visible",
+        "focused": true,
+        "probe": {
+          "input": 4933.70000000298,
+          "reviewDom": 5407.600000008941
+        },
+        "resources": [
+          {
+            "startTime": 2180.7000000029802,
+            "requestStart": 2181.6000000089407,
+            "responseStart": 4502.100000008941,
+            "responseEnd": 4502.4000000059605,
+            "transferSize": 29850
+          },
+          {
+            "startTime": 4934.70000000298,
+            "requestStart": 4935.5,
+            "responseStart": 4946.29999999702,
+            "responseEnd": 4946.600000008941,
+            "transferSize": 29850
+          }
+        ]
+      }
+    },
+    {
+      "fixture": "tests/fixtures/scenario-20v20.json",
+      "index": 2,
+      "sampleKind": "repeated",
+      "phase": "scenario-validation-ready",
+      "bodyReceivedMs": 513.1764000000012,
+      "visibleReviewMs": 750.7786999999998,
+      "requestTiming": {
+        "startTime": 1789897057781.548,
+        "domainLookupStart": 0.087,
+        "domainLookupEnd": 0.096,
+        "connectStart": 0.096,
+        "secureConnectionStart": -1,
+        "connectEnd": 0.383,
+        "requestStart": 0.445,
+        "responseStart": 11.665,
+        "responseEnd": 12.243
+      },
+      "bodyBytes": 29550,
+      "browser": {
+        "visibility": "visible",
+        "focused": true,
+        "probe": {
+          "input": 5761.4000000059605,
+          "reviewDom": 6226
+        },
+        "resources": [
+          {
+            "startTime": 2180.7000000029802,
+            "requestStart": 2181.6000000089407,
+            "responseStart": 4502.100000008941,
+            "responseEnd": 4502.4000000059605,
+            "transferSize": 29850
+          },
+          {
+            "startTime": 4934.70000000298,
+            "requestStart": 4935.5,
+            "responseStart": 4946.29999999702,
+            "responseEnd": 4946.600000008941,
+            "transferSize": 29850
+          },
+          {
+            "startTime": 5762.5,
+            "requestStart": 5763.100000008941,
+            "responseStart": 5774.29999999702,
+            "responseEnd": 5774.600000008941,
+            "transferSize": 29850
+          }
+        ]
+      }
+    },
+    {
+      "fixture": "tests/fixtures/scenario-20v20.json",
+      "index": 3,
+      "sampleKind": "repeated",
+      "phase": "scenario-validation-ready",
+      "bodyReceivedMs": 496.59999999999854,
+      "visibleReviewMs": 724.3432999999986,
+      "requestTiming": {
+        "startTime": 1789897058563.804,
+        "domainLookupStart": 0.085,
+        "domainLookupEnd": 0.267,
+        "connectStart": 0.267,
+        "secureConnectionStart": -1,
+        "connectEnd": 0.482,
+        "requestStart": 0.532,
+        "responseStart": 10.409,
+        "responseEnd": 10.977
+      },
+      "bodyBytes": 29550,
+      "browser": {
+        "visibility": "visible",
+        "focused": true,
+        "probe": {
+          "input": 6543.79999999702,
+          "reviewDom": 7002.600000008941
+        },
+        "resources": [
+          {
+            "startTime": 2180.7000000029802,
+            "requestStart": 2181.6000000089407,
+            "responseStart": 4502.100000008941,
+            "responseEnd": 4502.4000000059605,
+            "transferSize": 29850
+          },
+          {
+            "startTime": 4934.70000000298,
+            "requestStart": 4935.5,
+            "responseStart": 4946.29999999702,
+            "responseEnd": 4946.600000008941,
+            "transferSize": 29850
+          },
+          {
+            "startTime": 5762.5,
+            "requestStart": 5763.100000008941,
+            "responseStart": 5774.29999999702,
+            "responseEnd": 5774.600000008941,
+            "transferSize": 29850
+          },
+          {
+            "startTime": 6544.70000000298,
+            "requestStart": 6545.5,
+            "responseStart": 6555.29999999702,
+            "responseEnd": 6555.600000008941,
+            "transferSize": 29850
+          }
+        ]
+      }
+    },
+    {
+      "fixture": "tests/fixtures/scenario-location/remote-20v20.json",
+      "index": 0,
+      "sampleKind": "cold-context",
+      "phase": "scenario-validation-ready",
+      "bodyReceivedMs": 2199.623800000001,
+      "visibleReviewMs": 2231.3329000000012,
+      "requestTiming": {
+        "startTime": 1789897074488.155,
+        "domainLookupStart": 0.088,
+        "domainLookupEnd": 0.098,
+        "connectStart": 0.098,
+        "secureConnectionStart": -1,
+        "connectEnd": 0.371,
+        "requestStart": 0.424,
+        "responseStart": 2036.036,
+        "responseEnd": 2036.689
+      },
+      "bodyBytes": 21635,
+      "browser": {
+        "visibility": "visible",
+        "focused": true,
+        "probe": {
+          "input": 1270,
+          "reviewDom": 3402
+        },
+        "resources": [
+          {
+            "startTime": 1271.300000011921,
+            "requestStart": 1271.9000000059605,
+            "responseStart": 3307.5,
+            "responseEnd": 3307.9000000059605,
+            "transferSize": 21935
+          }
+        ]
+      }
+    },
+    {
+      "fixture": "tests/fixtures/scenario-location/remote-20v20.json",
+      "index": 1,
+      "sampleKind": "repeated",
+      "phase": "scenario-validation-ready",
+      "bodyReceivedMs": 203.46029999999882,
+      "visibleReviewMs": 289.84000000000015,
+      "requestTiming": {
+        "startTime": 1789897076745.364,
+        "domainLookupStart": 0.085,
+        "domainLookupEnd": 0.267,
+        "connectStart": 0.267,
+        "secureConnectionStart": -1,
+        "connectEnd": 0.48,
+        "requestStart": 0.533,
+        "responseStart": 10.132,
+        "responseEnd": 10.749
+      },
+      "bodyBytes": 21635,
+      "browser": {
+        "visibility": "visible",
+        "focused": true,
+        "probe": {
+          "input": 3527.4000000059605,
+          "reviewDom": 3697.4000000059605
+        },
+        "resources": [
+          {
+            "startTime": 1271.300000011921,
+            "requestStart": 1271.9000000059605,
+            "responseStart": 3307.5,
+            "responseEnd": 3307.9000000059605,
+            "transferSize": 21935
+          },
+          {
+            "startTime": 3528.5,
+            "requestStart": 3529.2000000029802,
+            "responseStart": 3538.800000011921,
+            "responseEnd": 3539.1000000089407,
+            "transferSize": 21935
+          }
+        ]
+      }
+    },
+    {
+      "fixture": "tests/fixtures/scenario-location/remote-20v20.json",
+      "index": 2,
+      "sampleKind": "repeated",
+      "phase": "scenario-validation-ready",
+      "bodyReceivedMs": 283.4997000000003,
+      "visibleReviewMs": 294.1819000000032,
+      "requestTiming": {
+        "startTime": 1789897077077.18,
+        "domainLookupStart": 0.089,
+        "domainLookupEnd": 0.099,
+        "connectStart": 0.099,
+        "secureConnectionStart": -1,
+        "connectEnd": 0.4,
+        "requestStart": 0.454,
+        "responseStart": 10.184,
+        "responseEnd": 10.784
+      },
+      "bodyBytes": 21635,
+      "browser": {
+        "visibility": "visible",
+        "focused": true,
+        "probe": {
+          "input": 3859.1000000089407,
+          "reviewDom": 4031.800000011921
+        },
+        "resources": [
+          {
+            "startTime": 1271.300000011921,
+            "requestStart": 1271.9000000059605,
+            "responseStart": 3307.5,
+            "responseEnd": 3307.9000000059605,
+            "transferSize": 21935
+          },
+          {
+            "startTime": 3528.5,
+            "requestStart": 3529.2000000029802,
+            "responseStart": 3538.800000011921,
+            "responseEnd": 3539.1000000089407,
+            "transferSize": 21935
+          },
+          {
+            "startTime": 3860.300000011921,
+            "requestStart": 3860.9000000059605,
+            "responseStart": 3870.7000000029802,
+            "responseEnd": 3870.9000000059605,
+            "transferSize": 21935
+          }
+        ]
+      }
+    },
+    {
+      "fixture": "tests/fixtures/scenario-location/remote-20v20.json",
+      "index": 3,
+      "sampleKind": "repeated",
+      "phase": "scenario-validation-ready",
+      "bodyReceivedMs": 198.72680000000037,
+      "visibleReviewMs": 276.52510000000257,
+      "requestTiming": {
+        "startTime": 1789897077421.152,
+        "domainLookupStart": 0.087,
+        "domainLookupEnd": 0.096,
+        "connectStart": 0.096,
+        "secureConnectionStart": -1,
+        "connectEnd": 0.376,
+        "requestStart": 0.425,
+        "responseStart": 8.514,
+        "responseEnd": 9.074
+      },
+      "bodyBytes": 21635,
+      "browser": {
+        "visibility": "visible",
+        "focused": true,
+        "probe": {
+          "input": 4203.300000011921,
+          "reviewDom": 4357.4000000059605
+        },
+        "resources": [
+          {
+            "startTime": 1271.300000011921,
+            "requestStart": 1271.9000000059605,
+            "responseStart": 3307.5,
+            "responseEnd": 3307.9000000059605,
+            "transferSize": 21935
+          },
+          {
+            "startTime": 3528.5,
+            "requestStart": 3529.2000000029802,
+            "responseStart": 3538.800000011921,
+            "responseEnd": 3539.1000000089407,
+            "transferSize": 21935
+          },
+          {
+            "startTime": 3860.300000011921,
+            "requestStart": 3860.9000000059605,
+            "responseStart": 3870.7000000029802,
+            "responseEnd": 3870.9000000059605,
+            "transferSize": 21935
+          },
+          {
+            "startTime": 4204.300000011921,
+            "requestStart": 4205,
+            "responseStart": 4212.9000000059605,
+            "responseEnd": 4213.300000011921,
+            "transferSize": 21935
+          }
+        ]
+      }
+    }
+  ],
+  "activeReviews": [
+    {
+      "fixture": "tests/fixtures/scenario-20v20.json",
+      "revision": 1,
+      "kind": "previously-reviewed",
+      "elapsedMs": 21.22479999999996,
+      "arrivals": [
+        {
+          "at": 11000.79999999702,
+          "wall": 1789897063019,
+          "type": "delta",
+          "sequence": 7,
+          "recordedAt": "2026-09-20T09:37:42.940Z"
+        },
+        {
+          "at": 11200.40000000596,
+          "wall": 1789897063219,
+          "type": "delta",
+          "sequence": 8,
+          "recordedAt": "2026-09-20T09:37:43.143Z"
+        },
+        {
+          "at": 11357.79999999702,
+          "wall": 1789897063376,
+          "type": "delta",
+          "sequence": 9,
+          "recordedAt": "2026-09-20T09:37:43.331Z"
+        },
+        {
+          "at": 11582.10000000894,
+          "wall": 1789897063600,
+          "type": "delta",
+          "sequence": 10,
+          "recordedAt": "2026-09-20T09:37:43.518Z"
+        },
+        {
+          "at": 11755.29999999702,
+          "wall": 1789897063774,
+          "type": "delta",
+          "sequence": 11,
+          "recordedAt": "2026-09-20T09:37:43.722Z"
+        },
+        {
+          "at": 11962.70000000298,
+          "wall": 1789897063981,
+          "type": "delta",
+          "sequence": 12,
+          "recordedAt": "2026-09-20T09:37:43.925Z"
+        },
+        {
+          "at": 12184,
+          "wall": 1789897064202,
+          "type": "delta",
+          "sequence": 13,
+          "recordedAt": "2026-09-20T09:37:44.128Z"
+        },
+        {
+          "at": 12357.40000000596,
+          "wall": 1789897064376,
+          "type": "delta",
+          "sequence": 14,
+          "recordedAt": "2026-09-20T09:37:44.331Z"
+        }
+      ],
+      "gapMs": [
+        199.6000000089407,
+        157.3999999910593,
+        224.30000001192093,
+        173.19999998807907,
+        207.40000000596046,
+        221.29999999701977,
+        173.40000000596046
+      ]
+    },
+    {
+      "fixture": "tests/fixtures/scenario-20v20.json",
+      "revision": 2,
+      "kind": "cold-new-revision",
+      "elapsedMs": 4372.994100000002,
+      "arrivals": [
+        {
+          "at": 12578.70000000298,
+          "wall": 1789897064597,
+          "type": "delta",
+          "sequence": 15,
+          "recordedAt": "2026-09-20T09:37:44.550Z"
+        },
+        {
+          "at": 12814.29999999702,
+          "wall": 1789897064833,
+          "type": "delta",
+          "sequence": 16,
+          "recordedAt": "2026-09-20T09:37:44.784Z"
+        },
+        {
+          "at": 13002,
+          "wall": 1789897065020,
+          "type": "delta",
+          "sequence": 17,
+          "recordedAt": "2026-09-20T09:37:44.956Z"
+        },
+        {
+          "at": 13223.79999999702,
+          "wall": 1789897065242,
+          "type": "delta",
+          "sequence": 18,
+          "recordedAt": "2026-09-20T09:37:45.159Z"
+        },
+        {
+          "at": 13480.5,
+          "wall": 1789897065499,
+          "type": "delta",
+          "sequence": 19,
+          "recordedAt": "2026-09-20T09:37:45.393Z"
+        },
+        {
+          "at": 13699.29999999702,
+          "wall": 1789897065718,
+          "type": "delta",
+          "sequence": 20,
+          "recordedAt": "2026-09-20T09:37:45.612Z"
+        },
+        {
+          "at": 13952.40000000596,
+          "wall": 1789897065971,
+          "type": "delta",
+          "sequence": 21,
+          "recordedAt": "2026-09-20T09:37:45.831Z"
+        },
+        {
+          "at": 14140.90000000596,
+          "wall": 1789897066159,
+          "type": "delta",
+          "sequence": 22,
+          "recordedAt": "2026-09-20T09:37:46.050Z"
+        },
+        {
+          "at": 14357.40000000596,
+          "wall": 1789897066376,
+          "type": "delta",
+          "sequence": 23,
+          "recordedAt": "2026-09-20T09:37:46.268Z"
+        },
+        {
+          "at": 14607.60000000894,
+          "wall": 1789897066626,
+          "type": "delta",
+          "sequence": 24,
+          "recordedAt": "2026-09-20T09:37:46.518Z"
+        },
+        {
+          "at": 14794.70000000298,
+          "wall": 1789897066813,
+          "type": "delta",
+          "sequence": 25,
+          "recordedAt": "2026-09-20T09:37:46.706Z"
+        },
+        {
+          "at": 15019.29999999702,
+          "wall": 1789897067038,
+          "type": "delta",
+          "sequence": 26,
+          "recordedAt": "2026-09-20T09:37:46.925Z"
+        },
+        {
+          "at": 15276.20000000298,
+          "wall": 1789897067294,
+          "type": "delta",
+          "sequence": 27,
+          "recordedAt": "2026-09-20T09:37:47.175Z"
+        },
+        {
+          "at": 15447.70000000298,
+          "wall": 1789897067466,
+          "type": "delta",
+          "sequence": 28,
+          "recordedAt": "2026-09-20T09:37:47.362Z"
+        },
+        {
+          "at": 15667.5,
+          "wall": 1789897067686,
+          "type": "delta",
+          "sequence": 29,
+          "recordedAt": "2026-09-20T09:37:47.581Z"
+        },
+        {
+          "at": 15949.10000000894,
+          "wall": 1789897067967,
+          "type": "delta",
+          "sequence": 30,
+          "recordedAt": "2026-09-20T09:37:47.847Z"
+        },
+        {
+          "at": 16109.5,
+          "wall": 1789897068128,
+          "type": "delta",
+          "sequence": 31,
+          "recordedAt": "2026-09-20T09:37:48.018Z"
+        },
+        {
+          "at": 16354.10000000894,
+          "wall": 1789897068372,
+          "type": "delta",
+          "sequence": 32,
+          "recordedAt": "2026-09-20T09:37:48.237Z"
+        },
+        {
+          "at": 16542.5,
+          "wall": 1789897068561,
+          "type": "delta",
+          "sequence": 33,
+          "recordedAt": "2026-09-20T09:37:48.456Z"
+        },
+        {
+          "at": 16761.10000000894,
+          "wall": 1789897068779,
+          "type": "delta",
+          "sequence": 34,
+          "recordedAt": "2026-09-20T09:37:48.675Z"
+        },
+        {
+          "at": 17026.60000000894,
+          "wall": 1789897069045,
+          "type": "delta",
+          "sequence": 35,
+          "recordedAt": "2026-09-20T09:37:48.893Z"
+        },
+        {
+          "at": 17198.40000000596,
+          "wall": 1789897069217,
+          "type": "delta",
+          "sequence": 36,
+          "recordedAt": "2026-09-20T09:37:49.112Z"
+        },
+        {
+          "at": 17431.90000000596,
+          "wall": 1789897069450,
+          "type": "delta",
+          "sequence": 37,
+          "recordedAt": "2026-09-20T09:37:49.331Z"
+        },
+        {
+          "at": 17671.90000000596,
+          "wall": 1789897069690,
+          "type": "delta",
+          "sequence": 38,
+          "recordedAt": "2026-09-20T09:37:49.581Z"
+        },
+        {
+          "at": 17811.60000000894,
+          "wall": 1789897069830,
+          "type": "delta",
+          "sequence": 39,
+          "recordedAt": "2026-09-20T09:37:49.768Z"
+        },
+        {
+          "at": 17995.60000000894,
+          "wall": 1789897070014,
+          "type": "delta",
+          "sequence": 40,
+          "recordedAt": "2026-09-20T09:37:49.956Z"
+        },
+        {
+          "at": 18196.20000000298,
+          "wall": 1789897070215,
+          "type": "delta",
+          "sequence": 41,
+          "recordedAt": "2026-09-20T09:37:50.159Z"
+        },
+        {
+          "at": 18376.5,
+          "wall": 1789897070395,
+          "type": "delta",
+          "sequence": 42,
+          "recordedAt": "2026-09-20T09:37:50.347Z"
+        }
+      ],
+      "gapMs": [
+        235.59999999403954,
+        187.70000000298023,
+        221.79999999701977,
+        256.70000000298023,
+        218.79999999701977,
+        253.1000000089407,
+        188.5,
+        216.5,
+        250.20000000298023,
+        187.09999999403954,
+        224.59999999403954,
+        256.90000000596046,
+        171.5,
+        219.79999999701977,
+        281.6000000089407,
+        160.3999999910593,
+        244.6000000089407,
+        188.3999999910593,
+        218.6000000089407,
+        265.5,
+        171.79999999701977,
+        233.5,
+        240,
+        139.70000000298023,
+        184,
+        200.59999999403954,
+        180.29999999701977
+      ]
+    },
+    {
+      "fixture": "tests/fixtures/scenario-location/remote-20v20.json",
+      "revision": 1,
+      "kind": "previously-reviewed",
+      "elapsedMs": 90.81589999999778,
+      "arrivals": [
+        {
+          "at": 7905.70000000298,
+          "wall": 1789897081122,
+          "type": "delta",
+          "sequence": 6,
+          "recordedAt": "2026-09-20T09:38:01.050Z"
+        },
+        {
+          "at": 8059.5,
+          "wall": 1789897081276,
+          "type": "delta",
+          "sequence": 7,
+          "recordedAt": "2026-09-20T09:38:01.222Z"
+        },
+        {
+          "at": 8266.300000011921,
+          "wall": 1789897081482,
+          "type": "delta",
+          "sequence": 8,
+          "recordedAt": "2026-09-20T09:38:01.409Z"
+        },
+        {
+          "at": 8483.90000000596,
+          "wall": 1789897081700,
+          "type": "delta",
+          "sequence": 9,
+          "recordedAt": "2026-09-20T09:38:01.643Z"
+        },
+        {
+          "at": 8653.70000000298,
+          "wall": 1789897081870,
+          "type": "delta",
+          "sequence": 10,
+          "recordedAt": "2026-09-20T09:38:01.815Z"
+        },
+        {
+          "at": 8842.300000011921,
+          "wall": 1789897082058,
+          "type": "delta",
+          "sequence": 11,
+          "recordedAt": "2026-09-20T09:38:02.018Z"
+        },
+        {
+          "at": 9090.70000000298,
+          "wall": 1789897082307,
+          "type": "delta",
+          "sequence": 12,
+          "recordedAt": "2026-09-20T09:38:02.253Z"
+        },
+        {
+          "at": 9250.70000000298,
+          "wall": 1789897082467,
+          "type": "delta",
+          "sequence": 13,
+          "recordedAt": "2026-09-20T09:38:02.425Z"
+        },
+        {
+          "at": 9463.90000000596,
+          "wall": 1789897082680,
+          "type": "delta",
+          "sequence": 14,
+          "recordedAt": "2026-09-20T09:38:02.628Z"
+        }
+      ],
+      "gapMs": [
+        153.79999999701977,
+        206.80000001192093,
+        217.59999999403954,
+        169.79999999701977,
+        188.6000000089407,
+        248.3999999910593,
+        160,
+        213.20000000298023
+      ]
+    },
+    {
+      "fixture": "tests/fixtures/scenario-location/remote-20v20.json",
+      "revision": 2,
+      "kind": "cold-new-revision",
+      "elapsedMs": 3515.094100000002,
+      "arrivals": [
+        {
+          "at": 9672.10000000894,
+          "wall": 1789897082888,
+          "type": "delta",
+          "sequence": 15,
+          "recordedAt": "2026-09-20T09:38:02.831Z"
+        },
+        {
+          "at": 9862.90000000596,
+          "wall": 1789897083079,
+          "type": "delta",
+          "sequence": 16,
+          "recordedAt": "2026-09-20T09:38:03.018Z"
+        },
+        {
+          "at": 10055.10000000894,
+          "wall": 1789897083271,
+          "type": "delta",
+          "sequence": 17,
+          "recordedAt": "2026-09-20T09:38:03.222Z"
+        },
+        {
+          "at": 10305.800000011921,
+          "wall": 1789897083522,
+          "type": "delta",
+          "sequence": 18,
+          "recordedAt": "2026-09-20T09:38:03.425Z"
+        },
+        {
+          "at": 10543.90000000596,
+          "wall": 1789897083760,
+          "type": "delta",
+          "sequence": 19,
+          "recordedAt": "2026-09-20T09:38:03.643Z"
+        },
+        {
+          "at": 10769.300000011921,
+          "wall": 1789897083985,
+          "type": "delta",
+          "sequence": 20,
+          "recordedAt": "2026-09-20T09:38:03.878Z"
+        },
+        {
+          "at": 11008.60000000894,
+          "wall": 1789897084225,
+          "type": "delta",
+          "sequence": 21,
+          "recordedAt": "2026-09-20T09:38:04.081Z"
+        },
+        {
+          "at": 11193.60000000894,
+          "wall": 1789897084410,
+          "type": "delta",
+          "sequence": 22,
+          "recordedAt": "2026-09-20T09:38:04.300Z"
+        },
+        {
+          "at": 11414.40000000596,
+          "wall": 1789897084630,
+          "type": "delta",
+          "sequence": 23,
+          "recordedAt": "2026-09-20T09:38:04.518Z"
+        },
+        {
+          "at": 11660.60000000894,
+          "wall": 1789897084877,
+          "type": "delta",
+          "sequence": 24,
+          "recordedAt": "2026-09-20T09:38:04.737Z"
+        },
+        {
+          "at": 11846.20000000298,
+          "wall": 1789897085062,
+          "type": "delta",
+          "sequence": 25,
+          "recordedAt": "2026-09-20T09:38:04.956Z"
+        },
+        {
+          "at": 12063.5,
+          "wall": 1789897085280,
+          "type": "delta",
+          "sequence": 26,
+          "recordedAt": "2026-09-20T09:38:05.175Z"
+        },
+        {
+          "at": 12320.60000000894,
+          "wall": 1789897085537,
+          "type": "delta",
+          "sequence": 27,
+          "recordedAt": "2026-09-20T09:38:05.393Z"
+        },
+        {
+          "at": 12502.40000000596,
+          "wall": 1789897085719,
+          "type": "delta",
+          "sequence": 28,
+          "recordedAt": "2026-09-20T09:38:05.612Z"
+        },
+        {
+          "at": 12723.90000000596,
+          "wall": 1789897085940,
+          "type": "delta",
+          "sequence": 29,
+          "recordedAt": "2026-09-20T09:38:05.831Z"
+        },
+        {
+          "at": 12973.800000011921,
+          "wall": 1789897086190,
+          "type": "delta",
+          "sequence": 30,
+          "recordedAt": "2026-09-20T09:38:06.050Z"
+        },
+        {
+          "at": 13169.10000000894,
+          "wall": 1789897086385,
+          "type": "delta",
+          "sequence": 31,
+          "recordedAt": "2026-09-20T09:38:06.268Z"
+        },
+        {
+          "at": 13376.60000000894,
+          "wall": 1789897086593,
+          "type": "delta",
+          "sequence": 32,
+          "recordedAt": "2026-09-20T09:38:06.487Z"
+        },
+        {
+          "at": 13634.20000000298,
+          "wall": 1789897086850,
+          "type": "delta",
+          "sequence": 33,
+          "recordedAt": "2026-09-20T09:38:06.706Z"
+        },
+        {
+          "at": 13819.10000000894,
+          "wall": 1789897087035,
+          "type": "delta",
+          "sequence": 34,
+          "recordedAt": "2026-09-20T09:38:06.925Z"
+        },
+        {
+          "at": 13945.5,
+          "wall": 1789897087162,
+          "type": "delta",
+          "sequence": 35,
+          "recordedAt": "2026-09-20T09:38:07.112Z"
+        },
+        {
+          "at": 14147.90000000596,
+          "wall": 1789897087364,
+          "type": "delta",
+          "sequence": 36,
+          "recordedAt": "2026-09-20T09:38:07.315Z"
+        },
+        {
+          "at": 14379,
+          "wall": 1789897087595,
+          "type": "delta",
+          "sequence": 37,
+          "recordedAt": "2026-09-20T09:38:07.550Z"
+        },
+        {
+          "at": 14537.10000000894,
+          "wall": 1789897087753,
+          "type": "delta",
+          "sequence": 38,
+          "recordedAt": "2026-09-20T09:38:07.706Z"
+        }
+      ],
+      "gapMs": [
+        190.79999999701977,
+        192.20000000298023,
+        250.70000000298023,
+        238.09999999403954,
+        225.40000000596046,
+        239.29999999701977,
+        185,
+        220.79999999701977,
+        246.20000000298023,
+        185.59999999403954,
+        217.29999999701977,
+        257.1000000089407,
+        181.79999999701977,
+        221.5,
+        249.90000000596046,
+        195.29999999701977,
+        207.5,
+        257.59999999403954,
+        184.90000000596046,
+        126.3999999910593,
+        202.40000000596046,
+        231.09999999403954,
+        158.1000000089407
+      ]
+    }
+  ],
+  "commands": [
+    {
+      "fixture": "tests/fixtures/scenario-20v20.json",
+      "cycle": 0,
+      "operation": "pause",
+      "automationToVisibleMs": 476.08989999999903,
+      "bodyReceivedWall": 1789897070963,
+      "requestTiming": {
+        "startTime": 1789897070829.0588,
+        "domainLookupStart": 0.104,
+        "domainLookupEnd": 0.117,
+        "connectStart": 0.117,
+        "secureConnectionStart": -1,
+        "connectEnd": 0.468,
+        "requestStart": 0.527,
+        "responseStart": 118.039,
+        "responseEnd": 118.734
+      },
+      "browser": {
+        "label": "Pause",
+        "input": 18777.5,
+        "inputWall": 1789897070796,
+        "visible": 18939.10000000894,
+        "paintOpportunity": 18954.60000000894
+      }
+    },
+    {
+      "fixture": "tests/fixtures/scenario-20v20.json",
+      "cycle": 0,
+      "operation": "resume",
+      "automationToVisibleMs": 174.6268999999993,
+      "bodyReceivedWall": 1789897071297,
+      "requestTiming": {
+        "startTime": 1789897071196.404,
+        "domainLookupStart": 0.078,
+        "domainLookupEnd": 0.087,
+        "connectStart": 0.087,
+        "secureConnectionStart": -1,
+        "connectEnd": 0.345,
+        "requestStart": 0.395,
+        "responseStart": 65.247,
+        "responseEnd": 65.751
+      },
+      "browser": {
+        "label": "Resume",
+        "input": 19162.70000000298,
+        "inputWall": 1789897071181,
+        "visible": 19257.60000000894,
+        "paintOpportunity": 19262.70000000298
+      }
+    },
+    {
+      "fixture": "tests/fixtures/scenario-20v20.json",
+      "cycle": 1,
+      "operation": "pause",
+      "automationToVisibleMs": 496.11299999999756,
+      "bodyReceivedWall": 1789897071794,
+      "requestTiming": {
+        "startTime": 1789897071649.2688,
+        "domainLookupStart": 0.076,
+        "domainLookupEnd": 0.086,
+        "connectStart": 0.086,
+        "secureConnectionStart": -1,
+        "connectEnd": 0.496,
+        "requestStart": 0.564,
+        "responseStart": 81.856,
+        "responseEnd": 82.393
+      },
+      "browser": {
+        "label": "Pause",
+        "input": 19615.79999999702,
+        "inputWall": 1789897071634,
+        "visible": 19720.79999999702,
+        "paintOpportunity": 19730.10000000894
+      }
+    },
+    {
+      "fixture": "tests/fixtures/scenario-20v20.json",
+      "cycle": 1,
+      "operation": "resume",
+      "automationToVisibleMs": 236.95880000000034,
+      "bodyReceivedWall": 1789897072015,
+      "requestTiming": {
+        "startTime": 1789897071904.315,
+        "domainLookupStart": 0.094,
+        "domainLookupEnd": 0.107,
+        "connectStart": 0.107,
+        "secureConnectionStart": -1,
+        "connectEnd": 0.404,
+        "requestStart": 0.456,
+        "responseStart": 82.227,
+        "responseEnd": 82.798
+      },
+      "browser": {
+        "label": "Resume",
+        "input": 19870.60000000894,
+        "inputWall": 1789897071889,
+        "visible": 19980.90000000596,
+        "paintOpportunity": 19984.90000000596
+      }
+    },
+    {
+      "fixture": "tests/fixtures/scenario-20v20.json",
+      "cycle": 2,
+      "operation": "pause",
+      "automationToVisibleMs": 296.64540000000125,
+      "bodyReceivedWall": 1789897072272,
+      "requestTiming": {
+        "startTime": 1789897072179.283,
+        "domainLookupStart": 0.083,
+        "domainLookupEnd": 0.093,
+        "connectStart": 0.093,
+        "secureConnectionStart": -1,
+        "connectEnd": 0.59,
+        "requestStart": 0.646,
+        "responseStart": 78.035,
+        "responseEnd": 78.622
+      },
+      "browser": {
+        "label": "Pause",
+        "input": 20060.5,
+        "inputWall": 1789897072079,
+        "visible": 20246.5,
+        "paintOpportunity": 20260.40000000596
+      }
+    },
+    {
+      "fixture": "tests/fixtures/scenario-20v20.json",
+      "cycle": 2,
+      "operation": "resume",
+      "automationToVisibleMs": 315.48439999999755,
+      "bodyReceivedWall": 1789897072648,
+      "requestTiming": {
+        "startTime": 1789897072416.1501,
+        "domainLookupStart": 0.082,
+        "domainLookupEnd": 0.092,
+        "connectStart": 0.092,
+        "secureConnectionStart": -1,
+        "connectEnd": 0.395,
+        "requestStart": 0.447,
+        "responseStart": 191.643,
+        "responseEnd": 192.166
+      },
+      "browser": {
+        "label": "Resume",
+        "input": 20377.90000000596,
+        "inputWall": 1789897072396,
+        "visible": 20597.60000000894,
+        "paintOpportunity": 20613.29999999702
+      }
+    },
+    {
+      "fixture": "tests/fixtures/scenario-location/remote-20v20.json",
+      "cycle": 0,
+      "operation": "pause",
+      "automationToVisibleMs": 293.04060000000027,
+      "bodyReceivedWall": 1789897088271,
+      "requestTiming": {
+        "startTime": 1789897088168.503,
+        "domainLookupStart": 0.086,
+        "domainLookupEnd": 0.096,
+        "connectStart": 0.096,
+        "secureConnectionStart": -1,
+        "connectEnd": 0.384,
+        "requestStart": 0.438,
+        "responseStart": 75.386,
+        "responseEnd": 75.948
+      },
+      "browser": {
+        "label": "Pause",
+        "input": 14914.90000000596,
+        "inputWall": 1789897088131,
+        "visible": 15039.300000011921,
+        "paintOpportunity": 15056.60000000894
+      }
+    },
+    {
+      "fixture": "tests/fixtures/scenario-location/remote-20v20.json",
+      "cycle": 0,
+      "operation": "resume",
+      "automationToVisibleMs": 279.2604999999967,
+      "bodyReceivedWall": 1789897088553,
+      "requestTiming": {
+        "startTime": 1789897088395.684,
+        "domainLookupStart": 0.072,
+        "domainLookupEnd": 0.081,
+        "connectStart": 0.081,
+        "secureConnectionStart": -1,
+        "connectEnd": 0.329,
+        "requestStart": 0.375,
+        "responseStart": 122.808,
+        "responseEnd": 123.319
+      },
+      "browser": {
+        "label": "Resume",
+        "input": 15139.70000000298,
+        "inputWall": 1789897088356,
+        "visible": 15310.90000000596,
+        "paintOpportunity": 15334.90000000596
+      }
+    },
+    {
+      "fixture": "tests/fixtures/scenario-location/remote-20v20.json",
+      "cycle": 1,
+      "operation": "pause",
+      "automationToVisibleMs": 348.177300000003,
+      "bodyReceivedWall": 1789897088899,
+      "requestTiming": {
+        "startTime": 1789897088789.667,
+        "domainLookupStart": 0.099,
+        "domainLookupEnd": 0.111,
+        "connectStart": 0.111,
+        "secureConnectionStart": -1,
+        "connectEnd": 0.474,
+        "requestStart": 0.536,
+        "responseStart": 81.82,
+        "responseEnd": 82.527
+      },
+      "browser": {
+        "label": "Pause",
+        "input": 15486.40000000596,
+        "inputWall": 1789897088702,
+        "visible": 15669.70000000298,
+        "paintOpportunity": 15685.300000011921
+      }
+    },
+    {
+      "fixture": "tests/fixtures/scenario-location/remote-20v20.json",
+      "cycle": 1,
+      "operation": "resume",
+      "automationToVisibleMs": 325.4941000000035,
+      "bodyReceivedWall": 1789897089227,
+      "requestTiming": {
+        "startTime": 1789897089031.823,
+        "domainLookupStart": 0.119,
+        "domainLookupEnd": 0.134,
+        "connectStart": 0.134,
+        "secureConnectionStart": -1,
+        "connectEnd": 0.535,
+        "requestStart": 0.605,
+        "responseStart": 148.126,
+        "responseEnd": 148.704
+      },
+      "browser": {
+        "label": "Resume",
+        "input": 15799.60000000894,
+        "inputWall": 1789897089016,
+        "visible": 15971.90000000596,
+        "paintOpportunity": 15989.800000011921
+      }
+    },
+    {
+      "fixture": "tests/fixtures/scenario-location/remote-20v20.json",
+      "cycle": 2,
+      "operation": "pause",
+      "automationToVisibleMs": 420.73449999999866,
+      "bodyReceivedWall": 1789897089541,
+      "requestTiming": {
+        "startTime": 1789897089418.478,
+        "domainLookupStart": 0.083,
+        "domainLookupEnd": 0.093,
+        "connectStart": 0.093,
+        "secureConnectionStart": -1,
+        "connectEnd": 0.378,
+        "requestStart": 0.433,
+        "responseStart": 109.644,
+        "responseEnd": 110.165
+      },
+      "browser": {
+        "label": "Pause",
+        "input": 16187.10000000894,
+        "inputWall": 1789897089403,
+        "visible": 16323.90000000596,
+        "paintOpportunity": 16341.10000000894
+      }
+    },
+    {
+      "fixture": "tests/fixtures/scenario-location/remote-20v20.json",
+      "cycle": 2,
+      "operation": "resume",
+      "automationToVisibleMs": 211.8550000000032,
+      "bodyReceivedWall": 1789897089866,
+      "requestTiming": {
+        "startTime": 1789897089758.286,
+        "domainLookupStart": 0.08,
+        "domainLookupEnd": 0.089,
+        "connectStart": 0.089,
+        "secureConnectionStart": -1,
+        "connectEnd": 0.36,
+        "requestStart": 0.411,
+        "responseStart": 64.513,
+        "responseEnd": 65.046
+      },
+      "browser": {
+        "label": "Resume",
+        "input": 16521,
+        "inputWall": 1789897089737,
+        "visible": 16614.90000000596,
+        "paintOpportunity": 16622.60000000894
+      }
+    }
+  ],
+  "providerRequests": 0
+}

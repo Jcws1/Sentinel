@@ -5,12 +5,14 @@ from uuid import uuid4
 from app.commands.errors import CommandError
 from app.scenarios.contracts import ScenarioRevision, ScenarioReceipt, ScenarioList, content_version
 from app.world.serialization import canonical
+from app.scenarios.analysis import AnalysisCache, analyze
 
 
 class ScenarioService:
     def __init__(self, authority, enabled):
         self.authority, self.repository, self.enabled = authority, authority.repository, enabled
         self._lock = asyncio.Lock()
+        self._analysis = AnalysisCache()
 
     def get(self, identity, revision=None):
         query = "SELECT revision_json FROM scenario_revisions WHERE definition_id=?"
@@ -35,18 +37,30 @@ class ScenarioService:
         return revision
 
     def review(self, reference):
+        """Synchronous pure-analysis entry for offline callers and compatibility tests."""
+        revision = self.resolve(reference)
+        return self._review(reference, revision, analyze(revision.content))
+
+    async def review_async(self, reference):
+        revision = self.resolve(reference)
+        analysis = await self._analysis.get(revision)
+        # Admission is live state, never cached in the nominal analysis. Run still
+        # revalidates its own transaction and exact saved-revision identity.
+        return self._review(reference, revision, analysis)
+
+    async def close(self):
+        await self._analysis.close()
+
+    def _review(self, reference, revision, analysis):
         from app.commands.template import TEMPLATE
         from app.commands.kinematics import cruise_speed
         from app.commands.unit_profiles import profile
         from app.scenarios.location import model_for
         from app.scenarios.review import ScenarioReview, ScenarioCounts, ScenarioMotionPreset, ScenarioReviewIssue
-        revision = self.resolve(reference)
         units = revision.content.units
         active = self.repository.active_interactive()
-        from app.commands.zone_rules import scenario_issues
-        from app.commands.scheduler import scenario_issues as script_issues, nominal_plan
-        plan = nominal_plan(revision.content)
-        issues = [ScenarioReviewIssue.model_validate(i) for i in scenario_issues(revision.content) + script_issues(revision.content, plan)]
+        plan = analysis['plan']
+        issues = [ScenarioReviewIssue.model_validate(i) for i in analysis['issues']]
         if not units:
             issues.append(ScenarioReviewIssue(code="EMPTY_ARRANGEMENT", message="Place at least one entity, then save and validate the new revision."))
         if not self.enabled:

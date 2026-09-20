@@ -175,7 +175,8 @@ export function createInteractiveClient(options: {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let abort: AbortController | undefined;
   const advisoryReads = new Set<AbortController>();
-  let polling = false;
+  let refreshing: Promise<void> | undefined;
+  let refreshQueued = false;
   let managing = false;
   let renewal: Promise<unknown> | undefined;
   let creatingDemo = false;
@@ -260,9 +261,26 @@ export function createInteractiveClient(options: {
       advisoryReads.delete(controller);
     }
   }
-  async function refresh() {
-    if (disposed || polling) return;
-    polling = true;
+  function refresh(): Promise<void> {
+    if (disposed) return Promise.resolve();
+    // A mission/revision change during a read must not wait for the next poll.
+    // Coalesce callers into one follow-up read and resolve them only after the
+    // queued authority has been read. Generation checks still reject old data.
+    refreshQueued = true;
+    if (refreshing) return refreshing;
+    refreshing = (async () => {
+      try {
+        while (refreshQueued && !disposed) {
+          refreshQueued = false;
+          await refreshOnce();
+        }
+      } finally {
+        refreshing = undefined;
+      }
+    })();
+    return refreshing;
+  }
+  async function refreshOnce() {
     const gen = generation,
       mid = missionId;
     try {
@@ -301,8 +319,6 @@ export function createInteractiveClient(options: {
           current: undefined,
           error: e instanceof Error ? e.message : 'Run status unavailable.',
         });
-    } finally {
-      polling = false;
     }
   }
   function remember(value: Pending) {

@@ -17,6 +17,7 @@ from app.commands.contracts import CommandRequest
 from app.commands.service import InteractiveService
 from app.missions.service import MissionService
 from app.recording.sqlite_repository import RecordingRepository
+from recording_storage_report import report, components
 
 
 async def finish(path: Path) -> dict:
@@ -48,6 +49,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("database", type=Path)
     parser.add_argument("--delete", action="store_true")
+    parser.add_argument("--report-storage", action="store_true")
     args = parser.parse_args()
     path = args.database.resolve()
     if (
@@ -58,6 +60,10 @@ if __name__ == "__main__":
     ):
         parser.error("Expected an existing frontend/.cache/verification-*.sqlite3 owned by the stopped test")
     result = asyncio.run(finish(path))
+    if args.report_storage:
+        result["filesAfterNormalClose"] = components(path)
+        result["storageAfterNormalClose"] = report(path)
+        result["filesAfterReportClose"] = components(path)
     if args.delete:
         for suffix in ("", "-wal", "-shm", "-journal"):
             Path(str(path) + suffix).unlink(missing_ok=True)

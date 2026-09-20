@@ -129,6 +129,7 @@ def test_live_boundary_atomically_stops_remaining_manual_and_source_paths():
             dict(id=f"action-{i}",unitId=f"unit-{i}",kind="move",offsetMs=0,ordinal=i,destination=geographic(900,i*10)) for i in range(3)])
         mid,rev,_=await ready(h,data)
         frozen=canonical(rev);initial=h.repo.latest_text(mid)
+        initial_stored=h.repo.db.execute('SELECT frame_json FROM frames WHERE frame_id=?',(read_frame(initial).frame_id,)).fetchone()[0]
         await h.act(mid,"acquire");await h.act(mid,"start");await ticks(h,1)
         move=direct(h,mid);raw=json.loads(canonical(move));raw["direct"]["anchor"]=geographic(900,0)
         from app.commands.contracts import DirectMoveRequest
@@ -143,7 +144,8 @@ def test_live_boundary_atomically_stops_remaining_manual_and_source_paths():
         assert [e.state for e in after.scenario_schedule.actions]==["Cancelled","Failed","Failed"]
         assert all(t.latest.position==before.tracks[k].latest.position for k,t in after.tracks.items())
         assert canonical(ScenarioService(h.authority,True).get(rev.definition_id))==frozen
-        assert h.repo.db.execute('SELECT frame_json FROM frames WHERE frame_id=?',(read_frame(initial).frame_id,)).fetchone()[0]==initial
+        assert h.repo.db.execute('SELECT frame_json FROM frames WHERE frame_id=?',(read_frame(initial).frame_id,)).fetchone()[0]==initial_stored
+        assert h.repo.text_at(mid,read_frame(initial).frame_id)==initial
         assert await h.service.command(mid,cmd,None)==receipt
         assert (await h.service.command(mid,await mutation(h,mid,expected=1,delete=True),CREDENTIAL)).accepted
         await ticks(h,3)

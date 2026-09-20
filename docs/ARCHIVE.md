@@ -58,3 +58,32 @@ Current [D7 delivery](integrated-acceptance/README.md), [verification](integrate
 `../Sentinel3-archive/2026-09-20-performance-closure/` retains the exact uncommitted baseline snapshot, original diff and data inventory, matched validation/recording probes, profiles, browser screenshots, compositor traces, independent critic evidence, and successful and failed regression attempts. Current source is under `source-after/`; raw paths preserve their checkout-relative form. `manifest.json` records file sizes and SHA-256 hashes, with its own digest in `manifest.sha256`.
 
 `cleanup-summary.json` records the final task-service, disposable-output and original-data checks. Databases, browser profiles, credentials and generated builds are excluded from the archive. Current [partial closure](performance-closure/README.md), [measurements](performance-closure/PERFORMANCE.md), [verification](performance-closure/VERIFICATION.md), [independent critic](performance-closure/CRITIC.md) and reusable tests remain in source. The 8.8/10 review supports the narrow optimization conditionally on the final regression gate; it does not establish storage efficiency, configured Video, sustained display acceptance or a new ten-minute soak. Historical reports remain unchanged.
+
+## Milestone 1 D7 and Details closure
+
+`../Sentinel3-archive/2026-09-20-d7-details-closure/` retains the current-source
+baseline, final source, matched storage/validation probes, both ten-minute moving
+20v20 soaks, all pane compositor windows, the configured Video budget-stop result,
+Details/reference screenshots, complete regression reports and all three critics'
+independent evidence. Failed candidates and test attempts remain included.
+Generated builds, dependencies, credentials, browser profiles and databases are
+excluded. Raw paths retain their checkout-relative form; final source is under
+`source-after/`.
+
+`manifest.json`, `manifest.sha256` and `readback-verification.json` provide per-file
+SHA-256/size records, the manifest digest and verified readback totals.
+`cleanup-summary.json` records explicit task-owned removal targets and service
+checks. `test-results/d7-details-closure/final-preservation.json` compares the 437
+original database artifacts without opening them, original image hashes,
+protected historical/contract/fixture files and all 198 final reviewed production
+files. The reviewed production inventory digest is
+`1f6db1a50aa45d9f16f5e7930fc6ec0389408c67f1805a8061443002d71f11cf`.
+
+The current [delivery](d7-details-closure/README.md), [verification](d7-details-closure/VERIFICATION.md),
+[measurements](d7-details-closure/PERFORMANCE.md), [pacing](d7-details-closure/PACING.md),
+[compatibility](d7-details-closure/COMPATIBILITY.md), [Details screenshots](d7-details-closure/DETAILS.md)
+and [final critic](d7-details-closure/critic-round-3.md) remain in source.
+The 9.1/10 review does not override failed display thresholds or the incomplete
+configured Video window. Storage efficiency is demonstrated without discarding
+history; overall performance closure remains partial. No commit, push or later
+roadmap phase is included.
