@@ -1,0 +1,440 @@
+{
+  "$defs": {
+    "AuditBucket": {
+      "additionalProperties": false,
+      "properties": {
+        "events": {
+          "title": "Events",
+          "type": "integer"
+        },
+        "fromAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Fromat",
+          "type": "string"
+        },
+        "outcomes": {
+          "title": "Outcomes",
+          "type": "integer"
+        },
+        "requests": {
+          "title": "Requests",
+          "type": "integer"
+        },
+        "toAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Toat",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fromAt",
+        "toAt",
+        "events",
+        "requests",
+        "outcomes"
+      ],
+      "title": "AuditBucket",
+      "type": "object"
+    },
+    "AuditPage": {
+      "additionalProperties": false,
+      "properties": {
+        "frameId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Frameid",
+          "type": "string"
+        },
+        "fromAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Fromat",
+          "type": "string"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "nextAfter": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nextafter"
+        },
+        "receiptCeiling": {
+          "title": "Receiptceiling",
+          "type": "integer"
+        },
+        "recordingId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Recordingid",
+          "type": "string"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/AuditRow"
+          },
+          "maxItems": 100,
+          "title": "Rows",
+          "type": "array"
+        },
+        "schemaVersion": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "sourceAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Sourceat",
+          "type": "string"
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AuditSummary"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "throughRecordedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Throughrecordedat",
+          "type": "string"
+        },
+        "throughSequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Throughsequence",
+          "type": "integer"
+        },
+        "toAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Toat",
+          "type": "string"
+        }
+      },
+      "required": [
+        "missionId",
+        "recordingId",
+        "frameId",
+        "throughSequence",
+        "throughRecordedAt",
+        "sourceAt",
+        "fromAt",
+        "toAt",
+        "receiptCeiling",
+        "rows"
+      ],
+      "title": "AuditPage",
+      "type": "object"
+    },
+    "AuditQuery": {
+      "additionalProperties": false,
+      "properties": {
+        "after": {
+          "anyOf": [
+            {
+              "maxLength": 2048,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "After"
+        },
+        "frameId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Frameid",
+          "type": "string"
+        },
+        "fromAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Fromat",
+          "type": "string"
+        },
+        "includeSummary": {
+          "default": true,
+          "title": "Includesummary",
+          "type": "boolean"
+        },
+        "kind": {
+          "default": "all",
+          "enum": [
+            "all",
+            "event",
+            "request"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "limit": {
+          "default": 50,
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "receiptCeiling": {
+          "anyOf": [
+            {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Receiptceiling"
+        },
+        "search": {
+          "default": "",
+          "maxLength": 200,
+          "title": "Search",
+          "type": "string"
+        },
+        "toAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Toat",
+          "type": "string"
+        }
+      },
+      "required": [
+        "frameId",
+        "fromAt",
+        "toAt"
+      ],
+      "title": "AuditQuery",
+      "type": "object"
+    },
+    "AuditRow": {
+      "additionalProperties": false,
+      "properties": {
+        "affectedEntityIds": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "title": "Affectedentityids",
+          "type": "array"
+        },
+        "commandId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Commandid"
+        },
+        "detail": {
+          "title": "Detail",
+          "type": "string"
+        },
+        "effectiveAt": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Effectiveat"
+        },
+        "entityIds": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "type": "string"
+          },
+          "title": "Entityids",
+          "type": "array"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "identity": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Identity",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "event",
+            "request"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "outcome": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Outcome"
+        },
+        "recordedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Recordedat",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "State"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "identity",
+        "kind",
+        "sequence",
+        "type",
+        "recordedAt",
+        "detail"
+      ],
+      "title": "AuditRow",
+      "type": "object"
+    },
+    "AuditSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "affectedEntities": {
+          "title": "Affectedentities",
+          "type": "integer"
+        },
+        "buckets": {
+          "items": {
+            "$ref": "#/$defs/AuditBucket"
+          },
+          "title": "Buckets",
+          "type": "array"
+        },
+        "complete": {
+          "title": "Complete",
+          "type": "boolean"
+        },
+        "eventCounts": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Eventcounts",
+          "type": "object"
+        },
+        "inspectedRows": {
+          "title": "Inspectedrows",
+          "type": "integer"
+        },
+        "outcomeCounts": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Outcomecounts",
+          "type": "object"
+        },
+        "requestStates": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Requeststates",
+          "type": "object"
+        },
+        "throughRecordedAt": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Throughrecordedat"
+        }
+      },
+      "required": [
+        "inspectedRows",
+        "complete",
+        "eventCounts",
+        "requestStates",
+        "outcomeCounts",
+        "affectedEntities",
+        "buckets"
+      ],
+      "title": "AuditSummary",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "page": {
+      "$ref": "#/$defs/AuditPage"
+    },
+    "query": {
+      "$ref": "#/$defs/AuditQuery"
+    }
+  },
+  "required": [
+    "query",
+    "page"
+  ],
+  "title": "AnalyticsContracts",
+  "type": "object"
+}

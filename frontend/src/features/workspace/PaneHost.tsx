@@ -1,5 +1,13 @@
 import { OrchestratorPane } from '../orchestrator/OrchestratorPane';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { SimulationPane } from '../../modules/simulation/SimulationPane';
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import type { TabNode } from 'flexlayout-react';
 import type { WorkspaceBridge } from './workspaceBridge';
 import { viewRegistry, viewKind, viewTitle, type ViewId } from './viewRegistry';
@@ -17,6 +25,12 @@ import { MovementPane } from '../movement/MovementPane';
 import { DisplaySettings } from '../settings/DisplaySettings';
 import { CockpitPane } from '../cockpit/CockpitPane';
 import { DecisionSuggestions } from '../entities/DecisionSuggestions';
+
+const CommandPicture = lazy(() =>
+  import('../analytics/CommandPicture').then((module) => ({
+    default: module.CommandPicture,
+  })),
+);
 
 export type PaneLifecycleEvent =
   | { type: 'mount' | 'dispose'; viewId: ViewId }
@@ -109,7 +123,13 @@ export function PaneHost({
       }}
     >
       <PaneVisibilityContext.Provider value={visible}>
-        {kind === 'suggestions' && runtime ? (
+        {(kind === 'command' || kind === 'vertical') && runtime ? (
+          <Suspense fallback={<p>Loading analytics…</p>}>
+            <CommandPicture bridge={bridge} vertical={kind === 'vertical'} />
+          </Suspense>
+        ) : kind === 'simulation' && runtime ? (
+          <SimulationPane bridge={bridge} />
+        ) : kind === 'suggestions' && runtime ? (
           <DecisionSuggestions bridge={bridge} />
         ) : kind === 'cockpit' && runtime ? (
           <CockpitPane bridge={bridge} visible={visible} />

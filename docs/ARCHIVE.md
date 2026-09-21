@@ -87,3 +87,78 @@ The 9.1/10 review does not override failed display thresholds or the incomplete
 configured Video window. Storage efficiency is demonstrated without discarding
 history; overall performance closure remains partial. No commit, push or later
 roadmap phase is included.
+
+## Phase 5 simulation compatibility evidence
+
+../Sentinel3-archive/2026-09-20-phase5-simulation-compatibility retains current baseline/final source, all probes, successful and failed results, foreground screenshots and three independent critic reports. SHA-256 readback and cleanup receipts are included. [Delivery](phase5-simulation-compatibility/README.md) remains partial: full browser 97/121, mixed-scale geometry defect and independent foreground gate open; critic 8.6/10. Operator databases/credentials excluded; task-only disposable database ZIPs retained.
+
+## Phase 6 Command Picture and Vertical Profile
+
+The completed Phase 6 archive is
+`../Sentinel3-archive/2026-09-20-phase6-command-picture/`. It retains
+the original source/diff/data inventory, final source, successful and failed full
+regression results, independent review probes, actual foreground screenshots and
+compositor traces, moving-workload/lifecycle measurements and the separately
+labelled large synthetic recording. Raw paths retain their checkout-relative form;
+the final source is under `source-after/`. Credentials, databases, browser profiles,
+dependencies and generated builds are excluded.
+
+`manifest.json`, `manifest.sha256` and `readback-verification.json` record per-file
+sizes/hashes, the manifest digest and complete readback. The preserved
+`pre-cleanup-manifest.*` and `pre-cleanup-readback-verification.json` establish
+that all 6,760 initial files (1,030,199,777 bytes) passed readback before disposable
+outputs were removed. `cleanup-summary.json` lists the nine verified targets and
+20 free task ports. The final preservation
+report compares all 437 original database artifacts by metadata, three environment
+file hashes, 263 protected files and the exact reviewed product inventory. Unrelated
+research edits remain separately identified and preserved. The final scan retains
+exactly the original 437 database artifacts. Complete regression passes 562 backend,
+486 frontend and 126/126 final browser cases. Fresh independent review scores
+8.5/10 and withholds overall acceptance for combined-Profile pacing; the corrected
+audit-search defect is independently closed. [Phase 6 delivery](phase6-command-picture/DELIVERY.md)
+records those boundaries. Archive completion does not close the material pacing
+finding, Phase 5, external conformance, D7 or configured Video.
+
+## Repository maintenance — 21 September 2026
+
+`../Sentinel3-archive/2026-09-21-repository-cleanup/` is a new archive; earlier
+archives remain unchanged. Under `historical/`, it preserves 2,542 files
+(2,164,780,016 bytes) from 37 explicitly selected obsolete task-output, copied-test,
+review-script and credential-free generated-test-build paths. Four previously
+tracked raw browser reports retain their original `frontend/docs/` paths there.
+The configured production bundle remains in the checkout; no operator database,
+credential file, dependency installation or browser profile was moved.
+
+`historical-manifest.json`, its SHA-256 companion, `historical-readback.json` and
+`historical-removal-receipt.json` establish complete copy/readback before original
+removal. Deletion targeted only inventoried files, followed by non-recursive
+empty-directory removal. This same-volume move does not reclaim disk space.
+The [maintenance ledger](maintenance/cleanup-2026-09-21.md) records the two unused
+declaration removals, retained compatibility code, exact verification, final
+preservation and independent [critic review](maintenance/cleanup-2026-09-21-critic.md).
+Cleanup acceptance is separate from all existing Phase 5, Phase 6 and D7 gaps.
+Final source is under `source-after/`; baseline/current verification and all
+critic attempts retain their checkout-relative `test-results/` paths. The
+pre-cleanup manifest/readback establishes archival before disposable output
+removal. `cleanup-summary.json`, `final-preservation.json` and
+`final-source-match.json` record closeout; the final manifest and readback seal
+all retained evidence. The fresh critic accepts this bounded cleanup at 9.4/10.
+
+## Project documentation — 21–22 September 2026
+
+`../Sentinel3-archive/2026-09-22-project-documentation/` retains the cleaned-source
+baseline inventory and original document copies, final source inventory/copies,
+command logs, failed and successful onboarding probes, provider-free headless
+screenshots, independent source/link/shell checks and documentation review.
+The canonical [architecture](architecture.md) remains in the repository; no
+competing blueprint or frozen historical report rewrite is introduced.
+
+Raw evidence preserves its `test-results/documentation-2026-09-21/` paths.
+`manifest.json`, `manifest.sha256` and `readback-verification.json` seal the archive;
+`cleanup-summary.json` and final preservation/source-match receipts record
+disposal only of this documentation task's outputs after readback. Generated
+builds, dependencies, credentials, databases and browser profiles are excluded.
+The [documentation ledger](maintenance/documentation-2026-09-21.md) and
+[fresh review](maintenance/documentation-review-2026-09-21.md) distinguish personal
+checks from supplied historical evidence. No new full regression or performance
+certificate, Phase5/6/D7 closure, commit or push is implied.

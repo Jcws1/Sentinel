@@ -43,10 +43,12 @@ export async function validateSavedScenario(page, saved) {
       r.url().endsWith('/api/scenarios/validate'),
   );
   const validationStarted = performance.now();
-  await conductor
-    .getByRole('button', { name: 'Validate saved revision', exact: true })
-    .click();
-  const validationResponse = await validation;
+  const [validationResponse] = await Promise.all([
+    validation,
+    conductor
+      .getByRole('button', { name: 'Validate saved revision', exact: true })
+      .click(),
+  ]);
   expect(validationResponse.ok()).toBe(true);
   // Response headers do not mean the body or React review is available yet.
   const review = await validationResponse.json();

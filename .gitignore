@@ -30,6 +30,8 @@ htmlcov/
 .nyc_output/
 .coverage
 .coverage.*
+# Historical browser reporters once wrote here; keep machine results out of source.
+/frontend/docs/**/browser-results.json
 
 # Local credentials/configuration; keep example/template files shareable.
 .env
@@ -56,7 +58,7 @@ htmlcov/
 /tmp/
 *.prof
 *.cpuprofile
-
+/research-brain
 
 # Generated logs and operating-system metadata.
 *.log

@@ -209,6 +209,7 @@ export function createMotionPresentation(clock = () => performance.now()) {
       };
     },
     diagnostics: () => ({
+      subscribers: listeners.size,
       cadenceMs: cadence,
       frameIntervalsMs: [...intervals],
       activeSegments: segments.size,

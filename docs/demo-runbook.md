@@ -34,4 +34,28 @@ The [D7 verification](integrated-acceptance/README.md) separates functional, rec
 
 ## Developer fixtures
 
+The separate **Views → Simulation** workflow accepts external JSON batches and
+offers authoritative START acknowledgement, explicit HOLD/ABORT and supplied
+RESUME batches. Use **Retry exact pending command** after an uncertain response;
+the saved body survives reload. **Load recorded commands** permits earlier outcome
+inspection after ABORT. See the [Phase 5 operator guide](phase5-simulation-compatibility/README.md).
+Its MSL external tracks are unmanaged unless an explicit domain mapping says
+otherwise; they do not join the interactive movement executor.
+
 Synthetic Alpha, Bravo, Tactical, Observations and Blank grid retain their existing fixture meanings. Fixture advancement is an explicit developer/API operation; UI telemetry does not advance them. Existing seeded records and operator recordings survive restart. Blank grid isolates application rendering overhead; it is not evidence of normal-provider performance.
+
+## Command Picture and Vertical Profile
+
+After loading a mission, open Command Picture from the activity bar. Overview and
+Resources separate filtered counts from mission totals. Recorded activity and
+Statistics pin a committed recording cutoff; set a UTC range then Read range.
+Use latest cutoff explicitly refreshes that anchor without seeking live time.
+Comparison uses up to four shared selections and supplied raw measurements.
+
+Vertical profile plots altitude versus radial horizontal distance from the active
+mission/location reference. Choose a native datum group or capture the selected
+observed entity as a fixed origin. Optional observed history preserves source gaps;
+it does not predict movement. Open profile to side or use Views → Vertical Profile.
+For external data, first use Simulation → Inspect mapped mission. BLUE entities
+remain unmanaged unless explicit authority data exists. See
+[Phase 6 workflow and limitations](phase6-command-picture/README.md).

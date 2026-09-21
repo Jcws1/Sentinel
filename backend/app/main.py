@@ -10,7 +10,8 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter
 
-from app.api import missions, stream, interactive, scenarios
+from app.api import missions, stream, interactive, scenarios, simulation, analytics
+from app.simulation.service import SimulationService
 from app.scenarios.service import ScenarioService
 from app.commands.service import InteractiveService, CommandError
 from fastapi.exceptions import RequestValidationError
@@ -35,6 +36,7 @@ def create_app(db_path: str | None = None, fixtures_enabled: bool | None = None,
         application.state.heartbeat_seconds = heartbeat_seconds
         application.state.interactive = InteractiveService(application.state.service, demo)
         application.state.scenarios = ScenarioService(application.state.service, demo)
+        application.state.simulation = SimulationService(application.state.service, os.environ.get("SENTINEL_CALIBRATION_REPORTS"))
         async def source_loop():
             loop = asyncio.get_running_loop()
             while True:
@@ -49,6 +51,7 @@ def create_app(db_path: str | None = None, fixtures_enabled: bool | None = None,
         runner = None
         try:
             await application.state.interactive.recover()
+            await application.state.simulation.recover()
             if fixtures:
                 await seed_fixtures(application.state.service)
             runner = asyncio.create_task(source_loop())
@@ -59,6 +62,7 @@ def create_app(db_path: str | None = None, fixtures_enabled: bool | None = None,
                 with suppress(asyncio.CancelledError):
                     await runner
             await application.state.scenarios.close()
+            await application.state.simulation.close()
             repository.close()
 
     application = FastAPI(title="Sentinel world authority", version="1.10.0", lifespan=lifespan)
@@ -66,6 +70,8 @@ def create_app(db_path: str | None = None, fixtures_enabled: bool | None = None,
     application.include_router(stream.router)
     application.include_router(interactive.router)
     application.include_router(scenarios.router)
+    application.include_router(simulation.router)
+    application.include_router(analytics.router)
 
     @application.middleware("http")
     async def prevent_cached_authority(request: Request, call_next):

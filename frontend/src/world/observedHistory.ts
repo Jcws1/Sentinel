@@ -15,12 +15,32 @@ export type HistoryLoader = (
   windowSeconds: number,
   signal: AbortSignal,
 ) => Promise<ObservedHistory>;
+
+export function assertHistoryAnchor(
+  data: DeepReadonly<ObservedHistory>,
+  frame: ImmutableFrame,
+  entityId: string,
+  seconds: number,
+) {
+  if (
+    data.missionId !== frame.mission.id ||
+    data.entityId !== entityId ||
+    data.recordingId !== frame.recordingId ||
+    data.streamEpoch !== frame.streamEpoch ||
+    data.throughFrameId !== frame.frameId ||
+    data.throughSequence !== frame.sequence ||
+    data.throughAt !== frame.effectiveAt ||
+    data.windowSeconds !== seconds
+  )
+    throw new Error('Observed history anchor mismatch');
+}
 type Demand = {
   frame: ImmutableFrame;
   entityId: string;
   seconds: number;
   key: string;
   identity: string;
+  minRefreshMs: number;
 };
 
 /** Older immutable series may remain while refreshing only when no future or
@@ -48,6 +68,7 @@ export function createObservedHistory(
   loader: HistoryLoader,
   changed: () => void,
   timeoutMs = 10000,
+  clock = () => performance.now(),
 ) {
   const cache = new Map<string, DeepReadonly<ObservedHistory>>();
   let state: ObservedState = { status: 'idle' };
@@ -55,24 +76,49 @@ export function createObservedHistory(
   let generation = 0,
     failed = false;
   let request: AbortController | undefined,
-    timer: ReturnType<typeof setTimeout> | undefined;
+    timer: ReturnType<typeof setTimeout> | undefined,
+    refreshTimer: ReturnType<typeof setTimeout> | undefined,
+    lastStarted = -Infinity;
   function cancel() {
     generation++;
     request?.abort();
     request = undefined;
     clearTimeout(timer);
     timer = undefined;
+    clearTimeout(refreshTimer);
+    refreshTimer = undefined;
+    lastStarted = -Infinity;
   }
   function ensure() {
     if (!desired || request || failed) return;
     const target = desired,
       cached = cache.get(target.key);
     if (cached) {
+      clearTimeout(refreshTimer);
+      refreshTimer = undefined;
       cache.delete(target.key);
       cache.set(target.key, cached);
       state = { status: 'ready', data: cached };
       return;
     }
+    // A Profile-only live reader can coalesce refreshes without dropping retained
+    // observations. Identity changes reset this delay; ordinary map demand is zero.
+    const wait = lastStarted + target.minRefreshMs - clock();
+    if (wait > 0) {
+      if (!refreshTimer) {
+        const token = generation;
+        refreshTimer = setTimeout(() => {
+          if (token !== generation) return;
+          refreshTimer = undefined;
+          ensure();
+          changed();
+        }, wait);
+      }
+      return;
+    }
+    clearTimeout(refreshTimer);
+    refreshTimer = undefined;
+    lastStarted = clock();
     const controller = new AbortController(),
       token = generation;
     request = controller;
@@ -96,17 +142,7 @@ export function createObservedHistory(
       .then((data) => {
         if (token !== generation) return;
         const frame = target.frame;
-        if (
-          data.missionId !== frame.mission.id ||
-          data.entityId !== target.entityId ||
-          data.recordingId !== frame.recordingId ||
-          data.streamEpoch !== frame.streamEpoch ||
-          data.throughFrameId !== frame.frameId ||
-          data.throughSequence !== frame.sequence ||
-          data.throughAt !== frame.effectiveAt ||
-          data.windowSeconds !== target.seconds
-        )
-          throw new Error('Observed history anchor mismatch');
+        assertHistoryAnchor(data, frame, target.entityId, target.seconds);
         const frozen = immutableCopy(data);
         cache.set(target.key, frozen);
         while (cache.size > 8) cache.delete(cache.keys().next().value!);
@@ -144,6 +180,8 @@ export function createObservedHistory(
       entityId: string | undefined,
       enabled: boolean,
       seconds = 60,
+      minRefreshMs = 0,
+      scopeKey = '',
     ) {
       const next =
         enabled && frame && entityId
@@ -151,12 +189,14 @@ export function createObservedHistory(
               frame,
               entityId,
               seconds,
+              minRefreshMs,
               identity: JSON.stringify([
                 frame.mission.id,
                 frame.recordingId,
                 frame.streamEpoch,
                 entityId,
                 seconds,
+                scopeKey,
               ]),
               key: JSON.stringify([
                 frame.mission.id,

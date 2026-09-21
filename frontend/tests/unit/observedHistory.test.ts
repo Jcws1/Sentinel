@@ -54,6 +54,150 @@ const flush = async () => {
 };
 afterEach(() => vi.useRealTimers());
 
+function advancingFixture() {
+  const { frame, history, entityId } = fixture();
+  const frames = Array.from({ length: 8 }, (_, i) => ({
+    ...frame,
+    frameId: `refresh-${i}`,
+    sequence: frame.sequence + i,
+    effectiveAt: new Date(
+      Date.parse(frame.effectiveAt) + i * 200,
+    ).toISOString(),
+  }));
+  const response = (id: string): ObservedHistory => {
+    const index = frames.findIndex((f) => f.frameId === id),
+      current = frames[index];
+    return {
+      ...history,
+      throughFrameId: id,
+      throughAt: current.effectiveAt,
+      throughSequence: current.sequence,
+      segments: [
+        {
+          ...history.segments[0],
+          points: frames.slice(0, index + 1).map((f) => ({
+            ...history.segments[0].points[0],
+            frameId: f.frameId,
+            sequence: f.sequence,
+            frameEffectiveAt: f.effectiveAt,
+            sample: {
+              ...history.segments[0].points[0].sample,
+              timestamp: f.effectiveAt,
+            },
+          })) as ObservedHistory['segments'][number]['points'],
+        },
+      ],
+    };
+  };
+  return { frames, response, entityId };
+}
+
+it('coalesces Profile refreshes to the latest anchor without decimating retained samples', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(0);
+  const { frames, response, entityId } = advancingFixture();
+  const loader = vi.fn(async (_m: string, _e: string, id: string) =>
+    response(id),
+  );
+  const owner = createObservedHistory(
+    loader,
+    () => {},
+    10000,
+    () => Date.now(),
+  );
+  owner.sync(frames[0], entityId, true, 60, 1000);
+  await flush();
+  for (let i = 1; i <= 4; i++) {
+    await vi.advanceTimersByTimeAsync(200);
+    owner.sync(frames[i], entityId, true, 60, 1000);
+  }
+  expect(loader).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(200);
+  expect(loader).toHaveBeenCalledTimes(2);
+  expect(loader.mock.calls[1][2]).toBe(frames[4].frameId);
+  expect(owner.get().data?.segments[0].points.map((p) => p.frameId)).toEqual(
+    frames.slice(0, 5).map((f) => f.frameId),
+  );
+  expect(owner.get().data?.throughSequence).toBe(frames[4].sequence);
+  owner.clear();
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it('flushes immediate map/final-frame demand and source changes, and cancels hidden trailing work', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(0);
+  const { frames, response, entityId } = advancingFixture();
+  const loader = vi.fn(async (_m: string, _e: string, id: string) =>
+    response(id),
+  );
+  const owner = createObservedHistory(
+    loader,
+    () => {},
+    10000,
+    () => Date.now(),
+  );
+  owner.sync(frames[0], entityId, true, 60, 1000, 'source-a');
+  await flush();
+  owner.sync(frames[1], entityId, true, 60, 1000, 'source-a');
+  expect(vi.getTimerCount()).toBe(1);
+  owner.sync(frames[2], entityId, true, 60, 0, 'source-a');
+  await flush();
+  expect(loader).toHaveBeenCalledTimes(2);
+  expect(loader.mock.calls[1][2]).toBe(frames[2].frameId);
+  expect(vi.getTimerCount()).toBe(0);
+  owner.sync(frames[3], entityId, true, 60, 1000, 'source-b');
+  await flush();
+  expect(loader).toHaveBeenCalledTimes(3);
+  owner.sync(frames[4], entityId, true, 60, 1000, 'source-b');
+  owner.sync(frames[4], entityId, false, 60, 1000, 'source-b');
+  expect(vi.getTimerCount()).toBe(0);
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(loader).toHaveBeenCalledTimes(3);
+  owner.sync(frames[5], entityId, true, 60, 1000, 'source-b');
+  await flush();
+  owner.sync(frames[6], entityId, true, 60, 1000, 'source-b');
+  owner.clear();
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(loader).toHaveBeenCalledTimes(4);
+  expect(owner.get().status).toBe('idle');
+});
+
+it('upgrades a pending Profile read to immediate latest map demand without overlapping requests', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(0);
+  const { frames, response, entityId } = advancingFixture();
+  const pending: {
+    id: string;
+    signal: AbortSignal;
+    resolve: (value: ObservedHistory) => void;
+  }[] = [];
+  const changed = vi.fn();
+  const owner = createObservedHistory(
+    (_m, _e, id, _w, signal) =>
+      new Promise((resolve) => pending.push({ id, signal, resolve })),
+    changed,
+    10000,
+    () => Date.now(),
+  );
+  owner.sync(frames[0], entityId, true, 60, 1000);
+  owner.sync(frames[1], entityId, true, 60, 1000);
+  owner.sync(frames[2], entityId, true, 60, 0);
+  expect(pending).toHaveLength(1);
+  expect(pending[0].signal.aborted).toBe(false);
+  pending[0].resolve(response(pending[0].id));
+  await flush();
+  expect(pending).toHaveLength(2);
+  expect(pending[1].id).toBe(frames[2].frameId);
+  owner.clear();
+  const notifications = changed.mock.calls.length;
+  pending[1].resolve(response(pending[1].id));
+  await flush();
+  expect(pending[1].signal.aborted).toBe(true);
+  expect(changed).toHaveBeenCalledTimes(notifications);
+  expect(owner.get().status).toBe('idle');
+  expect(vi.getTimerCount()).toBe(0);
+});
+
 describe('shared bounded observed history', () => {
   it('deduplicates pane demand, freezes responses and reuses exact immutable anchors', async () => {
     const { frame, history, entityId } = fixture(),

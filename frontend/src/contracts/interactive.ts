@@ -1,6 +1,6 @@
 import { validateLocalGeometry } from '../world/localGeometry';
 import Ajv2020 from 'ajv/dist/2020';
-import schema from '../../../contracts/sentinel/v1.14/interactive.schema.json';
+import schema from '../../../contracts/sentinel/v1.16/interactive.schema.json';
 import type {
   DemoEntry,
   Intent,

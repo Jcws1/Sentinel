@@ -9,10 +9,19 @@ import {
   Settings2,
   Camera,
   ListChecks,
+  FlaskConical,
 } from 'lucide-react';
 
 // View kinds describe capabilities, never domain objects or individual pane instances.
 export const viewRegistry = {
+  simulation: {
+    unavailable: '',
+    title: 'Simulation',
+    category: 'External batch compatibility',
+    icon: FlaskConical,
+    description: 'Submit and inspect recorded external simulation batches.',
+    future: '',
+  },
   suggestions: {
     unavailable: '',
     title: 'Suggestions',
@@ -96,23 +105,21 @@ export const viewRegistry = {
       'Terrain, altitude and spatial relationships will be available in a later phase.',
   },
   command: {
-    unavailable: 'Mission analytics are not implemented.',
+    unavailable: '',
     title: 'Command Picture',
     category: 'Mission overview',
     icon: Crosshair,
     description: 'A concise view of mission priorities and overall situation.',
-    future:
-      'Mission summaries and key developments will appear here when operational data is available.',
+    future: '',
   },
   vertical: {
-    unavailable: 'The engagement profile is not implemented.',
+    unavailable: '',
     title: 'Vertical Profile',
     category: 'Vertical engagement profile',
     icon: ChartNoAxesCombined,
     description:
       'Understand altitude and separation across the operational picture.',
-    future:
-      'The vertical engagement profile will be connected in a later phase.',
+    future: '',
   },
   timeline: {
     unavailable: 'Event history and replay are not implemented.',

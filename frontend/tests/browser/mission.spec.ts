@@ -5,9 +5,26 @@ import { test, expect, type Page, type WebSocketRoute } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import type { WorldFrame } from '../../src/contracts/generated';
 
 const product = 'http://127.0.0.1:5181';
 const evidence = resolve('test-results/browser/mission');
+const command = (page: Page) => page.locator('[data-view="command"]');
+async function assertCommandFrame(page: Page, frame: WorldFrame) {
+  await expect(command(page).locator('[data-analytic-frame]')).toHaveAttribute(
+    'data-analytic-frame',
+    frame.frameId,
+  );
+  await expect(command(page).locator('.analytic-context')).toContainText(
+    `As of source ${frame.effectiveAt} · recorded ${frame.recordedAt} · frame ${frame.sequence}`,
+  );
+  await expect(
+    command(page).getByText(
+      `${Object.keys(frame.entities).length} filtered / ${Object.keys(frame.entities).length} mission entities`,
+      { exact: true },
+    ),
+  ).toBeVisible();
+}
 async function load(page: Page, missionId: string) {
   const catalog = await (
     await page.request.get(`${product}/api/missions`)
@@ -49,9 +66,11 @@ test('backend committed frame and selection are shared without pane subscription
     .getByRole('button', { name: 'Open Command Picture', exact: true })
     .click();
   await split(page, 'Timeline');
-  const panes = page.locator('[data-readout]:visible');
-  await expect(panes).toHaveCount(2);
-  for (const pane of await panes.all()) {
+  const timeline = page.locator('[data-readout="timeline"]');
+  await expect(timeline).toBeVisible();
+  await assertCommandFrame(page, backendFrame);
+  {
+    const pane = timeline;
     await expect(pane.locator('[data-field="frame"] dd span')).toHaveText(
       backendFrame.frameId,
     );
@@ -66,26 +85,34 @@ test('backend committed frame and selection are shared without pane subscription
     id: string;
     label: string;
   };
-  await panes
-    .first()
-    .getByRole('button', { name: `Select ${entity.label}`, exact: true })
+  await command(page)
+    .getByRole('button', { name: 'Comparison', exact: true })
     .click();
-  await expect(panes.locator('[data-field="selection"]')).toHaveText([
+  await command(page).getByLabel('Add to comparison').selectOption(entity.id);
+  await command(page)
+    .getByRole('button', { name: entity.label, exact: true })
+    .click();
+  await expect(timeline.locator('[data-field="selection"]')).toHaveText(
     entity.label,
+  );
+  await expect(
+    command(page).getByRole('table').last().locator('tbody tr'),
+  ).toHaveCount(1);
+  await expect(command(page).getByRole('table').last()).toContainText(
     entity.label,
-  ]);
+  );
+  await expect(page.locator('.selection-details')).toContainText(entity.label);
   await advanceFixture(page, 'fixture-alpha');
-  await expect(panes.locator('[data-field="sequence"] dd span')).toHaveText([
+  await expect(timeline.locator('[data-field="sequence"] dd span')).toHaveText(
     String(backendFrame.sequence + 1),
-    String(backendFrame.sequence + 1),
-  ]);
+  );
   const updated = await (
     await page.request.get(`${product}/api/missions/fixture-alpha/world`)
   ).json();
-  await expect(panes.locator('[data-field="frame"] dd span')).toHaveText([
+  await expect(timeline.locator('[data-field="frame"] dd span')).toHaveText(
     updated.frameId,
-    updated.frameId,
-  ]);
+  );
+  await assertCommandFrame(page, updated);
   await closeTab(page, 'Timeline');
   await page
     .getByRole('button', {
@@ -108,13 +135,30 @@ test('backend committed frame and selection are shared without pane subscription
     page.locator('[data-readout]:visible [data-field="frame"] dd span'),
   ).toHaveText(bravo.frameId);
   expect(streams).toBe(2);
+  await page
+    .getByRole('button', { name: 'Open Command Picture', exact: true })
+    .click();
+  await assertCommandFrame(page, bravo);
+  await expect(
+    command(page).getByText(
+      'Select entities from the maps, Fleet or the chooser above.',
+    ),
+  ).toBeVisible();
   await unloadMission(page);
-  // The inactive Command Picture is suspended. Reveal it to check that it
-  // catches up to the unload rather than expecting hidden subscriptions.
+  // Both inactive panes suspend subscriptions. Reveal each to check that it
+  // catches up to the unload rather than expecting hidden work.
+  await page
+    .getByRole('button', { name: 'Open Timeline from Views', exact: true })
+    .click();
+  await expect(page.locator('[data-readout]')).toHaveCount(0);
   await page
     .getByRole('button', { name: 'Open Command Picture', exact: true })
     .click();
   await expect(page.locator('[data-readout]')).toHaveCount(0);
+  await expect(command(page).locator('[data-analytic-frame]')).toHaveCount(0);
+  await expect(command(page)).toContainText(
+    'Load a mission to inspect committed observations.',
+  );
   await expect(page.locator('.mission-status')).toContainText(
     'No mission loaded',
   );
@@ -141,16 +185,21 @@ test('connection failure keeps a visibly stale complete frame; retry obtains a f
     .click();
   await split(page, 'Timeline');
   const before = await page
-    .locator('[data-readout="command"]')
-    .getAttribute('data-frame-id');
+    .locator('[data-view="command"] [data-analytic-frame]')
+    .getAttribute('data-analytic-frame');
   blocked = true;
   current!.close({ code: 1011, reason: 'Injected backend outage' });
-  await expect(page.locator('.stale-notice')).toHaveCount(2);
+  await expect(
+    page.locator('[data-readout="timeline"] .stale-notice'),
+  ).toBeVisible();
+  await expect(command(page).locator('.analytic-context')).toContainText(
+    '· stale',
+  );
   await expect(
     page.getByRole('button', { name: 'Next fixture frame', exact: true }),
   ).toHaveCount(0);
-  await expect(page.locator('[data-readout="command"]')).toHaveAttribute(
-    'data-frame-id',
+  await expect(command(page).locator('[data-analytic-frame]')).toHaveAttribute(
+    'data-analytic-frame',
     before!,
   );
   await page.screenshot({ path: resolve(evidence, 'stale-connection.png') });
@@ -158,6 +207,9 @@ test('connection failure keeps a visibly stale complete frame; retry obtains a f
   await page.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(page.locator('.connection-state')).toHaveText('CONNECTED');
   await expect(page.locator('.stale-notice')).toHaveCount(0);
+  await expect(command(page).locator('.analytic-context')).toContainText(
+    '· current',
+  );
   await advanceFixture(page, 'fixture-alpha');
   await expect(page.locator('.connection-state')).toHaveText('CONNECTED');
 });
@@ -193,9 +245,10 @@ test('Retry recovers the failed operation when a mission is already loaded', asy
   await page
     .getByRole('button', { name: 'Open Command Picture', exact: true })
     .click();
-  const before = await page
-    .locator('[data-readout="command"]')
-    .getAttribute('data-sequence');
+  const before: WorldFrame = await (
+    await page.request.get(`${product}/api/missions/fixture-alpha/world`)
+  ).json();
+  await assertCommandFrame(page, before);
   await page.route('**/api/missions', (route) =>
     route.fulfill({
       status: 503,
@@ -213,15 +266,13 @@ test('Retry recovers the failed operation when a mission is already loaded', asy
   await expect(page.locator('.mission-error')).toHaveCount(0);
   await expect(page.locator('.connection-state')).toHaveText('CONNECTED');
 
-  await expect(page.locator('[data-readout="command"]')).toHaveAttribute(
-    'data-sequence',
-    before!,
-  );
+  await assertCommandFrame(page, before);
   await advanceFixture(page, 'fixture-alpha');
-  await expect(page.locator('[data-readout="command"]')).toHaveAttribute(
-    'data-sequence',
-    String(Number(before) + 1),
-  );
+  const after: WorldFrame = await (
+    await page.request.get(`${product}/api/missions/fixture-alpha/world`)
+  ).json();
+  expect(after.sequence).toBe(before.sequence + 1);
+  await assertCommandFrame(page, after);
 });
 
 for (const viewport of [
@@ -239,7 +290,17 @@ for (const viewport of [
       .getByRole('button', { name: 'Open Command Picture', exact: true })
       .click();
     await split(page, 'Timeline');
-    await page.locator('[data-readout="command"] tbody button').first().click();
+    await command(page)
+      .getByRole('button', { name: 'Comparison', exact: true })
+      .click();
+    const choice = command(page).getByLabel('Add to comparison');
+    await choice.selectOption({ index: 1 });
+    await command(page)
+      .getByRole('table')
+      .last()
+      .locator('tbody button')
+      .first()
+      .click();
     await expect(
       page
         .locator('.app-header')

@@ -1,21 +1,56 @@
 # Sentinel Research Brain
 
-Start with [[index]]. This is a small evidence-focused Obsidian vault for the Sentinel report, created on 20 September 2026. It contains the abstract, a claim audit, and snapshots of the evidence used. It is not a complete review of the project's research literature.
+Start with [[index|the index]]. This is your persistent LLM-maintained second
+brain, currently focused on Sentinel. You curate sources and direct analysis;
+the agent maintains linked notes and evidence.
 
-## Open in Obsidian
+## Start here
 
-In Obsidian, select **Manage Vaults**, then **Open folder as vault**, and choose:
+1. Open `C:\Archive\Coding\Sentinel3\research-brain` as a vault in Obsidian or a
+   folder in an editor. Existing settings are preserved; no extra plugin is needed.
+2. Browse [[index|the index]] for sources, topics, entities and saved outputs.
+3. Give the agent a source path and say "Ingest this using CLAUDE.md." Optional
+   `inbox/` staging is created when first needed.
+4. Review the summary, affected pages and gaps. Redirect emphasis in conversation.
+5. Ask "What does the wiki support about ...?" and periodically "Lint the wiki."
 
-`C:\Archive\Coding\Sentinel3\research-brain`
+Agents start with [[CLAUDE|the authoritative schema]] and the index.
+[[AGENTS|AGENTS.md]] points other agents to the same rules. The folder does not
+monitor sources or ingest automatically between sessions.
 
-Open `index.md`. No community plugin or network service is required to read the notes. The folder has not been registered with your installed Obsidian application, and no global app settings were changed.
+## Folder conventions
 
-For further work, ask the assistant to read this folder's `AGENTS.md` and ingest a named source, check a claim, update a topic, or lint the wiki. A folder alone does not automate ingestion or monitor changes in the repository.
+| Path | Purpose |
+|---|---|
+| `raw/inputs/` | Byte-exact supplied files |
+| `raw/repository/` | Repository snapshots preserving relative paths |
+| `raw/measurements/` | Recorded measurements |
+| `raw/assets/` | Deliberately captured source attachments, when needed |
+| `raw/manifest.json` | Provenance, size and SHA-256 per snapshot |
+| `wiki/sources/` | Source summaries and limitations |
+| `wiki/topics/` | Accumulating synthesis and open questions |
+| `wiki/entities/` | Hubs for recurring systems/components |
+| `wiki/outputs/` | Saved answers, reports, comparisons and audits |
+| `index.md` / `log.md` | Catalog / append-only history |
+| `tools/` | Snapshot and verification tools |
 
-## Organisation
+Changed sources become new dated snapshots. Raw bytes and historical log entries
+are preserved. `.gitattributes` protects snapshot line endings.
 
-`raw/` keeps unmodified source snapshots. `wiki/` contains derived source notes, linked topics, and the report abstract. `AGENTS.md` defines the evidence workflow; `index.md` and `log.md` provide navigation and history. The manifest makes snapshot provenance inspectable.
+## Worked example
 
-This is a compact adaptation of [Karpathy's LLM Wiki pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f), not a fixed directory format specified by that article. See the [official Obsidian instructions](https://obsidian.md/help/manage-vaults) for opening an existing folder as a vault.
+See [[wiki/topics/Wiki workflow|Wiki workflow]] for a completed ingest.
 
-Raw documents can contain personal details and unverified proposals. They remain local; this task did not commit or upload this vault.
+Useful requests: "Ingest this paper and connect it to our design decisions",
+"Compare proposed and demonstrated capabilities", "Save this comparison", or
+"Lint the wiki and identify the three highest-value evidence gaps".
+
+Run from the vault root:
+
+```powershell
+python tools/verify_snapshots.py
+python tools/lint_links.py
+```
+
+These check integrity and structure; factual verification still requires sources.
+Wiki maintenance does not imply application runs, experiments, commits or publishing.

@@ -1,13 +1,14 @@
 import { geometryFor, validateLocalGeometry } from '../world/localGeometry';
+import { validateSimulationProjection } from '../modules/simulation/contracts';
 import { validateSchedule } from './schedule';
 import { validateBehavior } from './behavior';
 import { profileOptions, validateProfiles } from '../world/unitProfiles';
 import Ajv2020 from 'ajv/dist/2020';
 import addFormats from 'ajv-formats';
-import worldSchema from '../../../contracts/sentinel/v1.14/world.schema.json';
-import streamSchema from '../../../contracts/sentinel/v1.14/stream.schema.json';
-import catalogSchema from '../../../contracts/sentinel/v1.14/mission-list.schema.json';
-import observedSchema from '../../../contracts/sentinel/v1.14/observed-history.schema.json';
+import worldSchema from '../../../contracts/sentinel/v1.16/world.schema.json';
+import streamSchema from '../../../contracts/sentinel/v1.16/stream.schema.json';
+import catalogSchema from '../../../contracts/sentinel/v1.16/mission-list.schema.json';
+import observedSchema from '../../../contracts/sentinel/v1.16/observed-history.schema.json';
 import type { ObservedHistory } from './generated';
 import type {
   DeepReadonly,
@@ -138,6 +139,7 @@ export function validateFrame(value: unknown): WorldFrame {
     `Invalid world frame: ${ajv.errorsText(validateWorld.errors)}`,
   );
   const frame = value;
+  validateSimulationProjection(frame);
   validateProfiles(frame.unitProfiles);
   for (const [eid, p] of Object.entries(frame.unitProfiles ?? {})) {
     const affiliation = frame.entities[eid]?.affiliation;

@@ -123,7 +123,28 @@ The faults runner owns ports5401/8201 and explicitly opts into `backend/tests/in
 
 The lifecycle helper defaults to120s and also accepts600s. The longer case keeps unchanged profiles/speeds but uses supported ±0.035° route destinations inside the same scenario square, observes movement for every entity at each30s checkpoint, requires one active WebSocket, captures renderer/heap/listener/service/recording growth and performs20 tab transitions. GC diagnostics are labelled separately from the uncollected steady window. All40 moving is a workload condition, not a display-FPS assertion. Keep raw evidence outside tracked source using the [archive convention](../../docs/ARCHIVE.md).
 
-## Milestone 1 D7 and Details
+## Phase 5 external compatibility
+
+Backend `test_simulation_resolver.py` and `test_simulation_service.py` cover the
+frozen golden/negative cases, numerical boundaries, lifecycle, rollback, process
+death, exact reconciliation, ownership and additive v6 compatibility. Frontend
+`unit/simulation-client.test.ts` covers exact durable pending bodies, selection
+generations, storage failure, typed results and opaque command lookup identities.
+`browser/simulation-compatibility.spec.ts` adds default/Sydney40 lifecycle,
+lost-response reload/retry, recorded inspection and760/820/900/desktop checks.
+
+`tests/simulation-ui/foreground.mjs <tag> [0|10|20]` uses a fresh headed browser and
+task-owned services;0 runs external workflows,10/20 separately exercise moving
+interactive workloads. Actual desktop enumeration/activation must precede its
+`foreground-approved` marker. It blocks external provider requests and preserves
+screenshots, raw intervals and cleanup reports. Do not fabricate that marker
+from `document.hasFocus()` alone. Source benchmarks use
+`backend/.venv/Scripts/python.exe scripts/performance_simulation.py <tag> --kind
+<golden|local40|remote40|sparse10000|dense50|dense100|dense200>` from repository root.
+Keep performance windows exclusive and preserve failed attempts. See
+[Phase5 verification](../../docs/phase5-simulation-compatibility/VERIFICATION.md).
+
+## Milestone 1 D7 and Details (historical workflow)
 
 `browser/details-closure.spec.ts` uses the shared real-interaction helper in
 `support/details-closure.mjs` for a supported Sydney forty-unit scenario. It checks
@@ -166,3 +187,90 @@ with normal caching; Playwright request routing would disable HTTP caching.
 Do not rerun a budget-stopped capture without checking the remaining approved
 allocation. Current [Milestone 1 provider evidence](../../docs/d7-details-closure/PROVIDER.md)
 retains its incomplete configured window rather than claiming an FPS pass.
+
+## Phase 6 analytics
+
+`tests/unit/analytics*.test.*`, `tests/browser/analytics.spec.ts` and
+`backend/tests/test_analytics.py` cover exact aggregates, native altitude groups,
+source/cutoff identity, retry/event ordering, missing values, async cancellation,
+chart cleanup and integrated selection/docking. Existing history tests retain
+correction, gap and discontinuity coverage.
+Audit endpoint tests also retain exact quoted/backslash/Unicode request identities
+through real acquire/retry/read calls, both UTF-8 and ASCII-escaped historical JSON,
+raw JSON searches, literal percent/underscore, unchanged receipt bytes and zero
+read-side writes. Search folds A–Z only; other letters remain case-sensitive.
+`tests/unit/chartMotion.test.ts` also exercises accumulated chart deadlines on
+144/120/60 Hz clocks, duplicate notifications, missed deadlines after stalls,
+actual-clock trailing samples and cancellation after a projection/disposal boundary.
+The 120 Hz chart-owned target includes sub-microsecond floating-point tolerance so exact
+matching display periods do not accidentally lose frames. `chartProjection.test.ts`
+uses real ECharts to verify deferred series replacement followed by a current-only
+motion patch before painting: removed history/entities stay removed, corrected
+series and new axis extents survive, and removing all history clears the old model.
+Its signed-bar cases keep zero in positive/negative/mixed altitude ranges and
+preserve proportional lengths and null values. `profileSeries.test.ts` runs real
+ECharts to check primitive-dimension IDs, callback picking, formatted tooltip raw
+values/source context, selected size and rendered stale alpha, including corrected
+and removed points followed by motion patches. Actual native pointer verification
+must supplement this library-level inspection; the tests do not establish pacing.
+Verification-only per-chart motion/rendered captures supplement compositor timing;
+their opt-in arrays are bounded and released after each sample. Actual ECharts
+render events are not per-chart physical scanout or input-to-photon evidence.
+`profileLayer.test.ts` exercises real ECharts graphics without per-motion model
+updates: exact IDs and selected/stale appearance, last-painted tooltip values,
+historical/current separation, reordered hit indices, corrected/removed identities,
+resize, unchanged frozen positions and mission/disposal cleanup. Real axes contain
+the complete existing linear coordinate path, including a longitude crossing and
+descending altitude endpoints. Native pointer/tooltip, full moving matrix and
+10,000-entity readiness checks are still required for the owned marker layer.
+The delayed-catalogue case in `browser/chrome.spec.ts` holds the saved-scenario
+response until a submenu is open, then checks viewport hit testing and ordinary
+selection after 18 rows arrive; this guards the separately recorded inherited
+mission-menu positioning correction.
+`unit/observedHistory.test.ts` also checks Profile-only refresh coalescing against
+the latest immutable anchor without dropping retained samples, immediate map or
+final-frame demand, source-filter changes, hidden trailing timers and an in-flight
+map-demand upgrade without overlapping reads. Existing map-demand cadence stays
+unchanged. Foreground verification must exercise map history and Pause/End with
+Profile history enabled, and distinguish returned read cutoff from the current
+plot window.
+
+Build with `SENTINEL_TEST_BUILD_SUFFIX=-phase6`. From frontend,
+`node tests/analytics/foreground.mjs <unique-tag>` exercises the actual UI (set
+`PHASE6_BUILD=dist-verification-phase6`). `node tests/analytics/measure.mjs
+<unique-tag>` runs matched 10v10/20v20 default/Sydney, analytics closed/open with
+Tactical/ordinary 3D, and lifecycle/resource diagnostics. On Windows launch these
+outside the sandbox desktop. Read-only `scripts/foreground_identity.py` checks the
+OS foreground window PID against the task browser; DOM hasFocus alone is
+insufficient. `foreground-browser.mjs` uses a fresh task-owned default context via
+CDP `noDefaults:true` to avoid Playwright's normal focus emulation; verify a real
+two-tab visibility transition before accepting its focus/visibility telemetry.
+No competing builds/tests during display measurements. Narrow
+viewport captures are layout evidence. All contexts/databases are task-owned;
+provider requests are blocked and counted. Results and failures must be archived
+using [the Phase 6 evidence policy](../../docs/phase6-command-picture/PLAN.md).
+
+First run `node tests/analytics/measure.mjs <different-unique-tag> --setup-only`
+to exercise all 96 layout transitions, four End transitions and ten resource
+cycles per workload without collecting timing evidence. `visible-workload.mjs`
+sets existing renderer cameras to the mission origin and a 10 km horizontal span
+covering the complete unchanged routes. Every timed window requires all expected
+entities projected inside each map and every primary chart contained by its pane
+and viewport before and after sampling. Both Profile scrollers are centered before
+sampling. Retain these screenshots and bounds; a moving source alone does not
+prove visible moving markers. Await the ended UI and an empty authoritative
+active-mission entry before closing each task browser. Never combine partial
+matrices into a complete gate or treat setup-only output as performance evidence.
+
+The Profile browser regression locates actual marker canvas pixels and checks the
+visible built-in ECharts tooltip's text and bounds, including pointer movement,
+click-through selection, reinspection after a committed position change and
+resize, then removal cleanup without commands. A failed canvas-tooltip version
+exposed pointer interception; the current non-enterable HTML tooltip retains
+literal source text and passes hits through. The check does not infer successful
+hover from an action-dispatch spy. On the measured Windows-scaled native surface,
+Playwright screenshot preparation can move the pointer to unrelated native
+coordinates. For native hover captures use direct CDP `Page.captureScreenshot`
+without changing the viewport, retain pointer/focus/visibility samples, and read
+the resulting values personally. A screenshot with the pointer moved off a marker
+does not establish a product tooltip failure; retain and investigate that attempt.

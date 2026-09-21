@@ -24,7 +24,6 @@ export interface PlannedLeg {
 }
 const scale = (6378137 * Math.PI) / 180;
 import { placementSpeed } from './unitProfiles';
-export const scriptStep = (155 / 3.6) * 0.2;
 export function scriptDistance(
   a: ScriptPoint,
   b: ScriptPoint,

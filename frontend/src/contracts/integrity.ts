@@ -24,9 +24,10 @@ const onSegment = (a: Point, b: Point, p: Point) =>
   p[0] <= Math.max(a[0], b[0]) &&
   Math.min(a[1], b[1]) <= p[1] &&
   p[1] <= Math.max(a[1], b[1]);
+const opposite = (a: number, b: number) => (a < 0 && b > 0) || (b < 0 && a > 0);
 const intersects = (a: Point, b: Point, c: Point, d: Point) =>
-  (orientation(a, b, c) * orientation(a, b, d) < 0 &&
-    orientation(c, d, a) * orientation(c, d, b) < 0) ||
+  (opposite(orientation(a, b, c), orientation(a, b, d)) &&
+    opposite(orientation(c, d, a), orientation(c, d, b))) ||
   onSegment(a, b, c) ||
   onSegment(a, b, d) ||
   onSegment(c, d, a) ||
@@ -45,8 +46,23 @@ function inside(point: Point, ring: Ring) {
   }
   return result;
 }
-export function polygonIntegrity(rings: readonly Ring[]) {
-  invariant(rings.length > 0, 'Polygon requires an exterior ring');
+export function polygonIntegrity(input: readonly Ring[]) {
+  invariant(input.length > 0, 'Polygon requires an exterior ring');
+  const points = input.flat();
+  invariant(points.length > 0, 'Polygon requires positions');
+  const anchor = points[0];
+  const sx =
+    points.reduce((n, p) => Math.max(n, Math.abs(p[0] - anchor[0])), 0) || 1;
+  const sy =
+    points.reduce((n, p) => Math.max(n, Math.abs(p[1] - anchor[1])), 0) || 1;
+  // Positive affine normalization changes no source coordinates or topology.
+  // It prevents finite tiny polygons from underflowing during validation.
+  const rings =
+    Math.min(sx, sy) < 1e-120
+      ? input.map((ring) =>
+          ring.map((p) => [(p[0] - anchor[0]) / sx, (p[1] - anchor[1]) / sy]),
+        )
+      : input;
   for (const ring of rings) {
     invariant(
       ring.length >= 4 && samePoint(ring[0], ring[ring.length - 1]),
@@ -62,7 +78,8 @@ export function polygonIntegrity(rings: readonly Ring[]) {
       const a = ring[i],
         b = ring[i + 1],
         c = ring[(i + 2) % (ring.length - 1)];
-      area += a[0] * b[1] - b[0] * a[1];
+      // Translate before multiplying so tiny valid rings away from zero survive.
+      area += orientation(ring[0], a, b);
       invariant(
         !onSegment(a, b, c) && !onSegment(b, c, a),
         'Polygon adjacent edges overlap',

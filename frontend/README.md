@@ -1,6 +1,6 @@
 # Sentinel frontend
 
-React/TypeScript with Vite, FlexLayout, MapLibre and Cesium. Run `npm ci` and `npm run dev` from this directory after starting the backend; see the [root setup guide](../README.md).
+React/TypeScript with Vite, FlexLayout, MapLibre, Cesium and ECharts. Run `npm ci` and `npm run dev` from this directory after starting the backend; see the [root setup guide](../README.md), including explicit provider-free overrides. The canonical [architecture blueprint](../docs/architecture.md) connects runtime, view, renderer and analytic ownership to the source.
 
 | Command | Purpose |
 |---|---|
@@ -10,7 +10,7 @@ React/TypeScript with Vite, FlexLayout, MapLibre and Cesium. Run `npm ci` and `n
 | `npm run test:browser` | Isolated backend and previews, browser regressions and owned-demo cleanup |
 | `npm test -- --maxWorkers=2` | Unit tests |
 | `npm run typecheck` / `npm run lint` / `npm run format:check` | Static checks |
-| `npm run contracts:generate` / `npm run contracts:check` | Current v1.13 frontend contracts |
+| `npm run contracts:generate` / `npm run contracts:check` | Current v1.16 frontend contracts |
 | `npm run contracts:foundation:check` | Frozen foundation types, without the archived experiment |
 | `npm run build:performance` | Bounded verification bundle for foreground performance tools |
 
@@ -21,6 +21,12 @@ React/TypeScript with Vite, FlexLayout, MapLibre and Cesium. Run `npm ci` and `n
 One session runtime owns transport, mission state, command identities, renewal, selection and the shared bounded presentation clock. Panes read that runtime; renderers do not create backend subscriptions. Hidden panes suspend live subscriptions and motion work. The renderer pool owns creation, retention and disposal, while pane-local cameras remain independent.
 
 Fleet and Details share selection. Selection opens Details; telemetry does not repeatedly reopen it. Authoring categories expand a profile list before placement is armed. Saved revisions, validation and Conductor Run use the ordinary API workflow. Movement, Stop, Return, Intercept eligibility, outcomes and NON-OP state remain backend-authoritative.
+
+Command Picture and Vertical Profile use that same selection, source arbitration
+and motion presentation. ECharts is the only chart library. Hidden panes dispose
+their charts and suspend analytic subscriptions; numeric tables provide keyboard
+access. [Phase 6](../docs/phase6-command-picture/README.md) documents native altitude
+groups, bounded audit/history cutoffs and the separate acceptance gates.
 
 Tactical and ordinary 3D preserve pane identity when changing projection. Video uses a supplied simulated viewpoint and simulated entity overlays, including existing altitude semantics. Presentation does not extrapolate through stale data or move entities to hide scene intersections.
 

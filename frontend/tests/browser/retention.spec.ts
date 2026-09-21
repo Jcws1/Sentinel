@@ -99,12 +99,17 @@ test('twenty warm tab/mode changes reuse viewers, suspend hidden work and resume
   const hiddenRenders = (await inspect(page, 'three-d')).environment!
     .renderedFrames;
   await advanceFixture(page, 'fixture-tactical');
-  const readout = page.locator('[data-readout="command"]');
-  await expect(readout).not.toHaveAttribute('data-frame-id', initial.frameId);
-  await readout
-    .getByRole('button', { name: /^Select / })
-    .first()
+  const command = page.locator('[data-view="command"]');
+  const readout = command.locator('[data-analytic-frame]');
+  await expect(readout).not.toHaveAttribute(
+    'data-analytic-frame',
+    initial.frameId,
+  );
+  await command
+    .getByRole('button', { name: 'Comparison', exact: true })
     .click();
+  await command.getByLabel('Add to comparison').selectOption({ label: 'F-01' });
+  await command.getByRole('button', { name: 'F-01', exact: true }).click();
   const selected = (
     await page.request
       .get(`${origin}/api/missions/fixture-tactical/world`)
@@ -113,7 +118,7 @@ test('twenty warm tab/mode changes reuse viewers, suspend hidden work and resume
   const selectedId = Object.values(selected).find(
     (e) => (e as { label: string }).label === 'F-01',
   ) as { id: string };
-  const frame = await readout.getAttribute('data-frame-id');
+  const frame = await readout.getAttribute('data-analytic-frame');
   await page.waitForTimeout(350);
   expect((await inspect(page, 'three-d')).environment!.renderedFrames).toBe(
     hiddenRenders,

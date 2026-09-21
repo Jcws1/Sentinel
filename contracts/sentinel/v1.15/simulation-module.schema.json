@@ -1,0 +1,382 @@
+{
+  "$defs": {
+    "CalibrationIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "evidenceStatus": {
+          "enum": [
+            "NOTIONAL",
+            "PUBLIC_PARTIAL",
+            "VALIDATED"
+          ],
+          "title": "Evidencestatus",
+          "type": "string"
+        },
+        "profileId": {
+          "title": "Profileid",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "profileId",
+        "version",
+        "evidenceStatus"
+      ],
+      "title": "CalibrationIdentity",
+      "type": "object"
+    },
+    "SimulationCommandSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "START",
+            "HOLD",
+            "RESUME",
+            "ABORT"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "commandId": {
+          "title": "Commandid",
+          "type": "string"
+        },
+        "completedAt": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completedat"
+        },
+        "receivedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Receivedat",
+          "type": "string"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "state": {
+          "enum": [
+            "pending",
+            "interrupted",
+            "completed"
+          ],
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sequence",
+        "commandId",
+        "action",
+        "state",
+        "receivedAt"
+      ],
+      "title": "SimulationCommandSummary",
+      "type": "object"
+    },
+    "SimulationEntityDetail": {
+      "additionalProperties": false,
+      "properties": {
+        "calibration": {
+          "$ref": "#/$defs/CalibrationIdentity"
+        },
+        "commandId": {
+          "title": "Commandid",
+          "type": "string"
+        },
+        "droneClass": {
+          "enum": [
+            "I",
+            "II",
+            "III",
+            "UNKNOWN"
+          ],
+          "title": "Droneclass",
+          "type": "string"
+        },
+        "droneId": {
+          "title": "Droneid",
+          "type": "string"
+        },
+        "health": {
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Health",
+          "type": "integer"
+        },
+        "inputHealth": {
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Inputhealth",
+          "type": "integer"
+        },
+        "reportedStatus": {
+          "enum": [
+            "ACTIVE",
+            "DISABLED",
+            "REMOVED"
+          ],
+          "title": "Reportedstatus",
+          "type": "string"
+        },
+        "runId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Runid",
+          "type": "string"
+        },
+        "schemaVersion": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "stateDiscontinuity": {
+          "title": "Statediscontinuity",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "droneId",
+        "droneClass",
+        "inputHealth",
+        "health",
+        "reportedStatus",
+        "stateDiscontinuity",
+        "commandId",
+        "runId",
+        "calibration"
+      ],
+      "title": "SimulationEntityDetail",
+      "type": "object"
+    },
+    "SimulationProjection": {
+      "additionalProperties": false,
+      "properties": {
+        "calibration": {
+          "$ref": "#/$defs/CalibrationIdentity"
+        },
+        "commandId": {
+          "title": "Commandid",
+          "type": "string"
+        },
+        "externalMissionId": {
+          "title": "Externalmissionid",
+          "type": "string"
+        },
+        "phase": {
+          "enum": [
+            "processing",
+            "interrupted",
+            "ready"
+          ],
+          "title": "Phase",
+          "type": "string"
+        },
+        "policyId": {
+          "const": "sentinel-simulation-v1-local-1",
+          "default": "sentinel-simulation-v1-local-1",
+          "title": "Policyid",
+          "type": "string"
+        },
+        "runId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Runid",
+          "type": "string"
+        },
+        "schemaVersion": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "sourceMode": {
+          "enum": [
+            "SIMULATED",
+            "REPLAY"
+          ],
+          "title": "Sourcemode",
+          "type": "string"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "enum": [
+                "RUNNING",
+                "HELD",
+                "ABORTED",
+                "FAILED"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "State"
+        }
+      },
+      "required": [
+        "externalMissionId",
+        "runId",
+        "phase",
+        "commandId",
+        "sourceMode",
+        "calibration"
+      ],
+      "title": "SimulationProjection",
+      "type": "object"
+    },
+    "SimulationRunStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "calibration": {
+          "$ref": "#/$defs/CalibrationIdentity"
+        },
+        "commandId": {
+          "title": "Commandid",
+          "type": "string"
+        },
+        "completedAt": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completedat"
+        },
+        "externalMissionId": {
+          "title": "Externalmissionid",
+          "type": "string"
+        },
+        "missionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Missionid",
+          "type": "string"
+        },
+        "phase": {
+          "enum": [
+            "processing",
+            "interrupted",
+            "ready"
+          ],
+          "title": "Phase",
+          "type": "string"
+        },
+        "policyId": {
+          "const": "sentinel-simulation-v1-local-1",
+          "default": "sentinel-simulation-v1-local-1",
+          "title": "Policyid",
+          "type": "string"
+        },
+        "receivedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Receivedat",
+          "type": "string"
+        },
+        "runId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Runid",
+          "type": "string"
+        },
+        "schemaVersion": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "sourceMode": {
+          "enum": [
+            "SIMULATED",
+            "REPLAY"
+          ],
+          "title": "Sourcemode",
+          "type": "string"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "enum": [
+                "RUNNING",
+                "HELD",
+                "ABORTED",
+                "FAILED"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "State"
+        }
+      },
+      "required": [
+        "externalMissionId",
+        "runId",
+        "phase",
+        "commandId",
+        "sourceMode",
+        "calibration",
+        "missionId",
+        "receivedAt"
+      ],
+      "title": "SimulationRunStatus",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "command": {
+      "$ref": "#/$defs/SimulationCommandSummary"
+    },
+    "entityDetail": {
+      "$ref": "#/$defs/SimulationEntityDetail"
+    },
+    "projection": {
+      "$ref": "#/$defs/SimulationProjection"
+    },
+    "run": {
+      "$ref": "#/$defs/SimulationRunStatus"
+    }
+  },
+  "required": [
+    "run",
+    "projection",
+    "entityDetail",
+    "command"
+  ],
+  "title": "SimulationModuleContracts",
+  "type": "object"
+}

@@ -25,6 +25,8 @@ import { CopyValue } from './CopyValue';
 import { AssetPortrait } from './AssetPortrait';
 import { UnitSilhouette } from '../units/UnitSymbols';
 import { DemoProfile } from './DemoProfile';
+import { SimulationDetails } from '../../modules/simulation/SimulationDetails';
+import { simulationNamespace } from '../../modules/simulation/contracts';
 import { selectForDetails } from './selectionActions';
 import './entities.css';
 import './details.css';
@@ -581,6 +583,9 @@ export function EntityDetails({
             )}
           </details>
           {profile && !frame.unitProfiles?.[row.entity.id] && <DemoProfile />}
+          <SimulationDetails
+            value={row.entity.extensions?.[simulationNamespace]}
+          />
           <Trail state={state} runtime={runtime} row={row} />
         </>
       )}

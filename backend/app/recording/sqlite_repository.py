@@ -1,5 +1,6 @@
 from app.world.serialization import read_frame
 from contextlib import contextmanager
+from collections import deque
 import json
 import sqlite3
 from pathlib import Path
@@ -8,6 +9,7 @@ from threading import RLock
 from app.domain.models import Mission, RecordingMetadata, SentinelEvent, WorldFrame
 from app.world.serialization import canonical
 from app.recording.storage_codec import encode_text, decode_text
+from app.recording.observation_cache import HistoryFrameCache, MAX_COMMITTED_PROOFS, stored_digest
 
 
 class RecordingRepository:
@@ -23,8 +25,10 @@ class RecordingRepository:
         self.db = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
         self.db.row_factory = sqlite3.Row
         self._lock = RLock()
+        self._history_frames = HistoryFrameCache()
+        self._pending_history_proofs = None
         version = self.db.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1, 2, 3, 4, 5):
+        if version not in (0, 1, 2, 3, 4, 5, 6):
             self.db.close()
             raise RuntimeError(f"Unsupported recording schema version: {version}")
         self.db.execute("PRAGMA foreign_keys = ON")
@@ -90,6 +94,7 @@ class RecordingRepository:
         """)
 
     def close(self):
+        self._history_frames.clear()
         self.db.close()
 
     def establish(self, mission: Mission, recording_id: str, epoch: str, at: str):
@@ -103,6 +108,13 @@ class RecordingRepository:
 
     def has_mission(self, mission_id: str) -> bool:
         return self.db.execute("SELECT 1 FROM recordings WHERE mission_id=?", (mission_id,)).fetchone() is not None
+
+    def writer_for(self, mission_id: str) -> str | None:
+        """Legacy sources are unchanged; explicitly claimed missions are fenced."""
+        if self.db.execute("PRAGMA user_version").fetchone()[0] < 6:
+            return None
+        row = self.db.execute("SELECT writer_id FROM mission_writers WHERE mission_id=?", (mission_id,)).fetchone()
+        return row[0] if row else None
 
     def list_missions(self) -> list[Mission]:
         return [self.display_mission(Mission.model_validate_json(row[0])) for row in self.db.execute("SELECT mission_json FROM recordings ORDER BY mission_id")]
@@ -201,7 +213,12 @@ class RecordingRepository:
                 FROM frames WHERE recording_id=? AND sequence<=? AND effective_at>=? AND effective_at<=?)
                 SELECT frame_json FROM revisions WHERE revision=1 ORDER BY effective_at DESC LIMIT ?""",
                 (anchor.recording_id, anchor.sequence, start, anchor.effective_at, MAX_FRAMES + 1)).fetchall()
-        return project_history(anchor, entity_id, window_seconds, [decode_text(r[0]) for r in rows[:MAX_FRAMES]], len(rows) > MAX_FRAMES)
+        # Validate/decode one complete frame at a time, retaining only selected
+        # observations. Neither full decoded strings nor complete world graphs
+        # accumulate across the window; unchanged bytes can reuse the bounded
+        # read-only cache without taking the writer lock.
+        observations = (self._history_frames.read(r[0], entity_id) for r in rows[:MAX_FRAMES])
+        return project_history(anchor, entity_id, window_seconds, observations, len(rows) > MAX_FRAMES)
 
     def commit(self, frame_text: str, appended_events: list[dict]):
         # Revalidate even a caller-provided model copy; model_copy(update=...) can
@@ -231,30 +248,42 @@ class RecordingRepository:
                 expected_tail = (self.event_tail(frame.mission.id) + [json.loads(canonical(event)) for event in events])[-100:]
                 if canonical({"events": expected_tail}) != canonical({"events": [json.loads(canonical(event)) for event in frame.recent_events]}):
                     raise ValueError("frame recentEvents must match the append-only event journal")
+                stored = self._stored(frame_text)
+                digest = stored_digest(stored)
                 self.db.execute("INSERT INTO frames VALUES (?, ?, ?, ?, ?, ?)",
-                                (frame.frame_id, frame.recording_id, frame.sequence, frame.effective_at, frame.recorded_at, self._stored(frame_text)))
+                                (frame.frame_id, frame.recording_id, frame.sequence, frame.effective_at, frame.recorded_at, stored))
                 for event in events:
                     self.db.execute("INSERT INTO events VALUES (?, ?, ?, ?, ?, ?, ?)",
                                     (event.id, frame.recording_id, event.sequence, frame.frame_id, event.effective_at, event.recorded_at, canonical(event)))
                 self.db.execute("UPDATE recordings SET mission_json=? WHERE id=?", (canonical(frame.mission), frame.recording_id))
                 if own_transaction:
                     self.db.execute("COMMIT")
+                elif self._pending_history_proofs is not None:
+                    self._pending_history_proofs.append(digest)
             except BaseException:
                 if own_transaction:
                     self.db.execute("ROLLBACK")
                 raise
+            if own_transaction:
+                self._history_frames.remember_committed((digest,))
 
     @contextmanager
     def transaction(self):
         """Compose receipt, frame, events and checkpoint under the single writer."""
         with self._lock:
             self.db.execute("BEGIN IMMEDIATE")
+            pending = deque(maxlen=MAX_COMMITTED_PROOFS)
+            self._pending_history_proofs = pending
             try:
                 yield
                 self.db.execute("COMMIT")
             except BaseException:
                 self.db.execute("ROLLBACK")
                 raise
+            else:
+                self._history_frames.remember_committed(pending)
+            finally:
+                self._pending_history_proofs = None
 
     def active_interactive(self):
         row = self.db.execute("SELECT mission_id FROM interactive_checkpoints WHERE terminal=0").fetchone()

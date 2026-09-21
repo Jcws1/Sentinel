@@ -225,7 +225,10 @@ function Controls({
                   Previous demos <ChevronRight size={12} />
                 </Menu.SubTrigger>
                 <Menu.Portal>
-                  <Menu.SubContent className="menu-content mission-menu">
+                  <Menu.SubContent
+                    className="menu-content mission-menu"
+                    sticky="always"
+                  >
                     {previous.map(option)}
                   </Menu.SubContent>
                 </Menu.Portal>
@@ -238,7 +241,10 @@ function Controls({
                   Developer fixtures <ChevronRight size={12} />
                 </Menu.SubTrigger>
                 <Menu.Portal>
-                  <Menu.SubContent className="menu-content mission-menu">
+                  <Menu.SubContent
+                    className="menu-content mission-menu"
+                    sticky="always"
+                  >
                     {fixtures.map(option)}
                   </Menu.SubContent>
                 </Menu.Portal>

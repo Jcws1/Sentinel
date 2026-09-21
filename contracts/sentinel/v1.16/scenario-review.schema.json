@@ -1,0 +1,511 @@
+{
+  "$defs": {
+    "GeometryOrigin": {
+      "additionalProperties": false,
+      "properties": {
+        "latitudeDeg": {
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Latitudedeg",
+          "type": "number"
+        },
+        "longitudeDeg": {
+          "maximum": 180,
+          "minimum": -180,
+          "title": "Longitudedeg",
+          "type": "number"
+        }
+      },
+      "required": [
+        "longitudeDeg",
+        "latitudeDeg"
+      ],
+      "title": "GeometryOrigin",
+      "type": "object"
+    },
+    "LocalGeometry": {
+      "additionalProperties": false,
+      "properties": {
+        "halfExtentMetres": {
+          "const": 5000,
+          "title": "Halfextentmetres",
+          "type": "integer"
+        },
+        "modelId": {
+          "const": "local-horizontal-v2",
+          "title": "Modelid",
+          "type": "string"
+        },
+        "origin": {
+          "$ref": "#/$defs/GeometryOrigin"
+        }
+      },
+      "required": [
+        "modelId",
+        "origin",
+        "halfExtentMetres"
+      ],
+      "title": "LocalGeometry",
+      "type": "object"
+    },
+    "ScenarioCounts": {
+      "additionalProperties": false,
+      "properties": {
+        "controlled": {
+          "maximum": 32,
+          "minimum": 0,
+          "title": "Controlled",
+          "type": "integer"
+        },
+        "friendly": {
+          "maximum": 40,
+          "minimum": 0,
+          "title": "Friendly",
+          "type": "integer"
+        },
+        "hostile": {
+          "maximum": 40,
+          "minimum": 0,
+          "title": "Hostile",
+          "type": "integer"
+        },
+        "observationOnly": {
+          "maximum": 40,
+          "minimum": 0,
+          "title": "Observationonly",
+          "type": "integer"
+        },
+        "total": {
+          "maximum": 40,
+          "minimum": 0,
+          "title": "Total",
+          "type": "integer"
+        },
+        "unknown": {
+          "maximum": 40,
+          "minimum": 0,
+          "title": "Unknown",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "total",
+        "friendly",
+        "hostile",
+        "unknown",
+        "controlled",
+        "observationOnly"
+      ],
+      "title": "ScenarioCounts",
+      "type": "object"
+    },
+    "ScenarioMotionPreset": {
+      "additionalProperties": false,
+      "properties": {
+        "localGeometry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalGeometry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "modelId": {
+          "enum": [
+            "local-horizontal-v1",
+            "local-horizontal-v2"
+          ],
+          "title": "Modelid",
+          "type": "string"
+        },
+        "speedMps": {
+          "exclusiveMinimum": 0,
+          "title": "Speedmps",
+          "type": "number"
+        },
+        "templateId": {
+          "const": "singapore-local-v2",
+          "title": "Templateid",
+          "type": "string"
+        },
+        "unitProfiles": {
+          "patternProperties": {
+            "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$": {
+              "$ref": "#/$defs/UnitProfile"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 256,
+            "minLength": 1
+          },
+          "title": "Unitprofiles",
+          "type": "object"
+        }
+      },
+      "required": [
+        "templateId",
+        "modelId",
+        "speedMps"
+      ],
+      "title": "ScenarioMotionPreset",
+      "type": "object"
+    },
+    "ScenarioRef": {
+      "additionalProperties": false,
+      "properties": {
+        "contentHash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Contenthash",
+          "type": "string"
+        },
+        "definitionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Definitionid",
+          "type": "string"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "definitionId",
+        "revision",
+        "contentHash"
+      ],
+      "title": "ScenarioRef",
+      "type": "object"
+    },
+    "ScenarioReview": {
+      "additionalProperties": false,
+      "properties": {
+        "actionCount": {
+          "maximum": 128,
+          "minimum": 0,
+          "title": "Actioncount",
+          "type": "integer"
+        },
+        "activeMissionId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Activemissionid"
+        },
+        "boundaryCount": {
+          "maximum": 16,
+          "minimum": 0,
+          "title": "Boundarycount",
+          "type": "integer"
+        },
+        "canRun": {
+          "title": "Canrun",
+          "type": "boolean"
+        },
+        "checkedAt": {
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+          "title": "Checkedat",
+          "type": "string"
+        },
+        "counts": {
+          "$ref": "#/$defs/ScenarioCounts"
+        },
+        "issues": {
+          "items": {
+            "$ref": "#/$defs/ScenarioReviewIssue"
+          },
+          "title": "Issues",
+          "type": "array"
+        },
+        "motionPreset": {
+          "$ref": "#/$defs/ScenarioMotionPreset"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "reference": {
+          "$ref": "#/$defs/ScenarioRef"
+        },
+        "schemaVersion": {
+          "default": "1.4",
+          "enum": [
+            "1.4",
+            "1.5",
+            "1.6"
+          ],
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "scriptDurationMs": {
+          "maximum": 600000,
+          "minimum": 0,
+          "multipleOf": 200,
+          "title": "Scriptdurationms",
+          "type": "integer"
+        },
+        "timings": {
+          "items": {
+            "$ref": "#/$defs/ScriptTimingReview"
+          },
+          "maxItems": 128,
+          "title": "Timings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "reference",
+        "name",
+        "checkedAt",
+        "boundaryCount",
+        "actionCount",
+        "scriptDurationMs",
+        "counts",
+        "motionPreset",
+        "issues",
+        "canRun"
+      ],
+      "title": "ScenarioReview",
+      "type": "object"
+    },
+    "ScenarioReviewIssue": {
+      "additionalProperties": false,
+      "properties": {
+        "actionId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Actionid"
+        },
+        "boundaryId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Boundaryid"
+        },
+        "code": {
+          "enum": [
+            "EMPTY_ARRANGEMENT",
+            "DEMO_DISABLED",
+            "ACTIVE_RUN_EXISTS",
+            "UNTYPED_BOUNDARY",
+            "RESTRICTED_OCCUPANT",
+            "SCRIPT_PATH_BLOCKED",
+            "SCRIPT_TIMING_INVALID"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "unitId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unitid"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "ScenarioReviewIssue",
+      "type": "object"
+    },
+    "ScriptTimingReview": {
+      "additionalProperties": false,
+      "properties": {
+        "actionId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+          "title": "Actionid",
+          "type": "string"
+        },
+        "afterActionId": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Afteractionid"
+        },
+        "delayMs": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Delayms"
+        },
+        "estimatedEndMs": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimatedendms"
+        },
+        "estimatedStartMs": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimatedstartms"
+        },
+        "nominalState": {
+          "title": "Nominalstate",
+          "type": "string"
+        }
+      },
+      "required": [
+        "actionId",
+        "nominalState"
+      ],
+      "title": "ScriptTimingReview",
+      "type": "object"
+    },
+    "UnitProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "cruiseMps": {
+          "exclusiveMinimum": 0,
+          "title": "Cruisemps",
+          "type": "number"
+        },
+        "id": {
+          "enum": [
+            "hornet-10-v1",
+            "sting-v1",
+            "lancet-3-v1",
+            "shahed-136-v1"
+          ],
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "model": {
+          "const": "notional-unit-speed-v1",
+          "default": "notional-unit-speed-v1",
+          "title": "Model",
+          "type": "string"
+        },
+        "pursuitMps": {
+          "exclusiveMinimum": 0,
+          "title": "Pursuitmps",
+          "type": "number"
+        },
+        "reference": {
+          "title": "Reference",
+          "type": "string"
+        },
+        "referenceDate": {
+          "const": "2026-09-18",
+          "default": "2026-09-18",
+          "title": "Referencedate",
+          "type": "string"
+        },
+        "variant": {
+          "title": "Variant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "variant",
+        "cruiseMps",
+        "pursuitMps",
+        "reference"
+      ],
+      "title": "UnitProfile",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "request": {
+      "$ref": "#/$defs/ScenarioRef"
+    },
+    "review": {
+      "$ref": "#/$defs/ScenarioReview"
+    }
+  },
+  "required": [
+    "request",
+    "review"
+  ],
+  "title": "ScenarioReviewContracts",
+  "type": "object"
+}

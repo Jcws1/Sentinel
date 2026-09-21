@@ -8,6 +8,8 @@ import {
 } from '@playwright/test';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import scenario from '../fixtures/scenario-location/default.json' with { type: 'json' };
 import { closeTab, tabAction, unloadMission } from './actions';
 
 const product = 'http://127.0.0.1:5181';
@@ -87,6 +89,66 @@ async function shortcutsAreUsable(page: Page) {
 
 test.beforeEach(async () => {
   await mkdir(evidence, { recursive: true });
+});
+
+test('an open fixture submenu stays reachable when the saved catalogue arrives', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  for (let i = 0; i < 18; i++) {
+    const response = await page.request.post(`${product}/api/scenarios`, {
+      data: {
+        requestId: randomUUID(),
+        expectedRevision: 0,
+        content: {
+          ...scenario,
+          name: `Delayed menu catalogue ${String(i).padStart(2, '0')}`,
+        },
+      },
+    });
+    expect(response.ok()).toBe(true);
+  }
+  let release!: () => void,
+    waiting = 0;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/scenarios', async (route) => {
+    if (route.request().method() !== 'GET') return route.continue();
+    const response = await route.fetch();
+    waiting++;
+    await gate;
+    await route.fulfill({ response });
+  });
+  try {
+    await page.goto(product);
+    await page
+      .getByRole('button', { name: 'Load mission', exact: true })
+      .click();
+    await page
+      .getByRole('menuitem', { name: 'Developer fixtures', exact: true })
+      .focus();
+    await page.keyboard.press('ArrowRight');
+    const fixture = page.getByRole('menuitem', {
+      name: 'Tactical',
+      exact: true,
+    });
+    await expect(fixture).toBeInViewport({ ratio: 1 });
+    await expect.poll(() => waiting).toBeGreaterThan(0);
+    release();
+    await expect(
+      page.getByRole('menuitem', { name: /Delayed menu catalogue 17/ }),
+    ).toBeAttached();
+    await reachable(fixture);
+    await page.screenshot({
+      path: resolve(evidence, 'delayed-catalogue-submenu.png'),
+    });
+    await fixture.click();
+    await expect(page.locator('.mission-name')).toHaveText('Tactical');
+    await expect(page.locator('.connection-state')).toHaveText('CONNECTED');
+  } finally {
+    release();
+  }
 });
 
 test('compact header reclaims map space with a single mission breadcrumb and no pane heading', async ({

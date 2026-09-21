@@ -1,6 +1,6 @@
 # Sentinel contracts
 
-Current exports are in **[v1.13](v1.13/README.md)**. Runtime authority lives in `backend/app/`; the frontend consumes `frontend/src/contracts/generated.ts` and validates messages against the exported schemas.
+Current exports are in **[v1.16](v1.16/README.md)**. Runtime authority lives in `backend/app/`; the frontend consumes `frontend/src/contracts/generated.ts` and validates messages against the exported schemas.
 
 The package number is not a universal wire version. World/stream 1.10, scenario 1.5 and earlier supported messages retain their own semantics. v1.13 permits 40 scenario units and at most 32 controlled units without changing command/execution bounds.
 

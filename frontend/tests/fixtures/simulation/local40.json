@@ -1,0 +1,847 @@
+{
+  "schema_version": "1.0",
+  "mission_id": "SOFTWARE-local40-fixture",
+  "command": {
+    "command_id": "COMMAND-local40-fixture",
+    "action": "START",
+    "issued_at": "2026-09-06T00:00:00.000Z",
+    "execute_at": "2026-09-06T00:00:01.000Z",
+    "source_mode": "SIMULATED"
+  },
+  "area": {
+    "area_id": "TRAINING-AREA-A",
+    "polygon": [
+      [103.80999999999999, 1.31],
+      [103.89, 1.31],
+      [103.89, 1.3900000000000001],
+      [103.80999999999999, 1.3900000000000001],
+      [103.80999999999999, 1.31]
+    ],
+    "min_altitude_m": 0,
+    "max_altitude_m": 500
+  },
+  "resolution": {
+    "interaction_radius_m": 100,
+    "location_grid_deg": 0.001
+  },
+  "calibration_profile": {
+    "profile_id": "NOTIONAL-UNIT-TEST",
+    "version": "1.0.0",
+    "evidence_status": "NOTIONAL",
+    "source_summary": "Synthetic values for deterministic software tests only.",
+    "rules": [
+      {
+        "actor_class": "I",
+        "subject_class": "I",
+        "probability": 1,
+        "health_delta": -40
+      }
+    ]
+  },
+  "samples_by_timestamp": {
+    "2026-09-06T00:00:01.000Z": [
+      {
+        "drone_id": "RED-00000",
+        "longitude_deg": 103.85,
+        "latitude_deg": 1.35,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00001",
+        "longitude_deg": 103.85,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00002",
+        "longitude_deg": 103.85079999999999,
+        "latitude_deg": 1.35,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00003",
+        "longitude_deg": 103.85079999999999,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00004",
+        "longitude_deg": 103.85159999999999,
+        "latitude_deg": 1.35,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00005",
+        "longitude_deg": 103.85159999999999,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00006",
+        "longitude_deg": 103.85239999999999,
+        "latitude_deg": 1.35,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00007",
+        "longitude_deg": 103.85239999999999,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00008",
+        "longitude_deg": 103.8532,
+        "latitude_deg": 1.35,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00009",
+        "longitude_deg": 103.8532,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00010",
+        "longitude_deg": 103.854,
+        "latitude_deg": 1.35,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00011",
+        "longitude_deg": 103.854,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00012",
+        "longitude_deg": 103.8548,
+        "latitude_deg": 1.35,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00013",
+        "longitude_deg": 103.8548,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00014",
+        "longitude_deg": 103.8556,
+        "latitude_deg": 1.35,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00015",
+        "longitude_deg": 103.8556,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00016",
+        "longitude_deg": 103.8564,
+        "latitude_deg": 1.35,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00017",
+        "longitude_deg": 103.8564,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00018",
+        "longitude_deg": 103.85719999999999,
+        "latitude_deg": 1.35,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00019",
+        "longitude_deg": 103.85719999999999,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00020",
+        "longitude_deg": 103.85799999999999,
+        "latitude_deg": 1.35,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00021",
+        "longitude_deg": 103.85799999999999,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00022",
+        "longitude_deg": 103.85879999999999,
+        "latitude_deg": 1.35,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00023",
+        "longitude_deg": 103.85879999999999,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00024",
+        "longitude_deg": 103.8596,
+        "latitude_deg": 1.35,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00025",
+        "longitude_deg": 103.8596,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00026",
+        "longitude_deg": 103.8604,
+        "latitude_deg": 1.35,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00027",
+        "longitude_deg": 103.8604,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00028",
+        "longitude_deg": 103.8612,
+        "latitude_deg": 1.35,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00029",
+        "longitude_deg": 103.8612,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00030",
+        "longitude_deg": 103.862,
+        "latitude_deg": 1.35,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00031",
+        "longitude_deg": 103.862,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00032",
+        "longitude_deg": 103.8628,
+        "latitude_deg": 1.35,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00033",
+        "longitude_deg": 103.8628,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00034",
+        "longitude_deg": 103.86359999999999,
+        "latitude_deg": 1.35,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00035",
+        "longitude_deg": 103.86359999999999,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00036",
+        "longitude_deg": 103.86439999999999,
+        "latitude_deg": 1.35,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00037",
+        "longitude_deg": 103.86439999999999,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00038",
+        "longitude_deg": 103.86519999999999,
+        "latitude_deg": 1.35,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00039",
+        "longitude_deg": 103.86519999999999,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      }
+    ],
+    "2026-09-06T00:00:02.000Z": [
+      {
+        "drone_id": "RED-00000",
+        "longitude_deg": 103.85,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00001",
+        "longitude_deg": 103.85,
+        "latitude_deg": 1.3502,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00002",
+        "longitude_deg": 103.85079999999999,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00003",
+        "longitude_deg": 103.85079999999999,
+        "latitude_deg": 1.3502,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00004",
+        "longitude_deg": 103.85159999999999,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00005",
+        "longitude_deg": 103.85159999999999,
+        "latitude_deg": 1.3502,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00006",
+        "longitude_deg": 103.85239999999999,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00007",
+        "longitude_deg": 103.85239999999999,
+        "latitude_deg": 1.3502,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00008",
+        "longitude_deg": 103.8532,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00009",
+        "longitude_deg": 103.8532,
+        "latitude_deg": 1.3502,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00010",
+        "longitude_deg": 103.854,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00011",
+        "longitude_deg": 103.854,
+        "latitude_deg": 1.3502,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00012",
+        "longitude_deg": 103.8548,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00013",
+        "longitude_deg": 103.8548,
+        "latitude_deg": 1.3502,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00014",
+        "longitude_deg": 103.8556,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00015",
+        "longitude_deg": 103.8556,
+        "latitude_deg": 1.3502,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00016",
+        "longitude_deg": 103.8564,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00017",
+        "longitude_deg": 103.8564,
+        "latitude_deg": 1.3502,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00018",
+        "longitude_deg": 103.85719999999999,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00019",
+        "longitude_deg": 103.85719999999999,
+        "latitude_deg": 1.3502,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00020",
+        "longitude_deg": 103.85799999999999,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00021",
+        "longitude_deg": 103.85799999999999,
+        "latitude_deg": 1.3502,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00022",
+        "longitude_deg": 103.85879999999999,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00023",
+        "longitude_deg": 103.85879999999999,
+        "latitude_deg": 1.3502,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00024",
+        "longitude_deg": 103.8596,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00025",
+        "longitude_deg": 103.8596,
+        "latitude_deg": 1.3502,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00026",
+        "longitude_deg": 103.8604,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00027",
+        "longitude_deg": 103.8604,
+        "latitude_deg": 1.3502,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00028",
+        "longitude_deg": 103.8612,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00029",
+        "longitude_deg": 103.8612,
+        "latitude_deg": 1.3502,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00030",
+        "longitude_deg": 103.862,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00031",
+        "longitude_deg": 103.862,
+        "latitude_deg": 1.3502,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00032",
+        "longitude_deg": 103.8628,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00033",
+        "longitude_deg": 103.8628,
+        "latitude_deg": 1.3502,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00034",
+        "longitude_deg": 103.86359999999999,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00035",
+        "longitude_deg": 103.86359999999999,
+        "latitude_deg": 1.3502,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00036",
+        "longitude_deg": 103.86439999999999,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00037",
+        "longitude_deg": 103.86439999999999,
+        "latitude_deg": 1.3502,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "RED-00038",
+        "longitude_deg": 103.86519999999999,
+        "latitude_deg": 1.3501,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "RED",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "BLUE-00039",
+        "longitude_deg": 103.86519999999999,
+        "latitude_deg": 1.3502,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "BLUE",
+        "health": 100,
+        "status": "ACTIVE"
+      }
+    ]
+  }
+}

@@ -1,18 +1,38 @@
 # Sentinel v3
 
-Sentinel is a local real-time mission workbench with Tactical and 3D maps, a simulated Video Feed, scenario authoring, command controls and durable recordings. This is the private application source repository.
+Sentinel is a local mission workspace for synthetic interactive scenarios, recorded operational inspection and supported external simulation batches. It combines Tactical and 3D maps, Fleet controls, scenario authoring, shared entity Details, Command Picture analytics and a Vertical Profile. It is a simulation/development application, not a deployed command system or a real video feed.
 
-## Start locally
+## Prerequisites
 
-Verified development runtimes: **Node 24.20.0** and **Python 3.10.11**. Install dependencies once from the repository root:
+The verified Windows environment uses **PowerShell 7.6.5 (`pwsh`), Python 3.10.11, Node.js 24.20.0 and npm 11.19.0**. Run the commands below in `pwsh`, not Windows PowerShell 5.1: empty environment overrides behave differently there. These versions are the verified starting point; other platforms/version combinations are not certified here. Microsoft Edge is the configured browser for optional browser tests. Maps require a WebGL-capable browser.
+
+Direct Python dependencies are pinned in [backend requirements](backend/requirements-dev.txt); Python transitive dependencies have no complete lockfile. Frontend resolution is pinned by the [npm lockfile](frontend/package-lock.json). Installation needs access to their package registries; the running application can use the provider-free setup below.
+
+## Install
+
+From PowerShell 7.6.5 (`pwsh`), with the repository already available:
 
 ```powershell
-python -m venv backend/.venv
+Set-Location C:/Archive/Coding/Sentinel3
+$PSVersionTable.PSVersion
+python --version
+node --version
+npm --version
+if (-not (Test-Path backend/.venv/Scripts/python.exe)) {
+    python -m venv backend/.venv
+}
 backend/.venv/Scripts/python.exe -m pip install -r backend/requirements-dev.txt
 npm --prefix frontend ci
+if (-not (Test-Path frontend/.env.local)) {
+    Copy-Item frontend/.env.example frontend/.env.local
+}
 ```
 
-Start the backend in one terminal:
+Keep existing environment files, recordings and browser storage. `.env.local` is local configuration: `VITE_*` values are public browser configuration, **not a place for private secrets**. Restrict provider keys to the intended origins/assets. See [provider configuration](docs/MAP_SERVICES_SETUP.md).
+
+## Start
+
+In a backend terminal, from the repository root:
 
 ```powershell
 $env:SENTINEL_DEMO = '1'
@@ -20,79 +40,62 @@ $env:SENTINEL_FIXTURES = '1'
 backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
 ```
 
-In another terminal:
+`SENTINEL_DEMO=1` enables local interactive controls; `SENTINEL_FIXTURES=1` optionally seeds labelled synthetic missions without replacing existing records. The database defaults to `backend/data/sentinel.sqlite3`. Set `SENTINEL_DB_PATH` to a separate absolute path **before startup** for a separate dataset. Run one backend process/worker per database. API documentation is at <http://127.0.0.1:8000/docs>.
+
+In a second terminal, start the frontend with explicit provider-free overrides:
 
 ```powershell
+Set-Location C:/Archive/Coding/Sentinel3
+$env:VITE_TACTICAL_PROVIDER = 'maptiler'
+$env:VITE_TACTICAL_STYLE_URL = 'https://api.maptiler.com/maps/streets-v4/style.json'
+$env:VITE_MAPTILER_KEY = ''
+$env:VITE_CESIUM_ION_TOKEN = ''
+$env:VITE_GOOGLE_MAPS_API_KEY = ''
+$env:VITE_CESIUM_PHOTOREALISTIC_ASSET_ID = '0'
 npm --prefix frontend run dev
 ```
 
-Open <http://127.0.0.1:5180>. Choose **New demo**, or open **Orchestrator** to author a saved plan in its Units and Conductor tabs. Select a profile within a unit category before placing it. The default database is `backend/data/sentinel.sqlite3`; run **one backend process per database**. `SENTINEL_DB_PATH` selects another database without deleting existing recordings.
+Open **<http://127.0.0.1:5180>**. The empty MapTiler key deliberately selects the labelled grid fallback without requesting the hosted style; ordinary 3D has no provider imagery/terrain. This mode still supports local scenarios, selection and analytics. It does not demonstrate configured-provider rendering. `/api` and its WebSocket are proxied to port 8000; `SENTINEL_API_TARGET` overrides that target when needed.
 
-No credentials are needed for the labelled grid/globe fallbacks. The optional regional map pack and existing providers are covered in [map setup](docs/MAP_REFINEMENT_SETUP.md). Local configuration, databases, dependencies, builds and the large map pack are ignored. Preserve any existing `.env.local` when following setup instructions.
+The environment template instead defaults to the optional regional map pack. For local geographic tiles or configured hosted/3D/Video providers, follow [map setup](docs/MAP_REFINEMENT_SETUP.md) and start a new terminal without the overrides above. Installing the optional pack downloads data; it is not part of this provider-free quick start. Changes to `VITE_*` configuration require restarting development or rebuilding production output.
 
-## Repository layout
+To shut down, use **End** first only if the active interactive run should become an ended recording, then press **Ctrl+C** in both terminals. **Stop** stops supported unit activity; it does not stop the services. Restart recovery preserves recorded positions but interrupts unfinished execution and requires explicit control/recovery; it does not silently resume scripts. Never start a second writer to inspect a live operator database.
 
-| Directory | Contents |
-|---|---|
-| `backend/app/` | Authority, APIs, simulation, persistence and compatibility readers |
-| `backend/tests/` | Backend regression tests |
-| `backend/drafts/` | Frozen foundation models still used by verification |
-| `frontend/src/` | React workbench, shared runtime and map renderers |
-| `frontend/tests/` | Unit/browser tests, reusable performance tools, fixtures and support |
-| `frontend/public/` | Shipped application assets; optional `edge-map/` is ignored |
-| `frontend/map-data/licenses/` | Notices required to prepare the regional map pack |
-| `contracts/` | Current exported schemas and required frozen historical contracts |
-| `scripts/` | Contract generation, repository checks, benchmarking and test cleanup |
-| `docs/` | Setup, architecture, specifications, planning records and concise reports |
+## Use the workspace
 
-Raw results go in ignored `test-results/` directories. Historical experiments, review scripts, screenshots, traces and recordings live in a separate local archive; see [the archive index](docs/ARCHIVE.md). They are not dependencies of the current application or test setup.
+- **New demo** creates a local interactive run. **Load mission** opens saved scenarios, earlier demos, other recordings or developer fixtures. An ended recording permits inspection, not command dispatch.
+- **Orchestrator → Units / Conductor** arranges units and supported actions. Save, Validate and Run use one draft and the exact saved revision. Use the mission controls for Pause/Resume and End; use Fleet for eligible movement, Stop, Return and Intercept actions.
+- **Views** opens dockable maps, Details and other panes. Selecting an entity in a map, list or analytic table shares the selection with Details. Map cameras remain independent. Use F6 to move between a pane and its tab; see the [runbook](docs/demo-runbook.md) for selection and recovery workflows.
+- **Command Picture** offers Overview (presence/freshness), Resources (explicit management/availability), Recorded activity (requests/events), Statistics (recorded counts and observed telemetry), Comparison (up to four selected entities) and Vertical profile. Audit/statistics use an explicit UTC range and pinned recording cutoff; they do not seek mission time.
+- **Views → Vertical Profile**, or **Open profile to side** inside Command Picture, plots altitude against radial horizontal distance from a declared mission reference or fixed captured entity position. Select a native altitude datum and optionally inspect bounded observed history. This is not terrain clearance or a predicted path.
+- **Views → Simulation** accepts the supported external JSON contract, including the labelled golden example. Submit START, inspect the acknowledgement/results, then **Inspect mapped mission**. HOLD/ABORT and supplied RESUME batches follow the external lifecycle. **Load recorded commands** inspects earlier results. Retry an uncertain request using **Retry exact pending command**; do not replace its identity/body. External runs do not join the interactive executor. See the [external guide](docs/phase5-simulation-compatibility/README.md).
 
 ## Verify
 
-From the repository root:
+From the repository root, with dependencies installed:
 
 ```powershell
-backend/.venv/Scripts/python.exe scripts/check_repository.py
 backend/.venv/Scripts/python.exe -m pytest -c backend/pyproject.toml backend/tests
 backend/.venv/Scripts/python.exe scripts/export_contracts.py --check
 backend/.venv/Scripts/python.exe scripts/verify_phase0.py
-npm --prefix frontend run contracts:check
-npm --prefix frontend run contracts:foundation:check
+backend/.venv/Scripts/python.exe scripts/check_repository.py
+npm --prefix frontend test -- --maxWorkers=2
 npm --prefix frontend run typecheck
 npm --prefix frontend run lint
 npm --prefix frontend run format:check
-npm --prefix frontend test -- --maxWorkers=2
+npm --prefix frontend run contracts:check
+npm --prefix frontend run contracts:foundation:check
+npm --prefix frontend run build
 npm --prefix frontend run build:test
 npm --prefix frontend run test:browser
 ```
 
-Browser checks use installed Microsoft Edge and isolated databases on ports 8011, 5181 and 5182. Existing listeners are not reused. Verification builds share canonical public assets instead of repeatedly copying map packs. See [test instructions](frontend/tests/README.md) for 20v20 and foreground measurements.
+`build` writes `frontend/dist`; `npm --prefix frontend run preview` serves it at <http://127.0.0.1:5181> with the backend running. `test:browser` requires installed Microsoft Edge and owns ports 8011/5181/5182, fresh contexts and disposable databases; stop preview first. Test builds force provider-free configuration. See [testing](frontend/tests/README.md) for isolated output suffixes and full result interpretation.
 
-The [Orchestrator guide](docs/orchestrator-ui/README.md) describes shared Save/Validate/Run controls, draft multi-selection, dependency-safe deletion and legacy pane compatibility.
+The [documentation verification ledger](docs/maintenance/documentation-2026-09-21.md) distinguishes commands executed for this update from installation instructions and the earlier cleanup's full regression results. Prose changes do not constitute a new application regression certificate.
 
-[D7 integrated acceptance](docs/integrated-acceptance/README.md) records the earlier version-correct regression gate, foreground workflow/recovery checks and bounded resource evidence. Functional and recovery results are separate from the documented display-performance limits.
+## Current limits and further reading
 
-The earlier bounded [D7 performance follow-up](docs/performance-closure/README.md)
-is preserved as historical evidence. The subsequent [Milestone 1 D7 and Details
-closure](docs/d7-details-closure/README.md) adds lossless versioned storage,
-responsive complete validation, a coalesced authority refresh and supplied
-profile-specific drone images. Existing recordings remain readable; newly
-compressed records use SQLite format marker 5 and must not be opened with an
-older format-4 application. No operator database was migrated during this work.
-The milestone reports functional, recovery, storage, display and Details acceptance
-separately; display closure remains partial. Phase 5 and Phase 6 are deferred.
+This is a loopback, single-authority application without deployment user authentication. Do not expose it as a multi-user service without additional controls. Supported scenario authoring permits 40 units, at most 32 controlled actors. External compatibility remains provisional: valid mixed-scale geometry can fail, and large batches can block source responsiveness. Combined Profiles have an open frame-pacing finding; inherited strict-display and configured-Video gates remain open. Video is a simulated viewpoint. Timeline playback, operational pop-outs, sensor-confidence/coverage and predictive risk are not implemented capabilities.
 
-## Current limits
-
-Scenarios support **40 units**, including the verified **20 Friendly / 20 Hostile** moving workload. Controlled units remain capped at 32; existing command and assignment rules remain. Hostile interception semantics have not been added. Current exports are in [v1.14](contracts/sentinel/v1.14/README.md); individual wire versions differ by message.
-
-**Orchestrator → Units → Location & boundaries → Scenario location** supports an explicit WGS84 origin while retaining a fixed ±5 km square and unchanged geographic positions/heights. See [location workflow, compatibility and verification](docs/scenario-location/README.md).
-
-Configured Google Video visibly loads, but its latest bounded capture exhausted
-the request budget before a complete pacing window. No sustained configured
-Video FPS is claimed. Some blank-grid pane combinations still exceed the strict
-50 ms compositor-stall limit. See [current measurements](docs/d7-details-closure/PACING.md)
-and [provider evidence](docs/d7-details-closure/PROVIDER.md); older
-[performance reports](docs/reports/performance-stability.md) remain historical.
-
-Historical compatibility contracts and third-party asset notices are retained intentionally. Upstream notices and attribution remain with their assets.
+See the [architecture and review ledger](docs/architecture.md), [documentation index](docs/README.md), [analytic definitions](docs/phase6-command-picture/METRICS.md) and [current Phase 6 delivery boundaries](docs/phase6-command-picture/DELIVERY.md).

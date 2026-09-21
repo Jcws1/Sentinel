@@ -148,6 +148,74 @@
       "bytes": 36401,
       "sha256": "23fa917b10492bb473a7362630c8a92aea65fd4640bba47b0bfc34af1e10ec81",
       "source_modified_utc": "2026-09-20T09:38:10.440749+00:00"
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3\\docs\\d7-details-closure\\PROVIDER.md",
+      "snapshot_path": "raw/repository/docs/d7-details-closure/PROVIDER.md",
+      "bytes": 5559,
+      "sha256": "617b8c08d6e5af020f121dddd655f215b5a09c395b92314b133f43c16c740f67",
+      "source_modified_utc": "2026-09-20T09:57:59.582263+00:00"
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3\\docs\\Sentinel_v3.md",
+      "snapshot_path": "raw/repository/docs/Sentinel_v3.md",
+      "bytes": 55713,
+      "sha256": "a581602ca82e3faad054f7b97a778700c8a7c19912bb2a5ebb6d1556a1565d64",
+      "source_modified_utc": "2026-09-10T05:44:43.354387+00:00"
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3\\docs\\reports\\performance-stability.md",
+      "snapshot_path": "raw/repository/docs/reports/performance-stability.md",
+      "bytes": 2920,
+      "sha256": "06b35e1c599023438054272cc4963ea4cc59be78dd8ca9a2eb1a01851bb8cfb8",
+      "source_modified_utc": "2026-09-19T12:33:01.043847+00:00"
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3-archive\\2026-09-19-repository-cleanup\\historical\\docs\\performance-stability\\perf-critic-r2-outcomes\\result.json",
+      "snapshot_path": "raw/measurements/20v20-independent-outcomes.json",
+      "bytes": 102333,
+      "sha256": "e34008aef02a683c44d109b15b939db727f1c1511cec3668a7045f8c6af12ccb",
+      "source_modified_utc": "2026-09-19T10:40:45.517231+00:00"
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3\\frontend\\tests\\performance\\recovery.mjs",
+      "snapshot_path": "raw/repository/frontend/tests/performance/recovery.mjs",
+      "bytes": 14578,
+      "sha256": "a480347c564ae5f3b8c01e815010866ad819a6ba651e1227a8c2ad208b27cfd5",
+      "source_modified_utc": "2026-09-20T09:51:13.545349+00:00"
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3\\docs\\IMPLEMENTATION_PLAN.md",
+      "snapshot_path": "raw/repository/docs/IMPLEMENTATION_PLAN.md",
+      "bytes": 121999,
+      "sha256": "3263bfb0692ed4f160dfdf31d5b461ddaca3ca84a8f799599afa3bb39938bbff",
+      "source_modified_utc": "2026-09-20T10:21:59.932430+00:00",
+      "captured_utc": "2026-09-20T12:26:27.211566+00:00"
+    },
+    {
+      "original_path": "D:\\Downloads\\DVL 3 month track - Judge Scorecard.pdf",
+      "snapshot_path": "raw/inputs/DVL 3 month track - Judge Scorecard.pdf",
+      "bytes": 442571,
+      "sha256": "4d406c721583282df9016d92d76f9db20e1f0674b445e0f34985b42a65f48658",
+      "source_modified_utc": "2026-09-20T11:32:57.526215+00:00",
+      "captured_utc": "2026-09-20T13:14:44.136438+00:00"
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3\\research-brain\\raw\\inputs\\Sentinel_Report_DRAFT_V1_Revised_V2.docx",
+      "snapshot_path": "raw/inputs/Sentinel_Report_DRAFT_V1_Revised_V2.docx",
+      "bytes": 53921,
+      "sha256": "cba5cf2c3806eb870ec4b08879c8de3591c41ac8c41fa100fc756d52c5e81556",
+      "source_modified_utc": "2026-09-20T13:33:02.770036+00:00",
+      "captured_utc": "2026-09-20T14:03:51.025485+00:00",
+      "provenance_note": "Placed directly into raw/inputs/ without tools/snapshot_source.py, so its pre-vault original path and capture time were never recorded; original_path therefore records where the bytes were found, not where they came from. Bytes recorded in place on 2026-09-20 without modification. These bytes match no other file found under C:\\Archive\\Coding\\Sentinel3, Downloads, Desktop or Documents. This is a LATER revision than the same-named document at output/documents (snapshot raw/inputs/Sentinel_Report_DRAFT_V1_Revised_V2.2026-09-20.docx): word/document.xml differs by 139 bytes across three paragraphs, all copy-edits, no claim change."
+    },
+    {
+      "original_path": "C:\\Archive\\Coding\\Sentinel3\\output\\documents\\Sentinel_Report_DRAFT_V1_Revised_V2.docx",
+      "snapshot_path": "raw/inputs/Sentinel_Report_DRAFT_V1_Revised_V2.2026-09-20.docx",
+      "bytes": 53899,
+      "sha256": "9188fa069123c209f19890d1b24ff2483cd4cc203be857311a7e08e33056481f",
+      "source_modified_utc": "2026-09-20T13:27:04.780880+00:00",
+      "captured_utc": "2026-09-20T14:03:58.782657+00:00"
     }
   ]
 }

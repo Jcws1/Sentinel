@@ -1,5 +1,30 @@
 # Sentinel v3 — implementation plan and delivery status
 
+**Current Phase 6 authorization — 20 September 2026:** Command Picture and the
+Vertical Engagement Profile are implemented in the existing shell. The complete
+backend regression passes 562 checks on candidate 22; its frontend passes 486
+checks and all static/build gates. The complete candidate-22 browser gate passes
+126/126 with no skips/retries/flaky results after the narrow audit-identity search
+correction; post-run product/build hashes match. Candidate 20 passes
+the previous complete 126-case browser suite (exit 0, no skips/retries/flaky results).
+All frontend product bytes are unchanged from candidate 20. Candidate 19's
+same-canvas marker layer improves standalone cadence but leaves material combined
+frame-tail overhead. Candidate 20 corrects pointer interception by confined
+tooltips; fresh independent native UI passes 35/35 with 42 reviewed screenshots.
+The matched final-source control still exceeds the Profile overhead budget. The
+complete 96-window matrix has ten incremental failures and two input-p95 misses;
+the fresh final critic scores **8.5/10 and withholds overall acceptance**. Its
+independent API and actual production-UI checks close the audit-search defect;
+final product hashes match. Passing functional gates do not override the numerical
+nonpasses. Archive/readback and cleanup complete the delivery audit.
+The independently measured candidate-21 dirty-rectangle experiment failed the
+same budgets and is reverted; no source/recording cadence or thresholds changed.
+See the [Phase 6 delivery](phase6-command-picture/DELIVERY.md) for exact source,
+metrics, evidence and limits. This separate authorization supersedes older task
+stop instructions below for Phase 6 only. Phase 5, external conformance, D7 and
+configured Video retain their own unresolved gates. Stop after Phase 6; no commit
+or push and no later roadmap phase.
+
 **Milestone 1 — 20 September 2026: D7 corrections and Details refinement.**
 Lossless bounded frame/checkpoint storage, cooperative complete scenario analysis
 with a bounded exact-input cache, coalesced authority refresh and profile-bound
@@ -77,7 +102,7 @@ The initial 10 September inspection found only the two specifications. The repos
 
 Use a small monorepo with a React/TypeScript/Vite frontend and a Python/FastAPI/Pydantic backend. Keep one backend mission authority and one frontend session runtime. Every view reads a shared presentation frame derived from that authority. MapLibre and Cesium are disposable projections. Implement the simulation boundary on the backend, including its independent resolver, rather than transporting external drone objects into frontend stores.
 
-Use Zustand vanilla stores, direct MapLibre/Cesium APIs, semantic CSS tokens with Tailwind, selected Radix primitives, Lucide and TanStack Table. FlexLayout React 0.10.8 is selected and implemented; its model is the sole docking authority. TanStack Table 8.21.3 supplies the Phase 3B browser. ECharts remains for future analytics (the Phase 0 experiment is isolated). No custom docking engine, Redux, TanStack Query, deck.gl, plugin runtime or generic event bus is needed.
+Use Zustand vanilla stores, direct MapLibre/Cesium APIs, semantic CSS tokens with Tailwind, selected Radix primitives, Lucide and TanStack Table. FlexLayout React 0.10.8 is selected and implemented; its model is the sole docking authority. TanStack Table 8.21.3 supplies the Phase 3B browser. Phase 6 uses pinned ECharts 6.0.0 in the frontend through modular imports; the Phase 0 experiment remains isolated and no second chart library is introduced. No custom docking engine, Redux, TanStack Query, deck.gl, plugin runtime or generic event bus is needed.
 
 The earlier architectural roadmap retains tabs, splits, basic replay and one operational pop-out as deliverables, even though section 43 of the product specification places some in its optional tier. Tabs/splits and recording foundations are implemented; replay and operational pop-out acceptance remain later work. They are retained obligations, not additional implementation requested by this planning revision.
 
@@ -700,7 +725,7 @@ This phase supplies external run controls and outcome integration, not per-drone
 
 ### Phase 6 — Command Picture and Vertical Engagement Profile
 
-**Deferred.** Current Command Picture/Vertical Profile are clearly labelled placeholders, not working analytics. Requires truthful supplied aggregates, declared profile origin and a reviewed common altitude-reference policy; no decorative metrics or invented readiness.
+**Implemented under the separate 20 September 2026 Phase 6 authorization; acceptance is evidence-gated.** See [Phase 6 delivery](phase6-command-picture/README.md) for the current views, metric/altitude policy and verification. The earlier Milestone 1 stop instruction above records that historical task's boundary; this authorization does not complete Phase 5. Command Picture uses supplied aggregates and explicit recording cutoffs. Vertical Profile uses separate compatible native datum groups without an invented geoid conversion. Operational pop-outs remain outside this phase.
 
 M1's Fleet mode is an individual-resource control surface, not Command Picture completion. Later aggregates may use supplied condition, availability and execution/outcome records, with managed/controllable/non-operational denominators kept distinct. A notional loss count is not a real-world effectiveness or readiness metric. M1's ellipsoid-only fixture does not replace common-reference acceptance for mixed external MSL/AGL data.
 
@@ -763,6 +788,13 @@ Compatibility tests include every required case in simulation §10, with special
 The detailed plan's §7 defines the hackathon cut. Do not build real aircraft dispatch, validated physical/sensor/effects models, pathfinding/clearance, vertical flight, advanced swarm/formation/communications, broad catalogs, cinematic/live-editing tools, autonomous LLM execution, enterprise collaboration, extra rendering/state/docking infrastructure or unlimited cockpit/video views. Preserve the existing provider stack, independent cameras, renderer budgets and all completed UI refinements. The original external compatibility, analytics, replay, altitude fidelity and operational pop-out obligations remain separately deferred; they are not silently discharged by this demo.
 
 ## 12. Next-phase prerequisites and unresolved decisions
+
+**20 September 2026 Phase 5 authorization:** the external compatibility path is
+now implemented under the [Phase 5 delivery and verification record](phase5-simulation-compatibility/README.md).
+This explicitly supersedes historical deferral statements for Phase5 only.
+Confirmed requirements, locally authorized provisional policies and unresolved
+organiser questions remain separate. Final acceptance is governed by that record,
+not historical roadmap scores. Phase6, replay and later phases remain separate.
 
 **Delivery order:** completed Phase 3B/M1.1/M1.2 and Fleet/Details/RTS/compact refinements → implemented D1a/D1b/D2/D3 → review the verified D3a delivery and passing independent gate → D4–D7 slices when implementation is authorized → retained Phase 5 compatibility → remaining analytics, replay, workspace and hardening acceptance. Outstanding Phase 4 map fidelity/coverage can proceed under separate scope; no ordering here declares it complete.
 

@@ -72,8 +72,14 @@ class MissionService:
 
     def commit_locked(self, mission_id: str, build: Callable, expected_sequence: int | None = None,
                       effects: Callable | None = None, publish: bool = True,
-                      deferred_messages: list[str] | None = None) -> WorldFrame:
+                      deferred_messages: list[str] | None = None, source_owner: str | None = None,
+                      preserve_event_ids: bool = False) -> WorldFrame:
         """Internal port: caller owns the mission lock; outer transactions publish later."""
+        writer = self.repository.writer_for(mission_id)
+        if writer is not None and writer != source_owner:
+            raise ValueError("Source writer does not own this mission")
+        if preserve_event_ids and (writer is None or writer != source_owner):
+            raise ValueError("Explicit event identity requires the registered source owner")
         recording = self.repository.recording_for(mission_id)  # Must precede build.
         previous_text = self.repository.latest_text(mission_id)
         previous = json.loads(previous_text) if previous_text else None
@@ -87,7 +93,7 @@ class MissionService:
         event_sequence = event_tail[-1]["sequence"] + 1 if event_tail else 0
         events = json.loads(canonical({"events": events}))["events"]
         for index, event in enumerate(events):
-            event.update(id=str(uuid4()), missionId=mission_id, sequence=event_sequence + index, recordedAt=recorded_at)
+            event.update(id=event["id"] if preserve_event_ids else str(uuid4()), missionId=mission_id, sequence=event_sequence + index, recordedAt=recorded_at)
         proposed = json.loads(canonical(proposed))
         if previous and geometry_for(previous) != geometry_for(proposed):
             raise ValueError("A mission's frozen horizontal geometry cannot change")

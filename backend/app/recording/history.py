@@ -8,11 +8,12 @@ missing-observation boundaries. A 30 s sample gap is a presentation break only.
 from app.world.serialization import read_frame
 import json
 from datetime import datetime, timedelta
-from typing import Literal
+from typing import Iterable, Literal
 
 from pydantic import Field
 
 from app.domain.models import Model, Id, UtcInstant, Sequence, SourceRef, TrackSample, WorldFrame
+from app.recording.observation_cache import ObservationFrame, observe_frame
 
 
 MAX_FRAMES = 1000
@@ -61,13 +62,15 @@ def instant(value):
     return datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%fZ")
 
 
-def project_history(anchor: WorldFrame, entity_id: str, window_seconds: int, frame_texts: list[str], truncated: bool) -> ObservedHistory:
+def project_history(anchor: WorldFrame, entity_id: str, window_seconds: int, frame_texts: Iterable[str | ObservationFrame], truncated: bool) -> ObservedHistory:
     start = (instant(anchor.effective_at) - timedelta(seconds=window_seconds)).isoformat(timespec="milliseconds") + "Z"
     # The repository supplies at most MAX_FRAMES newest effective instants. Frame
     # revisions retain deletion/staleness as well as positions.
     revisions = {}
+    inspected = 0
     for text in frame_texts:
-        frame = read_frame(text)
+        inspected += 1
+        frame = observe_frame(read_frame(text), entity_id) if isinstance(text, str) else text
         previous = revisions.get(frame.effective_at)
         if previous is None or previous.sequence < frame.sequence:
             revisions[frame.effective_at] = frame
@@ -87,11 +90,10 @@ def project_history(anchor: WorldFrame, entity_id: str, window_seconds: int, fra
     emitted = set()
     reasons = {}
     for frame in frames:
-        entity = frame.entities.get(entity_id)
         tracks = {t.id: t for t in frame.tracks.values() if t.entity_id == entity_id}
         for tid in set(prior) | set(tracks):
             track = tracks.get(tid)
-            if (entity is None or entity.presence != "present" or track is None or track.state != "tracking"
+            if (frame.entity_presence != "present" or track is None or track.state != "tracking"
                     or not start <= track.latest.timestamp <= anchor.effective_at):
                 current.pop(tid, None)
                 prior.pop(tid, None)
@@ -157,7 +159,7 @@ def project_history(anchor: WorldFrame, entity_id: str, window_seconds: int, fra
     return ObservedHistory(schema_version="1.0", mission_id=anchor.mission.id, entity_id=entity_id,
         recording_id=anchor.recording_id, stream_epoch=anchor.stream_epoch, through_frame_id=anchor.frame_id,
         through_sequence=anchor.sequence, through_at=anchor.effective_at, from_at=start, window_seconds=window_seconds,
-        inspected_frames=len(frame_texts), truncated=truncated, segments=bounded)
+        inspected_frames=inspected, truncated=truncated, segments=bounded)
 
 
 def source_key_for_segment(segment):

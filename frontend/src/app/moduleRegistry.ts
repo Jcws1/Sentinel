@@ -8,6 +8,7 @@ import {
   Files,
   ListFilter,
   Settings2,
+  FlaskConical,
 } from 'lucide-react';
 import { viewKind, type ViewId } from '../features/workspace/viewRegistry';
 
@@ -22,6 +23,12 @@ export const modules = [
     view: 'orchestrator',
   },
   { id: 'tracks', label: 'Tracks', icon: ScanSearch, view: 'tracks' },
+  {
+    id: 'simulation',
+    label: 'Simulation',
+    icon: FlaskConical,
+    view: 'simulation',
+  },
   { id: 'sensors', label: 'Sensors', icon: Radar },
   { id: 'command', label: 'Command Picture', icon: Crosshair, view: 'command' },
   { id: 'timeline', label: 'Timeline', icon: Clock3, view: 'timeline' },

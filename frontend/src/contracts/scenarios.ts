@@ -12,8 +12,8 @@ import addFormats from 'ajv-formats';
 import boundarySchema from '../../../contracts/sentinel/v1.7/scenarios.schema.json';
 import scheduledSchema from '../../../contracts/sentinel/v1.8/scenarios.schema.json';
 import { validateActionGraph } from '../world/scriptPlan';
-import schema from '../../../contracts/sentinel/v1.14/scenarios.schema.json';
-import reviewSchema from '../../../contracts/sentinel/v1.14/scenario-review.schema.json';
+import schema from '../../../contracts/sentinel/v1.16/scenarios.schema.json';
+import reviewSchema from '../../../contracts/sentinel/v1.16/scenario-review.schema.json';
 export const MAX_SCENARIO_UNITS =
   schema.$defs.ScenarioContent.properties.units.maxItems;
 import type {

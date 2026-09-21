@@ -98,6 +98,13 @@ test('registry navigation focuses singleton views without reloading, closes and 
       await expect(
         page.getByText('Select an entity in Fleet, Tracks or either map.'),
       ).toBeVisible();
+    } else if (title === 'Command Picture' || title === 'Vertical Profile') {
+      await expect(
+        page.getByRole('heading', { name: title, exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('region', { name: `${title} view`, exact: true }),
+      ).toContainText('Load a mission to inspect committed observations.');
     } else {
       await expect(
         page.getByRole('heading', { name: title, exact: true }),
@@ -178,6 +185,10 @@ test('keyboard focus, tab activation and closure, menus, dialog and divider resi
   await page.keyboard.press('ArrowDown');
   await expect(
     page.getByRole('button', { name: 'Open Tracks', exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(
+    page.getByRole('button', { name: 'Open Simulation', exact: true }),
   ).toBeFocused();
   await page.keyboard.press('ArrowDown');
   await expect(

@@ -1,0 +1,181 @@
+.analytic-owner {
+  height: 100%;
+  min-height: 0;
+}
+.analytics {
+  height: 100%;
+  overflow: auto;
+  padding: 16px 20px 28px;
+  color: var(--text-primary, #d6dfe7);
+  font-size: 12px;
+}
+.analytics h1 {
+  font-size: 20px;
+  margin: 7px 0 10px;
+}
+.analytics h2 {
+  font-size: 16px;
+  margin: 14px 0 8px;
+}
+.analytics h3 {
+  font-size: 13px;
+  margin: 8px 0;
+}
+.analytics p {
+  line-height: 1.6;
+  color: var(--text-secondary, #adbac7);
+  max-width: 110ch;
+}
+.analytics header {
+  border-bottom: 1px solid #2a3643;
+  padding-bottom: 6px;
+}
+.analytic-context {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+.analytic-controls,
+.analytic-section-heading,
+.audit-row-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+.analytic-section-heading {
+  justify-content: space-between;
+}
+.analytic-controls label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.analytics button,
+.analytics input,
+.analytics select {
+  font: inherit;
+  color: inherit;
+  background: #15212d;
+  border: 1px solid #3b4b5c;
+  border-radius: 4px;
+  padding: 6px 9px;
+  max-width: 100%;
+}
+.analytics input {
+  min-width: 90px;
+}
+.analytics input[type='checkbox'] {
+  min-width: 0;
+}
+.analytics select {
+  max-width: 320px;
+}
+.analytics button {
+  cursor: pointer;
+}
+.analytics button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.analytics button:focus-visible,
+.analytics input:focus-visible,
+.analytics select:focus-visible,
+.analytics summary:focus-visible {
+  outline: 2px solid #7bc8ee;
+  outline-offset: 2px;
+}
+.analytics button[aria-pressed='true'] {
+  color: #bfe8ff;
+  border-color: #7bc8ee;
+  background: #203a4a;
+}
+.analytic-lenses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 8px 0;
+  border-bottom: 1px solid #2a3643;
+}
+.analytic-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 16px;
+}
+.analytic-card {
+  border: 1px solid #293847;
+  border-radius: 6px;
+  padding: 10px;
+  min-width: 0;
+}
+.analytic-chart {
+  width: 100%;
+  height: 280px;
+  min-width: 0;
+}
+.analytics table {
+  border-collapse: collapse;
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+.analytics th,
+.analytics td {
+  text-align: left;
+  padding: 7px 8px;
+  border-bottom: 1px solid #293847;
+  overflow-wrap: anywhere;
+}
+.analytics th {
+  font-weight: 500;
+  color: #abbccc;
+}
+.analytics caption {
+  text-align: left;
+  color: #9eafbf;
+  padding: 10px 8px;
+}
+.analytic-table-scroll {
+  max-width: 100%;
+  overflow: auto;
+}
+.audit-list {
+  padding: 0;
+  list-style: none;
+}
+.audit-list li {
+  border-bottom: 1px solid #304153;
+  padding: 10px 0;
+  overflow-wrap: anywhere;
+}
+.audit-list pre {
+  white-space: pre-wrap;
+  max-height: 240px;
+  overflow: auto;
+  font-size: 11px;
+}
+.analytics footer {
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid #2a3643;
+  color: #94a6b7;
+  line-height: 1.5;
+}
+@media (max-width: 900px) {
+  .analytics {
+    padding: 10px;
+  }
+  .analytic-controls label {
+    width: 100%;
+  }
+  .analytic-controls input,
+  .analytic-controls select {
+    max-width: 100%;
+  }
+  .analytic-chart {
+    height: 240px;
+  }
+}

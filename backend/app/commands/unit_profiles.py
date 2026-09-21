@@ -47,7 +47,3 @@ def entity_speed(frame, entity_id, pursuit=False):
     from app.commands.kinematics import cruise_speed
     values = frame.get("unitProfiles", {}).get(entity_id)
     return values["pursuitMps" if pursuit else "cruiseMps"] if values else cruise_speed(frame["interactive"]["templateId"])
-
-def placement_speed(unit):
-    from app.commands.kinematics import cruise_speed
-    return PROFILE_VALUES[unit.profile_id][2]/3.6 if unit.profile_id else cruise_speed("singapore-local-v2")

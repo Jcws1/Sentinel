@@ -15,10 +15,12 @@ from app.main import create_app
 from app.missions.fixtures import fixture_source, instant
 from app.world.contracts import StreamMessage
 from app.recording.history import ObservedHistory
+from app.recording.analytics import AnalyticsContracts
 from app.commands.contracts import CommandContracts
 from app.commands.template import new_template
 from app.scenarios.contracts import ScenarioContracts
 from app.scenarios.review import ScenarioReviewContracts
+from app.simulation.contracts import SimulationModuleContracts
 
 
 def exports() -> dict[str, dict]:
@@ -40,7 +42,9 @@ def exports() -> dict[str, dict]:
             "interactive.schema.json": json_schema(CommandContracts.model_json_schema()),
             "scenarios.schema.json": json_schema(ScenarioContracts.model_json_schema()),
             "scenario-review.schema.json": json_schema(ScenarioReviewContracts.model_json_schema()),
+            "simulation-module.schema.json": json_schema(SimulationModuleContracts.model_json_schema()),
             "observed-history.schema.json": json_schema(ObservedHistory.model_json_schema()),
+            "analytics.schema.json": json_schema(AnalyticsContracts.model_json_schema()),
             "fixture.world.json": frame, "demo.world.json": demo}
 
 
@@ -48,7 +52,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
     options = parser.parse_args()
-    output = ROOT / "contracts" / "sentinel" / "v1.14"
+    output = ROOT / "contracts" / "sentinel" / "v1.16"
     failures = []
     for name, value in exports().items():
         text = json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False) + "\n"

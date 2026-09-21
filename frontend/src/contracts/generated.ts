@@ -1,5 +1,5 @@
-/* Generated from backend contract package v1.14 JSON Schemas; do not edit.
- * Source SHA-256: 248be71760f0dc7e1adc2bfedd53a306024f4bd6de22400a4b334b5ba148191c
+/* Generated from backend contract package v1.16 JSON Schemas; do not edit.
+ * Source SHA-256: e21258cb850e30ddef20718b9681e8aa44fc495a22b962e6932075c5972c13ff
  */
 
 /**
@@ -2868,6 +2868,166 @@ export interface ScriptTimingReview {
   estimatedEndMs?: number | null;
   estimatedStartMs?: number | null;
   nominalState: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "CalibrationIdentity".
+ */
+export interface CalibrationIdentity {
+  evidenceStatus: 'NOTIONAL' | 'PUBLIC_PARTIAL' | 'VALIDATED';
+  profileId: string;
+  version: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "SimulationCommandSummary".
+ */
+export interface SimulationCommandSummary {
+  action: 'START' | 'HOLD' | 'RESUME' | 'ABORT';
+  commandId: string;
+  completedAt?: string | null;
+  receivedAt: string;
+  sequence: number;
+  state: 'pending' | 'interrupted' | 'completed';
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "SimulationEntityDetail".
+ */
+export interface SimulationEntityDetail {
+  calibration: CalibrationIdentity;
+  commandId: string;
+  droneClass: 'I' | 'II' | 'III' | 'UNKNOWN';
+  droneId: string;
+  health: number;
+  inputHealth: number;
+  reportedStatus: 'ACTIVE' | 'DISABLED' | 'REMOVED';
+  runId: string;
+  schemaVersion?: '1.0';
+  stateDiscontinuity: boolean;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "SimulationProjection".
+ */
+export interface SimulationProjection {
+  calibration: CalibrationIdentity;
+  commandId: string;
+  externalMissionId: string;
+  phase: 'processing' | 'interrupted' | 'ready';
+  policyId?: 'sentinel-simulation-v1-local-1';
+  runId: string;
+  schemaVersion?: '1.0';
+  sourceMode: 'SIMULATED' | 'REPLAY';
+  state?: ('RUNNING' | 'HELD' | 'ABORTED' | 'FAILED') | null;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "SimulationRunStatus".
+ */
+export interface SimulationRunStatus {
+  calibration: CalibrationIdentity;
+  commandId: string;
+  completedAt?: string | null;
+  externalMissionId: string;
+  missionId: string;
+  phase: 'processing' | 'interrupted' | 'ready';
+  policyId?: 'sentinel-simulation-v1-local-1';
+  receivedAt: string;
+  runId: string;
+  schemaVersion?: '1.0';
+  sourceMode: 'SIMULATED' | 'REPLAY';
+  state?: ('RUNNING' | 'HELD' | 'ABORTED' | 'FAILED') | null;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "AuditBucket".
+ */
+export interface AuditBucket {
+  events: number;
+  fromAt: string;
+  outcomes: number;
+  requests: number;
+  toAt: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "AuditPage".
+ */
+export interface AuditPage {
+  frameId: string;
+  fromAt: string;
+  missionId: string;
+  nextAfter?: string | null;
+  receiptCeiling: number;
+  recordingId: string;
+  /**
+   * @maxItems 100
+   */
+  rows: AuditRow[];
+  schemaVersion?: '1.0';
+  sourceAt: string;
+  summary?: AuditSummary | null;
+  throughRecordedAt: string;
+  throughSequence: number;
+  toAt: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "AuditRow".
+ */
+export interface AuditRow {
+  affectedEntityIds?: string[];
+  commandId?: string | null;
+  detail: string;
+  effectiveAt?: string | null;
+  entityIds?: string[];
+  id: string;
+  identity: string;
+  kind: 'event' | 'request';
+  outcome?: string | null;
+  recordedAt: string;
+  sequence: number;
+  state?: string | null;
+  type: string;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "AuditSummary".
+ */
+export interface AuditSummary {
+  affectedEntities: number;
+  buckets: AuditBucket[];
+  complete: boolean;
+  eventCounts: Eventcounts;
+  inspectedRows: number;
+  outcomeCounts: Outcomecounts;
+  requestStates: Requeststates;
+  throughRecordedAt?: string | null;
+}
+export interface Eventcounts {
+  [k: string]: number;
+}
+export interface Outcomecounts {
+  [k: string]: number;
+}
+export interface Requeststates {
+  [k: string]: number;
+}
+/**
+ * This interface was referenced by `BackendContracts`'s JSON-Schema
+ * via the `definition` "AuditQuery".
+ */
+export interface AuditQuery {
+  after?: string | null;
+  frameId: string;
+  fromAt: string;
+  includeSummary?: boolean;
+  kind?: 'all' | 'event' | 'request';
+  limit?: number;
+  receiptCeiling?: number | null;
+  search?: string;
+  toAt: string;
 }
 /**
  * This interface was referenced by `BackendContracts`'s JSON-Schema

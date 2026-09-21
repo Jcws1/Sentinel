@@ -13,6 +13,9 @@ const evidence = resolve('test-results/browser/tactical');
 const fixture = 'fixture-tactical';
 const failures = new WeakMap<Page, string[]>();
 const entityId = (suffix: string) => `${fixture}-${suffix}`;
+const command = (page: Page) => page.locator('[data-view="command"]');
+const comparisonRows = (page: Page) =>
+  command(page).getByRole('table').last().locator('tbody tr');
 type MapSnapshot = {
   renderer: { active: boolean; renderedFrames: number; sceneDraws: number };
   missionId?: string;
@@ -139,7 +142,10 @@ async function commandToSide(page: Page) {
   await page
     .getByRole('menuitem', { name: 'Open to Side', exact: true })
     .click();
-  await expect(page.locator('[data-readout="command"]')).toBeVisible();
+  await expect(command(page).locator('[data-analytic-frame]')).toBeVisible();
+  await command(page)
+    .getByRole('button', { name: 'Comparison', exact: true })
+    .click();
   await mapPane(page)
     .getByRole('button', { name: 'Recenter', exact: true })
     .click();
@@ -242,9 +248,8 @@ test('committed additions, changes and removals preserve camera and stable Entit
   const before = await inspect(page);
   expect(before.entityIds).not.toContain(entityId('unlocated-01'));
   await pick(page, 'friendly-01');
-  await expect(
-    page.locator('[data-readout="command"] [data-field="selection"]'),
-  ).toHaveText('F-01');
+  await expect(comparisonRows(page)).toHaveCount(1);
+  await expect(comparisonRows(page).getByRole('button')).toHaveText('F-01');
   const changed = await advance(page);
   await assertFrame(page, changed);
   const after = await inspect(page);
@@ -272,9 +277,7 @@ test('committed additions, changes and removals preserve camera and stable Entit
     entityId('unknown-01'),
   );
   await expect(page.locator('.selection-details')).toContainText('unavailable');
-  await expect(page.locator('[data-readout="command"]')).toContainText(
-    'Unavailable in this frame',
-  );
+  await expect(command(page)).toContainText('Unavailable in this frame');
   await pick(page, 'hostile-01');
   // Clear through Details before testing the former symbol's empty location.
   await page
@@ -288,18 +291,28 @@ test('committed additions, changes and removals preserve camera and stable Entit
     'data-selection',
     entityId('unknown-01'),
   );
-  await page
-    .locator('[data-readout="command"]')
-    .getByRole('button', { name: 'Select F-01', exact: true })
+  await command(page)
+    .getByRole('button', { name: 'Clear selection', exact: true })
+    .click();
+  await command(page)
+    .getByLabel('Add to comparison')
+    .selectOption({ label: 'F-01' });
+  await command(page)
+    .getByRole('button', { name: 'F-01', exact: true })
     .click();
   await expect(mapPane(page)).toHaveAttribute(
     'data-selection',
     entityId('friendly-01'),
   );
   await expect(page.locator('.selection-details')).toContainText('No position');
-  await page
-    .locator('[data-readout="command"]')
-    .getByRole('button', { name: 'Select No position', exact: true })
+  await command(page)
+    .getByRole('button', { name: 'Clear selection', exact: true })
+    .click();
+  await command(page)
+    .getByLabel('Add to comparison')
+    .selectOption({ label: 'No position' });
+  await command(page)
+    .getByRole('button', { name: 'No position', exact: true })
     .click();
   await expect(mapPane(page)).toHaveAttribute(
     'data-selection',
@@ -307,9 +320,8 @@ test('committed additions, changes and removals preserve camera and stable Entit
   );
   await expect(page.locator('.selection-details')).toContainText('No position');
   await pick(page, 'hostile-01');
-  await expect(
-    page.locator('[data-readout="command"] [data-field="selection"]'),
-  ).toHaveText('H-01');
+  await expect(comparisonRows(page)).toHaveCount(1);
+  await expect(comparisonRows(page).getByRole('button')).toHaveText('H-01');
   await page.screenshot({
     path: resolve(evidence, 'tactical-shared-selection.png'),
   });

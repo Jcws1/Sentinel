@@ -20,7 +20,12 @@ Selected documentation snapshots retain their repository-relative paths under `r
 - [Decisions](../../raw/repository/docs/d7-details-closure/DECISIONS.md): cached exact-revision analysis, refreshed admission checks, and rejected approaches.
 - [Verification](../../raw/repository/docs/d7-details-closure/VERIFICATION.md): functional, recovery, storage, validation, and unresolved display gates.
 - [Pacing](../../raw/repository/docs/d7-details-closure/PACING.md): compositor stalls, capture conditions, and measurement limitations.
+- [Provider ledger](../../raw/repository/docs/d7-details-closure/PROVIDER.md): external request ceiling, consumption, and the budget-stop cause of the incomplete Video capture. Cited by Performance, Pacing and Verification; ingested 20 September 2026 and summarised in [[wiki/sources/Provider budget ledger|Provider budget ledger]].
 - [Evidence ledger](../../raw/repository/docs/d7-details-closure/EVIDENCE.md): archived file provenance and source inventories.
+
+## Design input, not delivery evidence
+
+- [Sentinel v3 specification](../../raw/repository/docs/Sentinel_v3.md): the frozen design document, summarised in [[wiki/sources/Sentinel v3 specification|Sentinel v3 specification]]. [docs/README](../../raw/repository/docs/README.md) line 21 classes it a frozen, hash-checked input and states that a planned item is not proof of implementation. Ingested 20 September 2026; dated 10 September 2026.
 
 ## Raw evidence readback
 
@@ -28,4 +33,32 @@ Selected documentation snapshots retain their repository-relative paths under `r
 - [Soak summary](../../raw/measurements/soak-summary.json): one baseline and one final long run, with committed-frame normalization.
 - Browser timing implementation: [validation.mjs](../../raw/repository/frontend/tests/performance/validation.mjs) and [support.mjs](../../raw/repository/frontend/tests/performance/support.mjs).
 
-See [[wiki/topics/Quantitative results]] for the computed numbers and [[wiki/topics/Verified scope]] for interpretation. These are existing local records, not new experiments run during abstract preparation.
+See [[wiki/topics/Quantitative results|Quantitative results]] for the computed numbers and [[wiki/topics/Verified scope|Verified scope]] for interpretation. These are existing local records, not new experiments run during abstract preparation.
+
+System: [[wiki/entities/Sentinel|Sentinel]].
+
+
+## Bundle inventory and provenance
+
+Additional retained bundle members:
+
+- [Repository README](../../raw/repository/README.md) - project entry point at capture.
+- [Milestone README](../../raw/repository/docs/d7-details-closure/README.md) - closure scope and gate summary.
+- [Compatibility](../../raw/repository/docs/d7-details-closure/COMPATIBILITY.md) - recording/readback and scenario compatibility.
+- [Recovery](../../raw/repository/docs/integrated-acceptance/RECOVERY.md) - stale-source, connection, receipt and durable-state boundaries.
+
+Ingested 20 September 2026. This bundle contains documentation, harness source and
+archived measurements; original paths and per-file modification timestamps are
+in [the manifest](../../raw/manifest.json). Reported ledger tests are not new runs
+or a certification of subsequent code. Supporting screenshots/traces not listed
+in the manifest are not part of this evidence archive.
+
+
+## Planning and milestone chronology
+
+[Implementation plan](../../raw/repository/docs/IMPLEMENTATION_PLAN.md), captured
+20 September 2026, is now retained as a separate source note:
+[[wiki/sources/Implementation plan|Implementation plan]]. Its opening aligns with
+the recorded Milestone 1 ledger, but older body status text conflicts with that
+opening. Use [[wiki/topics/Delivery roadmap|Delivery roadmap]] for the reconciliation;
+do not promote its future acceptance targets or uncaptured linked ledgers to results.

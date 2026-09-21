@@ -1,12 +1,12 @@
 import { compile } from 'json-schema-to-typescript';
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { resolve, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
 import { format, resolveConfig } from 'prettier';
 
 const frontend = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const contractDir = resolve(frontend, '../contracts/sentinel/v1.14');
+const contractDir = resolve(frontend, '../contracts/sentinel/v1.16');
 const files = [
   'world.schema.json',
   'stream.schema.json',
@@ -15,6 +15,8 @@ const files = [
   'interactive.schema.json',
   'scenarios.schema.json',
   'scenario-review.schema.json',
+  'simulation-module.schema.json',
+  'analytics.schema.json',
 ];
 const schemas = await Promise.all(
   files.map(async (name) =>
@@ -80,7 +82,7 @@ const fingerprint = createHash('sha256')
   .digest('hex');
 const generated = await compile(schema, 'BackendContracts', {
   unreachableDefinitions: true,
-  bannerComment: `/* Generated from backend contract package v1.14 JSON Schemas; do not edit.\n * Source SHA-256: ${fingerprint}\n */`,
+  bannerComment: `/* Generated from backend contract package v1.16 JSON Schemas; do not edit.\n * Source SHA-256: ${fingerprint}\n */`,
   style: { singleQuote: true, semi: true },
 });
 const target = resolve(frontend, 'src/contracts/generated.ts');
@@ -98,4 +100,25 @@ if (process.argv.includes('--check')) {
 } else {
   await writeFile(target, output);
   process.stdout.write('Generated frontend contracts.\n');
+}
+
+// External compatibility objects belong to the module, never the world schema.
+for (const kind of ['request', 'response']) {
+  const externalTarget = resolve(frontend, `src/modules/simulation/${kind}.generated.ts`);
+  const raw = await readFile(resolve(frontend, `../contracts/simulation/v1.${kind}.schema.json`), 'utf8');
+  const externalSchema = JSON.parse(raw);
+  delete externalSchema.$id;
+  externalSchema.title = kind === 'request' ? 'SimulationRequest' : 'SimulationResponse';
+  normalize(externalSchema);
+  let externalOutput = await compile(externalSchema, externalSchema.title, {
+    unreachableDefinitions: false,
+    bannerComment: `/* Generated from frozen simulation v1 ${kind}; do not edit.\n * Source SHA-256: ${createHash('sha256').update(raw).digest('hex')}\n */`,
+  });
+  externalOutput = await format(externalOutput, { ...(await resolveConfig(target)), filepath: externalTarget });
+  if (process.argv.includes('--check')) {
+    if (await readFile(externalTarget, 'utf8') !== externalOutput) throw new Error('External module types have drifted.');
+  } else {
+    await mkdir(dirname(externalTarget), { recursive: true });
+    await writeFile(externalTarget, externalOutput);
+  }
 }

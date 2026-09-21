@@ -1,4 +1,7 @@
 import { captureScriptControl } from '../world/scriptControl';
+import { createAnalyticProjection } from '../features/analytics/projections';
+import { createAuditClient } from '../services/auditClient';
+import { createSimulationClient } from '../modules/simulation/client';
 import {
   createRecommendationClient,
   type RecommendationState,
@@ -95,6 +98,7 @@ export interface RuntimeSnapshot {
   >;
 }
 export interface RuntimeDependencies {
+  simulationStorage?: Pick<Storage, 'getItem' | 'setItem'> | null;
   displayStorage?: Pick<Storage, 'getItem' | 'setItem'> | null;
   apiBase?: string;
   pageUrl?: string;
@@ -119,6 +123,11 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
     apiBase,
     dependencies.fetcher ?? ((input, init) => fetch(input, init)),
   );
+  const analytics = createAnalyticProjection();
+  const audit = createAuditClient(
+    apiBase,
+    dependencies.fetcher ?? ((input, init) => fetch(input, init)),
+  );
   const createSocket = dependencies.createSocket ?? createBrowserSocket;
   const setTimer = dependencies.setTimer ?? setTimeout;
   const clearTimer = dependencies.clearTimer ?? clearTimeout;
@@ -133,6 +142,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
   const cockpit = createCockpitPresentation();
   const display = createDisplayPreferences(dependencies.displayStorage);
   const listeners = new Set<() => void>();
+  const profileHistory = new Map<string, number>();
   let catalog: RuntimeSnapshot['catalog'] = { status: 'idle', missions: [] };
   let advancing = false;
   let advanceError: string | undefined;
@@ -156,6 +166,11 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
     publish,
     requestTimeout,
   );
+  const simulation = createSimulationClient({
+    base: apiBase,
+    fetcher: dependencies.fetcher ?? ((input, init) => fetch(input, init)),
+    storage: dependencies.simulationStorage,
+  });
 
   const interactive = createInteractiveClient({
     base: apiBase,
@@ -190,6 +205,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
   function publish() {
     const cache = world.getState();
     const operational = session.getState();
+    audit.sync(operational.missionId);
     const commandState = interactive.get();
     const presentation = derivePresentation(
       cache,
@@ -208,8 +224,23 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       operational.selection.primary?.kind === 'entity'
         ? operational.selection.primary.id
         : undefined,
-      !!operational.overlays.history,
-      operational.overlays.historyWindowSeconds ?? 60,
+      !!operational.overlays.history || profileHistory.size > 0,
+      Math.max(
+        operational.overlays.history
+          ? (operational.overlays.historyWindowSeconds ?? 60)
+          : 0,
+        ...profileHistory.values(),
+        5,
+      ),
+      // Only the analytic history view coalesces live reads. The existing map
+      // overlay keeps immediate demand; paused/ended frames flush the final read.
+      !operational.overlays.history &&
+        profileHistory.size > 0 &&
+        presentation.mode === 'live' &&
+        presentation.frame?.interactive?.state === 'running'
+        ? 1000
+        : 0,
+      profileHistory.size ? JSON.stringify(operational.filters) : '',
     );
     const nextSnapshot = {
       cockpit: cockpit.sync({
@@ -430,6 +461,17 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
 
   publish();
   const owner = {
+    analytics,
+    audit,
+    readObservedHistory: api.observedHistory,
+    profileHistoryDemand(id: string, seconds?: number) {
+      if (disposed) return;
+      if (seconds === undefined) profileHistory.delete(id);
+      else if ([15, 60, 120, 300].includes(seconds))
+        profileHistory.set(id, seconds);
+      publish();
+    },
+    simulation,
     motion,
     openCockpit(entityId: string) {
       const opened = cockpit.open(
@@ -1201,12 +1243,15 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       }
     },
     dispose() {
+      analytics.clear();
+      audit.dispose();
       motion.dispose();
       if (disposed) return;
       disposed = true;
       recommendations.dispose();
       interactive.dispose();
       scenarios.dispose();
+      simulation.dispose();
       missionGeneration++;
       interactive.setMission(undefined);
       cancelCatalog();

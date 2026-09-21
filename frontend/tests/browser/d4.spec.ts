@@ -337,10 +337,15 @@ test('v2 saved revision, both-map authoring isolation, unassigned movement, late
   const startGate = new Promise<void>((resolve) => {
     releaseStart = resolve;
   });
+  let finishedStart = () => {};
+  const startContinued = new Promise<void>((resolve) => {
+    finishedStart = resolve;
+  });
   await page.route('**/api/interactive/*/commands', async (route) => {
-    if (route.request().postDataJSON()?.intent?.action === 'start')
-      await startGate;
+    const isStart = route.request().postDataJSON()?.intent?.action === 'start';
+    if (isStart) await startGate;
     await route.continue();
+    if (isStart) finishedStart();
   });
   try {
     await c
@@ -354,6 +359,9 @@ test('v2 saved revision, both-map authoring isolation, unassigned movement, late
     await projection(page, true);
     await noScript(page, true);
     releaseStart();
+    // Removing a route while its handler is still awaiting the gate can let
+    // Playwright continue it first. Wait for this handler's single continuation.
+    await startContinued;
     await page.unroute('**/api/interactive/*/commands');
     await expect(page.locator('[data-run-state]').first()).toHaveAttribute(
       'data-run-state',

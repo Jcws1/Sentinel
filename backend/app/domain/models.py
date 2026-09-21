@@ -136,7 +136,8 @@ def on_segment(a, b, point):
 
 def intersects(a, b, c, d):
     x, y, z, w = orientation(a, b, c), orientation(a, b, d), orientation(c, d, a), orientation(c, d, b)
-    return (x * y < 0 and z * w < 0) or any((on_segment(a, b, c), on_segment(a, b, d), on_segment(c, d, a), on_segment(c, d, b)))
+    opposite = lambda left, right: (left < 0 < right) or (right < 0 < left)
+    return (opposite(x, y) and opposite(z, w)) or any((on_segment(a, b, c), on_segment(a, b, d), on_segment(c, d, a), on_segment(c, d, b)))
 
 
 def inside(point, ring):
@@ -155,12 +156,26 @@ class Polygon(Model):
     def valid_rings(self):
         # Explicit planar longitude/latitude geometry. Global wrapping semantics
         # remain an adapter/provider decision; no implicit shortest-edge wrapping.
-        for ring in self.coordinates:
+        # Validate in translated, independently scaled axes. Coordinates remain
+        # untouched; the positive affine transform preserves polygon topology
+        # while avoiding underflow for finite subnormal/small source geometry.
+        points = [point for ring in self.coordinates for point in ring]
+        if not points:
+            raise ValueError("polygon rings require positions")
+        anchor = points[0]
+        sx = max(abs(p[0] - anchor[0]) for p in points) or 1
+        sy = max(abs(p[1] - anchor[1]) for p in points) or 1
+        rings = ([[((p[0] - anchor[0]) / sx, (p[1] - anchor[1]) / sy) for p in ring] for ring in self.coordinates]
+                 if min(sx, sy) < 1e-120 else self.coordinates)
+        for ring in rings:
             if len(ring) < 4 or ring[0] != ring[-1]:
                 raise ValueError("polygon rings require at least four positions and closure")
             if len(set(ring[:-1])) != len(ring) - 1:
                 raise ValueError("polygon rings must have distinct vertices")
-            area = sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(ring, ring[1:]))
+            # Translate first: absolute longitude products cancel for valid tiny
+            # polygons far from zero. The geometry/schema semantics are unchanged.
+            from math import fsum
+            area = fsum(orientation(ring[0], a, b) for a, b in zip(ring, ring[1:]))
             if area == 0:
                 raise ValueError("polygon ring has zero area")
             edges = list(zip(ring, ring[1:]))
@@ -173,14 +188,14 @@ class Polygon(Model):
                         continue
                     if intersects(a, b, *edges[j]):
                         raise ValueError("polygon ring intersects itself")
-        outer = self.coordinates[0]
-        for i, hole in enumerate(self.coordinates[1:], 1):
+        outer = rings[0]
+        for i, hole in enumerate(rings[1:], 1):
             if not inside(hole[0], outer):
                 raise ValueError("polygon hole lies outside exterior")
-            for previous in self.coordinates[:i]:
+            for previous in rings[:i]:
                 if any(intersects(a, b, c, d) for a, b in zip(hole, hole[1:]) for c, d in zip(previous, previous[1:])):
                     raise ValueError("polygon rings intersect or touch")
-            for previous in self.coordinates[1:i]:
+            for previous in rings[1:i]:
                 if inside(hole[0], previous) or inside(previous[0], hole):
                     raise ValueError("polygon holes overlap")
         return self

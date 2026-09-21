@@ -12,6 +12,7 @@ export function observedSegments(
   filters: DeepReadonly<FilterState>,
   row: EntityRow | undefined,
   history: DeepReadonly<ObservedHistory> | undefined,
+  windowSeconds = history?.windowSeconds ?? 60,
 ) {
   if (
     !row?.visible ||
@@ -21,7 +22,9 @@ export function observedSegments(
     !historyFitsFrame(history, frame)
   )
     return [];
-  const start = Date.parse(frame.effectiveAt) - history.windowSeconds * 1000;
+  const start =
+    Date.parse(frame.effectiveAt) -
+    Math.min(history.windowSeconds, windowSeconds) * 1000;
   return history.segments
     .filter(
       (s) =>

@@ -175,22 +175,27 @@ export function createScene(
     history?.missionId === frame.mission.id &&
     history.entityId === selectedId &&
     history
-      ? observedSegments(frame, session.filters, selected, history).map(
-          (s, index) =>
-            Object.freeze({
-              id: JSON.stringify([
-                history.recordingId,
-                s.trackId,
-                index,
-                s.points[0].sample.timestamp,
-              ]),
-              entityId: history.entityId,
-              trackId: s.trackId,
-              source: s.source,
-              breakReason: s.breakReason,
-              points: s.points,
-              affiliation: selectedObject.affiliation,
-            }),
+      ? observedSegments(
+          frame,
+          session.filters,
+          selected,
+          history,
+          session.overlays.historyWindowSeconds ?? 60,
+        ).map((s, index) =>
+          Object.freeze({
+            id: JSON.stringify([
+              history.recordingId,
+              s.trackId,
+              index,
+              s.points[0].sample.timestamp,
+            ]),
+            entityId: history.entityId,
+            trackId: s.trackId,
+            source: s.source,
+            breakReason: s.breakReason,
+            points: s.points,
+            affiliation: selectedObject.affiliation,
+          }),
         )
       : [];
   return Object.freeze({
