@@ -44,6 +44,12 @@ backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --hos
 
 In a second terminal, start the frontend with explicit provider-free overrides:
 
+Do:
+```powershell
+npm run dev
+```
+
+If it doesn't load, do:
 ```powershell
 Set-Location C:/Archive/Coding/Sentinel3
 $env:VITE_TACTICAL_PROVIDER = 'maptiler'
