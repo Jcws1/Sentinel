@@ -2,6 +2,11 @@
 
 Sentinel is a local mission workspace for synthetic interactive scenarios, recorded operational inspection and supported external simulation batches. It combines Tactical and 3D maps, Fleet controls, scenario authoring, shared entity Details, Command Picture analytics and a Vertical Profile. It is a simulation/development application, not a deployed command system or a real video feed.
 
+## Project Structure
+```text
+<FILL IN>
+```
+
 ## Prerequisites
 
 The verified Windows environment uses **PowerShell 7.6.5 (`pwsh`), Python 3.10.11, Node.js 24.20.0 and npm 11.19.0**. Run the commands below in `pwsh`, not Windows PowerShell 5.1: empty environment overrides behave differently there. These versions are the verified starting point; other platforms/version combinations are not certified here. Microsoft Edge is the configured browser for optional browser tests. Maps require a WebGL-capable browser.
@@ -44,6 +49,12 @@ backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --hos
 
 In a second terminal, start the frontend with explicit provider-free overrides:
 
+Do:
+```powershell
+npm run dev
+```
+
+If it doesn't load, do:
 ```powershell
 Set-Location C:/Archive/Coding/Sentinel3
 $env:VITE_TACTICAL_PROVIDER = 'maptiler'
