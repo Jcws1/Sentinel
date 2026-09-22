@@ -4,6 +4,20 @@ import { AssetPortrait } from '../../src/features/entities/AssetPortrait';
 
 afterEach(cleanup);
 
+it('uses the supplied Wedgetail reference only when explicitly requested', () => {
+  const { rerender } = render(<AssetPortrait wedgetailReference />);
+  expect(
+    screen
+      .getByRole('img', {
+        name: /Wedgetail Interceptor.*static model reference.*not a live feed/,
+      })
+      .getAttribute('src'),
+  ).toContain('wedgetail-interceptor-transparent.png');
+  expect(screen.getByText('Model reference')).toBeTruthy();
+  rerender(<AssetPortrait />);
+  expect(screen.queryByRole('img')).toBeNull();
+});
+
 it('uses the two supplied model references and distinguishes them from a live feed', () => {
   const { rerender } = render(<AssetPortrait profileId="sting-v1" />);
   const sting = screen.getByRole('img', {

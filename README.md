@@ -2,6 +2,24 @@
 
 Sentinel is a local mission workspace for synthetic interactive scenarios, recorded operational inspection and supported external simulation batches. It combines Tactical and 3D maps, Fleet controls, scenario authoring, shared entity Details, Command Picture analytics and a Vertical Profile. It is a simulation/development application, not a deployed command system or a real video feed.
 
+## UI update — 22 September 2026
+
+The Details panel now presents explicitly classified Wedgetail sandbox friendlies with the **Wedgetail Interceptor** type name, a friendly affiliation symbol instead of an unknown-model silhouette, and a transparent-background aircraft reference image. Previously these observations could show an unknown-model marker with no matching portrait.
+
+- The portrait is labelled **Model reference**; its accessible description explicitly says it is static and not a live feed. The user-supplied photo was background-extracted with the built-in image-editing tool and saved as a PNG with transparency.
+- This presentation applies only when the entity has classification scheme `wedgetail-sandbox`, classification code `friendly`, and affiliation `friendly`. It is not inferred from an entity's name; other unit portraits and unknown-model fallbacks are unchanged.
+- This is a presentation-only change: no guidance, interception physics, performance profiles, command authority or API integration is added. The local demonstration used Sentinel as a read-only observer of hosted simulator outcomes, not as the interceptor controller.
+- The recording's docked panel arrangement is not a new default or saved layout preset. Recordings, screenshots, local databases and the local demo bridge are not included in this update.
+
+Focused verification commands (from the repository root):
+
+```powershell
+npm --prefix frontend test -- tests/unit/assetPortrait.test.tsx
+npm --prefix frontend run typecheck
+```
+
+The portrait tests cover explicit Wedgetail selection, its transparent asset and static-reference labelling, alongside existing portrait/fallback behavior.
+
 ## Project Structure
 ```text
 <FILL IN>

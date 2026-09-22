@@ -23,7 +23,7 @@ import {
 import { formatSgt } from '../../world/time';
 import { CopyValue } from './CopyValue';
 import { AssetPortrait } from './AssetPortrait';
-import { UnitSilhouette } from '../units/UnitSymbols';
+import { UnitSilhouette, AffiliationMark } from '../units/UnitSymbols';
 import { DemoProfile } from './DemoProfile';
 import { SimulationDetails } from '../../modules/simulation/SimulationDetails';
 import { simulationNamespace } from '../../modules/simulation/contracts';
@@ -183,6 +183,10 @@ export function EntityDetails({
       : undefined;
   const numeric = (value: number, digits = 1) =>
     value.toLocaleString('en-GB', { maximumFractionDigits: digits });
+  const wedgetailReference =
+    row?.entity.classification?.scheme === 'wedgetail-sandbox' &&
+    row.entity.classification.code === 'friendly' &&
+    row.entity.affiliation === 'friendly';
   const count = state.session.selection.items.filter(
     (i) => i.kind === 'entity',
   ).length;
@@ -244,13 +248,24 @@ export function EntityDetails({
           </button>
         </div>
       </header>
-      {row && <AssetPortrait profileId={unitProfile?.id} />}
+      {row && (
+        <AssetPortrait
+          profileId={unitProfile?.id}
+          wedgetailReference={wedgetailReference}
+        />
+      )}
       {row && frame && (
         <div className="details-identity">
-          <UnitSilhouette profileId={unitProfile?.id} />
+          {wedgetailReference ? (
+            <AffiliationMark category="friendly" />
+          ) : (
+            <UnitSilhouette profileId={unitProfile?.id} />
+          )}
           <div className="details-name">
             <span className="details-type">
-              {unitProfile?.label ?? entityType(row, frame)}
+              {wedgetailReference
+                ? 'Wedgetail Interceptor'
+                : (unitProfile?.label ?? entityType(row, frame))}
             </span>
             <h1>{label}</h1>
           </div>
