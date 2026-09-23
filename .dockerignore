@@ -1,0 +1,13 @@
+.git
+**/node_modules
+**/.venv
+**/__pycache__
+**/.env*
+**/env.download
+**/*.sqlite3*
+**/data
+frontend
+docs
+test-results
+output
+tmp
