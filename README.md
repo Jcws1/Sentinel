@@ -20,6 +20,24 @@ npm --prefix frontend run typecheck
 
 The portrait tests cover explicit Wedgetail selection, its transparent asset and static-reference labelling, alongside existing portrait/fallback behavior.
 
+## Private Sentinel × Wedgetail cloud demo
+
+Branch `codex/wedgetail-cloud` adds an explicit cloud entrypoint without changing the local default. The deployed architecture is a static Vercel frontend plus one authenticated Render backend worker and a persistent SQLite disk. HTTP, WebSocket and observation-ingest access all require the same private demo key; the key is entered at runtime and is never compiled into the browser bundle or retained after reload.
+
+Sentinel is a read-only observer in this integration. The operator-side bridge in `scripts/run_wedgetail_cloud_demo.mjs` submits the documented Wedgetail sandbox API request, samples the unmodified hosted viewer's own object arrays, and forwards those observations. It does not compute movement, collision, interception or success. The hosted simulator remains the authority for outcomes and currently supplies three interceptor bays with a sandbox-wide limit of ten Shaheds in flight.
+
+Install the exact viewer dependency once, then run one genuine sandbox target:
+
+```powershell
+npm install --prefix .cache/wedgetail --no-save --ignore-scripts three@0.128.0
+$env:SENTINEL_DEMO_TOKEN = '<private Render demo key>'
+$env:WEDGETAIL_SANDBOX_API_KEY = '<key published in the Wedgetail sandbox docs>'
+$env:HEADLESS = 'false'
+node scripts/run_wedgetail_cloud_demo.mjs
+```
+
+The local Three.js fulfilment is only a transport fallback for environments that cannot complete jsDelivr TLS; it supplies the viewer's exact declared `0.128.0` assets and does not alter simulator code or state. A successful run prints the Wedgetail acceptance label and the Sentinel terminal observation sequence. Do not replace this bridge with fabricated telemetry.
+
 ## Project Structure
 ```text
 <FILL IN>
@@ -125,6 +143,6 @@ The [documentation verification ledger](docs/maintenance/documentation-2026-09-2
 
 ## Current limits and further reading
 
-This is a loopback, single-authority application without deployment user authentication. Do not expose it as a multi-user service without additional controls. Supported scenario authoring permits 40 units, at most 32 controlled actors. External compatibility remains provisional: valid mixed-scale geometry can fail, and large batches can block source responsiveness. Combined Profiles have an open frame-pacing finding; inherited strict-display and configured-Video gates remain open. Video is a simulated viewpoint. Timeline playback, operational pop-outs, sensor-confidence/coverage and predictive risk are not implemented capabilities.
+The ordinary `app.main` entrypoint is a loopback, single-authority application without deployment authentication; do not expose it. The separate `app.cloud` entrypoint is the authenticated single-viewer demo boundary described above, not a general multi-user identity system. Supported scenario authoring permits 40 units, at most 32 controlled actors. External compatibility remains provisional: valid mixed-scale geometry can fail, and large batches can block source responsiveness. Combined Profiles have an open frame-pacing finding; inherited strict-display and configured-Video gates remain open. Video is a simulated viewpoint. Timeline playback, operational pop-outs, sensor-confidence/coverage and predictive risk are not implemented capabilities.
 
 See the [architecture and review ledger](docs/architecture.md), [documentation index](docs/README.md), [analytic definitions](docs/phase6-command-picture/METRICS.md) and [current Phase 6 delivery boundaries](docs/phase6-command-picture/DELIVERY.md).
