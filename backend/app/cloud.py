@@ -10,10 +10,13 @@ database = os.environ.get("SENTINEL_DB_PATH", "")
 if not database or not Path(database).is_absolute():
     raise RuntimeError("SENTINEL_DB_PATH must name an absolute persistent-disk database path")
 
-# Synthetic execution and developer fixtures are deliberately not enabled by
-# the hosted observation-only entrypoint. Authentication wraps every API route.
+# Synthetic execution is opt-in through SENTINEL_DEMO; fixtures stay disabled.
 inner_app = install_wedgetail_observation(
-    create_app(db_path=database, fixtures_enabled=False, demo_enabled=False)
+    create_app(
+        db_path=database,
+        fixtures_enabled=False,
+        demo_enabled=os.environ.get("SENTINEL_DEMO") == "1",
+    )
 )
 app = PrivateDemoBoundary(
     inner_app,
