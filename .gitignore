@@ -40,6 +40,7 @@ htmlcov/
 !.env.*.example
 !.env.template
 !.env.*.template
+.vercel/
 
 # Reproducible environmental pack; ~1.05 GB, never ordinary source control.
 /frontend/public/edge-map/
