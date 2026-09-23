@@ -50,7 +50,7 @@ class PrivateDemoBoundary:
         if scope["method"] == "OPTIONS":
             return await JSONResponse({}, status_code=200 if allowed else 403, headers={
                 **cors, "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-                "Access-Control-Allow-Headers": "Authorization, Content-Type",
+                "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Sentinel-Control",
                 "Cache-Control": "no-store",
             })(scope, receive, send)
         if scope["method"] in {"GET", "HEAD"}:

@@ -64,6 +64,7 @@ def test_authorized_http_and_cors():
         assert c.post("/api/wedgetail/observation", headers=headers).status_code == 200
         assert c.get("/api/test", headers={**headers, "Origin": "https://evil.test"}).status_code == 403
         assert c.options("/api/test", headers={"Origin": ORIGIN}).status_code == 200
+        assert "X-Sentinel-Control" in c.options("/api/test", headers={"Origin": ORIGIN}).headers["access-control-allow-headers"]
         assert c.options("/api/test", headers={"Origin": "https://evil.test"}).status_code == 403
 
 
