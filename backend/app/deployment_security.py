@@ -1,8 +1,7 @@
-"""Fail-closed authentication boundary for the private cloud demo.
+"""Read-only public boundary for the hosted demo.
 
-HTTP clients send a bearer token. Browser WebSockets offer sentinel-v1 and
-auth.<token> subprotocols; only sentinel-v1 is echoed. Never put keys in URLs.
-This module does not change simulation or observation behavior.
+Safe reads and browser streams are public. Mutating HTTP requests still require
+a bearer token, keeping simulator ingestion and authoring operator-only.
 """
 import hmac
 import re
@@ -28,7 +27,8 @@ class PrivateDemoBoundary:
         if websocket:
             protocols = scope.get("subprotocols", [])
             tokens = [x[5:] for x in protocols if x.startswith("auth.")]
-            authorized = allowed and "sentinel-v1" in protocols and len(tokens) == 1 and hmac.compare_digest(tokens[0].encode(), self.token.encode())
+            token_valid = not tokens or (len(tokens) == 1 and hmac.compare_digest(tokens[0].encode(), self.token.encode()))
+            authorized = allowed and "sentinel-v1" in protocols and token_valid
             if not authorized:
                 return await send({"type": "websocket.close", "code": 1008})
             clean = dict(scope)
@@ -53,11 +53,16 @@ class PrivateDemoBoundary:
                 "Access-Control-Allow-Headers": "Authorization, Content-Type",
                 "Cache-Control": "no-store",
             })(scope, receive, send)
+        if scope["method"] in {"GET", "HEAD"}:
+            return await self._send_with_cors(scope, receive, send, cors)
         authorization = headers.get(b"authorization", b"")
         if not hmac.compare_digest(authorization, ("Bearer " + self.token).encode()):
             return await JSONResponse({"detail": "Authentication required"}, status_code=401,
                 headers={**cors, "Cache-Control": "no-store", "WWW-Authenticate": "Bearer"})(scope, receive, send)
 
+        return await self._send_with_cors(scope, receive, send, cors)
+
+    async def _send_with_cors(self, scope, receive, send, cors):
         async def http_send(message):
             if message["type"] == "http.response.start":
                 message = {**message, "headers": [*message.get("headers", []),

@@ -36,12 +36,12 @@ def test_requires_configuration():
         PrivateDemoBoundary(FastAPI(), TOKEN, ["*"])
 
 
-def test_anonymous_http_and_ingestion_are_denied():
+def test_anonymous_reads_are_public_but_ingestion_is_denied():
     with client() as c:
         assert c.get("/healthz").json() == {"status": "ok"}
-        assert c.get("/api/test").status_code == 401
+        assert c.get("/api/test").status_code == 200
         assert c.post("/api/wedgetail/observation").status_code == 401
-        assert c.get("/api/test?token=" + TOKEN).status_code == 401
+        assert c.get("/api/test?token=" + TOKEN).status_code == 200
 
 
 def test_authorized_http_and_cors():
@@ -74,13 +74,21 @@ def test_authorized_websocket_never_echoes_token():
             assert ws.receive_json() == {"private": True}
 
 
+def test_public_websocket_uses_only_the_safe_protocol():
+    with client() as c:
+        with c.websocket_connect("/api/stream", headers={"Origin": ORIGIN},
+                subprotocols=["sentinel-v1"]) as ws:
+            assert ws.accepted_subprotocol == "sentinel-v1"
+            assert ws.receive_json() == {"private": True}
+
+
 def test_real_backend_starts_behind_boundary(tmp_path):
     from app.main import create_app
 
     database = tmp_path / "test.sqlite3"
     app = create_app(db_path=str(database), fixtures_enabled=False, demo_enabled=False)
     with TestClient(PrivateDemoBoundary(app, TOKEN, [ORIGIN])) as c:
-        assert c.get("/api/missions").status_code == 401
+        assert c.get("/api/missions").status_code == 200
         assert c.get("/api/missions", headers={"Authorization": "Bearer " + TOKEN}).status_code == 200
     assert database.is_file()
     # Reopen the same on-disk schema; this is startup/storage compatibility,

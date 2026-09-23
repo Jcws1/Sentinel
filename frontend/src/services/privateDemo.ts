@@ -62,6 +62,57 @@ export function privateDemoConnection(
   };
 }
 
+export function publicDemoConnection(base: string): RuntimeDependencies {
+  const api = new URL(base);
+  if (
+    api.protocol !== 'https:' ||
+    api.username ||
+    api.password ||
+    api.search ||
+    api.hash ||
+    !api.pathname.endsWith('/api')
+  )
+    throw new Error('Public demo requires an HTTPS API URL ending in /api.');
+  const allowedPath = api.pathname + '/';
+  const check = (input: string, socket = false) => {
+    const target = new URL(input);
+    if (
+      target.protocol !== (socket ? 'wss:' : 'https:') ||
+      target.host !== api.host ||
+      !target.pathname.startsWith(allowedPath) ||
+      target.username ||
+      target.password
+    )
+      throw new Error('Refusing to connect to another endpoint.');
+  };
+  return {
+    apiBase: api.toString(),
+    fetcher: (input, init) => {
+      check(input);
+      return fetch(input, {
+        ...init,
+        redirect: 'error',
+        credentials: 'omit',
+        cache: 'no-store',
+      });
+    },
+    createSocket: (url) => {
+      check(url, true);
+      const browser = new WebSocket(url, ['sentinel-v1']);
+      const socket: StreamSocket = {
+        onmessage: null,
+        onerror: null,
+        onclose: null,
+        close: () => browser.close(),
+      };
+      browser.onmessage = (event) => socket.onmessage?.({ data: event.data });
+      browser.onerror = () => socket.onerror?.();
+      browser.onclose = () => socket.onclose?.();
+      return socket;
+    },
+  };
+}
+
 export async function requestPrivateAccess(
   base: string,
 ): Promise<RuntimeDependencies> {

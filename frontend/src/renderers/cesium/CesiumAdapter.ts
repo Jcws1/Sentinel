@@ -7,6 +7,7 @@ import {
   Color,
   EllipsoidTerrainProvider,
   GridImageryProvider,
+  OpenStreetMapImageryProvider,
   IonResource,
   CesiumTerrainProvider,
   Cesium3DTileset,
@@ -2163,6 +2164,25 @@ export class CesiumAdapter implements MapRenderer {
       if (!provider[`${layer}AssetId`]) this.spatial[layer] = 'disabled';
     }
     if (!provider.token) {
+      if (provider.imageryAssetId)
+        void this.loadLayer(
+          'imagery',
+          async () =>
+            new OpenStreetMapImageryProvider({
+              url: 'https://tile.openstreetmap.org/',
+              credit: new Credit(
+                '&copy; OpenStreetMap contributors',
+                true,
+              ),
+            }),
+          (imagery, onFailure) => {
+            this.layerRemovers.imagery.push(
+              imagery.errorEvent.addEventListener(onFailure),
+            );
+            this.imagery =
+              this.viewer.imageryLayers.addImageryProvider(imagery);
+          },
+        );
       this.draw();
       this.publish();
       return;

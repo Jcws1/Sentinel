@@ -1,5 +1,8 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { privateDemoConnection } from '../../src/services/privateDemo';
+import {
+  privateDemoConnection,
+  publicDemoConnection,
+} from '../../src/services/privateDemo';
 
 const base = 'https://backend.example.test/api';
 const key = 'test_only_' + 'x'.repeat(32);
@@ -57,4 +60,27 @@ it('passes WebSocket credentials as a subprotocol, never a URL parameter', () =>
   expect(() =>
     connection.createSocket!('wss://evil.test/api/stream'),
   ).toThrow();
+});
+
+it('connects the public demo without browser credentials', async () => {
+  const fetcher = vi.fn().mockResolvedValue(new Response('{}'));
+  const calls: unknown[][] = [];
+  vi.stubGlobal('fetch', fetcher);
+  vi.stubGlobal(
+    'WebSocket',
+    class {
+      constructor(...args: unknown[]) {
+        calls.push(args);
+      }
+      close() {}
+    },
+  );
+  const connection = publicDemoConnection(base);
+  await connection.fetcher!(base + '/missions');
+  connection.createSocket!('wss://backend.example.test/api/stream');
+  const [, init] = fetcher.mock.calls[0];
+  expect(new Headers(init.headers).has('Authorization')).toBe(false);
+  expect(calls).toEqual([
+    ['wss://backend.example.test/api/stream', ['sentinel-v1']],
+  ]);
 });
