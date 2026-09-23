@@ -532,9 +532,13 @@ export class CesiumAdapter implements MapRenderer {
       this.watchReadiness();
       return;
     }
+    // A globe can render useful frames while provider tiles continue streaming.
+    // Treat the engine as started after two successful post-render callbacks;
+    // provider readiness is reported independently by the layer state machine.
+    // Waiting for `globe.tilesLoaded` caused a false startup timeout on hosted
+    // Cesium terrain, where the camera can continually refine visible tiles.
     const complete =
-      this.viewer.dataSourceDisplay.ready &&
-      (this.engineReady || this.viewer.scene.globe.tilesLoaded);
+      this.viewer.dataSourceDisplay.ready && this.renderedFrames >= 2;
     if (!complete) {
       this.watchReadiness();
       return;
