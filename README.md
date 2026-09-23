@@ -26,7 +26,7 @@ Branch `codex/wedgetail-cloud` adds an explicit cloud entrypoint without changin
 
 Sentinel is a read-only observer in this integration. The operator-side bridge in `scripts/run_wedgetail_cloud_demo.mjs` submits the documented Wedgetail sandbox API request, samples the unmodified hosted viewer's own object arrays, and forwards those observations. It does not compute movement, collision, interception or success. The hosted simulator remains the authority for outcomes and currently supplies three interceptor bays with a sandbox-wide limit of ten Shaheds in flight.
 
-Install the exact viewer dependency once, then run one genuine sandbox target:
+Install the exact viewer dependency once, then run a genuine three-target volley—one API submission for each hosted interceptor box:
 
 ```powershell
 npm install --prefix .cache/wedgetail --no-save --ignore-scripts three@0.128.0
