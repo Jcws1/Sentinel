@@ -24,6 +24,10 @@ def client():
     async def author():
         return {"saved": True}
 
+    @app.post("/api/interactive/runs")
+    async def run_scenario():
+        return {"started": True}
+
     @app.websocket("/api/stream")
     async def stream(ws: WebSocket):
         await ws.accept()
@@ -46,6 +50,7 @@ def test_anonymous_reads_are_public_but_ingestion_is_denied():
         assert c.get("/api/test").status_code == 200
         assert c.post("/api/wedgetail/observation").status_code == 401
         assert c.post("/api/scenarios", headers={"Origin": ORIGIN}).status_code == 200
+        assert c.post("/api/interactive/runs", headers={"Origin": ORIGIN}).status_code == 200
         assert c.post("/api/scenarios", headers={"Origin": "https://evil.test"}).status_code == 403
         assert c.get("/api/test?token=" + TOKEN).status_code == 200
 

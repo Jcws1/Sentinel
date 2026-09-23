@@ -55,14 +55,11 @@ class PrivateDemoBoundary:
             })(scope, receive, send)
         if scope["method"] in {"GET", "HEAD"}:
             return await self._send_with_cors(scope, receive, send, cors)
-        if (
-            scope["method"] == "POST"
-            and allowed
-            and (
-                scope["path"] == "/api/scenarios"
-                or scope["path"].startswith("/api/scenarios/")
-            )
-        ):
+        public_demo_write = any(
+            scope["path"] == prefix or scope["path"].startswith(prefix + "/")
+            for prefix in ("/api/scenarios", "/api/interactive")
+        )
+        if scope["method"] == "POST" and allowed and public_demo_write:
             return await self._send_with_cors(scope, receive, send, cors)
         authorization = headers.get(b"authorization", b"")
         if not hmac.compare_digest(authorization, ("Bearer " + self.token).encode()):
