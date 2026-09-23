@@ -1,7 +1,7 @@
-"""Read-only public boundary for the hosted demo.
+"""Public demo boundary with scoped scenario authoring.
 
-Safe reads and browser streams are public. Mutating HTTP requests still require
-a bearer token, keeping simulator ingestion and authoring operator-only.
+Safe reads, browser streams and scenario-editor writes from the hosted frontend
+are public. Every other mutation still requires the operator bearer token.
 """
 import hmac
 import re
@@ -54,6 +54,15 @@ class PrivateDemoBoundary:
                 "Cache-Control": "no-store",
             })(scope, receive, send)
         if scope["method"] in {"GET", "HEAD"}:
+            return await self._send_with_cors(scope, receive, send, cors)
+        if (
+            scope["method"] == "POST"
+            and allowed
+            and (
+                scope["path"] == "/api/scenarios"
+                or scope["path"].startswith("/api/scenarios/")
+            )
+        ):
             return await self._send_with_cors(scope, receive, send, cors)
         authorization = headers.get(b"authorization", b"")
         if not hmac.compare_digest(authorization, ("Bearer " + self.token).encode()):
