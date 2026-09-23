@@ -21,6 +21,11 @@ if (!sentinelKey || !wedgetailKey) {
 }
 
 const headless = process.env.HEADLESS !== 'false';
+const targetCount = Number.parseInt(process.env.WEDGETAIL_TARGET_COUNT || '3', 10);
+if (!Number.isInteger(targetCount) || targetCount < 1 || targetCount > 3) {
+  console.error('WEDGETAIL_TARGET_COUNT must be an integer from 1 to 3.');
+  process.exit(2);
+}
 const browser = await chromium.launch({
   executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
   headless,
@@ -40,7 +45,7 @@ await page.route('https://cdn.jsdelivr.net/npm/three@0.128.0/**', async (route) 
   }
 });
 const runId = `wedgetail-live-${Date.now()}`;
-const label = `Sentinel${String(Date.now()).slice(-8)}`;
+const labelPrefix = `S${String(Date.now()).slice(-7)}`;
 
 try {
   await page.goto(VIEWER, { waitUntil: 'domcontentloaded', timeout: 30_000 });
@@ -50,29 +55,34 @@ try {
     { timeout: 30_000 },
   );
 
-  const target = {
-    azimuth_d: 180,
-    altitude_d: 15,
-    distance_m: 1400,
-    speed_m_s: 100,
-    direction_d: 0,
-    unix_timestamp: Math.floor(Date.now() / 1000),
-    box_id: 'box_1',
-    label,
-  };
-  const accepted = await fetch(`${API}/sandbox/addtarget`, {
-    method: 'POST',
-    headers: { 'X-API-Key': wedgetailKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify(target),
-  });
-  const receipt = await accepted.json();
-  if (!accepted.ok || receipt.status !== 'ok') {
-    throw new Error(`Wedgetail rejected target (${accepted.status}): ${receipt.message || 'unknown error'}`);
+  const labels = [];
+  for (let index = 0; index < targetCount; index += 1) {
+    const label = `${labelPrefix}${index + 1}`;
+    const target = {
+      azimuth_d: 180,
+      altitude_d: 15,
+      distance_m: 1400,
+      speed_m_s: 100,
+      direction_d: 0,
+      unix_timestamp: Math.floor(Date.now() / 1000),
+      box_id: `box_${index + 1}`,
+      label,
+    };
+    const accepted = await fetch(`${API}/sandbox/addtarget`, {
+      method: 'POST',
+      headers: { 'X-API-Key': wedgetailKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify(target),
+    });
+    const receipt = await accepted.json();
+    if (!accepted.ok || receipt.status !== 'ok') {
+      throw new Error(`Wedgetail rejected target ${index + 1} (${accepted.status}): ${receipt.message || 'unknown error'}`);
+    }
+    labels.push(label);
+    console.log(`Wedgetail accepted ${label} for box_${index + 1} at ${receipt.received?.unix_timestamp ?? target.unix_timestamp}.`);
   }
-  console.log(`Wedgetail accepted ${label} at ${receipt.received?.unix_timestamp ?? target.unix_timestamp}.`);
 
-  let sawTarget = false;
-  let sawTerminal = false;
+  const seenTargets = new Set();
+  const terminalTargets = new Set();
   let lastSequence = null;
   const deadline = Date.now() + 55_000;
   while (Date.now() < deadline) {
@@ -106,9 +116,11 @@ try {
         ],
       };
     });
-    const targetObject = observed.objects.find((item) => item.label === label);
-    sawTarget ||= Boolean(targetObject);
-    sawTerminal ||= Boolean(targetObject && ['intercepted', 'hit', 'lost', 'cleared'].includes(targetObject.state));
+    for (const item of observed.objects) {
+      if (!labels.includes(item.label)) continue;
+      seenTargets.add(item.label);
+      if (['intercepted', 'hit', 'lost', 'cleared'].includes(item.state)) terminalTargets.add(item.label);
+    }
 
     const response = await fetch(`${SENTINEL}/wedgetail/observation`, {
       method: 'POST',
@@ -117,16 +129,22 @@ try {
         Origin: 'https://sentinel-wedgetail-demo.vercel.app',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ runId, viewerUrl: VIEWER, ...observed }),
+      body: JSON.stringify({
+        runId,
+        missionName: `Wedgetail live API · ${targetCount} vs ${targetCount} hosted simulator`,
+        viewerUrl: VIEWER,
+        ...observed,
+      }),
     });
     if (!response.ok) throw new Error(`Sentinel observation ingest failed (${response.status}): ${await response.text()}`);
     lastSequence = (await response.json()).sequence;
 
-    if (sawTerminal && observed.simState === 'idle') break;
+    if (terminalTargets.size === targetCount && observed.simState === 'idle') break;
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  if (!sawTarget || !sawTerminal) throw new Error('Hosted viewer did not expose a complete target outcome before timeout.');
-  console.log(`Sentinel observed ${label} through terminal outcome at sequence ${lastSequence} (${runId}).`);
+  if (seenTargets.size !== targetCount || terminalTargets.size !== targetCount)
+    throw new Error(`Hosted viewer exposed ${seenTargets.size}/${targetCount} targets and ${terminalTargets.size}/${targetCount} terminal outcomes before timeout.`);
+  console.log(`Sentinel observed ${targetCount}/${targetCount} targets through terminal outcomes at sequence ${lastSequence} (${runId}).`);
 } finally {
   await browser.close();
 }

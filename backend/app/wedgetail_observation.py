@@ -31,6 +31,7 @@ class ViewerObservation(BaseModel):
     run_id: str = Field(alias="runId", min_length=1, max_length=128)
     at: str
     viewer_url: HttpUrl = Field(alias="viewerUrl")
+    mission_name: str = Field(alias="missionName", default="Wedgetail live API · hosted simulator", min_length=1, max_length=128)
     sim_state: str = Field(alias="simState", max_length=128)
     stats: dict[str, int | float | str | bool | None]
     objects: list[ViewerObject] = Field(max_length=64)
@@ -57,7 +58,7 @@ def install_wedgetail_observation(app):
         }
         mission = Mission.model_validate({
             "id": mid,
-            "name": "Wedgetail live API · hosted simulator",
+            "name": payload.mission_name,
             "domain": "wedgetail-sandbox-viewer-observation",
             "lifecycle": "active",
             "createdAt": at,
