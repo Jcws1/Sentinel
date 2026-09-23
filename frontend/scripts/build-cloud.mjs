@@ -13,6 +13,11 @@ if (!valid) {
   console.error('Set VITE_SENTINEL_CLOUD_API to the deployed HTTPS backend URL ending in /api. Never set an access key as a VITE_* variable.');
   process.exit(1);
 }
+// The cloud demo must render a real geographic basemap without requiring a
+// private MapTiler key. OpenFreeMap is HTTPS, OSM-attributed, and needs no
+// credential. Explicit deployment variables may still override these values.
+process.env.VITE_TACTICAL_PROVIDER = 'maptiler';
+process.env.VITE_TACTICAL_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 for (const [script, ...args] of [
   ['node_modules/typescript/bin/tsc', '--noEmit'],
   ['node_modules/vite/bin/vite.js', 'build'],
