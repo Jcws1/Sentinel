@@ -13,7 +13,7 @@ import {
 async function bootstrap() {
   const base = import.meta.env.VITE_SENTINEL_CLOUD_API?.trim();
   const connection = base
-    ? import.meta.env.VITE_SENTINEL_PRIVATE_DEMO === '1'
+    ? import.meta.env.VITE_SENTINEL_PRIVATE_DEMO?.trim() === '1'
       ? await requestPrivateAccess(base)
       : publicDemoConnection(base)
     : {};
