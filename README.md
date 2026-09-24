@@ -6,6 +6,8 @@ Sentinel is a local mission workspace for synthetic interactive scenarios, recor
 
 The local `feature/observe-orient-copilot` branch ports the guarded Qwen assistant pattern from `main` into the current v3 world authority. It adds a read-only **Observe / Orient** workspace view backed by one exact committed frame. Findings distinguish observation from interpretation, surface uncertainty, cite canonical evidence IDs and cannot execute or stage actions. Provider configuration, latency constraints, safety boundaries and remaining OODA gaps are documented in [the copilot design](docs/OBSERVE_ORIENT_COPILOT.md).
 
+The `feature/ao-tasking-recommendations` branch adds drawn Keep In operating-area gates and deterministic Monitor, Respond and Support cards alongside—not in place of—Observe / Orient. Respond can submit only the simulator's existing reviewed proximity-Intercept policy after explicit confirmation; other cards remain advisory until their platform controls exist. See [area gates and tasking](docs/AREA_GATES_AND_TASKING.md) for exact behavior and limitations.
+
 ## UI update — 22 September 2026
 
 The Details panel now presents explicitly classified Wedgetail sandbox friendlies with the **Wedgetail Interceptor** type name, a friendly affiliation symbol instead of an unknown-model silhouette, and a transparent-background aircraft reference image. Previously these observations could show an unknown-model marker with no matching portrait.

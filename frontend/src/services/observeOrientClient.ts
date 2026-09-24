@@ -21,9 +21,59 @@ export interface SituationAssessment {
   attentionItems: string[];
   limitations: string[];
 }
+export interface TaskingProposal {
+  code: 'MONITOR' | 'RESPOND' | 'RESTORE_VISIBILITY' | 'RESTORE_LINK' | 'ROTATE_ASSET';
+  category: 'Monitor' | 'Respond' | 'Support';
+  status: 'candidate' | 'needs_evidence' | 'unsupported' | 'no_feasible_asset';
+  summary: string;
+  evidenceIds: string[];
+  assetIds: string[];
+  targetIds: string[];
+  zoneIds: string[];
+  pairs: { assetId: string; targetId: string }[];
+  limitations: string[];
+}
+export interface TaskingAdvice {
+  schemaVersion: '1.0';
+  missionId: string;
+  frameId: string;
+  sequence: number;
+  boundaryRevision: number;
+  source: 'deterministic-rules';
+  executable: false;
+  proposals: TaskingProposal[];
+}
 
 export function createObserveOrientClient(base: string, fetcher: Fetcher) {
   return {
+    async tasking(
+      missionId: string,
+      frameId: string,
+      focusZoneId: string | undefined,
+      signal: AbortSignal,
+    ): Promise<TaskingAdvice> {
+      const response = await fetcher(
+        `${base}/missions/${encodeURIComponent(missionId)}/tasking-advice`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ frameId, ...(focusZoneId ? { focusZoneId } : {}) }),
+          signal,
+        },
+      );
+      const body: unknown = await response.json();
+      if (!response.ok) {
+        const message = body && typeof body === 'object' && 'detail' in body
+          ? String(body.detail) : `Tasking advice failed (${response.status})`;
+        throw new Error(message);
+      }
+      if (!body || typeof body !== 'object' || !('frameId' in body) || body.frameId !== frameId ||
+          !('source' in body) || body.source !== 'deterministic-rules' ||
+          !('executable' in body) || body.executable !== false ||
+          !('proposals' in body) || !Array.isArray(body.proposals))
+        throw new Error('Tasking advice did not match its frame contract.');
+      return body as TaskingAdvice;
+    },
     async assess(
       missionId: string,
       frameId: string,

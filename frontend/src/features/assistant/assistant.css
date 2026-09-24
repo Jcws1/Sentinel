@@ -1,4 +1,4 @@
-.oo-chat { height: 100%; min-height: 0; display: grid; grid-template-rows: auto 1fr auto; background: #0d1115; color: var(--text, #dce4eb); }
+.oo-chat { height: 100%; min-height: 0; display: grid; grid-template-rows: auto 1fr auto auto; background: #0d1115; color: var(--text, #dce4eb); }
 .oo-chat__header { min-height: 46px; padding: 9px 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #29323a; background: #11171c; }
 .oo-chat__header div { display: grid; gap: 2px; }.oo-chat__header strong { font-size: 13px; font-weight: 600; }
 .oo-chat__header div span { color: #84919b; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
@@ -15,6 +15,13 @@
 .oo-message section { margin-top: 8px; }.oo-message section strong { color: #91bfd0; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
 .oo-message ul { margin: 4px 0 0; padding-left: 17px; }.oo-message li { margin: 3px 0; }
 .oo-message details { margin-top: 9px; color: #91a0aa; font-size: 10px; }.oo-message details summary { cursor: pointer; }.oo-message details p { margin: 6px 0 0; }
+.oo-tasking { max-width: min(640px, 96%); }.oo-tasking section { border-top: 1px solid #344049; padding-top: 7px; }.oo-tasking section p { margin: 5px 0; }.oo-tasking small { display: block; color: #9aabb5; font-size: 10px; margin: 3px 0; overflow-wrap: anywhere; }
+.oo-tasking__card { width: 100%; text-align: left; border: 0; background: transparent; color: inherit; padding: 2px 0; cursor: pointer; }.oo-tasking__card:hover strong { color: #bbdce8; }
+.oo-tasking__review { margin: 7px 0; padding: 8px; border: 1px solid #41606b; border-radius: 6px; background: #15252c; }.oo-tasking__review div { display: flex; gap: 8px; margin-top: 8px; }
+.oo-tasking__review button { border: 1px solid #648fa0; border-radius: 5px; background: #23414b; color: #eaf3f6; padding: 5px 9px; cursor: pointer; }.oo-tasking__review button:disabled { opacity: .4; cursor: default; }
+.oo-tasking-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 12px; border-top: 1px solid #29323a; background: #11171c; font-size: 11px; }
+.oo-tasking-controls select { flex: 1 1 140px; min-width: 0; background: #20262b; border: 1px solid #323c44; color: inherit; padding: 6px; border-radius: 5px; }
+.oo-tasking-controls button { border: 1px solid #648fa0; border-radius: 5px; background: #23414b; color: #dce4eb; padding: 6px 9px; cursor: pointer; }.oo-tasking-controls button:disabled { opacity: .4; cursor: default; }
 .oo-composer { display: grid; grid-template-columns: 1fr 34px; gap: 7px; padding: 10px 12px 12px; border-top: 1px solid #29323a; background: #11171c; }
 .oo-composer textarea { min-height: 36px; max-height: 110px; resize: none; box-sizing: border-box; padding: 9px 10px; border: 1px solid #323c44; border-radius: 7px; outline: none; background: #20262b; color: inherit; font: inherit; }
 .oo-composer textarea:focus { border-color: #648fa0; }.oo-composer textarea::placeholder { color: #77848d; }

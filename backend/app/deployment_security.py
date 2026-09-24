@@ -58,7 +58,7 @@ class PrivateDemoBoundary:
         public_demo_write = any(
             scope["path"] == prefix or scope["path"].startswith(prefix + "/")
             for prefix in ("/api/scenarios", "/api/interactive")
-        ) or scope["path"].endswith("/observe-orient")
+        ) or scope["path"].endswith("/observe-orient") or scope["path"].endswith("/tasking-advice")
         if scope["method"] == "POST" and allowed and public_demo_write:
             return await self._send_with_cors(scope, receive, send, cors)
         authorization = headers.get(b"authorization", b"")

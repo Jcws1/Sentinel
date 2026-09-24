@@ -3,7 +3,7 @@ from pydantic import Field, model_validator, field_validator
 from app.domain.base import Model, Id, Longitude, Latitude
 from app.scenarios.geometry import validate
 
-BoundaryType = Literal["untyped", "annotation", "friendly", "patrol", "restricted"]
+BoundaryType = Literal["untyped", "annotation", "friendly", "patrol", "restricted", "keep_in"]
 
 
 class LocatedBoundaryDefinition(Model):
@@ -36,4 +36,4 @@ class BoundaryDefinition(LocatedBoundaryDefinition):
 
 class BoundaryRules(Model):
     rule_version: Literal["local-boundary-v1"] = "local-boundary-v1"
-    zones: dict[Id, Literal["annotation", "friendly", "patrol", "restricted"]] = Field(max_length=16)
+    zones: dict[Id, Literal["annotation", "friendly", "patrol", "restricted", "keep_in"]] = Field(max_length=16)

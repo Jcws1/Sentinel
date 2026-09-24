@@ -417,6 +417,9 @@
 .boundary-restricted {
   border-left: 4px double #dfb665;
 }
+.boundary-keep_in {
+  border-left: 4px solid #85bbeb;
+}
 .units-pane .boundary-name {
   border: 0;
   padding: 0 0 8px;

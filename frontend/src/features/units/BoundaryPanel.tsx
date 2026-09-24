@@ -110,7 +110,7 @@ export function BoundaryPanel({ viewId }: { viewId?: string }) {
       )}
       <p className="units-hint">
         Horizontal footprints at all demo heights. Restricted areas block entry
-        and crossing.
+        and crossing; one Keep In area confines controlled drones.
       </p>
       {!edit && (
         <button
@@ -161,6 +161,7 @@ export function BoundaryPanel({ viewId }: { viewId?: string }) {
               <option value="friendly">Friendly</option>
               <option value="patrol">Patrol area</option>
               <option value="restricted">Restricted</option>
+              <option value="keep_in">Keep In operating area</option>
             </select>
             <div className="units-actions">
               <button
@@ -336,7 +337,7 @@ export function LiveBoundaryList() {
       </h2>
       <p>
         Horizontal rules at all demo heights. Hidden overlays still enforce
-        restrictions.
+        Restricted and Keep In gates.
       </p>
       {Object.entries(frame.boundaryRules.zones).map(([id, kind]) => (
         <div className={`boundary-row boundary-${kind}`} key={id}>

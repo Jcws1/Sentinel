@@ -2,6 +2,7 @@ import { expect, it, vi } from 'vitest';
 import { createScenarioClient } from '../../src/services/scenarioClient';
 import {
   boundaryContains,
+  boundaryInsidePath,
   validateBoundary,
 } from '../../src/world/boundaryGeometry';
 import { layoutLabels } from '../../src/renderers/labelLayout';
@@ -101,6 +102,15 @@ it('previews concave containment and rejects concave patrols and crossings in ge
       vertices: [vertices[0], vertices[2], vertices[1], vertices[3]],
     }),
   ).toThrow('intersect');
+});
+it('keeps the whole straight route inside a concave operating area', () => {
+  const ring: [number, number][] = [
+    [103.85, 1.29], [103.853, 1.29], [103.853, 1.291],
+    [103.851, 1.291], [103.851, 1.293], [103.85, 1.293],
+  ];
+  expect(boundaryInsidePath([103.8505, 1.2905], [103.8525, 1.2905], ring)).toBe(true);
+  expect(boundaryInsidePath([103.8505, 1.292], [103.8525, 1.2905], ring)).toBe(false);
+  expect(boundaryInsidePath([103.85, 1.2905], undefined, ring)).toBe(false);
 });
 it('retains exact pending request on an explicit disabled-backend refusal and explains recovery', async () => {
   const { client, options, values } = setup();

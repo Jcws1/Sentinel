@@ -75,6 +75,15 @@ def build_context(frame: WorldFrame) -> dict:
              "subjectEntityIds": item.subject_entity_ids, "zoneIds": item.zone_ids}
             for item in sorted(frame.tasks.values(), key=lambda item: item.id)[:60]
         ],
+        "areaGates": {
+            "revision": frame.live_boundaries.revision if frame.live_boundaries else 0,
+            "zones": [
+                {"id": zid, "type": kind,
+                 "vertices": frame.zones[zid].geometry.coordinates[0][:-1]}
+                for zid, kind in sorted((frame.boundary_rules.zones if frame.boundary_rules else {}).items())
+                if kind in {"restricted", "keep_in", "friendly"}
+            ],
+        },
         "events": [
             {"id": item.id, "sequence": item.sequence, "type": item.type, "severity": item.severity,
              "effectiveAt": item.effective_at, "entityIds": item.entity_ids,
@@ -85,7 +94,7 @@ def build_context(frame: WorldFrame) -> dict:
             "Only the committed frame and its bounded recent events are supplied.",
             "Absence from this snapshot is not evidence that an object does not exist.",
             "No prediction, terrain clearance, intent, or authorization is supplied.",
+            "Area gates are simulated horizontal footprints, not proof that an external aircraft enforces them.",
             "Entity labels and arbitrary extension fields are excluded as untrusted text.",
         ],
     }
-

@@ -73,6 +73,30 @@
         "title": "AltitudeBand",
         "type": "object"
       },
+      "AssessmentRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "frameId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Frameid",
+            "type": "string"
+          },
+          "question": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question",
+          "frameId"
+        ],
+        "title": "AssessmentRequest",
+        "type": "object"
+      },
       "Asset": {
         "additionalProperties": false,
         "properties": {
@@ -1139,7 +1163,8 @@
                   "annotation",
                   "friendly",
                   "patrol",
-                  "restricted"
+                  "restricted",
+                  "keep_in"
                 ],
                 "type": "string"
               }
@@ -2252,6 +2277,45 @@
           "events"
         ],
         "title": "EventList",
+        "type": "object"
+      },
+      "EvidenceRef": {
+        "additionalProperties": false,
+        "properties": {
+          "claim": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Claim",
+            "type": "string"
+          },
+          "id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "mission",
+              "entity",
+              "track",
+              "asset",
+              "sensor",
+              "task",
+              "event",
+              "zone"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "claim"
+        ],
+        "title": "EvidenceRef",
         "type": "object"
       },
       "ExecutionRead": {
@@ -4948,7 +5012,8 @@
               "annotation",
               "friendly",
               "patrol",
-              "restricted"
+              "restricted",
+              "keep_in"
             ],
             "title": "Type",
             "type": "string"
@@ -6060,6 +6125,45 @@
           "points"
         ],
         "title": "ObservedSegment",
+        "type": "object"
+      },
+      "OrientedFinding": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ],
+            "title": "Confidence",
+            "type": "string"
+          },
+          "evidenceIds": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            "maxItems": 16,
+            "minItems": 1,
+            "title": "Evidenceids",
+            "type": "array"
+          },
+          "statement": {
+            "maxLength": 800,
+            "minLength": 1,
+            "title": "Statement",
+            "type": "string"
+          }
+        },
+        "required": [
+          "statement",
+          "confidence",
+          "evidenceIds"
+        ],
+        "title": "OrientedFinding",
         "type": "object"
       },
       "PatrolRoute": {
@@ -7796,6 +7900,8 @@
               "ACTIVE_RUN_EXISTS",
               "UNTYPED_BOUNDARY",
               "RESTRICTED_OCCUPANT",
+              "KEEP_IN_OCCUPANT",
+              "MULTIPLE_KEEP_IN",
               "SCRIPT_PATH_BLOCKED",
               "SCRIPT_TIMING_INVALID"
             ],
@@ -8559,6 +8665,130 @@
         "title": "SimulationRunStatus",
         "type": "object"
       },
+      "SituationAssessment": {
+        "additionalProperties": false,
+        "properties": {
+          "attentionItems": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 12,
+            "title": "Attentionitems",
+            "type": "array"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceRef"
+            },
+            "maxItems": 80,
+            "title": "Evidence",
+            "type": "array"
+          },
+          "frameId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Frameid",
+            "type": "string"
+          },
+          "generatedAt": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+            "title": "Generatedat",
+            "type": "string"
+          },
+          "latencyMs": {
+            "minimum": 0.0,
+            "title": "Latencyms",
+            "type": "integer"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 12,
+            "title": "Limitations",
+            "type": "array"
+          },
+          "missionId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Missionid",
+            "type": "string"
+          },
+          "model": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "observations": {
+            "items": {
+              "$ref": "#/components/schemas/OrientedFinding"
+            },
+            "maxItems": 20,
+            "title": "Observations",
+            "type": "array"
+          },
+          "orientation": {
+            "items": {
+              "$ref": "#/components/schemas/OrientedFinding"
+            },
+            "maxItems": 20,
+            "title": "Orientation",
+            "type": "array"
+          },
+          "schemaVersion": {
+            "const": "1.0",
+            "default": "1.0",
+            "title": "Schemaversion",
+            "type": "string"
+          },
+          "sequence": {
+            "maximum": 9007199254740991.0,
+            "minimum": 0.0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "sourceEffectiveAt": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+            "title": "Sourceeffectiveat",
+            "type": "string"
+          },
+          "summary": {
+            "maxLength": 1200,
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          },
+          "uncertainties": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Uncertainties",
+            "type": "array"
+          }
+        },
+        "required": [
+          "missionId",
+          "frameId",
+          "sequence",
+          "sourceEffectiveAt",
+          "generatedAt",
+          "model",
+          "latencyMs",
+          "summary",
+          "observations",
+          "orientation",
+          "uncertainties",
+          "attentionItems",
+          "evidence",
+          "limitations"
+        ],
+        "title": "SituationAssessment",
+        "type": "object"
+      },
       "SnapshotMessage": {
         "additionalProperties": false,
         "properties": {
@@ -8905,6 +9135,243 @@
           "removes"
         ],
         "title": "TaskChanges",
+        "type": "object"
+      },
+      "TaskingAdvice": {
+        "additionalProperties": false,
+        "properties": {
+          "boundaryRevision": {
+            "maximum": 9007199254740991.0,
+            "minimum": 0.0,
+            "title": "Boundaryrevision",
+            "type": "integer"
+          },
+          "executable": {
+            "const": false,
+            "default": false,
+            "title": "Executable",
+            "type": "boolean"
+          },
+          "frameId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Frameid",
+            "type": "string"
+          },
+          "missionId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Missionid",
+            "type": "string"
+          },
+          "proposals": {
+            "items": {
+              "$ref": "#/components/schemas/TaskingProposal"
+            },
+            "maxItems": 5,
+            "minItems": 5,
+            "title": "Proposals",
+            "type": "array"
+          },
+          "schemaVersion": {
+            "const": "1.0",
+            "default": "1.0",
+            "title": "Schemaversion",
+            "type": "string"
+          },
+          "sequence": {
+            "maximum": 9007199254740991.0,
+            "minimum": 0.0,
+            "title": "Sequence",
+            "type": "integer"
+          },
+          "source": {
+            "const": "deterministic-rules",
+            "default": "deterministic-rules",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "missionId",
+          "frameId",
+          "sequence",
+          "boundaryRevision",
+          "proposals"
+        ],
+        "title": "TaskingAdvice",
+        "type": "object"
+      },
+      "TaskingPair": {
+        "additionalProperties": false,
+        "properties": {
+          "assetId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Assetid",
+            "type": "string"
+          },
+          "targetId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Targetid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "assetId",
+          "targetId"
+        ],
+        "title": "TaskingPair",
+        "type": "object"
+      },
+      "TaskingProposal": {
+        "additionalProperties": false,
+        "properties": {
+          "assetIds": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Assetids",
+            "type": "array"
+          },
+          "category": {
+            "enum": [
+              "Monitor",
+              "Respond",
+              "Support"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "code": {
+            "enum": [
+              "MONITOR",
+              "RESPOND",
+              "RESTORE_VISIBILITY",
+              "RESTORE_LINK",
+              "ROTATE_ASSET"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "evidenceIds": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            "maxItems": 80,
+            "title": "Evidenceids",
+            "type": "array"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 6,
+            "title": "Limitations",
+            "type": "array"
+          },
+          "pairs": {
+            "items": {
+              "$ref": "#/components/schemas/TaskingPair"
+            },
+            "maxItems": 32,
+            "title": "Pairs",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "candidate",
+              "needs_evidence",
+              "unsupported",
+              "no_feasible_asset"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          },
+          "targetIds": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            "maxItems": 40,
+            "title": "Targetids",
+            "type": "array"
+          },
+          "zoneIds": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Zoneids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "code",
+          "category",
+          "status",
+          "summary",
+          "evidenceIds",
+          "assetIds",
+          "targetIds",
+          "zoneIds",
+          "limitations"
+        ],
+        "title": "TaskingProposal",
+        "type": "object"
+      },
+      "TaskingRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "focusZoneId": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Focuszoneid"
+          },
+          "frameId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Frameid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "frameId"
+        ],
+        "title": "TaskingRequest",
         "type": "object"
       },
       "Track": {
@@ -10655,6 +11122,56 @@
         "summary": "Events"
       }
     },
+    "/api/missions/{mission_id}/observe-orient": {
+      "post": {
+        "description": "Read-only, evidence-grounded Observe/Orient assessment of one exact committed frame.",
+        "operationId": "observe_orient_api_missions__mission_id__observe_orient_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssessmentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SituationAssessment"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Observe Orient"
+      }
+    },
     "/api/missions/{mission_id}/observed-history": {
       "get": {
         "description": "Bounded observed series as known at one committed frame; no replay playback or prediction.",
@@ -10727,6 +11244,56 @@
           }
         },
         "summary": "Observed History"
+      }
+    },
+    "/api/missions/{mission_id}/tasking-advice": {
+      "post": {
+        "description": "Read-only deterministic Monitor, Respond, Support candidates for one exact frame.",
+        "operationId": "tasking_advice_api_missions__mission_id__tasking_advice_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskingAdvice"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Tasking Advice"
       }
     },
     "/api/missions/{mission_id}/world": {

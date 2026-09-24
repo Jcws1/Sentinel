@@ -35,6 +35,14 @@ def test_context_excludes_untrusted_labels_and_extensions(world):
     assert "dispatch now" not in encoded
 
 
+def test_context_includes_typed_area_gates_without_labels(world):
+    frame = WorldFrame.model_validate(world)
+    # The context builder is tested against a complete model after an actual run
+    # in integration tests; fixture frames without boundaries declare no gates.
+    context = build_context(frame)
+    assert context["areaGates"] == {"revision": 0, "zones": []}
+
+
 def test_assessment_is_pinned_to_current_frame_and_strictly_validated(tmp_path, monkeypatch):
     monkeypatch.setenv("SENTINEL_INFERENCE_API_KEY", "test-key")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)

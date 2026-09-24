@@ -531,7 +531,8 @@
                 "annotation",
                 "friendly",
                 "patrol",
-                "restricted"
+                "restricted",
+                "keep_in"
               ],
               "type": "string"
             }

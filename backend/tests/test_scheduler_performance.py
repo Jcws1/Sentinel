@@ -44,7 +44,7 @@ def test_refused_candidate_preserves_motion_progress_geometry_and_track(monkeypa
         motion = deepcopy(item['motion'])
         position = deepcopy(frame['tracks'][item['trackId']]['latest']['position'])
         frame['interactive']['tick'] = 1
-        monkeypatch.setattr(scheduler, 'blocked', lambda frame, origin, destination=None:
+        monkeypatch.setattr(scheduler, 'blocked', lambda frame, origin, destination=None, **kwargs:
                             'New boundary rejects this candidate.' if destination is not None else None)
         scheduler.advance(frame, checkpoint)
         assert item['state'] == 'Failed'

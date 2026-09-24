@@ -11,7 +11,7 @@ class AssessmentRequest(Model):
 
 
 class EvidenceRef(Model):
-    kind: Literal["mission", "entity", "track", "asset", "sensor", "task", "event"]
+    kind: Literal["mission", "entity", "track", "asset", "sensor", "task", "event", "zone"]
     id: Id
     claim: str = Field(min_length=1, max_length=500)
 
@@ -38,4 +38,3 @@ class SituationAssessment(Model):
     attention_items: list[str] = Field(max_length=12)
     evidence: list[EvidenceRef] = Field(max_length=80)
     limitations: list[str] = Field(max_length=12)
-

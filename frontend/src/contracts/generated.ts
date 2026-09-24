@@ -1,5 +1,5 @@
 /* Generated from backend contract package v1.16 JSON Schemas; do not edit.
- * Source SHA-256: e21258cb850e30ddef20718b9681e8aa44fc495a22b962e6932075c5972c13ff
+ * Source SHA-256: f20feb2e3cedd0b8a7318549440ca9524583d7b0f64247793fbdfe8e3c2e6c8f
  */
 
 /**
@@ -112,7 +112,7 @@ export interface Zones {
    * This interface was referenced by `Zones`'s JSON-Schema definition
    * via the `patternProperty` "^[^\s\x00-\x1f\x7f](?:[^\x00-\x1f\x7f]*[^\s\x00-\x1f\x7f])?$".
    */
-  [k: string]: 'annotation' | 'friendly' | 'patrol' | 'restricted';
+  [k: string]: 'annotation' | 'friendly' | 'patrol' | 'restricted' | 'keep_in';
 }
 export interface Entities {
   [k: string]: Entity;
@@ -1060,7 +1060,8 @@ export interface BehaviorPolicy {
 export interface BoundaryDefinition {
   id: string;
   name: string;
-  type: 'untyped' | 'annotation' | 'friendly' | 'patrol' | 'restricted';
+  type:
+    'untyped' | 'annotation' | 'friendly' | 'patrol' | 'restricted' | 'keep_in';
   /**
    * @minItems 3
    * @maxItems 32
@@ -1148,7 +1149,8 @@ export interface LocatedBoundaryMutation {
 export interface LocatedBoundaryDefinition {
   id: string;
   name: string;
-  type: 'untyped' | 'annotation' | 'friendly' | 'patrol' | 'restricted';
+  type:
+    'untyped' | 'annotation' | 'friendly' | 'patrol' | 'restricted' | 'keep_in';
   /**
    * @minItems 3
    * @maxItems 32
@@ -2852,6 +2854,8 @@ export interface ScenarioReviewIssue {
     | 'ACTIVE_RUN_EXISTS'
     | 'UNTYPED_BOUNDARY'
     | 'RESTRICTED_OCCUPANT'
+    | 'KEEP_IN_OCCUPANT'
+    | 'MULTIPLE_KEEP_IN'
     | 'SCRIPT_PATH_BLOCKED'
     | 'SCRIPT_TIMING_INVALID';
   message: string;

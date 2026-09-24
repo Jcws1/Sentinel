@@ -33,7 +33,7 @@ OUTPUT_SCHEMA = {
         "attentionItems": {"type": "array", "maxItems": 12, "items": {"type": "string", "maxLength": 500}},
         "evidence": {"type": "array", "maxItems": 80, "items": {
             "type": "object", "additionalProperties": False, "required": ["kind", "id", "claim"],
-            "properties": {"kind": {"type": "string", "enum": ["mission", "entity", "track", "asset", "sensor", "task", "event"]},
+            "properties": {"kind": {"type": "string", "enum": ["mission", "entity", "track", "asset", "sensor", "task", "event", "zone"]},
                            "id": {"type": "string"}, "claim": {"type": "string", "maxLength": 500}}}},
         "limitations": {"type": "array", "maxItems": 12, "items": {"type": "string", "maxLength": 500}},
     },
@@ -95,7 +95,7 @@ class ObserveOrientService:
             raise AssistantInvalidOutput("Inference response failed strict validation") from error
         evidence_kind = {frame.mission.id: "mission"}
         for kind, table in (("entity", frame.entities), ("track", frame.tracks), ("asset", frame.assets),
-                            ("sensor", frame.sensors), ("task", frame.tasks)):
+                            ("sensor", frame.sensors), ("task", frame.tasks), ("zone", frame.zones)):
             evidence_kind.update((identifier, kind) for identifier in table)
         evidence_kind.update((event.id, "event") for event in frame.recent_events)
         evidence_ids = set(evidence_kind)

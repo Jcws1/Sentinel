@@ -41,6 +41,8 @@ def candidate(frame, mutation):
             provenance=dict(source=dict(id=run["sourceId"],kind="simulation",mode="simulated"),
                 effectiveAt=frame["effectiveAt"],recordedAt=frame["recordedAt"]))
         rules["zones"][zid] = definition.type
+        if definition.type == "keep_in" and sum(kind == "keep_in" for kind in rules["zones"].values()) > 1:
+            raise CommandError("INVALID_REQUEST", "Use only one active Keep In boundary in this POC.")
         if definition.type == "restricted":
             # Only the proposed footprint: existing inconsistent positions stay honest.
             check = dict(interactive=run, zones={zid:zones[zid]}, boundaryRules=dict(zones={zid:"restricted"}))
@@ -52,6 +54,18 @@ def candidate(frame, mutation):
                 reason = blocked(check, tracks[0]["latest"]["position"])
                 if reason:
                     raise CommandError("ENDPOINT_INVALID", f'{entity["label"]} is inside/on the proposed Restricted boundary. Revise the boundary; actors are never repositioned.')
+        if definition.type == "keep_in":
+            # The gate applies to explicitly controlled friendly drones, not hostile observations.
+            check = dict(interactive=run, zones={zid:zones[zid]}, boundaryRules=dict(zones={zid:"keep_in"}))
+            for control in run["controls"]:
+                entity = frame["entities"].get(control["entityId"])
+                if not entity or entity["presence"] != "present":
+                    continue
+                track = frame["tracks"].get(control["controlTrackId"])
+                if not track or track["state"] != "tracking" or not in_extent(track["latest"]["position"], geometry=frame):
+                    raise CommandError("POSITION_UNAVAILABLE", f'{entity["label"]}: current source position is unavailable; cannot activate a Keep In boundary.')
+                if blocked(check, track["latest"]["position"]):
+                    raise CommandError("ENDPOINT_INVALID", f'{entity["label"]} is outside/on the proposed Keep In boundary. Revise it; actors are never repositioned.')
     result["mission"]["zoneIds"] = list(zones)
     return result, revision + 1
 
@@ -75,7 +89,8 @@ def apply(frame, checkpoint, mutation, command_id):
             if item["state"] not in scheduler.ACTIVE:
                 continue
             track = frame["tracks"].get(item["trackId"])
-            reason = blocked(frame, track["latest"]["position"], item["motion"]["destination"]) if track else "Source position unavailable."
+            reason = blocked(frame, track["latest"]["position"], item["motion"]["destination"],
+                             enforce_keep_in=scheduler.controlled(frame, item)) if track else "Source position unavailable."
             if reason:
                 events.extend(scheduler.halt(frame, item, "Failed", "Live boundary change: " + reason))
         events.extend(scheduler.resolve_broken(frame, schedule))

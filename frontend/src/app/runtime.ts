@@ -14,7 +14,7 @@ import {
   createDisplayPreferences,
   type DisplayPreferences,
 } from '../state/displayPreferences';
-import type { BehaviorPolicy, DemoOutcome } from '../contracts/generated';
+import type { BehaviorPolicy, DemoOutcome, RecommendationSet, RecommendationOption } from '../contracts/generated';
 import {
   createLiveBoundaryEditor,
   type LiveBoundaryState,
@@ -44,7 +44,7 @@ import {
 import type { ScenarioContent, UnitPlacement } from '../contracts/generated';
 import type { DeepReadonly, ImmutableFrame, Mission } from '../contracts/types';
 import { createApi, type Fetcher } from '../services/api';
-import { createObserveOrientClient } from '../services/observeOrientClient';
+import { createObserveOrientClient, type TaskingAdvice } from '../services/observeOrientClient';
 import {
   createBrowserSocket,
   streamUrl,
@@ -1085,6 +1085,43 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       }
     },
     requestSuggestions: () => recommendations.refresh(),
+    async prepareTaskingRespond(advice: TaskingAdvice): Promise<{ set: RecommendationSet; option: RecommendationOption }> {
+      const frame = snapshot.presentation.frame;
+      const proposal = advice.proposals.find((item) => item.code === 'RESPOND');
+      if (!frame?.interactive || frame.mission.id !== advice.missionId || !proposal || proposal.status !== 'candidate')
+        throw new Error('This Respond card has no supported simulator action. Refresh recommendations.');
+      if (snapshot.connection !== 'connected' || snapshot.presentation.status !== 'current')
+        throw new Error('Wait for a connected, current simulator state.');
+      if ((frame.liveBoundaries?.revision ?? 0) !== advice.boundaryRevision)
+        throw new Error('Area gates changed. Refresh recommendations.');
+      if (!interactive.get().current?.ownsControl)
+        throw new Error('Acquire or reclaim control in Simulation before confirming.');
+      const controls = frame.interactive.controls.filter((control) => proposal.assetIds.includes(control.assetId));
+      if (controls.length !== proposal.assetIds.length)
+        throw new Error('The proposed assets are no longer controlled. Refresh recommendations.');
+      const set = await interactive.requestSuggestions(controls.map((control) => control.entityId).sort());
+      const option = set.options.find((item) => item.id === 'intercept-all');
+      const actionAssets = option?.action?.members.map((member) => member.assetId).sort() ?? [];
+      if (!option?.action || JSON.stringify(actionAssets) !== JSON.stringify([...proposal.assetIds].sort()) ||
+          !proposal.targetIds.every((id) => set.eligibleTargetIds.includes(id)))
+        throw new Error('The current validated Intercept option no longer matches this card. Refresh recommendations.');
+      return { set, option };
+    },
+    async confirmTaskingRespond(advice: TaskingAdvice, reviewed: { set: RecommendationSet; option: RecommendationOption }) {
+      const current = () => {
+        const frame = snapshot.presentation.frame;
+        return snapshot.connection === 'connected' && snapshot.presentation.status === 'current' &&
+          frame?.mission.id === advice.missionId && frame.interactive?.runId === reviewed.set.runId &&
+          frame.interactive.executorEpoch === reviewed.set.executorEpoch &&
+          (frame.liveBoundaries?.revision ?? 0) === advice.boundaryRevision &&
+          !!interactive.get().current?.ownsControl;
+      };
+      if (!current()) throw new Error('Simulation or area gates changed. Refresh recommendations.');
+      const receipt = await interactive.applySuggestion(reviewed.set, reviewed.option, current);
+      if (!receipt) throw new Error(interactive.get().error ?? 'Outcome unknown. Check Attention and Activity before retrying.');
+      if (!receipt.accepted) throw new Error(receipt.message);
+      return `Simulator command accepted. Inspect Activity for member outcomes; this enabled proximity Intercept, not a target-specific assignment.`;
+    },
     applySuggestion: (id: string) => recommendations.apply(id),
     dismissSuggestions: () => recommendations.dismiss(),
     applyBehavior: (kind: BehaviorPolicy['kind'], boundaryId?: string) => {

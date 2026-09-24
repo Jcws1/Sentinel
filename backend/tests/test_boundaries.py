@@ -6,7 +6,11 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 from app.commands.kinematics import geographic
-from app.commands.zone_rules import blocked
+from app.commands.zone_rules import blocked, inside_path
+from app.commands.boundary_contracts import BoundaryMutation
+from app.commands.live_boundaries import candidate as live_candidate
+from app.commands.errors import CommandError
+from app.assistant.context import build_context
 from app.scenarios.geometry import validate, contains, crosses
 from app.scenarios.boundaries import BoundaryDefinition
 from app.scenarios.contracts import ScenarioRevision, ScenarioRef
@@ -51,6 +55,66 @@ def test_concavity_crossings_and_inclusive_tolerance():
     assert not crosses((-50,-.01),(350,-.01),ring)
     with pytest.raises(ValueError,match='convex'):
         validate([vertex(*v) for v in [(0,0),(300,0),(300,100),(100,100),(100,300),(0,300)]], 'patrol')
+
+
+def test_keep_in_requires_the_entire_segment_inside_and_away_from_edges():
+    ring = validate([vertex(*v) for v in [(0,0),(300,0),(300,100),(100,100),(100,300),(0,300)]], 'keep_in')
+    assert inside_path((50, 50), (250, 50), ring)
+    assert not inside_path((50, 250), (250, 50), ring)  # Concave notch crossed.
+    assert not inside_path((0, 50), None, ring)
+    frame = dict(boundaryRules=dict(zones={'area':'keep_in'}), zones={'area':dict(label='AO',
+        geometry=dict(coordinates=[[vertex(*v) for v in [(0,0),(300,0),(300,100),(100,100),(100,300),(0,300),(0,0)]]]))})
+    assert blocked(frame, geographic(50, 50), geographic(250, 50)) is None
+    assert 'Keep In' in blocked(frame, geographic(50, 250), geographic(250, 50))
+
+
+def test_keep_in_review_requires_controlled_drones_inside_and_only_one_gate():
+    h = Harness()
+
+    async def exercise():
+        service = ScenarioService(h.authority, True)
+        area = boundary('keep_in', [(-100,-100),(100,-100),(100,100),(-100,100)])
+        revision = (await service.write(write(composition(area)))).result
+        review = service.review(ScenarioRef.model_validate({k:getattr(revision,k) for k in ['definition_id','revision','content_hash']}))
+        assert review.can_run
+        created = await h.service.create(run_request(revision))
+        assert created.accepted
+        gates = build_context(h.authority.read(created.mission_id))['areaGates']['zones']
+        assert len(gates) == 1 and gates[0]['type'] == 'keep_in'
+        await h.act(created.mission_id, 'end')
+        outside = boundary('keep_in', [(200,-100),(400,-100),(400,100),(200,100)])
+        outside['id'] = 'outside'
+        revision = (await service.write(write(composition(outside)))).result
+        review = service.review(ScenarioRef.model_validate({k:getattr(revision,k) for k in ['definition_id','revision','content_hash']}))
+        assert any(issue.code == 'KEEP_IN_OCCUPANT' for issue in review.issues)
+        revision = (await service.write(write(composition(area, outside)))).result
+        review = service.review(ScenarioRef.model_validate({k:getattr(revision,k) for k in ['definition_id','revision','content_hash']}))
+        assert any(issue.code == 'MULTIPLE_KEEP_IN' for issue in review.issues)
+
+    asyncio.run(exercise())
+
+
+def test_live_keep_in_rejects_displacing_a_controlled_drone():
+    h = Harness()
+
+    async def exercise():
+        _, _, mid, _ = await custom(h, [boundary('annotation')])
+        frame = json.loads(canonical(h.authority.read(mid)))
+        run_id = frame['interactive']['runId']
+        area = boundary('keep_in', [(-100,-100),(100,-100),(100,100),(-100,100)])
+        mutation = BoundaryMutation.model_validate(dict(expectedRevision=0, operation='upsert',
+            boundaryId=f'{run_id}:boundary:{area["id"]}', definition=area))
+        candidate_frame, revision = live_candidate(frame, mutation)
+        assert revision == 1
+        assert not blocked(candidate_frame, geographic(0, 0))
+        shifted = boundary('keep_in', [(200,-100),(400,-100),(400,100),(200,100)])
+        shifted['id'] = 'shifted'
+        mutation = BoundaryMutation.model_validate(dict(expectedRevision=0, operation='upsert',
+            boundaryId=f'{run_id}:boundary:{shifted["id"]}', definition=shifted))
+        with pytest.raises(CommandError, match='outside/on'):
+            live_candidate(frame, mutation)
+
+    asyncio.run(exercise())
 
 
 def test_review_and_run_both_reject_untyped_and_every_source_owned_occupant():

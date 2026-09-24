@@ -5,7 +5,7 @@ import type {
   ScenarioPosition,
 } from '../contracts/generated';
 import type { DeepReadonly } from '../contracts/types';
-import { boundaryCrosses, metricVertex } from './boundaryGeometry';
+import { boundaryCrosses, boundaryInsidePath, metricVertex } from './boundaryGeometry';
 import { eastScale, type GeometryOwner } from './localGeometry';
 
 export type ScriptPoint = DeepReadonly<ScenarioPosition>;
@@ -245,6 +245,23 @@ export function scriptPlan(
       if (restricted) {
         l.state = 'Failed';
         l.reason = `Restricted boundary “${restricted.name}”: segment enters, touches or crosses it.`;
+        l.endTick = tick;
+        continue;
+      }
+      const keepIn = content.boundaries?.find(
+        (boundary) =>
+          content.units.find((unit) => unit.id === l.action.unitId)?.commandRole === 'sentinel' &&
+          boundary.type === 'keep_in' &&
+          !boundaryInsidePath(
+            [origin.longitudeDeg, origin.latitudeDeg],
+            [l.destination.longitudeDeg, l.destination.latitudeDeg],
+            boundary.vertices.map((vertex) => [vertex[0], vertex[1]]),
+            content,
+          ),
+      );
+      if (keepIn) {
+        l.state = 'Failed';
+        l.reason = `Keep In boundary “${keepIn.name}”: straight path leaves or touches the operating area.`;
         l.endTick = tick;
         continue;
       }

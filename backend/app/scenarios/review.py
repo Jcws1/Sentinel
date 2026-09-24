@@ -38,7 +38,7 @@ class ScenarioMotionPreset(Model):
 
 
 class ScenarioReviewIssue(Model):
-    code: Literal["EMPTY_ARRANGEMENT", "DEMO_DISABLED", "ACTIVE_RUN_EXISTS", "UNTYPED_BOUNDARY", "RESTRICTED_OCCUPANT", "SCRIPT_PATH_BLOCKED", "SCRIPT_TIMING_INVALID"]
+    code: Literal["EMPTY_ARRANGEMENT", "DEMO_DISABLED", "ACTIVE_RUN_EXISTS", "UNTYPED_BOUNDARY", "RESTRICTED_OCCUPANT", "KEEP_IN_OCCUPANT", "MULTIPLE_KEEP_IN", "SCRIPT_PATH_BLOCKED", "SCRIPT_TIMING_INVALID"]
     message: str
     boundary_id: Id | None = None
     unit_id: Id | None = None

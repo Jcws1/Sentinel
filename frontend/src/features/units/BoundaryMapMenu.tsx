@@ -93,6 +93,7 @@ export function BoundaryMapMenu({
               'friendly',
               'patrol',
               'restricted',
+              'keep_in',
               'annotation',
             ] as BoundaryDefinition['type'][]
           ).map((type) => (

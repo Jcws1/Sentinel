@@ -13,6 +13,7 @@ export const boundaryLabels = {
   friendly: 'FRIENDLY · NO ENGAGEMENT',
   patrol: 'PATROL AREA',
   restricted: 'RESTRICTED · NO ENTRY',
+  keep_in: 'KEEP IN · OPERATING AREA',
 } as const;
 export const boundaryColors = {
   untyped: '#a4adb6',
@@ -20,6 +21,7 @@ export const boundaryColors = {
   friendly: '#9ac6bb',
   patrol: '#77c5dc',
   restricted: '#dfb665',
+  keep_in: '#85bbeb',
 } as const;
 export function metricVertex(v: Vertex, geometry?: GeometryOwner): Vertex {
   const origin = originFor(geometry);
@@ -93,6 +95,19 @@ export function boundaryCrosses(
   return ring.some((v, i) =>
     touches(left, right, v, ring[(i + 1) % ring.length]),
   );
+}
+export function boundaryInsidePath(
+  a: Vertex,
+  b: Vertex | undefined,
+  vertices: readonly Vertex[],
+  geometry?: GeometryOwner,
+) {
+  if (!boundaryContains(a, vertices, geometry) || (b && !boundaryContains(b, vertices, geometry)))
+    return false;
+  const first = metricVertex(a, geometry);
+  const last = b ? metricVertex(b, geometry) : first;
+  const ring = vertices.map((v) => metricVertex(v, geometry));
+  return !ring.some((v, i) => touches(first, last, v, ring[(i + 1) % ring.length]));
 }
 export function validateBoundary(
   b: BoundaryDefinition,

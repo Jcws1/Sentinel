@@ -323,6 +323,8 @@
             "ACTIVE_RUN_EXISTS",
             "UNTYPED_BOUNDARY",
             "RESTRICTED_OCCUPANT",
+            "KEEP_IN_OCCUPANT",
+            "MULTIPLE_KEEP_IN",
             "SCRIPT_PATH_BLOCKED",
             "SCRIPT_TIMING_INVALID"
           ],

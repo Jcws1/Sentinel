@@ -23,7 +23,8 @@
             "annotation",
             "friendly",
             "patrol",
-            "restricted"
+            "restricted",
+            "keep_in"
           ],
           "title": "Type",
           "type": "string"
@@ -132,7 +133,8 @@
             "annotation",
             "friendly",
             "patrol",
-            "restricted"
+            "restricted",
+            "keep_in"
           ],
           "title": "Type",
           "type": "string"

@@ -118,7 +118,11 @@ def source_reason(frame, schedule, item):
     position = track["latest"]["position"]
     if position["altitude"]["reference"] != "ELLIPSOID" or position["altitude"].get("datumId") != "WGS84" or not in_extent(position, geometry=frame):
         return "Source position requires supplied WGS84 height inside the local extent."
-    return blocked(frame, position)
+    return blocked(frame, position, enforce_keep_in=controlled(frame, item))
+
+
+def controlled(frame, item):
+    return any(control["entityId"] == item["entityId"] for control in frame["interactive"].get("controls", []))
 
 
 def dispatch(frame, checkpoint, start=False):
@@ -155,7 +159,7 @@ def dispatch(frame, checkpoint, start=False):
         origin = deepcopy(track["latest"]["position"]) if track else None
         target = {**item["action"]["destination"], "altitude": deepcopy(origin["altitude"])} if origin else None
         if not reason:
-            reason = blocked(frame, origin, target)
+            reason = blocked(frame, origin, target, enforce_keep_in=controlled(frame, item))
         if reason:
             events.extend(halt(frame, item, "Failed", reason + " Previous valid movement is retained."))
             continue
@@ -193,7 +197,7 @@ def advance(frame, checkpoint):
         candidate = dict(motion)
         position, velocity = step(candidate, geometry=frame)
         track = frame["tracks"][item["trackId"]]
-        reason = blocked(frame, track["latest"]["position"], position)
+        reason = blocked(frame, track["latest"]["position"], position, enforce_keep_in=controlled(frame, item))
         if reason:
             events.extend(halt(frame, item, "Failed", reason))
             continue
@@ -249,7 +253,8 @@ def nominal_steps(content):
     source = dict(id="nominal", kind="simulation", mode="simulated")
     zones = content.boundaries or []
     frame = dict(sequence=0, effectiveAt="2000-01-01T00:00:00.000Z",
-        interactive=dict(runId="nominal", sourceId="nominal", executorEpoch="nominal", state="running", tick=0, templateId="singapore-local-v2"),
+        interactive=dict(runId="nominal", sourceId="nominal", executorEpoch="nominal", state="running", tick=0, templateId="singapore-local-v2",
+                         controls=[dict(entityId=u.id) for u in content.units if u.command_role == "sentinel"]),
         scenario=dict(entityIds={u.id:u.id for u in content.units}),
         unitProfiles={u.id:profile(u.profile_id) for u in content.units if u.profile_id},
         entities={u.id:dict(condition="operational", presence="present") for u in content.units},

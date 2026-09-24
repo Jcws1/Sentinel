@@ -32,6 +32,10 @@ def client():
     async def observe_orient():
         return {"assessed": True}
 
+    @app.post("/api/missions/demo/tasking-advice")
+    async def tasking_advice():
+        return {"advised": True}
+
     @app.websocket("/api/stream")
     async def stream(ws: WebSocket):
         await ws.accept()
@@ -57,6 +61,8 @@ def test_anonymous_reads_are_public_but_ingestion_is_denied():
         assert c.post("/api/interactive/runs", headers={"Origin": ORIGIN}).status_code == 200
         assert c.post("/api/missions/demo/observe-orient", headers={"Origin": ORIGIN}).status_code == 200
         assert c.post("/api/missions/demo/observe-orient").status_code == 401
+        assert c.post("/api/missions/demo/tasking-advice", headers={"Origin": ORIGIN}).status_code == 200
+        assert c.post("/api/missions/demo/tasking-advice").status_code == 401
         assert c.post("/api/scenarios", headers={"Origin": "https://evil.test"}).status_code == 403
         assert c.get("/api/test?token=" + TOKEN).status_code == 200
 
