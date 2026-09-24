@@ -59,9 +59,13 @@ def _utc_now() -> str:
 
 class ObserveOrientService:
     def __init__(self):
-        self.base_url = os.environ.get("SENTINEL_INFERENCE_BASE_URL", "https://api.groq.com/openai/v1").rstrip("/")
-        self.api_key = os.environ.get("SENTINEL_INFERENCE_API_KEY", "")
-        self.model = os.environ.get("SENTINEL_INFERENCE_MODEL", "qwen/qwen3.8-27b")
+        openai_key = os.environ.get("OPENAI_API_KEY", "")
+        self.api_key = os.environ.get("SENTINEL_INFERENCE_API_KEY", "") or openai_key
+        default_base = "https://api.openai.com/v1" if openai_key else "https://api.groq.com/openai/v1"
+        default_model = "gpt-4o-mini" if openai_key else "qwen/qwen3.8-27b"
+        self.base_url = os.environ.get("SENTINEL_INFERENCE_BASE_URL", default_base).rstrip("/")
+        self.model = os.environ.get("SENTINEL_INFERENCE_MODEL", default_model)
+        self.reasoning_effort = os.environ.get("SENTINEL_INFERENCE_REASONING_EFFORT", "")
         self.timeout = min(10.0, max(1.0, float(os.environ.get("SENTINEL_INFERENCE_TIMEOUT_SECONDS", "5"))))
 
     async def assess(self, frame: WorldFrame, request: AssessmentRequest) -> SituationAssessment:
@@ -77,9 +81,10 @@ class ObserveOrientService:
             ],
             "temperature": 0,
             "max_completion_tokens": 900,
-            "reasoning_effort": "none",
             "response_format": {"type": "json_schema", "json_schema": {"name": "sentinel_observe_orient", "strict": True, "schema": OUTPUT_SCHEMA}},
         }
+        if self.reasoning_effort:
+            body["reasoning_effort"] = self.reasoning_effort
         try:
             raw = await asyncio.wait_for(asyncio.to_thread(self._post, body), timeout=self.timeout + .25)
             content = raw["choices"][0]["message"]["content"]

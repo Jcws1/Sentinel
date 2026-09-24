@@ -37,6 +37,7 @@ def test_context_excludes_untrusted_labels_and_extensions(world):
 
 def test_assessment_is_pinned_to_current_frame_and_strictly_validated(tmp_path, monkeypatch):
     monkeypatch.setenv("SENTINEL_INFERENCE_API_KEY", "test-key")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     application = create_app(str(tmp_path / "assistant.sqlite"), True)
     with TestClient(application) as client:
         frame = application.state.service.read("fixture-alpha")
@@ -51,6 +52,7 @@ def test_assessment_is_pinned_to_current_frame_and_strictly_validated(tmp_path, 
 
 def test_unknown_evidence_is_rejected(world, monkeypatch):
     monkeypatch.setenv("SENTINEL_INFERENCE_API_KEY", "test-key")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     frame = WorldFrame.model_validate(world)
     service = ObserveOrientService()
     bad = output(frame)
@@ -66,6 +68,7 @@ def test_unknown_evidence_is_rejected(world, monkeypatch):
 
 def test_unconfigured_assistant_returns_503(tmp_path, monkeypatch):
     monkeypatch.delenv("SENTINEL_INFERENCE_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     with TestClient(create_app(str(tmp_path / "assistant.sqlite"), True)) as client:
         frame = client.get("/api/missions/fixture-alpha/world").json()
         response = client.post("/api/missions/fixture-alpha/observe-orient", json={"question": "Orient me", "frameId": frame["frameId"]})

@@ -23,6 +23,11 @@ SENTINEL_INFERENCE_MODEL=qwen/qwen3.8-27b
 SENTINEL_INFERENCE_TIMEOUT_SECONDS=5
 ```
 
+For an OpenAI-backed deployment, `OPENAI_API_KEY` alone selects
+`https://api.openai.com/v1` and `gpt-4o-mini`; explicit `SENTINEL_INFERENCE_*`
+values still take precedence. Reasoning effort is omitted unless
+`SENTINEL_INFERENCE_REASONING_EFFORT` is deliberately configured.
+
 Never put the inference key in a `VITE_*` variable. In the cloud boundary the
 POST remains operator-authenticated; an anonymous static frontend must not be
 allowed to spend an inference account directly.
