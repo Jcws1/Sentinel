@@ -27,6 +27,10 @@ Never put the inference key in a `VITE_*` variable. In the cloud boundary the
 POST remains operator-authenticated; an anonymous static frontend must not be
 allowed to spend an inference account directly.
 
+The isolated frontend deployment must set `VITE_SENTINEL_PRIVATE_DEMO=1` so
+the access key is collected at runtime and retained only in page memory. This
+flag is branch-specific and does not alter the existing public demo deployment.
+
 ## Latency target
 
 Five seconds is a service objective, not a guarantee available from a shared

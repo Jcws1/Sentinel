@@ -5,11 +5,18 @@ import { WorkspaceBridge } from './features/workspace/workspaceBridge';
 import './styles/index.css';
 import { createRuntime } from './app/runtime';
 import { OperationalContext } from './app/OperationalContext';
-import { publicDemoConnection } from './services/privateDemo';
+import {
+  publicDemoConnection,
+  requestPrivateAccess,
+} from './services/privateDemo';
 
 async function bootstrap() {
   const base = import.meta.env.VITE_SENTINEL_CLOUD_API?.trim();
-  const connection = base ? publicDemoConnection(base) : {};
+  const connection = base
+    ? import.meta.env.VITE_SENTINEL_PRIVATE_DEMO === '1'
+      ? await requestPrivateAccess(base)
+      : publicDemoConnection(base)
+    : {};
   const bridge = new WorkspaceBridge();
   const runtime = createRuntime(connection);
   if (import.meta.env.MODE === 'verification')
