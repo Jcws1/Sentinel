@@ -106,6 +106,9 @@ def test_exact_frame_admission_and_read_only_fixture(tmp_path):
         frame = client.get("/api/missions/fixture-alpha/world").json()
         stale = client.post("/api/missions/fixture-alpha/tasking-advice", json={"frameId": "stale"})
         assert stale.status_code == 409
+        latest = client.post("/api/missions/fixture-alpha/tasking-advice", json={})
+        assert latest.status_code == 200
+        assert latest.json()["frameId"] == frame["frameId"]
         current = client.post("/api/missions/fixture-alpha/tasking-advice", json={"frameId": frame["frameId"]})
         assert current.status_code == 200
         assert current.json()["executable"] is False

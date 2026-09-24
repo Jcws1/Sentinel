@@ -48,7 +48,6 @@ export function createObserveOrientClient(base: string, fetcher: Fetcher) {
   return {
     async tasking(
       missionId: string,
-      frameId: string,
       focusZoneId: string | undefined,
       signal: AbortSignal,
     ): Promise<TaskingAdvice> {
@@ -57,7 +56,7 @@ export function createObserveOrientClient(base: string, fetcher: Fetcher) {
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ frameId, ...(focusZoneId ? { focusZoneId } : {}) }),
+          body: JSON.stringify({ ...(focusZoneId ? { focusZoneId } : {}) }),
           signal,
         },
       );
@@ -67,7 +66,8 @@ export function createObserveOrientClient(base: string, fetcher: Fetcher) {
           ? String(body.detail) : `Tasking advice failed (${response.status})`;
         throw new Error(message);
       }
-      if (!body || typeof body !== 'object' || !('frameId' in body) || body.frameId !== frameId ||
+      if (!body || typeof body !== 'object' || !('frameId' in body) || typeof body.frameId !== 'string' ||
+          !('missionId' in body) || body.missionId !== missionId ||
           !('source' in body) || body.source !== 'deterministic-rules' ||
           !('executable' in body) || body.executable !== false ||
           !('proposals' in body) || !Array.isArray(body.proposals))

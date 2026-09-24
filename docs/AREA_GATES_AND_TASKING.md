@@ -25,8 +25,10 @@ any real autopilot enforces the polygon.
 
 ## Recommendation cards
 
-`POST /api/missions/{mission_id}/tasking-advice` accepts an exact `frameId` and
-optional `focusZoneId`. It returns five stable cards: MONITOR, RESPOND,
+`POST /api/missions/{mission_id}/tasking-advice` reads the latest committed frame;
+callers may supply `frameId` to require an exact-frame match. The live UI omits
+it so a fast-moving simulator does not make read-only advice unusable. An
+optional `focusZoneId` selects a marked observation area. It returns five stable cards: MONITOR, RESPOND,
 RESTORE_VISIBILITY, RESTORE_LINK and ROTATE_ASSET, grouped under Monitor,
 Respond and Support. It never writes a world frame or executes a command.
 Every response includes the committed frame and live boundary revision.

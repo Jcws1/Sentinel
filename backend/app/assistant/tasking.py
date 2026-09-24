@@ -18,7 +18,7 @@ import json
 
 
 class TaskingRequest(Model):
-    frame_id: Id
+    frame_id: Id | None = None
     focus_zone_id: Id | None = None
 
 

@@ -45,12 +45,12 @@ async def observe_orient(mission_id: str, body: AssessmentRequest, request: Requ
 
 @router.post("/missions/{mission_id:path}/tasking-advice", response_model=TaskingAdvice,
              response_model_exclude_none=True,
-             description="Read-only deterministic Monitor, Respond, Support candidates for one exact frame.")
+             description="Read-only deterministic Monitor, Respond, Support candidates from the latest committed frame; an optional frameId enforces exact-frame admission.")
 async def tasking_advice(mission_id: str, body: TaskingRequest, request: Request):
     try:
         frame = request.app.state.service.read(mission_id)
     except KeyError:
         raise HTTPException(404, "Mission has no committed frame")
-    if frame.frame_id != body.frame_id:
+    if body.frame_id is not None and frame.frame_id != body.frame_id:
         raise HTTPException(409, "Requested frame is no longer current; refresh tasking advice")
     return generate_tasking(frame, body, request.app.state.service.clock())

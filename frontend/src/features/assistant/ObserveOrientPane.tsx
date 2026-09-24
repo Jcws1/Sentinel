@@ -53,7 +53,7 @@ export function ObserveOrientPane() {
     setTurns((current) => [...current, { id, question: 'Monitor · Respond · Support recommendations' }]);
     setBusy(true);
     try {
-      const advice = await runtime.observeOrient.tasking(frame.mission.id, frame.frameId, focusZoneId || undefined, controller.signal);
+      const advice = await runtime.observeOrient.tasking(frame.mission.id, focusZoneId || undefined, controller.signal);
       setTurns((current) => current.map((turn) => turn.id === id ? { ...turn, advice } : turn));
     } catch (caught) {
       if (!controller.signal.aborted) {

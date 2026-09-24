@@ -9361,16 +9361,20 @@
             "title": "Focuszoneid"
           },
           "frameId": {
-            "maxLength": 256,
-            "minLength": 1,
-            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
-            "title": "Frameid",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Frameid"
           }
         },
-        "required": [
-          "frameId"
-        ],
         "title": "TaskingRequest",
         "type": "object"
       },
@@ -11248,7 +11252,7 @@
     },
     "/api/missions/{mission_id}/tasking-advice": {
       "post": {
-        "description": "Read-only deterministic Monitor, Respond, Support candidates for one exact frame.",
+        "description": "Read-only deterministic Monitor, Respond, Support candidates from the latest committed frame; an optional frameId enforces exact-frame admission.",
         "operationId": "tasking_advice_api_missions__mission_id__tasking_advice_post",
         "parameters": [
           {
