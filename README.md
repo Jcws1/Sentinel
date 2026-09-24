@@ -2,6 +2,10 @@
 
 Sentinel is a local mission workspace for synthetic interactive scenarios, recorded operational inspection and supported external simulation batches. It combines Tactical and 3D maps, Fleet controls, scenario authoring, shared entity Details, Command Picture analytics and a Vertical Profile. It is a simulation/development application, not a deployed command system or a real video feed.
 
+## Observe / Orient copilot (feature branch)
+
+The local `feature/observe-orient-copilot` branch ports the guarded Qwen assistant pattern from `main` into the current v3 world authority. It adds a read-only **Observe / Orient** workspace view backed by one exact committed frame. Findings distinguish observation from interpretation, surface uncertainty, cite canonical evidence IDs and cannot execute or stage actions. Provider configuration, latency constraints, safety boundaries and remaining OODA gaps are documented in [the copilot design](docs/OBSERVE_ORIENT_COPILOT.md).
+
 ## UI update — 22 September 2026
 
 The Details panel now presents explicitly classified Wedgetail sandbox friendlies with the **Wedgetail Interceptor** type name, a friendly affiliation symbol instead of an unknown-model silhouette, and a transparent-background aircraft reference image. Previously these observations could show an unknown-model marker with no matching portrait.

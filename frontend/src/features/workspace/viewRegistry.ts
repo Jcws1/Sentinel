@@ -9,11 +9,20 @@ import {
   Settings2,
   Camera,
   ListChecks,
+  Bot,
   FlaskConical,
 } from 'lucide-react';
 
 // View kinds describe capabilities, never domain objects or individual pane instances.
 export const viewRegistry = {
+  assistant: {
+    unavailable: '',
+    title: 'Observe / Orient',
+    category: 'Evidence-grounded copilot',
+    icon: Bot,
+    description: 'Assess one exact committed frame without executing actions.',
+    future: '',
+  },
   simulation: {
     unavailable: '',
     title: 'Simulation',

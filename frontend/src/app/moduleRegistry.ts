@@ -9,11 +9,13 @@ import {
   ListFilter,
   Settings2,
   FlaskConical,
+  Bot,
 } from 'lucide-react';
 import { viewKind, type ViewId } from '../features/workspace/viewRegistry';
 
 /** Navigation availability is shell capability, never mission/domain state. */
 export const modules = [
+  { id: 'assistant', label: 'Observe / Orient', icon: Bot, view: 'assistant' },
   { id: 'home', label: 'Home', icon: House },
   { id: 'map', label: 'Map', icon: Map, view: 'tactical' },
   {

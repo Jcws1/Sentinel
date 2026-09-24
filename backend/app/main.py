@@ -10,7 +10,8 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter
 
-from app.api import missions, stream, interactive, scenarios, simulation, analytics
+from app.api import missions, stream, interactive, scenarios, simulation, analytics, assistant
+from app.assistant.service import ObserveOrientService
 from app.simulation.service import SimulationService
 from app.scenarios.service import ScenarioService
 from app.commands.service import InteractiveService, CommandError
@@ -37,6 +38,7 @@ def create_app(db_path: str | None = None, fixtures_enabled: bool | None = None,
         application.state.interactive = InteractiveService(application.state.service, demo)
         application.state.scenarios = ScenarioService(application.state.service, demo)
         application.state.simulation = SimulationService(application.state.service, os.environ.get("SENTINEL_CALIBRATION_REPORTS"))
+        application.state.observe_orient = ObserveOrientService()
         async def source_loop():
             loop = asyncio.get_running_loop()
             while True:
@@ -72,6 +74,7 @@ def create_app(db_path: str | None = None, fixtures_enabled: bool | None = None,
     application.include_router(scenarios.router)
     application.include_router(simulation.router)
     application.include_router(analytics.router)
+    application.include_router(assistant.router)
 
     @application.middleware("http")
     async def prevent_cached_authority(request: Request, call_next):

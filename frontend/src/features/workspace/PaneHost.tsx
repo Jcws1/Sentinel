@@ -25,6 +25,7 @@ import { MovementPane } from '../movement/MovementPane';
 import { DisplaySettings } from '../settings/DisplaySettings';
 import { CockpitPane } from '../cockpit/CockpitPane';
 import { DecisionSuggestions } from '../entities/DecisionSuggestions';
+import { ObserveOrientPane } from '../assistant/ObserveOrientPane';
 
 const CommandPicture = lazy(() =>
   import('../analytics/CommandPicture').then((module) => ({
@@ -123,7 +124,9 @@ export function PaneHost({
       }}
     >
       <PaneVisibilityContext.Provider value={visible}>
-        {(kind === 'command' || kind === 'vertical') && runtime ? (
+        {kind === 'assistant' && runtime ? (
+          <ObserveOrientPane />
+        ) : (kind === 'command' || kind === 'vertical') && runtime ? (
           <Suspense fallback={<p>Loading analytics…</p>}>
             <CommandPicture bridge={bridge} vertical={kind === 'vertical'} />
           </Suspense>

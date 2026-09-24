@@ -1,0 +1,12 @@
+.oo-pane { height: 100%; overflow: auto; padding: 14px; background: var(--surface, #0b1015); color: var(--text, #dce4eb); }
+.oo-pane header p, .oo-pane small, .oo-pane details p { color: var(--text-secondary, #95a3ae); }
+.oo-pane form { display: grid; gap: 8px; margin: 14px 0; }
+.oo-pane label { display: grid; gap: 5px; font-size: 12px; }
+.oo-pane textarea { min-height: 76px; resize: vertical; border: 1px solid var(--border, #34424d); background: #101820; color: inherit; padding: 8px; }
+.oo-pane button { width: max-content; padding: 7px 12px; border: 1px solid #6fa7bb; background: #18313a; color: inherit; }
+.oo-pane button:disabled { opacity: .45; }
+.oo-pane article { border-top: 1px solid var(--border, #34424d); padding-top: 12px; }
+.oo-pane h1 { margin: 6px 0; }.oo-pane h2 { margin: 12px 0 6px; font-size: 13px; }
+.oo-pane ul { margin: 0; padding-left: 20px; }.oo-pane li { margin: 5px 0; }.oo-pane li p { margin: 0; }
+.oo-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.oo-error, .oo-stale { border-left: 3px solid #d6a64c; padding: 8px; background: #241d10; }

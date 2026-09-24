@@ -44,6 +44,7 @@ import {
 import type { ScenarioContent, UnitPlacement } from '../contracts/generated';
 import type { DeepReadonly, ImmutableFrame, Mission } from '../contracts/types';
 import { createApi, type Fetcher } from '../services/api';
+import { createObserveOrientClient } from '../services/observeOrientClient';
 import {
   createBrowserSocket,
   streamUrl,
@@ -120,6 +121,10 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
   const pageUrl =
     dependencies.pageUrl ?? globalThis.location?.href ?? 'http://localhost/';
   const api = createApi(
+    apiBase,
+    dependencies.fetcher ?? ((input, init) => fetch(input, init)),
+  );
+  const observeOrient = createObserveOrientClient(
     apiBase,
     dependencies.fetcher ?? ((input, init) => fetch(input, init)),
   );
@@ -461,6 +466,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
 
   publish();
   const owner = {
+    observeOrient,
     analytics,
     audit,
     readObservedHistory: api.observedHistory,
