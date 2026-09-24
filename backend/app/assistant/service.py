@@ -100,11 +100,16 @@ class ObserveOrientService:
         evidence_kind.update((event.id, "event") for event in frame.recent_events)
         evidence_ids = set(evidence_kind)
         cited = {item for finding in output.get("observations", []) + output.get("orientation", []) for item in finding.get("evidenceIds", [])}
-        supplied = output.get("evidence", [])
-        supplied_ids = {item.get("id") for item in supplied}
-        if (not cited <= evidence_ids or not cited <= supplied_ids or len(supplied_ids) != len(supplied)
-                or any(item.get("id") not in evidence_ids or evidence_kind[item.get("id")] != item.get("kind") for item in supplied)):
+        if not cited <= evidence_ids:
             raise AssistantInvalidOutput("Inference cited evidence outside the committed frame")
+        # The model may redundantly describe evidence with the wrong kind or an
+        # over-broad claim.  Do not trust that metadata: materialize the evidence
+        # table from the canonical frame identifiers that survived validation.
+        output["evidence"] = [
+            {"kind": evidence_kind[identifier], "id": identifier,
+             "claim": f"Cited canonical {evidence_kind[identifier]} record."}
+            for identifier in sorted(cited)
+        ]
         try:
             return SituationAssessment.model_validate({
                 **output, "missionId": frame.mission.id, "frameId": frame.frame_id,
