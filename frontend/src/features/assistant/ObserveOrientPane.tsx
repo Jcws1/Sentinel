@@ -15,7 +15,9 @@ export function ObserveOrientPane() {
   const request = useRef<AbortController | undefined>(undefined);
   const transcript = useRef<HTMLDivElement>(null);
   useEffect(() => () => request.current?.abort(), []);
-  useEffect(() => transcript.current?.scrollTo({ top: transcript.current.scrollHeight }), [turns, busy]);
+  useEffect(() => {
+    if (transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight;
+  }, [turns, busy]);
 
   async function assess() {
     const prompt = question.trim();
