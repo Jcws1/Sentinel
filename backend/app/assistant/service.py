@@ -66,7 +66,9 @@ class ObserveOrientService:
         self.base_url = os.environ.get("SENTINEL_INFERENCE_BASE_URL", default_base).rstrip("/")
         self.model = os.environ.get("SENTINEL_INFERENCE_MODEL", default_model)
         self.reasoning_effort = os.environ.get("SENTINEL_INFERENCE_REASONING_EFFORT", "")
-        self.timeout = min(10.0, max(1.0, float(os.environ.get("SENTINEL_INFERENCE_TIMEOUT_SECONDS", "5"))))
+        # Keep the operator-facing default fast, while permitting a deployment to
+        # trade a longer bounded wait for reliability on cold provider requests.
+        self.timeout = min(20.0, max(1.0, float(os.environ.get("SENTINEL_INFERENCE_TIMEOUT_SECONDS", "5"))))
 
     async def assess(self, frame: WorldFrame, request: AssessmentRequest) -> SituationAssessment:
         if not self.api_key:
