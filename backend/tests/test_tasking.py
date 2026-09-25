@@ -107,6 +107,22 @@ def test_support_requires_reported_faults_and_explicit_capabilities():
     assert _support(frame, controls)[1]["status"] == "no_feasible_asset"
 
 
+def test_support_does_not_offer_a_zero_distance_relay_move():
+    point = {"longitudeDeg": 103.85, "latitudeDeg": 1.29}
+    frame = {"interactive": {"controls": [
+        {"assetId": "failed", "entityId": "drone-a", "controlTrackId": "track-a"},
+        {"assetId": "relay", "entityId": "drone-b", "controlTrackId": "track-b"}]},
+        "tracks": {key: {"state": "tracking", "latest": {"position": point}}
+                   for key in ("track-a", "track-b")},
+        "sensors": {"link-down": {"id": "link-down", "entityId": "drone-a",
+                                  "modality": "radio-link", "status": "unavailable"}},
+        "assets": {"failed": {"availability": "available", "capabilityCodes": []},
+                   "relay": {"availability": "available", "capabilityCodes": ["synthetic-relay"]}},
+        "tasks": {}}
+    relay = _support(frame, [frame["interactive"]["controls"][1]])[1]
+    assert relay["status"] == "no_feasible_asset"
+
+
 def test_exact_frame_admission_and_read_only_fixture(tmp_path):
     with TestClient(create_app(str(tmp_path / "tasking.sqlite"), True)) as client:
         frame = client.get("/api/missions/fixture-alpha/world").json()

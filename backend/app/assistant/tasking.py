@@ -138,6 +138,20 @@ def _respond(frame, controls, now):
 
 
 def _support(frame, controls):
+    def move_possible(control, affected_entity):
+        # The hosted action is a direct simulator move. Do not call it a
+        # candidate if the destination is missing or already occupied.
+        if not frame.get("interactive"):
+            return True  # Pure evidence-unit fixtures do not model motion.
+        by_entity = {item["entityId"]: item for item in frame["interactive"]["controls"]}
+        affected = by_entity.get(affected_entity)
+        source = frame.get("tracks", {}).get(control.get("controlTrackId"))
+        target = frame.get("tracks", {}).get(affected.get("controlTrackId")) if affected else None
+        if not source or not target or source["state"] != "tracking" or target["state"] != "tracking":
+            return False
+        a, b = metric(source["latest"]["position"], geometry=frame), metric(target["latest"]["position"], geometry=frame)
+        return hypot(a[0] - b[0], a[1] - b[1]) >= 1.0
+
     sensors = frame.get("sensors", {})
     cameras = [sensor for sensor in sensors.values() if sensor["modality"].lower() in {"camera", "video", "visual", "eo", "eo/ir"}]
     down = [sensor for sensor in cameras if sensor["status"] == "unavailable"]
@@ -145,7 +159,8 @@ def _support(frame, controls):
     failed_camera_entities = {sensor["entityId"] for sensor in down}
     camera_replacements = [control for control in controls if control["entityId"] in camera_entities
                            and control["entityId"] not in failed_camera_entities
-                           and frame["assets"][control["assetId"]]["availability"] == "available"]
+                           and frame["assets"][control["assetId"]]["availability"] == "available"
+                           and move_possible(control, down[0]["entityId"])] if down else []
     if down and camera_replacements:
         substitute = camera_replacements[0]
         visibility = _proposal("RESTORE_VISIBILITY", "Support", "candidate", "A camera feed is unavailable; an available camera asset is a candidate for a new view.",
@@ -153,7 +168,7 @@ def _support(frame, controls):
                                targets=[down[0]["entityId"]],
                                limitations=["A move to the last reported camera position does not prove restored visibility; confirm the new view separately."])
     elif down:
-        visibility = _proposal("RESTORE_VISIBILITY", "Support", "no_feasible_asset", "A camera feed is unavailable and no controlled available camera asset is reported.",
+        visibility = _proposal("RESTORE_VISIBILITY", "Support", "no_feasible_asset", "A camera feed is unavailable and no available controlled camera asset has a distinct, current move to review.",
                                evidence=[sensor["id"] for sensor in down])
     else:
         visibility = _proposal("RESTORE_VISIBILITY", "Support", "needs_evidence", "No failed camera feed or verified loss of required visibility is reported.")
@@ -164,7 +179,8 @@ def _support(frame, controls):
     relay_assets = [control for control in controls if
                     {"relay", "synthetic-relay"} & set(frame["assets"][control["assetId"]]["capabilityCodes"])
                     and frame["assets"][control["assetId"]]["availability"] == "available"
-                    and control["entityId"] not in {sensor["entityId"] for sensor in failed_links}]
+                    and control["entityId"] not in {sensor["entityId"] for sensor in failed_links}
+                    and move_possible(control, failed_links[0]["entityId"])] if failed_links else []
     if failed_links and relay_assets:
         relay_asset = relay_assets[0]
         relay = _proposal("RESTORE_LINK", "Support", "candidate", "An explicit link sensor is unavailable; a relay-capable asset is available for planning.",
@@ -172,7 +188,7 @@ def _support(frame, controls):
                           targets=[failed_links[0]["entityId"]],
                           limitations=["A move towards the last reported link-fault position does not prove radio coverage or restored connectivity."])
     elif failed_links:
-        relay = _proposal("RESTORE_LINK", "Support", "no_feasible_asset", "An explicit link sensor is unavailable; no controlled relay-capable asset is reported.",
+        relay = _proposal("RESTORE_LINK", "Support", "no_feasible_asset", "An explicit link sensor is unavailable; no available relay-capable asset has a distinct, current move to review.",
                           evidence=[sensor["id"] for sensor in failed_links])
     else:
         relay = _proposal("RESTORE_LINK", "Support", "needs_evidence", "No explicit link-health observation is available; a relay cannot be justified.",
@@ -187,7 +203,9 @@ def _support(frame, controls):
         needed = set(frame["assets"][failed_asset]["capabilityCodes"])
         replacements = [control for control in controls if control["assetId"] not in task["assetIds"]
                         and frame["assets"][control["assetId"]]["availability"] == "available"
-                        and needed <= set(frame["assets"][control["assetId"]]["capabilityCodes"])]
+                        and needed <= set(frame["assets"][control["assetId"]]["capabilityCodes"])
+                        and (not frame["assets"][failed_asset].get("entityId") or
+                             move_possible(control, frame["assets"][failed_asset]["entityId"]))]
         if replacements:
             substitute = replacements[0]
             rotation = _proposal("ROTATE_ASSET", "Support", "candidate", "A compatible available drone may replace the unavailable task asset; review its position and endurance before approval.",
@@ -195,7 +213,7 @@ def _support(frame, controls):
                                  targets=[frame["assets"][failed_asset]["entityId"]] if frame["assets"][failed_asset].get("entityId") else [],
                                  limitations=["A move towards the failed asset does not transfer its task or prove endurance; confirm reassignment separately."])
         else:
-            rotation = _proposal("ROTATE_ASSET", "Support", "no_feasible_asset", "An active task asset is unavailable and no compatible free replacement is reported.",
+            rotation = _proposal("ROTATE_ASSET", "Support", "no_feasible_asset", "An active task asset is unavailable and no compatible free replacement has a distinct, current move to review.",
                                  evidence=[task["id"], failed_asset])
     return visibility, relay, rotation
 
