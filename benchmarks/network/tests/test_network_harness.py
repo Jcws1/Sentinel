@@ -1,0 +1,117 @@
+import asyncio
+import importlib.util
+import sys
+import unittest
+from pathlib import Path
+from types import SimpleNamespace
+
+
+MODULE_PATH = Path(__file__).parents[1] / "network_harness.py"
+SPEC = importlib.util.spec_from_file_location("network_harness", MODULE_PATH)
+assert SPEC and SPEC.loader
+network_harness = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = network_harness
+SPEC.loader.exec_module(network_harness)
+
+
+class HarnessTests(unittest.TestCase):
+    def test_percentile_uses_nearest_rank(self):
+        self.assertEqual(network_harness.percentile([1, 2, 3, 4], 0.50), 2)
+        self.assertEqual(network_harness.percentile([1, 2, 3, 4], 0.99), 4)
+
+    def test_gap_requires_resync(self):
+        model = network_harness.ClientModel("test")
+        model.install_snapshot({"stream_epoch": "e", "sequence": 2, "tracks": []})
+        result = model.apply_delta(
+            {"stream_epoch": "e", "base_sequence": 3, "sequence": 4, "track": {"track_id": "T"}}
+        )
+        self.assertEqual(result, "resync")
+        self.assertEqual(model.sequence, 2)
+
+    def test_snapshot_epoch_header_and_safe_cursor(self):
+        parsed = network_harness.parse_snapshot(
+            {"stream_sequence": 9, "covers_through": 7, "tracks": []},
+            {"X-Sentinel-Epoch": "epoch-7"},
+        )
+        self.assertEqual(parsed["stream_epoch"], "epoch-7")
+        self.assertEqual(parsed["sequence"], 7)
+
+    def test_gateway_envelope_translation(self):
+        kind, delta = network_harness.parse_gateway_message(
+            {
+                "transport_version": "sentinel-gateway/v1",
+                "server_epoch": "e-1",
+                "base_sequence": 3,
+                "result_sequence": 4,
+                "payload": {
+                    "message_type": "track_delta",
+                    "track": {"track_id": "T", "revision": 1},
+                },
+            }
+        )
+        self.assertEqual(kind, "delta")
+        self.assertEqual(delta["stream_epoch"], "e-1")
+        self.assertEqual(delta["sequence"], 4)
+
+    def test_strict_observation_shape(self):
+        item = network_harness.observation(0, 0, 7, 0)
+        required = {
+            "schema_version", "message_type", "message_id", "stream_id",
+            "stream_sequence", "emitted_at", "correlation", "observation_id",
+            "track_id", "source_id", "source_sequence", "source_time",
+            "position", "velocity",
+        }
+        self.assertEqual(set(item), required)
+
+    def test_gateway_command_wraps_preconditions(self):
+        command = {"command_id": "c-1"}
+        request = network_harness.gateway_command_request(command, "epoch-1", 4)
+        self.assertEqual(request["transport_version"], "sentinel-gateway/v1")
+        self.assertEqual(request["expected_epoch"], "epoch-1")
+        self.assertEqual(request["expected_revision"], 4)
+        self.assertIs(request["command"], command)
+
+    def test_dry_run_five_clients_gap_and_commands(self):
+        args = SimpleNamespace(
+            drones=3,
+            hz=20,
+            duration=0.5,
+            seed=7,
+            gap_fault=True,
+            gap_at=7,
+        )
+        summary = asyncio.run(network_harness.run_dry(args))
+        self.assertTrue(summary["checks"]["passed"])
+        self.assertEqual(len(summary["clients"]), 5)
+        self.assertTrue(all(item["converged"] for item in summary["clients"]))
+        self.assertEqual(summary["clients"][4]["fault_drops"], 1)
+        self.assertEqual(summary["commands"][2]["http_status"], 409)
+        self.assertFalse(summary["is_network_performance_evidence"])
+        self.assertEqual(summary["producer"]["accepted"], 30)
+
+    def test_endpoint_latency_samples_remain_separate(self):
+        args = SimpleNamespace(
+            drones=3, hz=1, duration=1, seed=1, gap_fault=False, gap_at=7
+        )
+        clients = [network_harness.ClientModel(f"c-{i}") for i in range(5)]
+        snap = {"stream_epoch": "e", "sequence": 0, "tracks": []}
+        for client in clients:
+            client.install_snapshot(snap)
+        summary = network_harness.build_summary(
+            args,
+            "live",
+            {},
+            clients,
+            1000,
+            [(202, {"receipt_status": "accepted"}),
+             (200, {"receipt_status": "duplicate"}),
+             (409, {"error": "conflict"})],
+            {"snapshot": [1.0], "observation": [2.0, 3.0], "command": [4.0]},
+            {"intended": 3, "offered": 3, "accepted": 3, "rejected": 0},
+        )
+        self.assertEqual(summary["http_rtt_by_endpoint"]["snapshot"]["p50_ms"], 1.0)
+        self.assertEqual(summary["http_rtt_by_endpoint"]["observation"]["p95_ms"], 3.0)
+
+
+if __name__ == "__main__":
+    unittest.main()
