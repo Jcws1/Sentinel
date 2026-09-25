@@ -3,7 +3,7 @@ use std::env;
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::mpsc::{self, Receiver, Sender, SyncSender, TrySendError};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -41,6 +41,7 @@ struct Config {
     seconds: u32,
     partitions: usize,
     warmup_ticks: u32,
+    queue_capacity: usize,
     output: PathBuf,
 }
 
@@ -52,6 +53,7 @@ impl Config {
             seconds: 10,
             partitions: 4,
             warmup_ticks: 20,
+            queue_capacity: 1024,
             output: PathBuf::from("target/realtime-benchmark.json"),
         };
         let mut args = env::args().skip(1);
@@ -65,14 +67,50 @@ impl Config {
                 "--seconds" => config.seconds = parse(&flag, &value)?,
                 "--partitions" => config.partitions = parse(&flag, &value)?,
                 "--warmup-ticks" => config.warmup_ticks = parse(&flag, &value)?,
+                "--queue-capacity" => config.queue_capacity = parse(&flag, &value)?,
                 "--output" => config.output = PathBuf::from(value),
                 _ => return Err(format!("unknown argument {flag}")),
             }
         }
-        if config.drones == 0 || config.hz == 0 || config.seconds == 0 || config.partitions == 0 {
-            return Err("drones, hz, seconds and partitions must be positive".into());
+        if config.drones == 0
+            || config.hz == 0
+            || config.seconds == 0
+            || config.partitions == 0
+            || config.queue_capacity == 0
+        {
+            return Err(
+                "drones, hz, seconds, partitions and queue-capacity must be positive".into(),
+            );
         }
         Ok(config)
+    }
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+struct OverloadMetrics {
+    queue_full_events: u64,
+    producer_block_events: u64,
+    coalesced_observations: u64,
+    dropped_observations: u64,
+}
+
+/// Observations use lossless backpressure: a full bounded partition queue is
+/// counted and then the producer blocks until capacity is available. This
+/// prototype does not model commands; control messages also use reliable,
+/// blocking delivery and are never coalesced or dropped.
+fn send_observation(
+    sender: &SyncSender<WorkerMessage>,
+    item: Measurement,
+    metrics: &mut OverloadMetrics,
+) -> Result<(), mpsc::SendError<WorkerMessage>> {
+    match sender.try_send(WorkerMessage::Measurement(item)) {
+        Ok(()) => Ok(()),
+        Err(TrySendError::Full(message)) => {
+            metrics.queue_full_events += 1;
+            metrics.producer_block_events += 1;
+            sender.send(message)
+        }
+        Err(TrySendError::Disconnected(message)) => Err(mpsc::SendError(message)),
     }
 }
 
@@ -173,18 +211,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut worker_senders = Vec::with_capacity(config.partitions);
     let mut worker_handles = Vec::with_capacity(config.partitions);
     for _ in 0..config.partitions {
-        let (sender, receiver) = mpsc::channel();
+        let (sender, receiver) = mpsc::sync_channel(config.queue_capacity);
         let revisions = revision_sender.clone();
         worker_senders.push(sender);
         worker_handles.push(thread::spawn(move || worker(receiver, revisions)));
     }
     drop(revision_sender);
 
+    let mut overload_metrics = OverloadMetrics::default();
     for sequence in 1..=config.warmup_ticks as u64 {
         for track_id in 1..=config.drones {
             let item = measurement(track_id, sequence, config.hz);
-            worker_senders[stable_partition(track_id, config.partitions)]
-                .send(WorkerMessage::Measurement(item))?;
+            send_observation(
+                &worker_senders[stable_partition(track_id, config.partitions)],
+                item,
+                &mut overload_metrics,
+            )?;
         }
         for _ in 0..config.drones {
             revision_receiver.recv()?;
@@ -203,8 +245,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let tick_start = Instant::now();
         for track_id in 1..=config.drones {
             let item = measurement(track_id, sequence, config.hz);
-            worker_senders[stable_partition(track_id, config.partitions)]
-                .send(WorkerMessage::Measurement(item))?;
+            send_observation(
+                &worker_senders[stable_partition(track_id, config.partitions)],
+                item,
+                &mut overload_metrics,
+            )?;
             log.write_all(&track_id.to_le_bytes())?;
             log.write_all(&sequence.to_le_bytes())?;
             log.write_all(&item.source_time_ns.to_le_bytes())?;
@@ -253,11 +298,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "  \"hzPerDrone\": {},\n",
             "  \"seconds\": {},\n",
             "  \"partitions\": {},\n",
+            "  \"queueCapacityPerPartition\": {},\n",
             "  \"ticks\": {},\n",
             "  \"measurements\": {},\n",
             "  \"elapsedMs\": {:.6},\n",
             "  \"measurementsPerSecond\": {:.3},\n",
             "  \"tickLatencyMs\": {{\"median\": {:.6}, \"p95\": {:.6}, \"p99\": {:.6}, \"max\": {:.6}}},\n",
+            "  \"overload\": {{\"policy\": \"block-producer\", \"queueFullEvents\": {}, \"producerBlockEvents\": {}, \"coalescedObservations\": {}, \"droppedObservations\": {}}},\n",
             "  \"finalTrackCount\": {},\n",
             "  \"finalSequence\": {},\n",
             "  \"canonicalStateHash\": \"{:016x}\",\n",
@@ -268,6 +315,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         config.hz,
         config.seconds,
         config.partitions,
+        config.queue_capacity,
         tick_count,
         total_measurements,
         elapsed.as_secs_f64() * 1000.0,
@@ -276,6 +324,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         p95,
         p99,
         maximum,
+        overload_metrics.queue_full_events,
+        overload_metrics.producer_block_events,
+        overload_metrics.coalesced_observations,
+        overload_metrics.dropped_observations,
         snapshots.len(),
         start_sequence + tick_count as u64 - 1,
         state_hash,
@@ -321,5 +373,43 @@ mod tests {
             canonical_hash(&mut vec![(1, a), (2, b)]),
             canonical_hash(&mut vec![(2, b), (1, a)])
         );
+    }
+
+    #[test]
+    fn bounded_queue_reports_backpressure_without_observation_loss() {
+        let (sender, receiver) = mpsc::sync_channel(1);
+        let mut metrics = OverloadMetrics::default();
+        let first = measurement(1, 1, 10);
+        let second = measurement(1, 2, 10);
+        send_observation(&sender, first, &mut metrics).unwrap();
+
+        let consumer = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(10));
+            let first = receiver.recv().unwrap();
+            let second = receiver.recv().unwrap();
+            (first, second)
+        });
+        send_observation(&sender, second, &mut metrics).unwrap();
+
+        let (first_message, second_message) = consumer.join().unwrap();
+        assert!(matches!(
+            first_message,
+            WorkerMessage::Measurement(item) if item.sequence == 1
+        ));
+        assert!(matches!(
+            second_message,
+            WorkerMessage::Measurement(item) if item.sequence == 2
+        ));
+        assert_eq!(metrics.queue_full_events, 1);
+        assert_eq!(metrics.producer_block_events, 1);
+        assert_eq!(metrics.coalesced_observations, 0);
+        assert_eq!(metrics.dropped_observations, 0);
+    }
+
+    #[test]
+    fn control_messages_are_reliably_delivered_through_bounded_queue() {
+        let (sender, receiver) = mpsc::sync_channel(1);
+        sender.send(WorkerMessage::Shutdown).unwrap();
+        assert!(matches!(receiver.recv().unwrap(), WorkerMessage::Shutdown));
     }
 }

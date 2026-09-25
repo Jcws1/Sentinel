@@ -64,9 +64,30 @@ One 10-drone Rust run showed an operating-system scheduler outlier, but its
 maximum tick latency remained below 0.52 ms. The longer 3-drone 6,000-tick run
 also retained the same deterministic state rules.
 
-The 100 Hz case is not an overload-policy proof. Channels remain unbounded and
-the producer waits for every acknowledgement; queue limits, coalescing,
-priority isolation, queue-age alarms and recovery are the next test target.
+The original 100 Hz case was not an overload-policy proof. At that checkpoint
+channels were unbounded and the producer waited for every acknowledgement;
+queue limits, coalescing, priority isolation, queue-age alarms and recovery
+remained the next test target.
+
+## Bounded-queue checkpoint
+
+The next slice replaced unbounded worker channels with bounded per-partition
+queues and a lossless observation policy: count a full queue, then block the
+producer until the same observation can be delivered. Snapshot/shutdown control
+messages also use reliable blocking delivery. Commands are not modeled yet.
+
+At 30 drones × 20 Hz for 60 source seconds:
+
+| Capacity/partition | Tick p50 | p95 | p99 | Full/block events | Dropped | Final hash |
+| ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 1,024 | 0.0139 ms | 0.0302 ms | 0.1319 ms | 0 | 0 | `7e6cd34f92b16d68` |
+| 1 | 0.0818 ms | 0.1350 ms | 0.2080 ms | 13,591 | 0 | `7e6cd34f92b16d68` |
+
+The deliberately constrained queue preserves the final state and makes
+backpressure visible, but this is still an as-fast-as-possible producer that
+waits for every tick. It does not yet demonstrate latest-position coalescing,
+separate durable command priority, queue-age alarms or network slow-consumer
+recovery.
 
 ## Decision
 

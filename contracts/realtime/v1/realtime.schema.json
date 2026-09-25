@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel.local/contracts/realtime/v1/realtime.schema.json",
+  "title": "Sentinel real-time protocol v1",
+  "oneOf": [
+    { "$ref": "#/$defs/observation" },
+    { "$ref": "#/$defs/track_delta" },
+    { "$ref": "#/$defs/gap" },
+    { "$ref": "#/$defs/snapshot_request" },
+    { "$ref": "#/$defs/snapshot" },
+    { "$ref": "#/$defs/command" },
+    { "$ref": "#/$defs/command_receipt" },
+    { "$ref": "#/$defs/command_outcome" }
+  ],
+  "$defs": {
+    "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$" },
+    "sequence": { "type": "integer", "minimum": 1 },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "correlation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["correlation_id"],
+      "properties": {
+        "correlation_id": { "$ref": "#/$defs/id" },
+        "causation_id": { "$ref": "#/$defs/id" },
+        "trace_id": { "$ref": "#/$defs/id" }
+      }
+    },
+    "position": {
+      "type": "object", "additionalProperties": false,
+      "required": ["x_mm", "y_mm"],
+      "properties": { "x_mm": { "type": "integer" }, "y_mm": { "type": "integer" }, "z_mm": { "type": "integer" } }
+    },
+    "velocity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["x_mm_s", "y_mm_s"],
+      "properties": { "x_mm_s": { "type": "integer" }, "y_mm_s": { "type": "integer" }, "z_mm_s": { "type": "integer" } }
+    },
+    "track_state": {
+      "type": "object", "additionalProperties": false,
+      "required": ["track_id", "revision", "source_time", "position", "velocity"],
+      "properties": {
+        "track_id": { "$ref": "#/$defs/id" }, "revision": { "$ref": "#/$defs/sequence" },
+        "source_time": { "$ref": "#/$defs/timestamp" }, "position": { "$ref": "#/$defs/position" },
+        "velocity": { "$ref": "#/$defs/velocity" }
+      }
+    },
+    "base": {
+      "type": "object",
+      "required": ["schema_version", "message_type", "message_id", "stream_id", "stream_sequence", "emitted_at", "correlation"],
+      "properties": {
+        "schema_version": { "const": "realtime/v1" }, "message_type": { "type": "string" },
+        "message_id": { "$ref": "#/$defs/id" }, "stream_id": { "$ref": "#/$defs/id" },
+        "stream_sequence": { "$ref": "#/$defs/sequence" }, "emitted_at": { "$ref": "#/$defs/timestamp" },
+        "correlation": { "$ref": "#/$defs/correlation" }
+      }
+    },
+    "observation": {
+      "allOf": [{ "$ref": "#/$defs/base" }, {
+        "type": "object", "additionalProperties": false,
+        "required": ["schema_version", "message_type", "message_id", "stream_id", "stream_sequence", "emitted_at", "correlation", "observation_id", "track_id", "source_id", "source_sequence", "source_time", "position", "velocity"],
+        "properties": {
+          "schema_version": {}, "message_type": { "const": "observation" }, "message_id": {}, "stream_id": {}, "stream_sequence": {}, "emitted_at": {}, "correlation": {},
+          "observation_id": { "$ref": "#/$defs/id" }, "track_id": { "$ref": "#/$defs/id" }, "source_id": { "$ref": "#/$defs/id" },
+          "source_sequence": { "$ref": "#/$defs/sequence" }, "source_time": { "$ref": "#/$defs/timestamp" },
+          "position": { "$ref": "#/$defs/position" }, "velocity": { "$ref": "#/$defs/velocity" }
+        }
+      }]
+    },
+    "track_delta": {
+      "allOf": [{ "$ref": "#/$defs/base" }, {
+        "type": "object", "additionalProperties": false,
+        "required": ["schema_version", "message_type", "message_id", "stream_id", "stream_sequence", "emitted_at", "correlation", "track", "previous_revision"],
+        "properties": {
+          "schema_version": {}, "message_type": { "const": "track_delta" }, "message_id": {}, "stream_id": {}, "stream_sequence": {}, "emitted_at": {}, "correlation": {},
+          "track": { "$ref": "#/$defs/track_state" }, "previous_revision": { "type": "integer", "minimum": 0 }
+        }
+      }]
+    },
+    "gap": {
+      "allOf": [{ "$ref": "#/$defs/base" }, {
+        "type": "object", "additionalProperties": false,
+        "required": ["schema_version", "message_type", "message_id", "stream_id", "stream_sequence", "emitted_at", "correlation", "missing_from", "missing_through", "recovery"],
+        "properties": {
+          "schema_version": {}, "message_type": { "const": "gap" }, "message_id": {}, "stream_id": {}, "stream_sequence": {}, "emitted_at": {}, "correlation": {},
+          "missing_from": { "$ref": "#/$defs/sequence" }, "missing_through": { "$ref": "#/$defs/sequence" },
+          "recovery": { "enum": ["replay_or_snapshot", "snapshot_required"] }
+        }
+      }]
+    },
+    "snapshot_request": {
+      "allOf": [{ "$ref": "#/$defs/base" }, {
+        "type": "object", "additionalProperties": false,
+        "required": ["schema_version", "message_type", "message_id", "stream_id", "stream_sequence", "emitted_at", "correlation", "last_applied_sequence"],
+        "properties": {
+          "schema_version": {}, "message_type": { "const": "snapshot_request" }, "message_id": {}, "stream_id": {}, "stream_sequence": {}, "emitted_at": {}, "correlation": {},
+          "last_applied_sequence": { "type": "integer", "minimum": 0 }
+        }
+      }]
+    },
+    "snapshot": {
+      "allOf": [{ "$ref": "#/$defs/base" }, {
+        "type": "object", "additionalProperties": false,
+        "required": ["schema_version", "message_type", "message_id", "stream_id", "stream_sequence", "emitted_at", "correlation", "checkpoint_id", "covers_through", "tracks", "state_hash"],
+        "properties": {
+          "schema_version": {}, "message_type": { "const": "snapshot" }, "message_id": {}, "stream_id": {}, "stream_sequence": {}, "emitted_at": {}, "correlation": {},
+          "checkpoint_id": { "$ref": "#/$defs/id" }, "covers_through": { "$ref": "#/$defs/sequence" },
+          "tracks": { "type": "array", "items": { "$ref": "#/$defs/track_state" } },
+          "state_hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+        }
+      }]
+    },
+    "command": {
+      "allOf": [{ "$ref": "#/$defs/base" }, {
+        "type": "object", "additionalProperties": false,
+        "required": ["schema_version", "message_type", "message_id", "stream_id", "stream_sequence", "emitted_at", "correlation", "command_id", "command_name", "target_id", "idempotency_key", "parameters"],
+        "properties": {
+          "schema_version": {}, "message_type": { "const": "command" }, "message_id": {}, "stream_id": {}, "stream_sequence": {}, "emitted_at": {}, "correlation": {},
+          "command_id": { "$ref": "#/$defs/id" }, "command_name": { "$ref": "#/$defs/id" }, "target_id": { "$ref": "#/$defs/id" },
+          "idempotency_key": { "$ref": "#/$defs/id" }, "parameters": { "type": "object" }
+        }
+      }]
+    },
+    "command_receipt": {
+      "allOf": [{ "$ref": "#/$defs/base" }, {
+        "type": "object", "additionalProperties": false,
+        "required": ["schema_version", "message_type", "message_id", "stream_id", "stream_sequence", "emitted_at", "correlation", "command_id", "receipt_status"],
+        "properties": {
+          "schema_version": {}, "message_type": { "const": "command_receipt" }, "message_id": {}, "stream_id": {}, "stream_sequence": {}, "emitted_at": {}, "correlation": {},
+          "command_id": { "$ref": "#/$defs/id" }, "receipt_status": { "enum": ["accepted", "rejected", "duplicate"] }, "reason": { "type": "string", "maxLength": 512 }
+        }
+      }]
+    },
+    "command_outcome": {
+      "allOf": [{ "$ref": "#/$defs/base" }, {
+        "type": "object", "additionalProperties": false,
+        "required": ["schema_version", "message_type", "message_id", "stream_id", "stream_sequence", "emitted_at", "correlation", "command_id", "outcome_status"],
+        "properties": {
+          "schema_version": {}, "message_type": { "const": "command_outcome" }, "message_id": {}, "stream_id": {}, "stream_sequence": {}, "emitted_at": {}, "correlation": {},
+          "command_id": { "$ref": "#/$defs/id" }, "outcome_status": { "enum": ["succeeded", "failed", "cancelled", "expired"] },
+          "result": { "type": "object" }, "reason": { "type": "string", "maxLength": 512 }
+        }
+      }]
+    }
+  }
+}
