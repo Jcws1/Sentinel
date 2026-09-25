@@ -1,4 +1,9 @@
-use std::{env, fs, path::PathBuf, process::ExitCode, time::Instant};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+    process::ExitCode,
+    time::Instant,
+};
 
 use chrono::{SecondsFormat, Utc};
 use clap::Parser;
@@ -136,11 +141,18 @@ fn bounded_body(text: &str, secret: &str) -> Value {
     Value::String(clean)
 }
 
-fn write_evidence(path: &PathBuf, evidence: &Evidence) -> Result<(), String> {
-    let parent = path.parent().ok_or("output must have a parent directory")?;
-    if !parent.exists() {
+fn validate_output_parent(path: &Path) -> Result<(), String> {
+    let parent = path.parent().ok_or("output path is invalid")?;
+    // `Path::parent` represents a bare relative filename's parent as an empty
+    // path. That means the current directory, which is a valid destination.
+    if !parent.as_os_str().is_empty() && !parent.exists() {
         return Err("output parent directory does not exist".into());
     }
+    Ok(())
+}
+
+fn write_evidence(path: &Path, evidence: &Evidence) -> Result<(), String> {
+    validate_output_parent(path)?;
     let encoded = serde_json::to_vec_pretty(evidence).map_err(|e| e.to_string())?;
     fs::write(path, encoded).map_err(|e| e.to_string())
 }
@@ -281,6 +293,12 @@ mod tests {
         let encoded = serde_json::to_string(&body).unwrap();
         assert!(!encoded.contains("secret-value"));
         assert!(encoded.contains("REDACTED"));
+    }
+
+    #[test]
+    fn bare_relative_output_filename_uses_current_directory() {
+        assert!(validate_output_parent(&PathBuf::from("dry-run-check.json")).is_ok());
+        assert!(validate_output_parent(&PathBuf::from("missing-parent/dry-run.json")).is_err());
     }
 
     #[tokio::test]

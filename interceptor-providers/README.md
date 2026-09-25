@@ -1,13 +1,31 @@
 # Interceptor provider boundary
 
 This isolated crate defines Sentinel's provider-neutral interception boundary. It
-does not dispatch from the gateway yet and contains no credentials or concrete
-network client. HTTP is available only through an injected `ProviderTransport`,
-which keeps tests offline and makes ambiguous network outcomes explicit.
+does not dispatch from the gateway yet and contains no credentials.
+`HttpsProviderTransport` is the concrete `reqwest`/rustls network client;
+adapters still receive it through `ProviderTransport`, which keeps contract
+tests offline and makes ambiguous network outcomes explicit.
 The transport contract permits an ordinary error only before any request bytes
 were sent. A timeout, reset, or cancellation after a write starts must be
 reported as `AmbiguousAfterDispatch`; adapters may never downgrade it to a safe
 retry.
+
+The production transport accepts HTTPS origins only, checks the destination
+against an explicit origin allowlist, rejects URL credentials and fragments,
+disables redirects and ambient proxies, restricts HTTP methods, rejects
+hop-by-hop/sensitive ordinary/duplicate headers, bounds the response body, and
+uses one absolute deadline across DNS, connection, send and response reading.
+The reviewed hostname is resolved once, private/non-routable addresses are
+rejected, and the accepted addresses are pinned into the client to prevent DNS
+rebinding. An explicit private-network policy exists only in the test
+constructor. DNS failures are pre-dispatch. A reqwest `is_connect` error is
+classified `NotDispatched` only because request bytes were not dispatched; any
+timeout or error whose dispatch status cannot be proven is conservatively
+`AmbiguousAfterDispatch`. Secret headers are added only while constructing the
+request. Secret echoes in response bytes are rejected before JSON is returned,
+and neither secret values nor provider response bodies appear in error
+messages. Loopback HTTP exists only in `cfg(test)` for black-box mock-server
+coverage.
 
 Adapters:
 

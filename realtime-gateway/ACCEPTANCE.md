@@ -132,6 +132,16 @@ verification is 22/22 gateway tests plus 15/15 provider tests, strict release
 Clippy, formatting and diff checks. All provider tests are offline fixtures;
 this is not evidence of a live external call.
 
+Concrete transport follow-on: the Rust provider layer now includes a
+reqwest/rustls HTTPS transport with normalized origin allowlisting, pinned
+global DNS results, redirects and ambient proxies disabled, one absolute
+deadline, bounded responses, strict header policy and response secret-echo
+rejection. The opt-in Wedgetail contract harness is network-free by default and
+requires three explicit live acknowledgements plus `WEDGETAIL_API_KEY`; it can
+send exactly one target and has no retry or batch path. Provider verification is
+now 23/23 tests and the harness is 6/6. No live submission has been made because
+no sandbox key is configured in this environment.
+
 ## Remaining release gates
 
 1. Add a concrete secret-aware HTTPS transport and run approved live contract

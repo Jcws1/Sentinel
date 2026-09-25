@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use futures_util::StreamExt;
 use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
+use reqwest::{Method, redirect::Policy};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -620,6 +622,327 @@ pub trait ProviderTransport: Send + Sync {
     ) -> Result<TransportResult, PreDispatchTransportError>;
 }
 
+/// Production HTTPS transport. Redirects are disabled so a provider cannot
+/// move credentials to an origin that was not reviewed. The origin is checked
+/// again here even when an adapter already validated its configuration.
+#[derive(Clone)]
+pub struct HttpsProviderTransport {
+    allowlisted_origins: BTreeSet<String>,
+    connect_timeout: std::time::Duration,
+    request_timeout: std::time::Duration,
+    max_response_bytes: usize,
+    allow_private_networks: bool,
+}
+
+impl HttpsProviderTransport {
+    pub fn new(
+        allowlisted_origins: BTreeSet<String>,
+        connect_timeout: std::time::Duration,
+        request_timeout: std::time::Duration,
+        max_response_bytes: usize,
+    ) -> Result<Self, ProviderError> {
+        if allowlisted_origins.is_empty()
+            || max_response_bytes == 0
+            || connect_timeout.is_zero()
+            || request_timeout.is_zero()
+        {
+            return Err(ProviderError::Invalid("invalid_transport_limits".into()));
+        }
+        let mut normalized_origins = BTreeSet::new();
+        for origin in &allowlisted_origins {
+            let parsed = Url::parse(origin)
+                .map_err(|_| ProviderError::Invalid("invalid_allowlisted_origin".into()))?;
+            if parsed.scheme() != "https"
+                || parsed.path() != "/"
+                || parsed.query().is_some()
+                || parsed.fragment().is_some()
+                || !parsed.username().is_empty()
+                || parsed.password().is_some()
+            {
+                return Err(ProviderError::Invalid(
+                    "allowlist_must_contain_https_origins".into(),
+                ));
+            }
+            normalized_origins.insert(parsed.origin().ascii_serialization());
+        }
+        Ok(Self {
+            allowlisted_origins: normalized_origins,
+            connect_timeout,
+            request_timeout,
+            max_response_bytes,
+            allow_private_networks: false,
+        })
+    }
+
+    #[cfg(test)]
+    fn loopback_test_transport(origin: String) -> Self {
+        Self {
+            allowlisted_origins: [origin].into(),
+            connect_timeout: std::time::Duration::from_secs(1),
+            request_timeout: std::time::Duration::from_secs(2),
+            max_response_bytes: 4096,
+            allow_private_networks: true,
+        }
+    }
+
+    fn validate_destination(&self, raw: &str) -> Result<(), PreDispatchTransportError> {
+        let url = Url::parse(raw)
+            .map_err(|_| PreDispatchTransportError("invalid_destination_url".into()))?;
+        let loopback_test = cfg!(test)
+            && url.scheme() == "http"
+            && url
+                .host_str()
+                .is_some_and(|h| h == "127.0.0.1" || h == "::1")
+            && self.allow_private_networks;
+        if url.scheme() != "https" && !loopback_test {
+            return Err(PreDispatchTransportError("https_required".into()));
+        }
+        let origin = url.origin().ascii_serialization();
+        if !self.allowlisted_origins.contains(&origin) {
+            return Err(PreDispatchTransportError(
+                "destination_not_allowlisted".into(),
+            ));
+        }
+        if !url.username().is_empty() || url.password().is_some() || url.fragment().is_some() {
+            return Err(PreDispatchTransportError("unsafe_destination_url".into()));
+        }
+        Ok(())
+    }
+
+    fn address_allowed(&self, ip: std::net::IpAddr) -> bool {
+        if self.allow_private_networks {
+            return true;
+        }
+        match ip {
+            std::net::IpAddr::V4(ip) => Self::public_ipv4(ip),
+            std::net::IpAddr::V6(ip) => {
+                if let Some(mapped) = ip.to_ipv4_mapped() {
+                    return self.address_allowed(std::net::IpAddr::V4(mapped));
+                }
+                Self::public_ipv6(ip)
+            }
+        }
+    }
+
+    // Stable, conservative equivalent of `IpAddr::is_global`: admit ordinary
+    // globally routed unicast only. New/special ranges remain denied until
+    // deliberately reviewed.
+    fn public_ipv4(ip: std::net::Ipv4Addr) -> bool {
+        let [a, b, c, _] = ip.octets();
+        !(a == 0
+            || a == 10
+            || a == 127
+            || (a == 100 && (64..=127).contains(&b)) // shared 100.64/10
+            || (a == 169 && b == 254)
+            || (a == 172 && (16..=31).contains(&b))
+            || (a == 192 && b == 0 && c == 0) // IETF protocol assignments
+            || (a == 192 && b == 0 && c == 2)
+            || (a == 192 && b == 88 && c == 99)
+            || (a == 192 && b == 31 && c == 196)
+            || (a == 192 && b == 52 && c == 193)
+            || (a == 192 && b == 175 && c == 48)
+            || (a == 192 && b == 168)
+            || (a == 198 && (b == 18 || b == 19)) // benchmarking 198.18/15
+            || (a == 198 && b == 51 && c == 100)
+            || (a == 203 && b == 0 && c == 113)
+            || a >= 224) // multicast and reserved 240/4
+    }
+
+    fn public_ipv6(ip: std::net::Ipv6Addr) -> bool {
+        let segments = ip.segments();
+        // Ordinary global unicast is 2000::/3. Exclude special-purpose
+        // allocations within it: IETF 2001:0000::/23, documentation /32,
+        // and deprecated 6to4 2002::/16.
+        (segments[0] & 0xe000) == 0x2000
+            && !(segments[0] == 0x2001 && segments[1] <= 0x01ff)
+            && !(segments[0] == 0x2001 && segments[1] == 0x0db8)
+            && segments[0] != 0x2002
+            && !(segments[0] == 0x3fff && (segments[1] & 0xf000) == 0)
+    }
+
+    async fn send_with_deadline(
+        &self,
+        request: TransportRequest,
+    ) -> Result<TransportResult, PreDispatchTransportError> {
+        let parsed = Url::parse(&request.url)
+            .map_err(|_| PreDispatchTransportError("invalid_destination_url".into()))?;
+        let host = parsed
+            .host_str()
+            .ok_or_else(|| PreDispatchTransportError("destination_host_required".into()))?;
+        let port = parsed
+            .port_or_known_default()
+            .ok_or_else(|| PreDispatchTransportError("destination_port_required".into()))?;
+        let resolved: Vec<_> = tokio::net::lookup_host((host, port))
+            .await
+            .map_err(|_| PreDispatchTransportError("dns_resolution_failed".into()))?
+            .filter(|address| self.address_allowed(address.ip()))
+            .collect();
+        if resolved.is_empty() {
+            return Err(PreDispatchTransportError(
+                "destination_resolved_to_disallowed_network".into(),
+            ));
+        }
+        // Build a client for this dispatch so the reviewed DNS result is pinned
+        // for connection establishment and cannot be rebound between checks.
+        let client = reqwest::Client::builder()
+            .connect_timeout(self.connect_timeout)
+            .redirect(Policy::none())
+            .no_proxy()
+            .resolve_to_addrs(host, &resolved)
+            .build()
+            .map_err(|_| PreDispatchTransportError("transport_client_build_failed".into()))?;
+        let method = Method::from_bytes(request.method.as_bytes())
+            .map_err(|_| PreDispatchTransportError("invalid_http_method".into()))?;
+        if !matches!(
+            method,
+            Method::GET | Method::POST | Method::PUT | Method::DELETE
+        ) {
+            return Err(PreDispatchTransportError("http_method_not_allowed".into()));
+        }
+        let forbidden = [
+            "host",
+            "content-length",
+            "transfer-encoding",
+            "connection",
+            "proxy-connection",
+            "keep-alive",
+            "te",
+            "trailer",
+            "upgrade",
+            "authorization",
+            "proxy-authorization",
+            "cookie",
+        ];
+        let mut names = BTreeSet::new();
+        let mut builder = client.request(method, &request.url);
+        for (name, value) in request.headers {
+            let normalized = name.to_ascii_lowercase();
+            if forbidden.contains(&normalized.as_str()) || !names.insert(normalized) {
+                return Err(PreDispatchTransportError(
+                    "forbidden_or_duplicate_header".into(),
+                ));
+            }
+            let name = reqwest::header::HeaderName::from_bytes(name.as_bytes())
+                .map_err(|_| PreDispatchTransportError("invalid_header_name".into()))?;
+            let value = reqwest::header::HeaderValue::from_str(&value)
+                .map_err(|_| PreDispatchTransportError("invalid_header_value".into()))?;
+            builder = builder.header(name, value);
+        }
+        let mut secret_values = Vec::new();
+        for secret in request.secret_headers {
+            let normalized = secret.name.to_ascii_lowercase();
+            if [
+                "host",
+                "content-length",
+                "transfer-encoding",
+                "connection",
+                "proxy-connection",
+                "keep-alive",
+                "te",
+                "trailer",
+                "upgrade",
+            ]
+            .contains(&normalized.as_str())
+                || !names.insert(normalized)
+            {
+                return Err(PreDispatchTransportError(
+                    "forbidden_or_duplicate_header".into(),
+                ));
+            }
+            let name = reqwest::header::HeaderName::from_bytes(secret.name.as_bytes())
+                .map_err(|_| PreDispatchTransportError("invalid_secret_header_name".into()))?;
+            let value = reqwest::header::HeaderValue::from_bytes(secret.value.expose())
+                .map_err(|_| PreDispatchTransportError("invalid_secret_header_value".into()))?;
+            secret_values.push(secret.value.expose().to_vec());
+            builder = builder.header(name, value);
+        }
+        if request.body != Value::Null {
+            builder = builder.json(&request.body);
+        }
+        let response = match builder.send().await {
+            Err(error) if error.is_connect() => {
+                return Ok(TransportResult::NotDispatched("connection_failed".into()));
+            }
+            Err(error) if error.is_builder() => {
+                return Err(PreDispatchTransportError("request_build_failed".into()));
+            }
+            Err(_) => {
+                return Ok(TransportResult::AmbiguousAfterDispatch(
+                    "transport_failed_after_possible_dispatch".into(),
+                ));
+            }
+            Ok(response) => response,
+        };
+        let status = response.status().as_u16();
+        if response
+            .content_length()
+            .is_some_and(|length| length > self.max_response_bytes as u64)
+        {
+            return Ok(TransportResult::AmbiguousAfterDispatch(
+                "response_body_too_large".into(),
+            ));
+        }
+        let mut stream = response.bytes_stream();
+        let mut bytes = Vec::new();
+        while let Some(chunk) = stream.next().await {
+            let chunk = match chunk {
+                Ok(chunk) => chunk,
+                Err(_) => {
+                    return Ok(TransportResult::AmbiguousAfterDispatch(
+                        "response_body_failed".into(),
+                    ));
+                }
+            };
+            if bytes.len().saturating_add(chunk.len()) > self.max_response_bytes {
+                return Ok(TransportResult::AmbiguousAfterDispatch(
+                    "response_body_too_large".into(),
+                ));
+            }
+            bytes.extend_from_slice(&chunk);
+        }
+        if secret_values
+            .iter()
+            .any(|secret| !secret.is_empty() && bytes.windows(secret.len()).any(|x| x == secret))
+        {
+            return Ok(TransportResult::AmbiguousAfterDispatch(
+                "provider_response_contained_secret".into(),
+            ));
+        }
+        let body = if bytes.is_empty() {
+            Value::Null
+        } else {
+            match serde_json::from_slice(&bytes) {
+                Ok(value) => value,
+                Err(_) => {
+                    return Ok(TransportResult::AmbiguousAfterDispatch(
+                        "invalid_json_response".into(),
+                    ));
+                }
+            }
+        };
+        Ok(TransportResult::Response(TransportResponse {
+            status,
+            body,
+        }))
+    }
+}
+
+#[async_trait]
+impl ProviderTransport for HttpsProviderTransport {
+    async fn send(
+        &self,
+        request: TransportRequest,
+    ) -> Result<TransportResult, PreDispatchTransportError> {
+        self.validate_destination(&request.url)?;
+        match tokio::time::timeout(self.request_timeout, self.send_with_deadline(request)).await {
+            Ok(result) => result,
+            Err(_) => Ok(TransportResult::AmbiguousAfterDispatch(
+                "total_request_deadline_exceeded".into(),
+            )),
+        }
+    }
+}
+
 pub struct WedgetailSandboxAdapter<T: ProviderTransport, A: ApiKeyProvider> {
     id: ProviderId,
     transport: T,
@@ -1194,6 +1517,24 @@ impl CapabilityRouter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    async fn one_shot_server(
+        response: &'static [u8],
+    ) -> (String, tokio::task::JoinHandle<Vec<u8>>) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let task = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = vec![0_u8; 16 * 1024];
+            let read = socket.read(&mut request).await.unwrap();
+            request.truncate(read);
+            socket.write_all(response).await.unwrap();
+            socket.shutdown().await.unwrap();
+            request
+        });
+        (format!("http://{address}"), task)
+    }
     #[derive(Clone)]
     struct FakeTransport {
         result: Arc<Mutex<Option<TransportResult>>>,
@@ -1446,6 +1787,201 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[tokio::test]
+    async fn https_transport_sends_secret_without_exposing_it_and_parses_json() {
+        let (origin, captured) = one_shot_server(
+            b"HTTP/1.1 202 Accepted\r\nContent-Type: application/json\r\nContent-Length: 15\r\nConnection: close\r\n\r\n{\"status\":\"ok\"}",
+        )
+        .await;
+        let transport = HttpsProviderTransport::loopback_test_transport(origin.clone());
+        let result = transport
+            .send(TransportRequest {
+                method: "POST".into(),
+                url: format!("{origin}/commands"),
+                headers: [("Content-Type".into(), "application/json".into())].into(),
+                secret_headers: vec![SecretHeader {
+                    name: "Authorization".into(),
+                    value: SecretValue::new("Bearer test-only-secret").unwrap(),
+                }],
+                body: json!({"operation_id":"op-1"}),
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            result,
+            TransportResult::Response(TransportResponse {
+                status: 202,
+                body: json!({"status":"ok"}),
+            })
+        );
+        let request = String::from_utf8(captured.await.unwrap()).unwrap();
+        assert!(request.contains("authorization: Bearer test-only-secret"));
+        assert_eq!(
+            format!("{:?}", SecretValue::new("test-only-secret").unwrap()),
+            "[REDACTED]"
+        );
+    }
+
+    #[tokio::test]
+    async fn https_transport_does_not_follow_redirects() {
+        let response = b"HTTP/1.1 307 Temporary Redirect\r\nLocation: https://evil.example/steal\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}";
+        let (origin, _) = one_shot_server(response).await;
+        let transport = HttpsProviderTransport::loopback_test_transport(origin.clone());
+        let result = transport
+            .send(TransportRequest {
+                method: "GET".into(),
+                url: format!("{origin}/redirect"),
+                headers: HashMap::new(),
+                secret_headers: vec![],
+                body: Value::Null,
+            })
+            .await
+            .unwrap();
+        assert!(matches!(
+            result,
+            TransportResult::Response(TransportResponse { status: 307, .. })
+        ));
+    }
+
+    #[tokio::test]
+    async fn https_transport_rejects_provider_response_that_echoes_secret() {
+        let response = b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 33\r\nConnection: close\r\n\r\n{\"echo\":\"test-only-secret-value\"}";
+        let (origin, _) = one_shot_server(response).await;
+        let transport = HttpsProviderTransport::loopback_test_transport(origin.clone());
+        let result = transport
+            .send(TransportRequest {
+                method: "GET".into(),
+                url: format!("{origin}/echo"),
+                headers: HashMap::new(),
+                secret_headers: vec![SecretHeader {
+                    name: "X-API-Key".into(),
+                    value: SecretValue::new("test-only-secret-value").unwrap(),
+                }],
+                body: Value::Null,
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            result,
+            TransportResult::AmbiguousAfterDispatch("provider_response_contained_secret".into())
+        );
+        assert!(!format!("{result:?}").contains("test-only-secret-value"));
+    }
+
+    #[tokio::test]
+    async fn https_transport_rejects_sensitive_ordinary_and_duplicate_headers() {
+        let (origin, _) =
+            one_shot_server(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}")
+                .await;
+        let transport = HttpsProviderTransport::loopback_test_transport(origin.clone());
+        let result = transport
+            .send(TransportRequest {
+                method: "POST".into(),
+                url: format!("{origin}/commands"),
+                headers: [("Authorization".into(), "must-not-be-ordinary".into())].into(),
+                secret_headers: vec![],
+                body: Value::Null,
+            })
+            .await;
+        assert_eq!(
+            result,
+            Err(PreDispatchTransportError(
+                "forbidden_or_duplicate_header".into()
+            ))
+        );
+    }
+
+    #[tokio::test]
+    async fn https_transport_treats_unproven_connect_timeout_as_ambiguous() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        drop(listener);
+        let origin = format!("http://{address}");
+        let transport = HttpsProviderTransport::loopback_test_transport(origin.clone());
+        let result = transport
+            .send(TransportRequest {
+                method: "POST".into(),
+                url: format!("{origin}/commands"),
+                headers: HashMap::new(),
+                secret_headers: vec![],
+                body: json!({}),
+            })
+            .await
+            .unwrap();
+        assert!(matches!(
+            result,
+            TransportResult::NotDispatched(_) | TransportResult::AmbiguousAfterDispatch(_)
+        ));
+    }
+
+    #[test]
+    fn https_transport_rejects_non_https_production_allowlist() {
+        assert!(matches!(
+            HttpsProviderTransport::new(
+                ["http://provider.example".into()].into(),
+                std::time::Duration::from_secs(1),
+                std::time::Duration::from_secs(1),
+                1024,
+            ),
+            Err(ProviderError::Invalid(_))
+        ));
+    }
+
+    #[test]
+    fn https_transport_rejects_zero_timeouts() {
+        assert!(matches!(
+            HttpsProviderTransport::new(
+                ["https://provider.example".into()].into(),
+                std::time::Duration::ZERO,
+                std::time::Duration::from_secs(1),
+                1024,
+            ),
+            Err(ProviderError::Invalid(_))
+        ));
+    }
+
+    #[test]
+    fn production_destination_policy_denies_special_purpose_addresses() {
+        let transport = HttpsProviderTransport::new(
+            ["https://provider.example".into()].into(),
+            std::time::Duration::from_secs(1),
+            std::time::Duration::from_secs(1),
+            1024,
+        )
+        .unwrap();
+        for denied in [
+            "0.1.2.3",
+            "10.0.0.1",
+            "100.64.0.1",
+            "127.0.0.1",
+            "169.254.1.1",
+            "172.16.0.1",
+            "192.0.0.1",
+            "192.0.2.1",
+            "192.168.1.1",
+            "198.18.0.1",
+            "198.51.100.1",
+            "203.0.113.1",
+            "224.0.0.1",
+            "240.0.0.1",
+            "255.255.255.255",
+            "::1",
+            "::ffff:127.0.0.1",
+            "fc00::1",
+            "fe80::1",
+            "ff02::1",
+            "2001:db8::1",
+            "2002::1",
+        ] {
+            let ip: std::net::IpAddr = denied.parse().unwrap();
+            assert!(!transport.address_allowed(ip), "unexpectedly allowed {ip}");
+        }
+        for allowed in ["1.1.1.1", "8.8.8.8", "2606:4700:4700::1111"] {
+            let ip: std::net::IpAddr = allowed.parse().unwrap();
+            assert!(transport.address_allowed(ip), "unexpectedly denied {ip}");
+        }
     }
     #[test]
     fn generic_rejects_unlisted_origin() {
