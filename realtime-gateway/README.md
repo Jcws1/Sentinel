@@ -19,7 +19,13 @@ Endpoints:
 - `GET /v1/snapshot`
 - `POST /v1/observations`
 - `POST /v1/commands`
+- `GET /v1/outbox/commands` (diagnostic list of currently eligible, unleased work)
+- `POST /v1/outbox/claim`
+- `POST /v1/outbox/commands/{command_id}/renew`
+- `POST /v1/outbox/commands/{command_id}/release`
+- `POST /v1/outbox/commands/{command_id}/retry`
 - `GET /v1/commands/{command_id}`
+- `POST /v1/commands/{command_id}/outcome` (requires the current lease)
 - `GET /v1/deltas?after_sequence=N` (WebSocket)
 
 Every HTTP response participating in recovery includes `x-sentinel-epoch`.
@@ -41,11 +47,28 @@ domain-message schema.
 Commands are posted in a `sentinel-gateway/v1` wrapper containing
 `expected_epoch`, `expected_revision`, and the strict realtime/v1 `command`.
 Stale preconditions are rejected before admission. Command admission is
-idempotent in-process: a retry using the same key and same
+idempotent and durable across restart: a retry using the same key and same
 semantic command returns `duplicate`; reusing the key for different content is
-`409 Conflict`, as is reusing a command ID under another idempotency key. It is
-not yet durable across restart, so an `accepted` receipt
-must not yet be interpreted as production-grade durable admission.
+`409 Conflict`, as is reusing a command ID under another idempotency key. The
+SQLite WAL journal uses `synchronous=FULL` and is committed before an accepted
+receipt is returned. This is durable admission for the single-host prototype,
+not yet a claim of production-grade multi-host durability.
+
+Pending commands are executed through a durable claim/lease protocol. Claiming
+atomically assigns an opaque fencing token, expiry, worker ID, and increments a
+persisted attempt count. Only that worker/token pair can renew, release, defer,
+or complete the command while the lease remains unexpired. Expiry permits a new
+worker to reclaim with a new token; the old token is then fenced. Completion
+atomically records the terminal outcome and clears the active claim. Times are
+persisted as UTC Unix milliseconds and therefore rely on a sufficiently
+synchronised host clock. A backwards wall-clock jump can delay reclaim and a
+forward jump can expire work early; production deployment needs clock-health
+monitoring and conservative lease durations.
+
+Prototype limitations: there is no maximum-attempt/dead-letter policy,
+exponential backoff, jitter, executor authentication, per-command lease policy,
+or external Wedgetail idempotency guarantee. SQLite serialises journal writes;
+the protocol has not yet been qualified for multiple hosts sharing storage.
 
 Observation IDs are likewise idempotent only for byte-equivalent canonical
 content; changing content under the same ID returns `409 Conflict`. Request

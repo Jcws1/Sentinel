@@ -85,8 +85,36 @@ corruption/disk-full handling, or downstream exactly-once execution.
 
 ## Remaining release gates
 
-1. Executor claim/lease/attempt state and an idempotent external adapter so two
-   executors cannot perform the same recovered command.
+### Executor fencing checkpoint
+
+The outbox now supports atomic claim, opaque fencing token, expiry, renewal,
+release/retry scheduling, attempt counting and lease-bound completion. Five
+real race/restart runs passed:
+
+- exactly one of two workers claimed the command;
+- expiry permitted a new worker to reclaim it with a new token and incremented
+  attempt count;
+- the old token was rejected with `409 lease_not_current`;
+- only the current token created the terminal outcome;
+- exact completion retry returned the existing outcome;
+- terminal commands could not be reclaimed; and
+- the outcome survived gateway restart.
+
+Across the five runs, median terminal completion RTT was 16.04 ms and the
+maximum observed was 27.30 ms. One independent rerun measured a 3.56 ms current
+completion and 2.40 ms reconciliation after restart.
+
+This establishes exclusive local claims and fenced local completion. Delivery
+remains **at least once**, not exactly once: a worker may complete the external
+effect and crash before recording the outcome. Exactly-once Wedgetail effects
+require the external API to honor a stable idempotency key or offer an
+authoritative reconciliation query.
+
+## Remaining release gates
+
+1. Idempotent Wedgetail submission/reconciliation using the stable Sentinel
+   command ID; otherwise explicitly manage the unavoidable ambiguous-effect
+   state. Add maximum attempts and a governed exponential retry schedule.
 2. Crash injection immediately before/after SQLite commit and before the HTTP
    response, plus corruption, read-only and disk-full tests.
 3. Successor protocol contract with epoch, base/result cursor, heartbeat and

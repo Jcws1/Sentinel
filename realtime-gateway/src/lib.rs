@@ -9,7 +9,7 @@ use axum::{
     routing::{get, post},
 };
 use chrono::{SecondsFormat, Utc};
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -24,6 +24,7 @@ use std::{
 };
 use tokio::sync::{mpsc, watch};
 use tower_http::timeout::TimeoutLayer;
+use uuid::Uuid;
 
 const VERSION: &str = "realtime/v1";
 const STREAM_ID: &str = "sentinel-tracks";
@@ -132,12 +133,34 @@ pub struct CommandReceipt {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct CommandOutcomeRequest {
+    pub worker_id: String,
+    pub lease_token: String,
     pub outcome_id: String,
     pub status: String,
     pub emitted_at: String,
     pub correlation: Correlation,
     #[serde(default)]
     pub details: serde_json::Map<String, Value>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ClaimRequest {
+    pub worker_id: String,
+    pub lease_duration_ms: u64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LeaseRequest {
+    pub worker_id: String,
+    pub lease_token: String,
+    #[serde(default)]
+    pub lease_duration_ms: Option<u64>,
+    #[serde(default)]
+    pub retry_after_ms: Option<u64>,
+    #[serde(default)]
+    pub error: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -330,7 +353,7 @@ impl AppState {
         connection.pragma_update(None, "synchronous", "FULL")?;
         let user_version: u32 =
             connection.pragma_query_value(None, "user_version", |r| r.get(0))?;
-        if user_version != 0 && user_version != 1 {
+        if user_version > 2 {
             return Err(rusqlite::Error::InvalidQuery);
         }
         if user_version == 0 {
@@ -343,8 +366,9 @@ impl AppState {
                 return Err(rusqlite::Error::InvalidQuery);
             }
         }
-        connection.execute_batch(
-            "CREATE TABLE IF NOT EXISTS commands (
+        if user_version == 0 {
+            connection.execute_batch(
+                "CREATE TABLE IF NOT EXISTS commands (
                 command_id TEXT PRIMARY KEY,
                 idempotency_key TEXT NOT NULL UNIQUE,
                 fingerprint TEXT NOT NULL,
@@ -363,7 +387,23 @@ impl AppState {
                 FOREIGN KEY(command_id) REFERENCES commands(command_id)
              );
              PRAGMA user_version=1;",
-        )?;
+            )?;
+        }
+        if user_version < 2 {
+            connection.execute_batch(
+                "ALTER TABLE commands ADD COLUMN worker_id TEXT;
+                 ALTER TABLE commands ADD COLUMN lease_token TEXT;
+                 ALTER TABLE commands ADD COLUMN lease_expires_at_ms INTEGER;
+                 ALTER TABLE commands ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0;
+                 ALTER TABLE commands ADD COLUMN next_attempt_at_ms INTEGER NOT NULL DEFAULT 0;
+                 ALTER TABLE commands ADD COLUMN last_error TEXT;
+                 ALTER TABLE command_outcomes ADD COLUMN completed_worker_id TEXT;
+                 ALTER TABLE command_outcomes ADD COLUMN completed_lease_token TEXT;
+                 CREATE INDEX IF NOT EXISTS commands_outbox_eligible
+                   ON commands(execution_state,next_attempt_at_ms,lease_expires_at_ms,created_at);
+                 PRAGMA user_version=2;",
+            )?;
+        }
         let integrity: String = connection.query_row("PRAGMA quick_check", [], |r| r.get(0))?;
         if integrity != "ok" {
             return Err(rusqlite::Error::InvalidQuery);
@@ -406,6 +446,13 @@ pub fn app(state: AppState) -> Router {
         .route("/v1/observations", post(ingest))
         .route("/v1/commands", post(command))
         .route("/v1/outbox/commands", get(pending_commands))
+        .route("/v1/outbox/claim", post(claim_command))
+        .route("/v1/outbox/commands/{command_id}/renew", post(renew_lease))
+        .route(
+            "/v1/outbox/commands/{command_id}/release",
+            post(release_lease),
+        )
+        .route("/v1/outbox/commands/{command_id}/retry", post(retry_lease))
         .route("/v1/commands/{command_id}", get(reconcile))
         .route("/v1/commands/{command_id}/outcome", post(record_outcome))
         .route("/v1/deltas", get(ws_upgrade))
@@ -430,6 +477,22 @@ fn storage_error(operation: &str) -> Response {
     (
         StatusCode::INTERNAL_SERVER_ERROR,
         Json(json!({"error":"command_store_unavailable","operation":operation})),
+    )
+        .into_response()
+}
+
+fn unix_ms() -> i64 {
+    Utc::now().timestamp_millis()
+}
+
+fn valid_lease_duration(ms: u64) -> bool {
+    (100..=300_000).contains(&ms)
+}
+
+fn lease_conflict() -> Response {
+    (
+        StatusCode::CONFLICT,
+        Json(json!({"error":"lease_not_current"})),
     )
         .into_response()
 }
@@ -740,7 +803,10 @@ async fn command(
 async fn pending_commands(State(s): State<AppState>) -> Response {
     let db = s.command_db.lock().unwrap();
     let mut statement = match db.prepare(
-        "SELECT command_json,receipt_json FROM commands WHERE execution_state='pending' ORDER BY created_at,command_id",
+        "SELECT command_json,receipt_json FROM commands WHERE execution_state='pending'
+         AND next_attempt_at_ms<=CAST(unixepoch('subsec')*1000 AS INTEGER)
+         AND (lease_token IS NULL OR lease_expires_at_ms<=CAST(unixepoch('subsec')*1000 AS INTEGER))
+         ORDER BY created_at,command_id",
     ) {
         Ok(v) => v,
         Err(_) => return storage_error("prepare_pending_outbox"),
@@ -768,6 +834,216 @@ async fn pending_commands(State(s): State<AppState>) -> Response {
         pending.push(json!({"command":command,"receipt":receipt,"execution_state":"pending"}));
     }
     with_epoch(&s, Json(json!({"commands":pending})))
+}
+
+async fn claim_command(State(s): State<AppState>, Json(request): Json<ClaimRequest>) -> Response {
+    if !valid_id(&request.worker_id) || !valid_lease_duration(request.lease_duration_ms) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error":"invalid_claim_request"})),
+        )
+            .into_response();
+    }
+    let now_ms = unix_ms();
+    let expires = now_ms.saturating_add(request.lease_duration_ms as i64);
+    let token = Uuid::new_v4().to_string();
+    let mut db = s.command_db.lock().unwrap();
+    let tx = match db.transaction_with_behavior(TransactionBehavior::Immediate) {
+        Ok(v) => v,
+        Err(_) => return storage_error("begin_claim_transaction"),
+    };
+    let candidate: Option<String> = match tx
+        .query_row(
+            "SELECT command_id FROM commands
+         WHERE execution_state='pending' AND next_attempt_at_ms<=?1
+           AND (lease_token IS NULL OR lease_expires_at_ms<=?1)
+         ORDER BY next_attempt_at_ms,created_at,command_id LIMIT 1",
+            [now_ms],
+            |row| row.get(0),
+        )
+        .optional()
+    {
+        Ok(v) => v,
+        Err(_) => return storage_error("select_claim_candidate"),
+    };
+    let Some(command_id) = candidate else {
+        if tx.commit().is_err() {
+            return storage_error("commit_empty_claim");
+        }
+        return with_epoch(&s, StatusCode::NO_CONTENT);
+    };
+    let changed = match tx.execute(
+        "UPDATE commands SET worker_id=?1,lease_token=?2,lease_expires_at_ms=?3,
+          attempt_count=attempt_count+1,last_error=NULL
+         WHERE command_id=?4 AND execution_state='pending'
+           AND next_attempt_at_ms<=?5 AND (lease_token IS NULL OR lease_expires_at_ms<=?5)",
+        params![request.worker_id, token, expires, command_id, now_ms],
+    ) {
+        Ok(v) => v,
+        Err(_) => return storage_error("claim_command"),
+    };
+    if changed != 1 {
+        return storage_error("claim_race");
+    }
+    let row: (String, String, i64) = match tx.query_row(
+        "SELECT command_json,receipt_json,attempt_count FROM commands WHERE command_id=?1",
+        [&command_id],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+    ) {
+        Ok(v) => v,
+        Err(_) => return storage_error("read_claimed_command"),
+    };
+    if tx.commit().is_err() {
+        return storage_error("commit_claim");
+    }
+    let command: Command = match serde_json::from_str(&row.0) {
+        Ok(v) => v,
+        Err(_) => return storage_error("decode_claimed_command"),
+    };
+    let receipt: CommandReceipt = match serde_json::from_str(&row.1) {
+        Ok(v) => v,
+        Err(_) => return storage_error("decode_claimed_receipt"),
+    };
+    with_epoch(
+        &s,
+        Json(json!({"claim":{"command":command,"receipt":receipt,
+        "worker_id":request.worker_id,"lease_token":token,"lease_expires_at_ms":expires,
+        "attempt_count":row.2}})),
+    )
+}
+
+fn command_exists(db: &Connection, command_id: &str) -> Result<bool, rusqlite::Error> {
+    db.query_row(
+        "SELECT 1 FROM commands WHERE command_id=?1",
+        [command_id],
+        |_| Ok(()),
+    )
+    .optional()
+    .map(|v| v.is_some())
+}
+
+async fn renew_lease(
+    State(s): State<AppState>,
+    Path(command_id): Path<String>,
+    Json(request): Json<LeaseRequest>,
+) -> Response {
+    let Some(duration) = request.lease_duration_ms else {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error":"lease_duration_required"})),
+        )
+            .into_response();
+    };
+    if !valid_id(&command_id)
+        || !valid_id(&request.worker_id)
+        || !valid_id(&request.lease_token)
+        || !valid_lease_duration(duration)
+    {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error":"invalid_lease_request"})),
+        )
+            .into_response();
+    }
+    let now_ms = unix_ms();
+    let expires = now_ms.saturating_add(duration as i64);
+    let db = s.command_db.lock().unwrap();
+    let changed = match db.execute(
+        "UPDATE commands SET lease_expires_at_ms=?1 WHERE command_id=?2 AND execution_state='pending'
+         AND worker_id=?3 AND lease_token=?4 AND lease_expires_at_ms>?5",
+        params![expires, command_id, request.worker_id, request.lease_token, now_ms],
+    ) { Ok(v) => v, Err(_) => return storage_error("renew_lease") };
+    if changed == 0 {
+        return match command_exists(&db, &command_id) {
+            Ok(false) => StatusCode::NOT_FOUND.into_response(),
+            Ok(true) => lease_conflict(),
+            Err(_) => storage_error("lookup_lease_command"),
+        };
+    }
+    with_epoch(
+        &s,
+        Json(
+            json!({"command_id":command_id,"worker_id":request.worker_id,
+        "lease_token":request.lease_token,"lease_expires_at_ms":expires}),
+        ),
+    )
+}
+
+fn relinquish_lease(
+    s: &AppState,
+    command_id: &str,
+    request: LeaseRequest,
+    retry: bool,
+) -> Response {
+    if !valid_id(command_id) || !valid_id(&request.worker_id) || !valid_id(&request.lease_token) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error":"invalid_lease_request"})),
+        )
+            .into_response();
+    }
+    let delay = if retry {
+        match request.retry_after_ms {
+            Some(v) if v <= 86_400_000 => v,
+            _ => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({"error":"valid_retry_after_ms_required"})),
+                )
+                    .into_response();
+            }
+        }
+    } else {
+        0
+    };
+    let now_ms = unix_ms();
+    let next = now_ms.saturating_add(delay as i64);
+    let db = s.command_db.lock().unwrap();
+    let changed = match db.execute(
+        "UPDATE commands SET worker_id=NULL,lease_token=NULL,lease_expires_at_ms=NULL,
+          next_attempt_at_ms=?1,last_error=?2 WHERE command_id=?3 AND execution_state='pending'
+          AND worker_id=?4 AND lease_token=?5 AND lease_expires_at_ms>?6",
+        params![
+            next,
+            request.error,
+            command_id,
+            request.worker_id,
+            request.lease_token,
+            now_ms
+        ],
+    ) {
+        Ok(v) => v,
+        Err(_) => return storage_error("relinquish_lease"),
+    };
+    if changed == 0 {
+        return match command_exists(&db, command_id) {
+            Ok(false) => StatusCode::NOT_FOUND.into_response(),
+            Ok(true) => lease_conflict(),
+            Err(_) => storage_error("lookup_lease_command"),
+        };
+    }
+    with_epoch(
+        s,
+        Json(
+            json!({"command_id":command_id,"execution_state":"pending","next_attempt_at_ms":next}),
+        ),
+    )
+}
+
+async fn release_lease(
+    State(s): State<AppState>,
+    Path(command_id): Path<String>,
+    Json(request): Json<LeaseRequest>,
+) -> Response {
+    relinquish_lease(&s, &command_id, request, false)
+}
+
+async fn retry_lease(
+    State(s): State<AppState>,
+    Path(command_id): Path<String>,
+    Json(request): Json<LeaseRequest>,
+) -> Response {
+    relinquish_lease(&s, &command_id, request, true)
 }
 
 async fn reconcile(State(s): State<AppState>, Path(command_id): Path<String>) -> Response {
@@ -806,6 +1082,8 @@ async fn record_outcome(
     const TERMINAL_STATUSES: &[&str] =
         &["succeeded", "failed", "cancelled", "intercepted", "missed"];
     if !valid_id(&command_id)
+        || !valid_id(&request.worker_id)
+        || !valid_id(&request.lease_token)
         || !valid_id(&request.outcome_id)
         || !TERMINAL_STATUSES.contains(&request.status.as_str())
         || !valid_id(&request.correlation.correlation_id)
@@ -827,18 +1105,19 @@ async fn record_outcome(
     };
     let fingerprint = outcome_fingerprint(&outcome);
     let mut db = s.command_db.lock().unwrap();
-    let command_json: Option<String> = match db
+    type CommandLeaseRow = (String, Option<String>, Option<String>, Option<i64>);
+    let command_row: Option<CommandLeaseRow> = match db
         .query_row(
-            "SELECT command_json FROM commands WHERE command_id=?1",
+            "SELECT command_json,worker_id,lease_token,lease_expires_at_ms FROM commands WHERE command_id=?1",
             [&command_id],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
         )
         .optional()
     {
         Ok(v) => v,
         Err(_) => return storage_error("lookup_outcome_command"),
     };
-    let Some(command_json) = command_json else {
+    let Some((command_json, active_worker, active_token, lease_expires)) = command_row else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let stored_command: Command = match serde_json::from_str(&command_json) {
@@ -875,19 +1154,22 @@ async fn record_outcome(
         )
             .into_response();
     }
-    let existing: Option<(String, String)> = match db
+    let existing: Option<(String, String, Option<String>, Option<String>)> = match db
         .query_row(
-            "SELECT fingerprint,outcome_json FROM command_outcomes WHERE command_id=?1",
+            "SELECT fingerprint,outcome_json,completed_worker_id,completed_lease_token FROM command_outcomes WHERE command_id=?1",
             [&command_id],
-            |row| Ok((row.get(0)?, row.get(1)?)),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
         )
         .optional()
     {
         Ok(v) => v,
         Err(_) => return storage_error("lookup_existing_outcome"),
     };
-    if let Some((stored_fp, json)) = existing {
-        if stored_fp != fingerprint {
+    if let Some((stored_fp, json, completed_worker, completed_token)) = existing {
+        if stored_fp != fingerprint
+            || completed_worker.as_deref() != Some(request.worker_id.as_str())
+            || completed_token.as_deref() != Some(request.lease_token.as_str())
+        {
             return (
                 StatusCode::CONFLICT,
                 Json(json!({"error":"terminal_outcome_already_recorded"})),
@@ -900,16 +1182,34 @@ async fn record_outcome(
         };
         return with_epoch(&s, (StatusCode::OK, Json(stored)));
     }
+    if active_worker.as_deref() != Some(request.worker_id.as_str())
+        || active_token.as_deref() != Some(request.lease_token.as_str())
+        || lease_expires.is_none_or(|expires| expires <= unix_ms())
+    {
+        return lease_conflict();
+    }
     let outcome_json = serde_json::to_string(&outcome).unwrap();
-    let tx = match db.transaction() {
+    let completion_now = unix_ms();
+    let tx = match db.transaction_with_behavior(TransactionBehavior::Immediate) {
         Ok(v) => v,
         Err(_) => return storage_error("begin_outcome_transaction"),
     };
+    let fenced = match tx.execute(
+        "UPDATE commands SET execution_state='terminal',worker_id=NULL,lease_token=NULL,lease_expires_at_ms=NULL
+         WHERE command_id=?1 AND execution_state='pending' AND worker_id=?2 AND lease_token=?3
+           AND lease_expires_at_ms>?4",
+        params![command_id, request.worker_id, request.lease_token, completion_now],
+    ) {
+        Ok(v) => v,
+        Err(_) => return storage_error("fence_outcome_completion"),
+    };
+    if fenced != 1 {
+        return lease_conflict();
+    }
     if tx.execute(
-        "INSERT INTO command_outcomes(command_id,outcome_id,fingerprint,outcome_json,created_at) VALUES(?1,?2,?3,?4,?5)",
-        params![command_id, outcome.outcome_id, fingerprint, outcome_json, now()],
-    ).is_err() || tx.execute("UPDATE commands SET execution_state='terminal' WHERE command_id=?1", [&command_id]).is_err()
-        || tx.commit().is_err() { return storage_error("persist_outcome"); }
+        "INSERT INTO command_outcomes(command_id,outcome_id,fingerprint,outcome_json,created_at,completed_worker_id,completed_lease_token) VALUES(?1,?2,?3,?4,?5,?6,?7)",
+        params![command_id, outcome.outcome_id, fingerprint, outcome_json, now(), request.worker_id, request.lease_token],
+    ).is_err() || tx.commit().is_err() { return storage_error("persist_outcome"); }
     with_epoch(&s, (StatusCode::CREATED, Json(outcome)))
 }
 
@@ -1137,8 +1437,20 @@ mod tests {
         );
     }
 
-    fn outcome_body(status: &str) -> Value {
-        json!({"outcome_id":"outcome-1","status":status,"emitted_at":"2026-09-25T00:00:02Z",
+    async fn claim(router: Router, worker: &str) -> String {
+        let (status, body) = request(
+            router,
+            "POST",
+            "/v1/outbox/claim",
+            json!({"worker_id":worker,"lease_duration_ms":30_000}),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        body["claim"]["lease_token"].as_str().unwrap().to_owned()
+    }
+
+    fn outcome_body(status: &str, worker: &str, token: &str) -> Value {
+        json!({"worker_id":worker,"lease_token":token,"outcome_id":"outcome-1","status":status,"emitted_at":"2026-09-25T00:00:02Z",
             "correlation":{"correlation_id":"c-cmd","causation_id":"m-cmd"},"details":{"result":"verified"}})
     }
 
@@ -1157,12 +1469,13 @@ mod tests {
         )
         .await;
         assert_eq!(accepted_status, StatusCode::ACCEPTED);
+        let token = claim(first_router.clone(), "worker-1").await;
         assert_eq!(
             request(
                 first_router,
                 "POST",
                 "/v1/commands/cmd-1/outcome",
-                outcome_body("intercepted")
+                outcome_body("intercepted", "worker-1", &token)
             )
             .await
             .0,
@@ -1204,12 +1517,13 @@ mod tests {
             .0,
             StatusCode::ACCEPTED
         );
+        let token = claim(first_router.clone(), "worker-1").await;
         assert_eq!(
             request(
                 first_router,
                 "POST",
                 "/v1/commands/cmd-1/outcome",
-                outcome_body("intercepted")
+                outcome_body("intercepted", "worker-1", &token)
             )
             .await
             .0,
@@ -1231,7 +1545,7 @@ mod tests {
                 second_router.clone(),
                 "POST",
                 "/v1/commands/cmd-1/outcome",
-                outcome_body("missed")
+                outcome_body("missed", "worker-1", &token)
             )
             .await
             .0,
@@ -1242,7 +1556,7 @@ mod tests {
                 second_router,
                 "POST",
                 "/v1/commands/cmd-1/outcome",
-                outcome_body("intercepted")
+                outcome_body("intercepted", "worker-1", &token)
             )
             .await
             .0,
@@ -1275,12 +1589,13 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(pending["commands"][0]["command"]["command_id"], "cmd-1");
         assert_eq!(pending["commands"][0]["execution_state"], "pending");
+        let token = claim(router.clone(), "worker-1").await;
         assert_eq!(
             request(
                 router.clone(),
                 "POST",
                 "/v1/commands/cmd-1/outcome",
-                outcome_body("intercepted")
+                outcome_body("intercepted", "worker-1", &token)
             )
             .await
             .0,
@@ -1337,7 +1652,9 @@ mod tests {
             StatusCode::ACCEPTED
         );
 
-        let mut invalid_status = outcome_body("unknown");
+        let token1 = claim(router.clone(), "worker-1").await;
+
+        let mut invalid_status = outcome_body("unknown", "worker-1", &token1);
         assert_eq!(
             request(
                 router.clone(),
@@ -1367,14 +1684,15 @@ mod tests {
                 router.clone(),
                 "POST",
                 "/v1/commands/cmd-1/outcome",
-                outcome_body("intercepted")
+                outcome_body("intercepted", "worker-1", &token1)
             )
             .await
             .0,
             StatusCode::CREATED
         );
 
-        let mut reused = outcome_body("succeeded");
+        let token2 = claim(router.clone(), "worker-2").await;
+        let mut reused = outcome_body("succeeded", "worker-2", &token2);
         reused["correlation"]["correlation_id"] = json!("c-cmd-2");
         reused["correlation"]["causation_id"] = json!("m-cmd-2");
         assert_eq!(
@@ -1382,6 +1700,176 @@ mod tests {
                 .await
                 .0,
             StatusCode::CONFLICT
+        );
+    }
+
+    #[tokio::test]
+    async fn concurrent_claims_are_exclusive_and_expiry_fences_old_worker() {
+        let state = AppState::new(4);
+        let epoch = state.epoch.to_string();
+        let router = app(state);
+        assert_eq!(
+            request(
+                router.clone(),
+                "POST",
+                "/v1/commands",
+                command_body(&epoch, "drone-1")
+            )
+            .await
+            .0,
+            StatusCode::ACCEPTED
+        );
+        let first = request(
+            router.clone(),
+            "POST",
+            "/v1/outbox/claim",
+            json!({"worker_id":"worker-a","lease_duration_ms":100}),
+        );
+        let second = request(
+            router.clone(),
+            "POST",
+            "/v1/outbox/claim",
+            json!({"worker_id":"worker-b","lease_duration_ms":100}),
+        );
+        let (a, b) = tokio::join!(first, second);
+        let (winner, loser) = if a.0 == StatusCode::OK {
+            (a, b)
+        } else {
+            (b, a)
+        };
+        assert_eq!(winner.0, StatusCode::OK);
+        assert_eq!(loser.0, StatusCode::NO_CONTENT);
+        let old_worker = winner.1["claim"]["worker_id"].as_str().unwrap();
+        let old_token = winner.1["claim"]["lease_token"].as_str().unwrap();
+        std::thread::sleep(Duration::from_millis(110));
+        assert_eq!(
+            request(
+                router.clone(),
+                "POST",
+                "/v1/outbox/commands/cmd-1/renew",
+                json!({"worker_id":old_worker,"lease_token":old_token,"lease_duration_ms":100})
+            )
+            .await
+            .0,
+            StatusCode::CONFLICT
+        );
+        let new_worker = if old_worker == "worker-a" {
+            "worker-b"
+        } else {
+            "worker-a"
+        };
+        let (status, reclaimed) = request(
+            router.clone(),
+            "POST",
+            "/v1/outbox/claim",
+            json!({"worker_id":new_worker,"lease_duration_ms":30_000}),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(reclaimed["claim"]["attempt_count"], 2);
+        let new_token = reclaimed["claim"]["lease_token"].as_str().unwrap();
+        assert_ne!(old_token, new_token);
+        assert_eq!(
+            request(
+                router.clone(),
+                "POST",
+                "/v1/commands/cmd-1/outcome",
+                outcome_body("intercepted", old_worker, old_token)
+            )
+            .await
+            .0,
+            StatusCode::CONFLICT
+        );
+        assert_eq!(
+            request(
+                router.clone(),
+                "POST",
+                "/v1/commands/cmd-1/outcome",
+                outcome_body("intercepted", new_worker, new_token)
+            )
+            .await
+            .0,
+            StatusCode::CREATED
+        );
+        assert_eq!(
+            request(
+                router,
+                "POST",
+                "/v1/commands/cmd-1/outcome",
+                outcome_body("intercepted", new_worker, new_token)
+            )
+            .await
+            .0,
+            StatusCode::OK
+        );
+    }
+
+    #[tokio::test]
+    async fn retry_schedule_and_active_lease_survive_restart() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("commands.sqlite3");
+        let state = AppState::with_database(4, 16, &path).unwrap();
+        let epoch = state.epoch.to_string();
+        let router = app(state);
+        assert_eq!(
+            request(
+                router.clone(),
+                "POST",
+                "/v1/commands",
+                command_body(&epoch, "drone-1")
+            )
+            .await
+            .0,
+            StatusCode::ACCEPTED
+        );
+        let token = claim(router.clone(), "worker-a").await;
+        assert_eq!(request(router, "POST", "/v1/outbox/commands/cmd-1/retry",
+            json!({"worker_id":"worker-a","lease_token":token,"retry_after_ms":120,"error":"temporary"})).await.0, StatusCode::OK);
+        let restarted = app(AppState::with_database(4, 16, &path).unwrap());
+        assert_eq!(
+            request(
+                restarted.clone(),
+                "POST",
+                "/v1/outbox/claim",
+                json!({"worker_id":"worker-b","lease_duration_ms":30_000})
+            )
+            .await
+            .0,
+            StatusCode::NO_CONTENT
+        );
+        std::thread::sleep(Duration::from_millis(130));
+        let (status, claim) = request(
+            restarted.clone(),
+            "POST",
+            "/v1/outbox/claim",
+            json!({"worker_id":"worker-b","lease_duration_ms":30_000}),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(claim["claim"]["attempt_count"], 2);
+        let token = claim["claim"]["lease_token"].as_str().unwrap();
+        let restarted_again = app(AppState::with_database(4, 16, &path).unwrap());
+        assert_eq!(
+            request(
+                restarted_again.clone(),
+                "POST",
+                "/v1/outbox/claim",
+                json!({"worker_id":"worker-c","lease_duration_ms":30_000})
+            )
+            .await
+            .0,
+            StatusCode::NO_CONTENT
+        );
+        assert_eq!(
+            request(
+                restarted_again,
+                "POST",
+                "/v1/outbox/commands/cmd-1/release",
+                json!({"worker_id":"worker-b","lease_token":token})
+            )
+            .await
+            .0,
+            StatusCode::OK
         );
     }
 

@@ -281,7 +281,8 @@ async def http_json(
     def execute() -> tuple[int, dict[str, Any], dict[str, str]]:
         try:
             with urllib.request.urlopen(request, timeout=10) as response:
-                return response.status, json.loads(response.read()), dict(response.headers.items())
+                raw = response.read()
+                return response.status, json.loads(raw) if raw else {}, dict(response.headers.items())
         except urllib.error.HTTPError as error:
             raw = error.read()
             try:

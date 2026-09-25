@@ -2,6 +2,7 @@ import asyncio
 import importlib.util
 import sys
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -15,6 +16,27 @@ SPEC.loader.exec_module(network_harness)
 
 
 class HarnessTests(unittest.TestCase):
+    def test_http_json_accepts_empty_success_response(self):
+        class EmptyResponse:
+            status = 204
+            headers = {}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return b""
+
+        with patch.object(network_harness.urllib.request, "urlopen", return_value=EmptyResponse()):
+            status, body, _, _ = asyncio.run(
+                network_harness.http_json("POST", "http://example.test/claim", {})
+            )
+        self.assertEqual(status, 204)
+        self.assertEqual(body, {})
+
     def test_percentile_uses_nearest_rank(self):
         self.assertEqual(network_harness.percentile([1, 2, 3, 4], 0.50), 2)
         self.assertEqual(network_harness.percentile([1, 2, 3, 4], 0.99), 4)
