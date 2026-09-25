@@ -2,13 +2,18 @@
 
 This independent harness exercises the boundary specified in
 `realtime-core/NETWORK_EVALUATION_PLAN.md`. It does not import or modify the
-Rust core. Its two modes deliberately share the same client reference model:
+Rust core. Its live-state modes deliberately share the same client reference model:
 
 - `dry-run` uses a deterministic in-process gateway to validate workload,
   sequencing, five-client isolation, gap recovery, command idempotency and
   evidence generation before a network gateway exists.
 - `live` connects to a real HTTP/WebSocket gateway. The endpoint paths are
   configurable because the production routes have not yet been frozen.
+- `restart` launches the real gateway twice against the same command database.
+  It admits one command and terminal outcome, restarts the process, reconciles
+  both records, retries the same semantic command, and verifies changed-content
+  conflicts. This is ledger durability evidence, not proof that an external
+  executor performs an effect exactly once.
 
 The dry run is a harness self-test, **not network performance evidence**.
 
@@ -89,3 +94,23 @@ Percentiles use nearest-rank selection. Same-host receive/apply and HTTP RTT
 are valid durations. Cross-host one-way latency is not claimed unless the
 gateway supplies a bounded monotonic clock relationship; the evidence records
 that limitation.
+
+## Restart recovery
+
+Run the durable command/outcome test with a temporary SQLite database:
+
+```powershell
+python benchmarks/network/network_harness.py restart `
+  --gateway-command "cargo run --release --manifest-path realtime-gateway/Cargo.toml"
+```
+
+Use `--database path/to/commands.db` to retain the evidence database. The
+gateway database environment variable defaults to `SENTINEL_COMMAND_DB_PATH` and
+can be changed with `--database-env`. A valid run requires:
+
+- the first command to be durably accepted;
+- its terminal outcome to be durably recorded;
+- reconciliation after a process restart;
+- an exact semantic retry to return the original durable receipt despite a new transport epoch;
+- changed command and outcome content under existing identities to conflict;
+- an exact outcome retry not to create a second logical outcome.

@@ -25,11 +25,15 @@ async fn main() {
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(4096);
+    let database_path = std::env::var("SENTINEL_COMMAND_DB_PATH")
+        .unwrap_or_else(|_| "sentinel-command-journal.sqlite3".into());
+    let state = AppState::with_database(capacity, retention, &database_path)
+        .expect("initialize durable command database");
     let listener = tokio::net::TcpListener::bind(address)
         .await
         .expect("bind gateway");
-    tracing::info!(%address, capacity, retention, "gateway listening");
-    axum::serve(listener, app(AppState::with_retention(capacity, retention)))
+    tracing::info!(%address, capacity, retention, %database_path, "gateway listening");
+    axum::serve(listener, app(state))
         .with_graceful_shutdown(async {
             let _ = tokio::signal::ctrl_c().await;
         })

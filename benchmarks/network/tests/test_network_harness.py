@@ -71,6 +71,45 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual(request["expected_revision"], 4)
         self.assertIs(request["command"], command)
 
+    def test_restart_command_keeps_semantic_identity_across_transport_fence(self):
+        before = network_harness.command_fixture("epoch-before", 7)
+        after = network_harness.gateway_command_request(
+            before["command"], "epoch-after", 0
+        )
+        self.assertIs(before["command"], after["command"])
+        self.assertEqual(before["command"]["command_id"], "harness-command-restart-1")
+        self.assertNotEqual(before["expected_epoch"], after["expected_epoch"])
+
+    def test_restart_outcome_is_correlated_and_single_effect(self):
+        request = network_harness.command_fixture("epoch", 1)
+        outcome = network_harness.outcome_fixture(request)
+        self.assertEqual(outcome["status"], "succeeded")
+        self.assertEqual(outcome["details"]["logical_effect_count"], 1)
+        self.assertEqual(
+            outcome["correlation"]["correlation_id"],
+            request["command"]["correlation"]["correlation_id"],
+        )
+
+    def test_reconciliation_helpers_accept_wrapped_or_direct_receipt(self):
+        self.assertEqual(
+            network_harness.receipt_status({"receipt_status": "duplicate"}), "duplicate"
+        )
+        self.assertEqual(
+            network_harness.receipt_status(
+                {"receipt": {"receipt_status": "accepted"}}
+            ),
+            "accepted",
+        )
+        outcome = {"outcome_id": "o-1"}
+        self.assertIs(
+            network_harness.outcome_from_reconciliation({"outcome": outcome}), outcome
+        )
+        self.assertTrue(
+            network_harness.outcome_matches_request(
+                {"command_id": "c-1", "outcome_id": "o-1"}, outcome
+            )
+        )
+
     def test_dry_run_five_clients_gap_and_commands(self):
         args = SimpleNamespace(
             drones=3,

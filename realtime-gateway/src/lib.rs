@@ -9,9 +9,11 @@ use axum::{
     routing::{get, post},
 };
 use chrono::{SecondsFormat, Utc};
+use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
+use std::path::Path as FsPath;
 use std::{
     collections::{BTreeMap, HashMap, VecDeque},
     sync::{
@@ -95,7 +97,7 @@ pub struct TrackDelta {
     previous_revision: u64,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Command {
     pub schema_version: String,
@@ -112,25 +114,40 @@ pub struct Command {
     pub parameters: serde_json::Map<String, Value>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CommandReceipt {
-    schema_version: &'static str,
-    message_type: &'static str,
+    schema_version: String,
+    message_type: String,
     message_id: String,
-    stream_id: &'static str,
+    stream_id: String,
     stream_sequence: u64,
     emitted_at: String,
     correlation: Correlation,
     command_id: String,
-    receipt_status: &'static str,
+    receipt_status: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     reason: Option<String>,
 }
 
-#[derive(Clone, Debug)]
-struct StoredCommand {
-    fingerprint: String,
-    receipt: CommandReceipt,
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct CommandOutcomeRequest {
+    pub outcome_id: String,
+    pub status: String,
+    pub emitted_at: String,
+    pub correlation: Correlation,
+    #[serde(default)]
+    pub details: serde_json::Map<String, Value>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CommandOutcome {
+    command_id: String,
+    outcome_id: String,
+    status: String,
+    emitted_at: String,
+    correlation: Correlation,
+    details: serde_json::Map<String, Value>,
 }
 
 struct StoredObservation {
@@ -283,8 +300,7 @@ pub struct AppState {
     source_sequences: Arc<Mutex<HashMap<(String, String), u64>>>,
     observations: Arc<Mutex<HashMap<String, StoredObservation>>>,
     ingestion_lock: Arc<Mutex<()>>,
-    commands: Arc<Mutex<HashMap<String, StoredCommand>>>,
-    command_ids: Arc<Mutex<HashMap<String, String>>>,
+    command_db: Arc<Mutex<Connection>>,
     hub: Arc<Mutex<Hub>>,
     pub metrics: Arc<Metrics>,
     client_queue_capacity: usize,
@@ -296,26 +312,83 @@ impl AppState {
     }
 
     pub fn with_retention(client_queue_capacity: usize, delta_retention: usize) -> Self {
+        Self::with_database(client_queue_capacity, delta_retention, ":memory:")
+            .expect("initialize in-memory command database")
+    }
+
+    pub fn with_database(
+        client_queue_capacity: usize,
+        delta_retention: usize,
+        path: impl AsRef<FsPath>,
+    ) -> rusqlite::Result<Self> {
         assert!(client_queue_capacity > 0);
         assert!(delta_retention > 0);
-        Self {
+        let connection = Connection::open(path)?;
+        connection.busy_timeout(Duration::from_secs(5))?;
+        connection.pragma_update(None, "foreign_keys", "ON")?;
+        connection.pragma_update(None, "journal_mode", "WAL")?;
+        connection.pragma_update(None, "synchronous", "FULL")?;
+        let user_version: u32 =
+            connection.pragma_query_value(None, "user_version", |r| r.get(0))?;
+        if user_version != 0 && user_version != 1 {
+            return Err(rusqlite::Error::InvalidQuery);
+        }
+        if user_version == 0 {
+            let existing_tables: u64 = connection.query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+                [], |r| r.get(0),
+            )?;
+            if existing_tables != 0 {
+                // Refuse to guess how to migrate an unversioned command journal.
+                return Err(rusqlite::Error::InvalidQuery);
+            }
+        }
+        connection.execute_batch(
+            "CREATE TABLE IF NOT EXISTS commands (
+                command_id TEXT PRIMARY KEY,
+                idempotency_key TEXT NOT NULL UNIQUE,
+                fingerprint TEXT NOT NULL,
+                command_json TEXT NOT NULL,
+                receipt_json TEXT NOT NULL,
+                execution_state TEXT NOT NULL DEFAULT 'pending'
+                    CHECK(execution_state IN ('pending','terminal')),
+                created_at TEXT NOT NULL
+             );
+             CREATE TABLE IF NOT EXISTS command_outcomes (
+                command_id TEXT PRIMARY KEY REFERENCES commands(command_id) ON DELETE CASCADE,
+                outcome_id TEXT NOT NULL UNIQUE,
+                fingerprint TEXT NOT NULL,
+                outcome_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(command_id) REFERENCES commands(command_id)
+             );
+             PRAGMA user_version=1;",
+        )?;
+        let integrity: String = connection.query_row("PRAGMA quick_check", [], |r| r.get(0))?;
+        if integrity != "ok" {
+            return Err(rusqlite::Error::InvalidQuery);
+        }
+        let max_sequence: u64 = connection.query_row(
+            "SELECT COALESCE(MAX(CAST(json_extract(receipt_json, '$.stream_sequence') AS INTEGER)), 0) FROM commands",
+            [], |row| row.get(0),
+        )?;
+        Ok(Self {
             epoch: Arc::new(format!(
                 "epoch-{}-{}",
-                Utc::now().timestamp_millis(),
+                Utc::now().timestamp_nanos_opt().unwrap_or_default(),
                 std::process::id()
             )),
             delta_sequence: Arc::new(AtomicU64::new(0)),
-            command_sequence: Arc::new(AtomicU64::new(0)),
+            command_sequence: Arc::new(AtomicU64::new(max_sequence)),
             tracks: Default::default(),
             source_sequences: Default::default(),
             observations: Default::default(),
             ingestion_lock: Default::default(),
-            commands: Default::default(),
-            command_ids: Default::default(),
+            command_db: Arc::new(Mutex::new(connection)),
             hub: Arc::new(Mutex::new(Hub::new(delta_retention))),
             metrics: Default::default(),
             client_queue_capacity,
-        }
+        })
     }
     fn next_delta_sequence(&self) -> u64 {
         self.delta_sequence.fetch_add(1, Ordering::SeqCst) + 1
@@ -332,7 +405,9 @@ pub fn app(state: AppState) -> Router {
         .route("/v1/snapshot", get(snapshot))
         .route("/v1/observations", post(ingest))
         .route("/v1/commands", post(command))
+        .route("/v1/outbox/commands", get(pending_commands))
         .route("/v1/commands/{command_id}", get(reconcile))
+        .route("/v1/commands/{command_id}/outcome", post(record_outcome))
         .route("/v1/deltas", get(ws_upgrade))
         .with_state(state)
         .layer(DefaultBodyLimit::max(64 * 1024))
@@ -349,6 +424,14 @@ fn with_epoch(state: &AppState, body: impl IntoResponse) -> Response {
         HeaderValue::from_str(&state.epoch).unwrap(),
     );
     response
+}
+
+fn storage_error(operation: &str) -> Response {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(json!({"error":"command_store_unavailable","operation":operation})),
+    )
+        .into_response()
 }
 
 async fn health(State(s): State<AppState>) -> Response {
@@ -521,10 +604,9 @@ async fn ingest(State(s): State<AppState>, Json(o): Json<Observation>) -> Respon
 }
 
 fn command_fingerprint(request: &GatewayCommandRequest) -> String {
-    let c = &request.command;
-    let value = json!({"transport_version":request.transport_version,"expected_epoch":request.expected_epoch,
-        "expected_revision":request.expected_revision,"command_id":c.command_id,"command_name":c.command_name,
-        "target_id":c.target_id,"parameters":c.parameters});
+    // The server epoch is deliberately excluded. An exact retry after a crash
+    // must reconcile to the already durable receipt from the previous epoch.
+    let value = json!({"transport_version":request.transport_version,"command":request.command});
     format!("{:x}", Sha256::digest(serde_json::to_vec(&value).unwrap()))
 }
 
@@ -536,13 +618,6 @@ async fn command(
         return (
             StatusCode::BAD_REQUEST,
             Json(json!({"error":"unsupported_gateway_transport_version"})),
-        )
-            .into_response();
-    }
-    if request.expected_epoch != *s.epoch {
-        return (
-            StatusCode::CONFLICT,
-            Json(json!({"error":"server_epoch_mismatch","current_epoch":s.epoch.as_str()})),
         )
             .into_response();
     }
@@ -566,9 +641,20 @@ async fn command(
             .into_response();
     }
     let fp = command_fingerprint(&request);
-    let mut commands = s.commands.lock().unwrap();
-    if let Some(stored) = commands.get(&c.idempotency_key) {
-        if stored.fingerprint != fp {
+    let mut db = s.command_db.lock().unwrap();
+    let by_key: Option<(String, String, String)> = match db
+        .query_row(
+            "SELECT command_id, fingerprint, receipt_json FROM commands WHERE idempotency_key=?1",
+            [&c.idempotency_key],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .optional()
+    {
+        Ok(value) => value,
+        Err(_) => return storage_error("lookup_idempotency_key"),
+    };
+    if let Some((stored_command_id, stored_fp, receipt_json)) = by_key {
+        if stored_fp != fp || stored_command_id != c.command_id {
             s.metrics.command_conflicts.fetch_add(1, Ordering::Relaxed);
             return (
                 StatusCode::CONFLICT,
@@ -577,9 +663,37 @@ async fn command(
                 .into_response();
         }
         s.metrics.command_duplicates.fetch_add(1, Ordering::Relaxed);
-        let mut duplicate = stored.receipt.clone();
-        duplicate.receipt_status = "duplicate";
-        return with_epoch(&s, (StatusCode::OK, Json(duplicate)));
+        let receipt: CommandReceipt = match serde_json::from_str(&receipt_json) {
+            Ok(value) => value,
+            Err(_) => return storage_error("decode_receipt"),
+        };
+        return with_epoch(&s, (StatusCode::OK, Json(receipt)));
+    }
+    let command_id_owner: Option<String> = match db
+        .query_row(
+            "SELECT idempotency_key FROM commands WHERE command_id=?1",
+            [&c.command_id],
+            |row| row.get(0),
+        )
+        .optional()
+    {
+        Ok(value) => value,
+        Err(_) => return storage_error("lookup_command_id"),
+    };
+    if command_id_owner.is_some() {
+        s.metrics.command_conflicts.fetch_add(1, Ordering::Relaxed);
+        return (
+            StatusCode::CONFLICT,
+            Json(json!({"error":"command_id_reused_with_different_content_or_identity"})),
+        )
+            .into_response();
+    }
+    if request.expected_epoch != *s.epoch {
+        return (
+            StatusCode::CONFLICT,
+            Json(json!({"error":"server_epoch_mismatch","current_epoch":s.epoch.as_str()})),
+        )
+            .into_response();
     }
     let actual_revision = s
         .tracks
@@ -590,23 +704,12 @@ async fn command(
     if request.expected_revision != actual_revision {
         return (StatusCode::CONFLICT, Json(json!({"error":"target_revision_mismatch","expected_revision":request.expected_revision,"actual_revision":actual_revision}))).into_response();
     }
-    let mut command_ids = s.command_ids.lock().unwrap();
-    if let Some(existing_key) = command_ids.get(&c.command_id)
-        && existing_key != &c.idempotency_key
-    {
-        s.metrics.command_conflicts.fetch_add(1, Ordering::Relaxed);
-        return (
-            StatusCode::CONFLICT,
-            Json(json!({"error":"command_id_reused_with_different_idempotency_key"})),
-        )
-            .into_response();
-    }
     let seq = s.next_command_sequence();
     let receipt = CommandReceipt {
-        schema_version: VERSION,
-        message_type: "command_receipt",
+        schema_version: VERSION.into(),
+        message_type: "command_receipt".into(),
         message_id: format!("receipt-{seq}"),
-        stream_id: COMMAND_STREAM_ID,
+        stream_id: COMMAND_STREAM_ID.into(),
         stream_sequence: seq,
         emitted_at: now(),
         correlation: Correlation {
@@ -615,32 +718,199 @@ async fn command(
             trace_id: c.correlation.trace_id.clone(),
         },
         command_id: c.command_id.clone(),
-        receipt_status: "accepted",
+        receipt_status: "accepted".into(),
         reason: None,
     };
-    commands.insert(
-        c.idempotency_key.clone(),
-        StoredCommand {
-            fingerprint: fp,
-            receipt: receipt.clone(),
-        },
-    );
-    command_ids.insert(c.command_id.clone(), c.idempotency_key.clone());
+    let receipt_json = serde_json::to_string(&receipt).unwrap();
+    let command_json = serde_json::to_string(c).unwrap();
+    let tx = match db.transaction() {
+        Ok(tx) => tx,
+        Err(_) => return storage_error("begin_command_transaction"),
+    };
+    if tx.execute(
+        "INSERT INTO commands(command_id,idempotency_key,fingerprint,command_json,receipt_json,execution_state,created_at) VALUES(?1,?2,?3,?4,?5,'pending',?6)",
+        params![c.command_id, c.idempotency_key, fp, command_json, receipt_json, now()],
+    ).is_err() || tx.commit().is_err() {
+        return storage_error("persist_command");
+    }
     s.metrics.commands_accepted.fetch_add(1, Ordering::Relaxed);
     with_epoch(&s, (StatusCode::ACCEPTED, Json(receipt)))
 }
 
-async fn reconcile(State(s): State<AppState>, Path(command_id): Path<String>) -> Response {
-    let idempotency_key = {
-        let ids = s.command_ids.lock().unwrap();
-        let Some(key) = ids.get(&command_id) else {
-            return StatusCode::NOT_FOUND.into_response();
-        };
-        key.clone()
+async fn pending_commands(State(s): State<AppState>) -> Response {
+    let db = s.command_db.lock().unwrap();
+    let mut statement = match db.prepare(
+        "SELECT command_json,receipt_json FROM commands WHERE execution_state='pending' ORDER BY created_at,command_id",
+    ) {
+        Ok(v) => v,
+        Err(_) => return storage_error("prepare_pending_outbox"),
     };
-    let commands = s.commands.lock().unwrap();
-    let receipt = commands.get(&idempotency_key).unwrap().receipt.clone();
-    with_epoch(&s, Json(receipt))
+    let rows = match statement.query_map([], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    }) {
+        Ok(v) => v,
+        Err(_) => return storage_error("read_pending_outbox"),
+    };
+    let mut pending = Vec::new();
+    for row in rows {
+        let (command_json, receipt_json) = match row {
+            Ok(v) => v,
+            Err(_) => return storage_error("read_pending_outbox"),
+        };
+        let command: Command = match serde_json::from_str(&command_json) {
+            Ok(v) => v,
+            Err(_) => return storage_error("decode_pending_command"),
+        };
+        let receipt: CommandReceipt = match serde_json::from_str(&receipt_json) {
+            Ok(v) => v,
+            Err(_) => return storage_error("decode_pending_receipt"),
+        };
+        pending.push(json!({"command":command,"receipt":receipt,"execution_state":"pending"}));
+    }
+    with_epoch(&s, Json(json!({"commands":pending})))
+}
+
+async fn reconcile(State(s): State<AppState>, Path(command_id): Path<String>) -> Response {
+    let db = s.command_db.lock().unwrap();
+    let row: Option<(String, Option<String>)> = match db.query_row(
+        "SELECT c.receipt_json, o.outcome_json FROM commands c LEFT JOIN command_outcomes o ON o.command_id=c.command_id WHERE c.command_id=?1",
+        [&command_id], |row| Ok((row.get(0)?, row.get(1)?)),
+    ).optional() {
+        Ok(value) => value,
+        Err(_) => return storage_error("reconcile_command"),
+    };
+    let Some((receipt_json, outcome_json)) = row else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let receipt: CommandReceipt = match serde_json::from_str(&receipt_json) {
+        Ok(v) => v,
+        Err(_) => return storage_error("decode_receipt"),
+    };
+    let outcome: Option<CommandOutcome> =
+        match outcome_json.map(|v| serde_json::from_str(&v)).transpose() {
+            Ok(v) => v,
+            Err(_) => return storage_error("decode_outcome"),
+        };
+    with_epoch(&s, Json(json!({"receipt":receipt,"outcome":outcome})))
+}
+
+fn outcome_fingerprint(outcome: &CommandOutcome) -> String {
+    format!("{:x}", Sha256::digest(serde_json::to_vec(outcome).unwrap()))
+}
+
+async fn record_outcome(
+    State(s): State<AppState>,
+    Path(command_id): Path<String>,
+    Json(request): Json<CommandOutcomeRequest>,
+) -> Response {
+    const TERMINAL_STATUSES: &[&str] =
+        &["succeeded", "failed", "cancelled", "intercepted", "missed"];
+    if !valid_id(&command_id)
+        || !valid_id(&request.outcome_id)
+        || !TERMINAL_STATUSES.contains(&request.status.as_str())
+        || !valid_id(&request.correlation.correlation_id)
+        || !valid_timestamp(&request.emitted_at)
+    {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error":"invalid_command_outcome"})),
+        )
+            .into_response();
+    }
+    let outcome = CommandOutcome {
+        command_id: command_id.clone(),
+        outcome_id: request.outcome_id,
+        status: request.status,
+        emitted_at: request.emitted_at,
+        correlation: request.correlation,
+        details: request.details,
+    };
+    let fingerprint = outcome_fingerprint(&outcome);
+    let mut db = s.command_db.lock().unwrap();
+    let command_json: Option<String> = match db
+        .query_row(
+            "SELECT command_json FROM commands WHERE command_id=?1",
+            [&command_id],
+            |row| row.get(0),
+        )
+        .optional()
+    {
+        Ok(v) => v,
+        Err(_) => return storage_error("lookup_outcome_command"),
+    };
+    let Some(command_json) = command_json else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let stored_command: Command = match serde_json::from_str(&command_json) {
+        Ok(v) => v,
+        Err(_) => return storage_error("decode_outcome_command"),
+    };
+    if outcome.correlation.correlation_id != stored_command.correlation.correlation_id
+        || outcome.correlation.causation_id.as_deref() != Some(stored_command.message_id.as_str())
+    {
+        return (
+            StatusCode::CONFLICT,
+            Json(json!({"error":"outcome_command_correlation_mismatch"})),
+        )
+            .into_response();
+    }
+    let outcome_owner: Option<String> = match db
+        .query_row(
+            "SELECT command_id FROM command_outcomes WHERE outcome_id=?1",
+            [&outcome.outcome_id],
+            |row| row.get(0),
+        )
+        .optional()
+    {
+        Ok(v) => v,
+        Err(_) => return storage_error("lookup_outcome_id"),
+    };
+    if outcome_owner
+        .as_deref()
+        .is_some_and(|owner| owner != command_id)
+    {
+        return (
+            StatusCode::CONFLICT,
+            Json(json!({"error":"outcome_id_already_used"})),
+        )
+            .into_response();
+    }
+    let existing: Option<(String, String)> = match db
+        .query_row(
+            "SELECT fingerprint,outcome_json FROM command_outcomes WHERE command_id=?1",
+            [&command_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()
+    {
+        Ok(v) => v,
+        Err(_) => return storage_error("lookup_existing_outcome"),
+    };
+    if let Some((stored_fp, json)) = existing {
+        if stored_fp != fingerprint {
+            return (
+                StatusCode::CONFLICT,
+                Json(json!({"error":"terminal_outcome_already_recorded"})),
+            )
+                .into_response();
+        }
+        let stored: CommandOutcome = match serde_json::from_str(&json) {
+            Ok(v) => v,
+            Err(_) => return storage_error("decode_existing_outcome"),
+        };
+        return with_epoch(&s, (StatusCode::OK, Json(stored)));
+    }
+    let outcome_json = serde_json::to_string(&outcome).unwrap();
+    let tx = match db.transaction() {
+        Ok(v) => v,
+        Err(_) => return storage_error("begin_outcome_transaction"),
+    };
+    if tx.execute(
+        "INSERT INTO command_outcomes(command_id,outcome_id,fingerprint,outcome_json,created_at) VALUES(?1,?2,?3,?4,?5)",
+        params![command_id, outcome.outcome_id, fingerprint, outcome_json, now()],
+    ).is_err() || tx.execute("UPDATE commands SET execution_state='terminal' WHERE command_id=?1", [&command_id]).is_err()
+        || tx.commit().is_err() { return storage_error("persist_outcome"); }
+    with_epoch(&s, (StatusCode::CREATED, Json(outcome)))
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -824,7 +1094,7 @@ mod tests {
         .await;
         assert_eq!(first, StatusCode::ACCEPTED);
         assert_eq!(retry, StatusCode::OK);
-        assert_eq!(r["receipt_status"], "duplicate");
+        assert_eq!(r["receipt_status"], "accepted");
         assert_eq!(conflict, StatusCode::CONFLICT);
     }
 
@@ -863,6 +1133,254 @@ mod tests {
         reused_id["command"]["idempotency_key"] = json!("idem-2");
         assert_eq!(
             request(router, "POST", "/v1/commands", reused_id).await.0,
+            StatusCode::CONFLICT
+        );
+    }
+
+    fn outcome_body(status: &str) -> Value {
+        json!({"outcome_id":"outcome-1","status":status,"emitted_at":"2026-09-25T00:00:02Z",
+            "correlation":{"correlation_id":"c-cmd","causation_id":"m-cmd"},"details":{"result":"verified"}})
+    }
+
+    #[tokio::test]
+    async fn command_receipt_and_outcome_survive_restart() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("commands.sqlite3");
+        let first_state = AppState::with_database(4, 16, &path).unwrap();
+        let first_epoch = first_state.epoch.to_string();
+        let first_router = app(first_state);
+        let (accepted_status, accepted) = request(
+            first_router.clone(),
+            "POST",
+            "/v1/commands",
+            command_body(&first_epoch, "drone-1"),
+        )
+        .await;
+        assert_eq!(accepted_status, StatusCode::ACCEPTED);
+        assert_eq!(
+            request(
+                first_router,
+                "POST",
+                "/v1/commands/cmd-1/outcome",
+                outcome_body("intercepted")
+            )
+            .await
+            .0,
+            StatusCode::CREATED
+        );
+
+        let second_state = AppState::with_database(4, 16, &path).unwrap();
+        assert_ne!(first_epoch, second_state.epoch.as_str());
+        let second_router = app(second_state);
+        // Retry carries the old admission epoch, yet returns the exact durable receipt.
+        let mut retry_request = command_body(&first_epoch, "drone-1");
+        retry_request["expected_revision"] = json!(999);
+        let (retry_status, retry) =
+            request(second_router.clone(), "POST", "/v1/commands", retry_request).await;
+        assert_eq!(retry_status, StatusCode::OK);
+        assert_eq!(retry, accepted);
+        let (get_status, reconciliation) =
+            request(second_router, "GET", "/v1/commands/cmd-1", Value::Null).await;
+        assert_eq!(get_status, StatusCode::OK);
+        assert_eq!(reconciliation["receipt"], accepted);
+        assert_eq!(reconciliation["outcome"]["status"], "intercepted");
+    }
+
+    #[tokio::test]
+    async fn changed_retry_and_second_terminal_outcome_conflict_after_restart() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("commands.sqlite3");
+        let first_state = AppState::with_database(4, 16, &path).unwrap();
+        let first_epoch = first_state.epoch.to_string();
+        let first_router = app(first_state);
+        assert_eq!(
+            request(
+                first_router.clone(),
+                "POST",
+                "/v1/commands",
+                command_body(&first_epoch, "drone-1")
+            )
+            .await
+            .0,
+            StatusCode::ACCEPTED
+        );
+        assert_eq!(
+            request(
+                first_router,
+                "POST",
+                "/v1/commands/cmd-1/outcome",
+                outcome_body("intercepted")
+            )
+            .await
+            .0,
+            StatusCode::CREATED
+        );
+
+        let second_state = AppState::with_database(4, 16, &path).unwrap();
+        let second_router = app(second_state);
+        let mut changed = command_body(&first_epoch, "drone-1");
+        changed["command"]["parameters"] = json!({"azimuth":90});
+        assert_eq!(
+            request(second_router.clone(), "POST", "/v1/commands", changed)
+                .await
+                .0,
+            StatusCode::CONFLICT
+        );
+        assert_eq!(
+            request(
+                second_router.clone(),
+                "POST",
+                "/v1/commands/cmd-1/outcome",
+                outcome_body("missed")
+            )
+            .await
+            .0,
+            StatusCode::CONFLICT
+        );
+        assert_eq!(
+            request(
+                second_router,
+                "POST",
+                "/v1/commands/cmd-1/outcome",
+                outcome_body("intercepted")
+            )
+            .await
+            .0,
+            StatusCode::OK
+        );
+    }
+
+    #[tokio::test]
+    async fn pending_outbox_recovers_command_payload_and_clears_on_outcome() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("commands.sqlite3");
+        let state = AppState::with_database(4, 16, &path).unwrap();
+        let epoch = state.epoch.to_string();
+        assert_eq!(
+            request(
+                app(state),
+                "POST",
+                "/v1/commands",
+                command_body(&epoch, "drone-1")
+            )
+            .await
+            .0,
+            StatusCode::ACCEPTED
+        );
+
+        let restarted = AppState::with_database(4, 16, &path).unwrap();
+        let router = app(restarted);
+        let (status, pending) =
+            request(router.clone(), "GET", "/v1/outbox/commands", Value::Null).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(pending["commands"][0]["command"]["command_id"], "cmd-1");
+        assert_eq!(pending["commands"][0]["execution_state"], "pending");
+        assert_eq!(
+            request(
+                router.clone(),
+                "POST",
+                "/v1/commands/cmd-1/outcome",
+                outcome_body("intercepted")
+            )
+            .await
+            .0,
+            StatusCode::CREATED
+        );
+        let (_, empty) = request(router, "GET", "/v1/outbox/commands", Value::Null).await;
+        assert_eq!(empty["commands"].as_array().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn incompatible_schema_and_foreign_key_violations_are_rejected() {
+        let dir = tempfile::tempdir().unwrap();
+        let mismatch = dir.path().join("mismatch.sqlite3");
+        let connection = Connection::open(&mismatch).unwrap();
+        connection.pragma_update(None, "user_version", 99).unwrap();
+        drop(connection);
+        assert!(AppState::with_database(4, 16, &mismatch).is_err());
+
+        let valid = dir.path().join("valid.sqlite3");
+        let state = AppState::with_database(4, 16, &valid).unwrap();
+        let db = state.command_db.lock().unwrap();
+        let result = db.execute(
+            "INSERT INTO command_outcomes(command_id,outcome_id,fingerprint,outcome_json,created_at) VALUES('missing','out-x','fp','{}','now')",
+            [],
+        );
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn outcome_id_status_and_correlation_constraints_are_enforced() {
+        let state = AppState::new(4);
+        let epoch = state.epoch.to_string();
+        let router = app(state);
+        assert_eq!(
+            request(
+                router.clone(),
+                "POST",
+                "/v1/commands",
+                command_body(&epoch, "drone-1")
+            )
+            .await
+            .0,
+            StatusCode::ACCEPTED
+        );
+        let mut second = command_body(&epoch, "drone-2");
+        second["command"]["command_id"] = json!("cmd-2");
+        second["command"]["idempotency_key"] = json!("idem-2");
+        second["command"]["message_id"] = json!("m-cmd-2");
+        second["command"]["correlation"]["correlation_id"] = json!("c-cmd-2");
+        assert_eq!(
+            request(router.clone(), "POST", "/v1/commands", second)
+                .await
+                .0,
+            StatusCode::ACCEPTED
+        );
+
+        let mut invalid_status = outcome_body("unknown");
+        assert_eq!(
+            request(
+                router.clone(),
+                "POST",
+                "/v1/commands/cmd-1/outcome",
+                invalid_status.clone()
+            )
+            .await
+            .0,
+            StatusCode::BAD_REQUEST
+        );
+        invalid_status["status"] = json!("intercepted");
+        invalid_status["correlation"]["correlation_id"] = json!("wrong");
+        assert_eq!(
+            request(
+                router.clone(),
+                "POST",
+                "/v1/commands/cmd-1/outcome",
+                invalid_status
+            )
+            .await
+            .0,
+            StatusCode::CONFLICT
+        );
+        assert_eq!(
+            request(
+                router.clone(),
+                "POST",
+                "/v1/commands/cmd-1/outcome",
+                outcome_body("intercepted")
+            )
+            .await
+            .0,
+            StatusCode::CREATED
+        );
+
+        let mut reused = outcome_body("succeeded");
+        reused["correlation"]["correlation_id"] = json!("c-cmd-2");
+        reused["correlation"]["causation_id"] = json!("m-cmd-2");
+        assert_eq!(
+            request(router, "POST", "/v1/commands/cmd-2/outcome", reused)
+                .await
+                .0,
             StatusCode::CONFLICT
         );
     }

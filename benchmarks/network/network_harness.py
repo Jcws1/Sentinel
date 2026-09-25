@@ -17,6 +17,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -169,6 +170,39 @@ def gateway_command_request(command: dict[str, Any], epoch: str, revision: int) 
         "expected_epoch": epoch,
         "expected_revision": revision,
         "command": command,
+    }
+
+
+def command_fixture(epoch: str, revision: int, suffix: str = "restart-1") -> dict[str, Any]:
+    """Build one stable semantic command while transport preconditions may change."""
+    command = {
+        "schema_version": PROTOCOL,
+        "message_type": "command",
+        "message_id": f"harness-command-message-{suffix}",
+        "stream_id": "harness-operator",
+        "stream_sequence": 1,
+        "emitted_at": "2026-09-25T00:00:00Z",
+        "correlation": {"correlation_id": f"harness-command-{suffix}"},
+        "command_id": f"harness-command-{suffix}",
+        "idempotency_key": f"harness-command-{suffix}",
+        "command_name": "hold",
+        "target_id": "DRONE-01",
+        "parameters": {},
+    }
+    return gateway_command_request(command, epoch, revision)
+
+
+def outcome_fixture(command: dict[str, Any], suffix: str = "restart-1") -> dict[str, Any]:
+    inner = command["command"]
+    return {
+        "outcome_id": f"harness-outcome-{suffix}",
+        "status": "succeeded",
+        "emitted_at": "2026-09-25T00:00:01Z",
+        "correlation": {
+            "correlation_id": inner["correlation"]["correlation_id"],
+            "causation_id": inner["message_id"],
+        },
+        "details": {"logical_effect_count": 1},
     }
 
 
@@ -587,6 +621,148 @@ async def wait_for_health(base_url: str, path: str, timeout: float) -> None:
     raise RuntimeError("gateway did not become healthy before timeout")
 
 
+def start_gateway(command: str, database: Path, database_env: str) -> subprocess.Popen[Any]:
+    env = os.environ.copy()
+    env[database_env] = str(database.resolve())
+    return subprocess.Popen(shlex.split(command), cwd=os.getcwd(), env=env)
+
+
+def stop_gateway(process: subprocess.Popen[Any]) -> None:
+    process.terminate()
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=5)
+
+
+def receipt_status(body: dict[str, Any]) -> str | None:
+    receipt = body.get("receipt") if isinstance(body.get("receipt"), dict) else body
+    return receipt.get("receipt_status", receipt.get("disposition"))
+
+
+def outcome_from_reconciliation(body: dict[str, Any]) -> dict[str, Any] | None:
+    value = body.get("outcome")
+    return value if isinstance(value, dict) else None
+
+
+def outcome_matches_request(recovered: dict[str, Any] | None, request: dict[str, Any]) -> bool:
+    if recovered is None:
+        return False
+    return all(recovered.get(key) == value for key, value in request.items())
+
+
+async def run_restart(args: argparse.Namespace) -> dict[str, Any]:
+    """Prove command and outcome identity survives a real process restart."""
+    if not args.gateway_command:
+        raise SystemExit("restart mode requires --gateway-command")
+    database = args.database or Path(tempfile.mkdtemp(prefix="sentinel-restart-")) / "commands.db"
+    command_url = args.base_url.rstrip("/") + args.command_path
+    observation_url = args.base_url.rstrip("/") + args.observation_path
+    snapshot_url = args.base_url.rstrip("/") + args.snapshot_path
+    command_id = "harness-command-restart-1"
+    reconcile_url = f"{command_url}/{command_id}"
+    outcome_url = f"{reconcile_url}{args.outcome_suffix}"
+    process: subprocess.Popen[Any] | None = None
+    started_at = time.perf_counter_ns()
+    try:
+        process = start_gateway(args.gateway_command, database, args.database_env)
+        await wait_for_health(args.base_url, args.health_path, args.gateway_timeout)
+        status, snapshot, _, headers = await http_json("GET", snapshot_url)
+        if status != 200:
+            raise RuntimeError(f"initial snapshot failed: HTTP {status}: {snapshot}")
+        parsed = parse_snapshot(snapshot, headers)
+        status, body, _, _ = await http_json(
+            "POST", observation_url, observation(0, 0, args.seed, 0)
+        )
+        if status not in (200, 202, 204):
+            raise RuntimeError(f"setup observation failed: HTTP {status}: {body}")
+        request = command_fixture(parsed["stream_epoch"], 1)
+        first_status, first_body, first_rtt, _ = await http_json("POST", command_url, request)
+        outcome = outcome_fixture(request)
+        outcome_status, outcome_body, outcome_rtt, _ = await http_json("POST", outcome_url, outcome)
+        stop_gateway(process)
+        process = None
+
+        process = start_gateway(args.gateway_command, database, args.database_env)
+        await wait_for_health(args.base_url, args.health_path, args.gateway_timeout)
+        status, new_snapshot, _, new_headers = await http_json("GET", snapshot_url)
+        if status != 200:
+            raise RuntimeError(f"post-restart snapshot failed: HTTP {status}: {new_snapshot}")
+        restarted = parse_snapshot(new_snapshot, new_headers)
+        # The semantic command and identity are exact. Only transport fencing is
+        # refreshed because a process restart deliberately creates a new epoch.
+        retry = gateway_command_request(request["command"], restarted["stream_epoch"], 0)
+        retry_status, retry_body, retry_rtt, _ = await http_json("POST", command_url, retry)
+        reconcile_status, reconcile_body, reconcile_rtt, _ = await http_json("GET", reconcile_url)
+        conflict = json.loads(json.dumps(retry))
+        conflict["command"]["command_name"] = "intercept"
+        conflict_status, conflict_body, conflict_rtt, _ = await http_json("POST", command_url, conflict)
+        duplicate_outcome_status, duplicate_outcome_body, duplicate_outcome_rtt, _ = await http_json(
+            "POST", outcome_url, outcome
+        )
+        changed_outcome = json.loads(json.dumps(outcome))
+        changed_outcome["status"] = "failed"
+        changed_outcome_status, changed_outcome_body, changed_outcome_rtt, _ = await http_json(
+            "POST", outcome_url, changed_outcome
+        )
+    finally:
+        if process is not None:
+            stop_gateway(process)
+
+    recovered_outcome = outcome_from_reconciliation(reconcile_body)
+    checks = {
+        "initial_command_durably_accepted": first_status in (200, 202)
+        and receipt_status(first_body) == "accepted",
+        "terminal_outcome_durably_recorded": outcome_status in (200, 201, 202),
+        "semantic_retry_reconciles_after_restart": retry_status in (200, 202)
+        and receipt_status(retry_body) in ("accepted", "duplicate")
+        and retry_body.get("message_id") == first_body.get("message_id"),
+        "receipt_reconciles_after_restart": reconcile_status == 200,
+        "terminal_outcome_reconciles_after_restart": outcome_matches_request(
+            recovered_outcome, outcome
+        ),
+        "changed_command_conflicts": conflict_status == 409,
+        "exact_outcome_retry_has_no_duplicate_effect": duplicate_outcome_status in (200, 201, 202),
+        "changed_outcome_conflicts": changed_outcome_status == 409,
+    }
+    checks["passed"] = all(checks.values())
+    return {
+        "schema": "sentinel-command-restart-evidence/v1",
+        "created_at": utc_now(),
+        "database": str(database),
+        "elapsed_ms": (time.perf_counter_ns() - started_at) / 1e6,
+        "before_restart_epoch": parsed["stream_epoch"],
+        "after_restart_epoch": restarted["stream_epoch"],
+        "http_rtt_ms": {
+            "admit": first_rtt,
+            "record_outcome": outcome_rtt,
+            "retry_after_restart": retry_rtt,
+            "reconcile_after_restart": reconcile_rtt,
+            "changed_command_conflict": conflict_rtt,
+            "duplicate_outcome": duplicate_outcome_rtt,
+            "changed_outcome_conflict": changed_outcome_rtt,
+        },
+        "responses": {
+            "admit": {"http_status": first_status, "body": first_body},
+            "outcome": {"http_status": outcome_status, "body": outcome_body},
+            "retry": {"http_status": retry_status, "body": retry_body},
+            "reconcile": {"http_status": reconcile_status, "body": reconcile_body},
+            "changed_command": {"http_status": conflict_status, "body": conflict_body},
+            "duplicate_outcome": {
+                "http_status": duplicate_outcome_status, "body": duplicate_outcome_body
+            },
+            "changed_outcome": {"http_status": changed_outcome_status, "body": changed_outcome_body},
+        },
+        "checks": checks,
+        "limitations": [
+            "this proves gateway ledger durability and identity semantics, not external executor exactly-once delivery",
+            "the process is terminated after acknowledged commits; this does not inject a kill between SQLite commit and HTTP response",
+            "this does not prove NLP correctness or hosted Wedgetail interception",
+        ],
+    }
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
     sub = result.add_subparsers(dest="mode", required=True)
@@ -612,6 +788,19 @@ def parser() -> argparse.ArgumentParser:
     live.add_argument("--client-queue", type=int, default=256)
     live.add_argument("--ingest-concurrency", type=int, default=64)
     live.add_argument("--drain", type=float, default=2)
+    restart = sub.add_parser("restart")
+    restart.add_argument("--base-url", default="http://127.0.0.1:8090")
+    restart.add_argument("--snapshot-path", default="/v1/snapshot")
+    restart.add_argument("--observation-path", default="/v1/observations")
+    restart.add_argument("--command-path", default="/v1/commands")
+    restart.add_argument("--outcome-suffix", default="/outcome")
+    restart.add_argument("--health-path", default="/healthz")
+    restart.add_argument("--gateway-command", required=True)
+    restart.add_argument("--gateway-timeout", type=float, default=30)
+    restart.add_argument("--database", type=Path)
+    restart.add_argument("--database-env", default="SENTINEL_COMMAND_DB_PATH")
+    restart.add_argument("--seed", type=int, default=20260925)
+    restart.add_argument("--output-root", type=Path, default=Path("test-results/realtime-core/network"))
     return result
 
 
@@ -621,7 +810,12 @@ async def async_main(args: argparse.Namespace) -> int:
         if args.mode == "live" and args.gateway_command:
             process = subprocess.Popen(shlex.split(args.gateway_command), cwd=os.getcwd())
             await wait_for_health(args.base_url, args.health_path, args.gateway_timeout)
-        summary = await (run_dry(args) if args.mode == "dry-run" else run_live(args))
+        if args.mode == "dry-run":
+            summary = await run_dry(args)
+        elif args.mode == "live":
+            summary = await run_live(args)
+        else:
+            summary = await run_restart(args)
     finally:
         if process is not None:
             process.terminate()
@@ -629,7 +823,8 @@ async def async_main(args: argparse.Namespace) -> int:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 process.kill()
-    run_id = f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{args.mode}-{args.drones}d-{args.hz}hz-{uuid.uuid4().hex[:8]}"
+    workload = f"-{args.drones}d-{args.hz}hz" if args.mode != "restart" else ""
+    run_id = f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{args.mode}{workload}-{uuid.uuid4().hex[:8]}"
     output = args.output_root / run_id
     output.mkdir(parents=True, exist_ok=False)
     target = output / "summary.json"
@@ -640,7 +835,7 @@ async def async_main(args: argparse.Namespace) -> int:
 
 def main() -> int:
     args = parser().parse_args()
-    if args.hz <= 0 or args.duration <= 0:
+    if args.mode != "restart" and (args.hz <= 0 or args.duration <= 0):
         raise SystemExit("--hz and --duration must be positive")
     return asyncio.run(async_main(args))
 

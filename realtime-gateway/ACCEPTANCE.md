@@ -14,8 +14,11 @@ Date: 2026-09-25
 - Localhost-only binding unless an explicit insecure remote-development override is set.
 - 64 KiB HTTP body cap, five-second HTTP handler timeout and bounded latency samples.
 
-The service remains in-memory. Command acceptance is not durable across restart
-and there is no executor/outcome ledger.
+Track state remains in memory. Command admission and terminal outcomes now use
+a versioned SQLite journal with WAL, `synchronous=FULL`, foreign-key checks,
+busy timeout and startup integrity checking. Pending command payloads are
+recoverable from an outbox after restart. The outbox does not yet provide an
+executor claim/lease protocol.
 
 ## Independently reviewed smoke
 
@@ -56,19 +59,47 @@ cloud-impairment acceptance matrix.
 
 ## Remaining release gates
 
-1. Durable command, receipt and terminal outcome storage across restart.
-2. Successor protocol contract with epoch, base/result cursor, heartbeat and
-   command preconditions; resolve truthful empty-world sequence zero.
-3. Stage-specific ingress→commit→publish timestamps and per-client queue age,
-   current depth and overflow/resync ledgers.
-4. Heartbeat and WebSocket idle/write deadlines.
-5. Slow-reader, lost-response, disconnect, process restart/epoch rotation,
-   expected/adverse cloud impairment and 100 Hz burst/drain tests.
-6. CPU, memory, socket/task, byte and retention-growth measurements.
-7. Sixty-second warm-up plus ten measured minutes, at least five runs, with
-   median and worst run retained and no failed-run replacement.
-8. TLS, authentication, mission-scoped authorization, rate/connection limits
-   and operator audit identity before any cloud exposure.
-9. Final NLP → deterministic recommendation → confirmation → Wedgetail API →
-   genuine hosted observations → correlated interception outcome acceptance.
+### Durable restart checkpoint
 
+A real two-process run used the same SQLite journal across a graceful gateway
+restart. The gateway epoch rotated while the command identity remained stable.
+
+| Operation | RTT |
+| --- | ---: |
+| Initial durable command admission | 2.633 ms |
+| Terminal-outcome recording | 13.457 ms |
+| Exact command retry after restart | 1.528 ms |
+| Receipt/outcome reconciliation after restart | 1.313 ms |
+| Changed command conflict | 24.581 ms |
+| Exact outcome retry | 14.965 ms |
+| Changed outcome conflict | 15.322 ms |
+
+The original receipt and terminal outcome survived restart. Exact retries
+returned the original logical records; changed command or outcome content
+returned conflict. Pending command payloads are retained in the outbox and a
+terminal outcome atomically removes the command from pending state.
+
+This passes graceful restart admission/outcome recovery. It does not test a
+process kill precisely between SQLite commit and HTTP response, database
+corruption/disk-full handling, or downstream exactly-once execution.
+
+## Remaining release gates
+
+1. Executor claim/lease/attempt state and an idempotent external adapter so two
+   executors cannot perform the same recovered command.
+2. Crash injection immediately before/after SQLite commit and before the HTTP
+   response, plus corruption, read-only and disk-full tests.
+3. Successor protocol contract with epoch, base/result cursor, heartbeat and
+   command preconditions; resolve truthful empty-world sequence zero.
+4. Stage-specific ingress→commit→publish timestamps and per-client queue age,
+   current depth and overflow/resync ledgers.
+5. Heartbeat and WebSocket idle/write deadlines.
+6. Slow-reader, lost-response, disconnect, process restart/epoch rotation,
+   expected/adverse cloud impairment and 100 Hz burst/drain tests.
+7. CPU, memory, socket/task, byte and retention-growth measurements.
+8. Sixty-second warm-up plus ten measured minutes, at least five runs, with
+   median and worst run retained and no failed-run replacement.
+9. TLS, authentication, mission-scoped authorization, rate/connection limits
+   and operator audit identity before any cloud exposure.
+10. Final NLP → deterministic recommendation → confirmation → Wedgetail API →
+   genuine hosted observations → correlated interception outcome acceptance.
