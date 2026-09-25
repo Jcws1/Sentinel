@@ -45,6 +45,29 @@ The isolated results show that keyed track ownership itself has ample capacity.
 They do not prove that a Rust service with networking, durable command handling,
 checkpoints and cloud deployment will retain these timings.
 
+## Independent repeated evaluation
+
+After the initial run, three independent evaluation agents exercised the same
+checked-in runners without changing source code.
+
+| Workload | Rust p50 | Rust p95 | Rust p99 | Rust throughput | Rust/Python throughput ratio |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 3 drones × 10 Hz, 20 repeats | 0.0104 ms mean | 0.0214 ms mean | 0.0576 ms mean | 258,395/s mean | Not reported |
+| 10 drones × 10 Hz, 5 paired repeats | 0.0159 ms | 0.0360 ms | 0.0680 ms | 550,085/s | 9.58× |
+| 10 drones × 20 Hz, 5 paired repeats | 0.0142 ms | 0.0312 ms | 0.0888 ms | 604,449/s | 10.22× |
+| 30 drones × 10 Hz | 0.0216 ms | 0.0484 ms | 0.1208 ms | 1,180,823/s | 12.06× |
+| 30 drones × 20 Hz | 0.0136 ms | 0.0415 ms | 0.1298 ms | 1,527,391/s | 15.34× |
+| 30 drones × 100 Hz | 0.0153 ms | 0.0394 ms | 0.1473 ms | 1,457,175/s | 18.82× |
+
+All paired runs matched canonical state hashes and byte-identical event logs.
+One 10-drone Rust run showed an operating-system scheduler outlier, but its
+maximum tick latency remained below 0.52 ms. The longer 3-drone 6,000-tick run
+also retained the same deterministic state rules.
+
+The 100 Hz case is not an overload-policy proof. Channels remain unbounded and
+the producer waits for every acknowledgement; queue limits, coalescing,
+priority isolation, queue-age alarms and recovery are the next test target.
+
 ## Decision
 
 Proceed to the next vertical slice rather than rewriting the complete backend.
@@ -59,4 +82,3 @@ The next slice should add:
 
 Only after that slice passes should existing application traffic be shadowed
 through the Rust service.
-
