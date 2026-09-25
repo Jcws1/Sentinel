@@ -1524,6 +1524,49 @@
         "title": "DemoEntry",
         "type": "object"
       },
+      "DemoFaultRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "assetId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Assetid",
+            "type": "string"
+          },
+          "frameId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Frameid",
+            "type": "string"
+          },
+          "holderId": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[^\\s\\x00-\\x1f\\x7f](?:[^\\x00-\\x1f\\x7f]*[^\\s\\x00-\\x1f\\x7f])?$",
+            "title": "Holderid",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "camera",
+              "link",
+              "asset"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "frameId",
+          "holderId",
+          "assetId",
+          "kind"
+        ],
+        "title": "DemoFaultRequest",
+        "type": "object"
+      },
       "DemoOutcome": {
         "additionalProperties": false,
         "properties": {
@@ -10487,6 +10530,56 @@
           }
         },
         "summary": "Command",
+        "tags": [
+          "local synthetic demo"
+        ]
+      }
+    },
+    "/api/interactive/{mission_id}/demo-faults": {
+      "post": {
+        "operationId": "inject_demo_fault_api_interactive__mission_id__demo_faults_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mission_id",
+            "required": true,
+            "schema": {
+              "title": "Mission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoFaultRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Inject Demo Fault",
         "tags": [
           "local synthetic demo"
         ]

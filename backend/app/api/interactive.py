@@ -1,9 +1,18 @@
 import re
+from typing import Literal
 from fastapi import APIRouter, Request
+from app.domain.base import Id, Model
 from app.commands.contracts import CommandRequest, CreateRunRequest, DemoEntry, Intent, IntentRequest, ReceiptRead, RunRead, MoveRequest, DirectMoveRequest, ExecutionRead, RecommendationRequest, RecommendationSet
 from app.commands.service import CommandError
 
 router = APIRouter(prefix="/api/interactive", tags=["local synthetic demo"])
+
+
+class DemoFaultRequest(Model):
+    frame_id: Id
+    holder_id: Id
+    asset_id: Id
+    kind: Literal["camera", "link", "asset"]
 
 
 def credential(request):
@@ -70,3 +79,8 @@ async def executions(mission_id: str, request: Request, throughFrameId: str | No
 @router.post("/{mission_id}/direct-moves", response_model=ReceiptRead, response_model_exclude_none=True)
 async def direct_move(mission_id: str, command: DirectMoveRequest, request: Request):
     return await request.app.state.interactive.direct_move(mission_id, command, credential(request))
+
+
+@router.post("/{mission_id}/demo-faults")
+async def inject_demo_fault(mission_id: str, fault: DemoFaultRequest, request: Request):
+    return await request.app.state.interactive.inject_demo_fault(mission_id, fault, credential(request))

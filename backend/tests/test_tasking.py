@@ -5,12 +5,18 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 from app.assistant.tasking import TaskingRequest, generate, _support
+from app.api.interactive import DemoFaultRequest
 from app.commands.contracts import CommandRequest, RecommendationRequest, RecommendationRef
+from app.commands.errors import CommandError
 from app.main import create_app
 from app.world.serialization import canonical
 from test_d4_refinement import setup
 from test_interactive import Harness, CREDENTIAL
 from test_boundaries import custom, boundary
+from test_scenarios import content, write, run_request
+from test_direct_movement import direct, issue
+from app.scenarios.service import ScenarioService
+import pytest
 
 
 def test_three_by_three_respond_advice_never_mutates_authority():
@@ -73,7 +79,7 @@ def test_monitor_requires_a_marked_area_and_does_not_claim_a_camera_view():
         assert proposal.status == "candidate"
         assert proposal.zone_ids == [zone_id]
         assert "not a verified camera vantage" in proposal.summary
-        assert "no move is offered" in proposal.limitations[0]
+        assert "camera pose" in proposal.limitations[0]
 
     asyncio.run(exercise())
 
@@ -113,3 +119,60 @@ def test_exact_frame_admission_and_read_only_fixture(tmp_path):
         assert current.status_code == 200
         assert current.json()["executable"] is False
         assert current.json()["source"] == "deterministic-rules"
+
+
+def test_synthetic_faults_create_evidence_for_each_support_path_without_claiming_restoration():
+    h = Harness()
+
+    async def exercise():
+        plan = content()
+        for index in (4, 5):
+            unit = dict(plan["units"][0])
+            unit.update(id=f"unit-{index}", label=f"Synthetic support {index}")
+            unit["position"] = {**unit["position"], "longitudeDeg": 103.85 + index * .001}
+            plan["units"].append(unit)
+        revision = (await ScenarioService(h.authority, True).write(write(plan))).result
+        created = await h.service.create(run_request(revision))
+        assert created.accepted
+        mid = created.mission_id
+        assert (await h.act(mid, "acquire")).accepted
+        assert (await h.act(mid, "start")).accepted
+        h.advance(0.2)
+        await h.service.tick()
+        frame = h.authority.read(mid)
+        assert len(frame.sensors) == 0 and len(frame.tasks) == 0
+        controls = frame.interactive.controls
+        first = controls[0].asset_id
+        assert all(p.status == "needs_evidence" for p in generate(frame, TaskingRequest()).proposals[2:])
+
+        def fault(kind, asset=first):
+            current = h.authority.read(mid)
+            return DemoFaultRequest(frame_id=current.frame_id, holder_id="operator-one", asset_id=asset, kind=kind)
+
+        with pytest.raises(CommandError, match="hold current demo control"):
+            await h.service.inject_demo_fault(mid, fault("camera"), None)
+        result = await h.service.inject_demo_fault(mid, fault("camera"), CREDENTIAL)
+        assert result["simulated"] and result["kind"] == "camera"
+        assert "synthetic-relay" in h.authority.read(mid).assets[controls[-1].asset_id].capability_codes
+        visibility = generate(h.authority.read(mid), TaskingRequest()).proposals[2]
+        assert visibility.status == "candidate" and visibility.asset_ids[0] != first
+        await h.service.inject_demo_fault(mid, fault("link"), CREDENTIAL)
+        assert generate(h.authority.read(mid), TaskingRequest()).proposals[3].status == "candidate"
+        await h.service.inject_demo_fault(mid, fault("asset"), CREDENTIAL)
+        rotation = generate(h.authority.read(mid), TaskingRequest()).proposals[4]
+        assert rotation.status == "candidate" and first not in rotation.asset_ids
+        assert h.authority.read(mid).sensors[f"{first}:camera"].status == "unavailable"
+        current = h.authority.read(mid)
+        failed_track = current.tracks[controls[0].control_track_id]
+        destination = failed_track.latest.position
+        replacement_index = next(i for i, control in enumerate(controls)
+            if control.asset_id == rotation.asset_ids[0])
+        receipt = await issue(h, mid, direct(h, mid, indices=(replacement_index,),
+            longitude=destination.longitude_deg, latitude=destination.latitude_deg))
+        assert receipt.accepted and receipt.member_outcomes[0].outcome == "accepted"
+        # Command acceptance is not evidence that a camera, link or task was restored.
+        after = h.authority.read(mid)
+        assert after.sensors[f"{first}:camera"].status == "unavailable"
+        assert after.sensors[f"{first}:radio-link"].status == "unavailable"
+
+    asyncio.run(exercise())

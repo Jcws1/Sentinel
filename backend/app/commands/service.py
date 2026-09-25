@@ -699,3 +699,63 @@ class InteractiveService:
                 self.repository.save_receipt(request.command_id, payload, canonical(receipt), mid)
                 return receipt
             return self._commit(mid, proposed, [event] + events, checkpoint, receipt_factory)
+
+    async def inject_demo_fault(self, mid, fault, credential):
+        """Inject a labelled synthetic observation into an operator-owned demo.
+
+        This is deliberately unavailable for real/fixture missions and does not
+        claim that any physical camera, radio or aircraft has failed.
+        """
+        async with self.authority._lock(mid):
+            self._enabled()
+            frame = self._run(mid)
+            run = frame.interactive
+            now = self.authority.clock()
+            if not frame.scenario or run.state != "running":
+                raise CommandError("INVALID_TRANSITION", "Start a scenario run before injecting a demo fault.")
+            if not self._owns(mid, credential) or run.lease.holder_id != fault.holder_id or not run.lease.expires_at or now >= run.lease.expires_at:
+                raise CommandError("CONTROL_REQUIRED", "This session must hold current demo control.")
+            if frame.frame_id != fault.frame_id:
+                raise CommandError("FRAME_INVALID", "Demo frame changed. Review the latest state before injecting a fault.")
+            if not any(control.asset_id == fault.asset_id for control in run.controls):
+                raise CommandError("SELECTION_INVALID", "Select a controlled demo asset.")
+            proposed = json.loads(canonical(frame))
+            asset = proposed["assets"].get(fault.asset_id)
+            if not asset:
+                raise CommandError("SELECTION_INVALID", "Demo asset is unavailable.")
+            provenance = {"source": {"id": run.source_id, "kind": "simulation", "mode": "simulated"},
+                "effectiveAt": frame.effective_at, "recordedAt": frame.recorded_at}
+            for control in run.controls:
+                candidate = proposed["assets"][control.asset_id]
+                if "synthetic-camera" not in candidate["capabilityCodes"]:
+                    candidate["capabilityCodes"].append("synthetic-camera")
+                for modality in ("camera", "radio-link"):
+                    sensor_id = f"{control.asset_id}:{modality}"
+                    proposed["sensors"].setdefault(sensor_id, dict(id=sensor_id,
+                        missionId=mid, entityId=control.entity_id, modality=modality,
+                        status="available", provenance=provenance))
+            relay = next((control for control in reversed(run.controls)
+                if control.asset_id != fault.asset_id), None)
+            if relay and "synthetic-relay" not in proposed["assets"][relay.asset_id]["capabilityCodes"]:
+                proposed["assets"][relay.asset_id]["capabilityCodes"].append("synthetic-relay")
+            if fault.kind == "asset":
+                asset["availability"] = "unavailable"
+                task_id = f"{run.run_id}:synthetic-watch:{fault.asset_id}"
+                if not asset.get("taskIds"):
+                    asset["taskIds"] = [task_id]
+                    proposed["tasks"][task_id] = dict(id=task_id, missionId=mid,
+                        type="synthetic-observation-watch", status="active",
+                        assetIds=[fault.asset_id], provenance=provenance)
+            else:
+                modality = "camera" if fault.kind == "camera" else "radio-link"
+                sensor = next((item for item in proposed["sensors"].values()
+                    if item.get("entityId") == asset["entityId"] and item["modality"] == modality), None)
+                if not sensor:
+                    raise CommandError("SENSOR_UNAVAILABLE", "This scenario has no matching synthetic sensor.")
+                sensor["status"] = "unavailable"
+            event = self._event(proposed, f"synthetic-{fault.kind}-fault", holder=fault.holder_id)
+            event["extensions"]["sentinel.demoFault"] = {"kind": fault.kind,
+                "assetId": fault.asset_id, "simulated": True}
+            committed = self._commit(mid, proposed, [event], self.repository.checkpoint(mid))
+            return {"frameId": committed.frame_id, "sequence": committed.sequence,
+                "kind": fault.kind, "assetId": fault.asset_id, "simulated": True}

@@ -22,7 +22,12 @@ export interface SituationAssessment {
   limitations: string[];
 }
 export interface TaskingProposal {
-  code: 'MONITOR' | 'RESPOND' | 'RESTORE_VISIBILITY' | 'RESTORE_LINK' | 'ROTATE_ASSET';
+  code:
+    | 'MONITOR'
+    | 'RESPOND'
+    | 'RESTORE_VISIBILITY'
+    | 'RESTORE_LINK'
+    | 'ROTATE_ASSET';
   category: 'Monitor' | 'Respond' | 'Support';
   status: 'candidate' | 'needs_evidence' | 'unsupported' | 'no_feasible_asset';
   summary: string;
@@ -50,27 +55,42 @@ export function createObserveOrientClient(base: string, fetcher: Fetcher) {
       missionId: string,
       focusZoneId: string | undefined,
       signal: AbortSignal,
+      frameId?: string,
     ): Promise<TaskingAdvice> {
       const response = await fetcher(
         `${base}/missions/${encodeURIComponent(missionId)}/tasking-advice`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...(focusZoneId ? { focusZoneId } : {}) }),
+          body: JSON.stringify({
+            ...(focusZoneId ? { focusZoneId } : {}),
+            ...(frameId ? { frameId } : {}),
+          }),
           signal,
         },
       );
       const body: unknown = await response.json();
       if (!response.ok) {
-        const message = body && typeof body === 'object' && 'detail' in body
-          ? String(body.detail) : `Tasking advice failed (${response.status})`;
+        const message =
+          body && typeof body === 'object' && 'detail' in body
+            ? String(body.detail)
+            : `Tasking advice failed (${response.status})`;
         throw new Error(message);
       }
-      if (!body || typeof body !== 'object' || !('frameId' in body) || typeof body.frameId !== 'string' ||
-          !('missionId' in body) || body.missionId !== missionId ||
-          !('source' in body) || body.source !== 'deterministic-rules' ||
-          !('executable' in body) || body.executable !== false ||
-          !('proposals' in body) || !Array.isArray(body.proposals))
+      if (
+        !body ||
+        typeof body !== 'object' ||
+        !('frameId' in body) ||
+        typeof body.frameId !== 'string' ||
+        !('missionId' in body) ||
+        body.missionId !== missionId ||
+        !('source' in body) ||
+        body.source !== 'deterministic-rules' ||
+        !('executable' in body) ||
+        body.executable !== false ||
+        !('proposals' in body) ||
+        !Array.isArray(body.proposals)
+      )
         throw new Error('Tasking advice did not match its frame contract.');
       return body as TaskingAdvice;
     },
@@ -109,7 +129,9 @@ export function createObserveOrientClient(base: string, fetcher: Fetcher) {
         !('orientation' in body) ||
         !Array.isArray(body.orientation)
       )
-        throw new Error('Observe/Orient response did not match its frame contract.');
+        throw new Error(
+          'Observe/Orient response did not match its frame contract.',
+        );
       return body as SituationAssessment;
     },
   };

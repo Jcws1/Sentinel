@@ -14,7 +14,13 @@ import {
   createDisplayPreferences,
   type DisplayPreferences,
 } from '../state/displayPreferences';
-import type { BehaviorPolicy, DemoOutcome, RecommendationSet, RecommendationOption } from '../contracts/generated';
+import type {
+  BehaviorPolicy,
+  DemoOutcome,
+  RecommendationSet,
+  RecommendationOption,
+  DirectMoveIntent,
+} from '../contracts/generated';
 import {
   createLiveBoundaryEditor,
   type LiveBoundaryState,
@@ -44,7 +50,12 @@ import {
 import type { ScenarioContent, UnitPlacement } from '../contracts/generated';
 import type { DeepReadonly, ImmutableFrame, Mission } from '../contracts/types';
 import { createApi, type Fetcher } from '../services/api';
-import { createObserveOrientClient, type TaskingAdvice } from '../services/observeOrientClient';
+import {
+  createObserveOrientClient,
+  type TaskingAdvice,
+  type TaskingProposal,
+} from '../services/observeOrientClient';
+
 import {
   createBrowserSocket,
   streamUrl,
@@ -69,6 +80,15 @@ import {
   createObservedHistory,
   type ObservedState,
 } from '../world/observedHistory';
+
+type TaskingMoveReview = {
+  intent: Omit<DirectMoveIntent, 'order'>;
+  code: TaskingProposal['code'];
+  frameId: string;
+  boundaryRevision: number;
+  assetId: string;
+  destination: string;
+};
 
 export interface RuntimeSnapshot {
   recommendations?: Readonly<RecommendationState>;
@@ -1085,42 +1105,223 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       }
     },
     requestSuggestions: () => recommendations.refresh(),
-    async prepareTaskingRespond(advice: TaskingAdvice): Promise<{ set: RecommendationSet; option: RecommendationOption }> {
+    async prepareTaskingRespond(
+      advice: TaskingAdvice,
+    ): Promise<{ set: RecommendationSet; option: RecommendationOption }> {
       const frame = snapshot.presentation.frame;
       const proposal = advice.proposals.find((item) => item.code === 'RESPOND');
-      if (!frame?.interactive || frame.mission.id !== advice.missionId || !proposal || proposal.status !== 'candidate')
-        throw new Error('This Respond card has no supported simulator action. Refresh recommendations.');
-      if (snapshot.connection !== 'connected' || snapshot.presentation.status !== 'current')
+      if (
+        !frame?.interactive ||
+        frame.mission.id !== advice.missionId ||
+        !proposal ||
+        proposal.status !== 'candidate'
+      )
+        throw new Error(
+          'This Respond card has no supported simulator action. Refresh recommendations.',
+        );
+      if (
+        snapshot.connection !== 'connected' ||
+        snapshot.presentation.status !== 'current'
+      )
         throw new Error('Wait for a connected, current simulator state.');
       if ((frame.liveBoundaries?.revision ?? 0) !== advice.boundaryRevision)
         throw new Error('Area gates changed. Refresh recommendations.');
       if (!interactive.get().current?.ownsControl)
-        throw new Error('Acquire or reclaim control in Simulation before confirming.');
-      const controls = frame.interactive.controls.filter((control) => proposal.assetIds.includes(control.assetId));
+        throw new Error(
+          'Acquire or reclaim control in Simulation before confirming.',
+        );
+      const controls = frame.interactive.controls.filter((control) =>
+        proposal.assetIds.includes(control.assetId),
+      );
       if (controls.length !== proposal.assetIds.length)
-        throw new Error('The proposed assets are no longer controlled. Refresh recommendations.');
-      const set = await interactive.requestSuggestions(controls.map((control) => control.entityId).sort());
+        throw new Error(
+          'The proposed assets are no longer controlled. Refresh recommendations.',
+        );
+      const set = await interactive.requestSuggestions(
+        controls.map((control) => control.entityId).sort(),
+      );
       const option = set.options.find((item) => item.id === 'intercept-all');
-      const actionAssets = option?.action?.members.map((member) => member.assetId).sort() ?? [];
-      if (!option?.action || JSON.stringify(actionAssets) !== JSON.stringify([...proposal.assetIds].sort()) ||
-          !proposal.targetIds.every((id) => set.eligibleTargetIds.includes(id)))
-        throw new Error('The current validated Intercept option no longer matches this card. Refresh recommendations.');
+      const actionAssets =
+        option?.action?.members.map((member) => member.assetId).sort() ?? [];
+      if (
+        !option?.action ||
+        JSON.stringify(actionAssets) !==
+          JSON.stringify([...proposal.assetIds].sort()) ||
+        !proposal.targetIds.every((id) => set.eligibleTargetIds.includes(id))
+      )
+        throw new Error(
+          'The current validated Intercept option no longer matches this card. Refresh recommendations.',
+        );
       return { set, option };
     },
-    async confirmTaskingRespond(advice: TaskingAdvice, reviewed: { set: RecommendationSet; option: RecommendationOption }) {
+    async confirmTaskingRespond(
+      advice: TaskingAdvice,
+      reviewed: { set: RecommendationSet; option: RecommendationOption },
+    ) {
       const current = () => {
         const frame = snapshot.presentation.frame;
-        return snapshot.connection === 'connected' && snapshot.presentation.status === 'current' &&
-          frame?.mission.id === advice.missionId && frame.interactive?.runId === reviewed.set.runId &&
+        return (
+          snapshot.connection === 'connected' &&
+          snapshot.presentation.status === 'current' &&
+          frame?.mission.id === advice.missionId &&
+          frame.interactive?.runId === reviewed.set.runId &&
           frame.interactive.executorEpoch === reviewed.set.executorEpoch &&
           (frame.liveBoundaries?.revision ?? 0) === advice.boundaryRevision &&
-          !!interactive.get().current?.ownsControl;
+          !!interactive.get().current?.ownsControl
+        );
       };
-      if (!current()) throw new Error('Simulation or area gates changed. Refresh recommendations.');
-      const receipt = await interactive.applySuggestion(reviewed.set, reviewed.option, current);
-      if (!receipt) throw new Error(interactive.get().error ?? 'Outcome unknown. Check Attention and Activity before retrying.');
+      if (!current())
+        throw new Error(
+          'Simulation or area gates changed. Refresh recommendations.',
+        );
+      const receipt = await interactive.applySuggestion(
+        reviewed.set,
+        reviewed.option,
+        current,
+      );
+      if (!receipt)
+        throw new Error(
+          interactive.get().error ??
+            'Outcome unknown. Check Attention and Activity before retrying.',
+        );
       if (!receipt.accepted) throw new Error(receipt.message);
       return `Simulator command accepted. Inspect Activity for member outcomes; this enabled proximity Intercept, not a target-specific assignment.`;
+    },
+    async prepareTaskingMove(
+      advice: TaskingAdvice,
+      code: TaskingProposal['code'],
+    ): Promise<TaskingMoveReview> {
+      if (code === 'RESPOND')
+        throw new Error('Use the reviewed Respond command.');
+      const initial = snapshot.presentation.frame;
+      if (
+        !initial?.interactive ||
+        initial.mission.id !== advice.missionId ||
+        snapshot.connection !== 'connected' ||
+        snapshot.presentation.status !== 'current' ||
+        !interactive.get().current?.ownsControl
+      )
+        throw new Error(
+          'Acquire control of a current simulator run before reviewing a move.',
+        );
+      if ((initial.liveBoundaries?.revision ?? 0) !== advice.boundaryRevision)
+        throw new Error('Area gates changed. Refresh recommendations.');
+      const fresh = await observeOrient.tasking(
+        advice.missionId,
+        code === 'MONITOR'
+          ? advice.proposals.find((item) => item.code === code)?.zoneIds[0]
+          : undefined,
+        new AbortController().signal,
+      );
+      const frame = snapshot.presentation.frame;
+      if (
+        !frame ||
+        frame.mission.id !== advice.missionId ||
+        frame.sequence < fresh.sequence ||
+        (frame.liveBoundaries?.revision ?? 0) !== fresh.boundaryRevision
+      )
+        throw new Error(
+          'Simulator or area gates changed during review. Open the card again.',
+        );
+      const proposed = fresh.proposals.find((item) => item.code === code);
+      const original = advice.proposals.find((item) => item.code === code);
+      if (
+        !proposed ||
+        !original ||
+        proposed.status !== 'candidate' ||
+        proposed.assetIds.length !== 1 ||
+        JSON.stringify(proposed.assetIds) !==
+          JSON.stringify(original.assetIds) ||
+        JSON.stringify(proposed.zoneIds) !== JSON.stringify(original.zoneIds) ||
+        JSON.stringify(proposed.targetIds) !==
+          JSON.stringify(original.targetIds)
+      )
+        throw new Error(
+          'This proposal changed or lost its evidence. Refresh recommendations.',
+        );
+      const control = frame.interactive?.controls.find(
+        (item) => item.assetId === proposed.assetIds[0],
+      );
+      if (!control)
+        throw new Error('Recommended simulator asset is no longer controlled.');
+      let longitudeDeg: number, latitudeDeg: number;
+      if (code === 'MONITOR') {
+        const zone = frame.zones[proposed.zoneIds[0]];
+        const vertices = zone?.geometry.coordinates[0]?.slice(0, -1);
+        if (!vertices?.length)
+          throw new Error('Observation area geometry is unavailable.');
+        longitudeDeg =
+          vertices.reduce((sum, point) => sum + point[0], 0) / vertices.length;
+        latitudeDeg =
+          vertices.reduce((sum, point) => sum + point[1], 0) / vertices.length;
+      } else {
+        const targetControl = frame.interactive?.controls.find(
+          (item) => item.entityId === proposed.targetIds[0],
+        );
+        const track =
+          targetControl && frame.tracks[targetControl.controlTrackId ?? ''];
+        if (!track || track.state !== 'tracking')
+          throw new Error('Affected asset position is not current.');
+        longitudeDeg = track.latest.position.longitudeDeg;
+        latitudeDeg = track.latest.position.latitudeDeg;
+      }
+      if (!Number.isFinite(longitudeDeg) || !Number.isFinite(latitudeDeg))
+        throw new Error('Proposed simulator destination is invalid.');
+      const intent = captureDirectMove(snapshot, longitudeDeg, latitudeDeg, [
+        control.entityId,
+      ]);
+      return {
+        intent,
+        code,
+        frameId: frame.frameId,
+        boundaryRevision: fresh.boundaryRevision,
+        assetId: control.assetId,
+        destination: `${latitudeDeg.toFixed(5)}°, ${longitudeDeg.toFixed(5)}°`,
+      };
+    },
+    async confirmTaskingMove(
+      advice: TaskingAdvice,
+      reviewed: TaskingMoveReview,
+    ) {
+      const frame = snapshot.presentation.frame;
+      if (
+        !frame ||
+        frame.mission.id !== advice.missionId ||
+        snapshot.connection !== 'connected' ||
+        snapshot.presentation.status !== 'current' ||
+        !interactive.get().current?.ownsControl ||
+        (frame.liveBoundaries?.revision ?? 0) !== reviewed.boundaryRevision ||
+        frame.interactive?.runId !== reviewed.intent.runId ||
+        frame.interactive?.executorEpoch !== reviewed.intent.executorEpoch
+      )
+        throw new Error(
+          'Simulation or area gates changed. Review the action again.',
+        );
+      const result = await interactive.submitDirect(reviewed.intent);
+      if (result?.stage === 'rejected') throw new Error(result.message);
+      return result?.stage === 'accepted'
+        ? `Simulator move accepted for ${reviewed.assetId}; inspect Activity and verify the outcome. No restored camera or link is claimed.`
+        : `Simulator move submitted for ${reviewed.assetId}; receipt pending. Reconcile in Activity before retrying.`;
+    },
+    async injectTaskingDemoFault(
+      kind: 'camera' | 'link' | 'asset',
+      assetId: string,
+    ) {
+      const frame = snapshot.presentation.frame;
+      if (
+        !frame?.interactive ||
+        snapshot.connection !== 'connected' ||
+        !interactive.get().current?.ownsControl
+      )
+        throw new Error(
+          'Acquire control of a current simulator scenario first.',
+        );
+      const result = await interactive.injectDemoFault(
+        frame.frameId,
+        assetId,
+        kind,
+      );
+      return `Synthetic ${kind} fault recorded in frame ${result.sequence}; request fresh recommendations.`;
     },
     applySuggestion: (id: string) => recommendations.apply(id),
     dismissSuggestions: () => recommendations.dismiss(),

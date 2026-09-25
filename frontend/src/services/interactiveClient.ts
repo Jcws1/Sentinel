@@ -835,12 +835,14 @@ export function createInteractiveClient(options: {
         },
       });
       await transmitDirect(sent);
+      return state.directFeedback;
     } catch (e) {
       rejectDirect(
         direct.anchor.longitudeDeg,
         direct.anchor.latitudeDeg,
         e instanceof Error ? e.message : 'Destination unavailable.',
       );
+      return state.directFeedback;
     }
   }
   let reconcilingDirect = false;
@@ -1009,6 +1011,27 @@ export function createInteractiveClient(options: {
     get: () => immutableCopy(state),
     reportControlError: (error: string) => emit({ error }),
     perform: foreground,
+    async injectDemoFault(
+      frameId: string,
+      assetId: string,
+      kind: 'camera' | 'link' | 'asset',
+    ) {
+      if (!missionId || disposed) throw new Error('Open a current demo.');
+      const session = identity();
+      const result = await request(
+        `/${encodeURIComponent(missionId)}/demo-faults`,
+        'POST',
+        { frameId, assetId, holderId: session.holderId, kind },
+        true,
+      );
+      return result as {
+        frameId: string;
+        sequence: number;
+        kind: string;
+        assetId: string;
+        simulated: true;
+      };
+    },
     async requestSuggestions(entityIds: string[]) {
       if (!missionId || disposed) throw new Error('Open a current demo.');
       const mid = missionId,

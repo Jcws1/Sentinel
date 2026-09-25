@@ -35,7 +35,8 @@ Every response includes the committed frame and live boundary revision.
 
 - **Monitor:** selects the nearest eligible controlled drone to a marked area
   for further view planning. This is not a validated camera vantage: camera
-  pose/FOV, building occlusion and route clearance are not provided yet.
+  pose/FOV and building occlusion are not provided. The simulator's straight
+  movement path is checked against the configured area gates.
 - **Respond:** calculates a stable maximum one-to-one matching using the
   simulator's current Intercept proximity and boundary predicates. It reports
   target shortfall and does not claim a screen reserve while demand is unmet.
@@ -43,21 +44,34 @@ Every response includes the committed frame and live boundary revision.
 - **Restore visibility:** requires an explicitly unavailable camera sensor and
   an available controlled camera asset before suggesting an alternative.
 - **Restore link:** requires an explicitly unavailable link sensor and a
-  controlled asset with the `relay` capability code. Stale source updates alone
+  controlled asset with the `relay` or `synthetic-relay` capability code. Stale source updates alone
   do not prove a radio-link fault; relay coverage is not inferred.
 - **Rotate asset:** requires an active task with an unavailable assigned asset
   and a free controlled asset covering its declared capability codes. Endurance
   and task-transfer authority are not inferred.
 
-Clicking a card opens **Confirm** and **Cancel**. Only a candidate Respond card
-can currently enable Confirm. Opening it obtains a fresh validated simulator
-suggestion for the exact proposed assets; Confirm submits that suggestion
-through the existing intent/command/receipt flow. The supported effect is
-**enable proximity Intercept policy**, not dispatch to the advisory target
-pairings. Server-side expiry, ownership, capability, geometry and current-state
-checks still apply. Inspect Activity for member outcomes. Monitor and Support
-cards cannot launch until their camera/relay/task-transfer commands and evidence
-models are implemented; their Confirm control stays disabled.
+Clicking a candidate card opens **Confirm** and **Cancel**. Respond still obtains
+a fresh validated simulator suggestion for the proposed assets. Its supported
+effect is **enable proximity Intercept policy**, not dispatch to the advisory
+target pairings. Monitor and Support obtain a fresh exact-frame recommendation
+and review a single-asset *simulator move*: toward the marked area for Monitor,
+or toward the affected asset's last source-owned position for Support. Confirm
+submits the existing direct-move command. The server validates control, source
+freshness, bindings, extent and the whole straight path against area gates. The
+UI reports accepted, rejected or pending receipts; inspect Activity for member
+outcomes. A move **does not** prove a camera view, radio coverage, restored
+link, sufficient endurance or transfer of an active task. Those outcomes remain
+unverified and need real telemetry and platform-specific task APIs.
+
+For hosted rehearsal, the collapsed **Demo-only fault inputs** panel can inject
+an unavailable camera, link or asset status into an operator-owned, running
+scenario. The first injection creates explicitly simulated camera/link status
+for controlled assets and marks a separate simulator relay capability. An asset
+fault also creates a synthetic active watch assignment so Rotate Asset can be
+exercised. No such status or hardware is inferred from a normal scenario.
+The injected fault is recorded in the committed world and subsequent Support
+cards cite its sensor/task evidence. This is test data, **not** Wedgetail or
+physical drone telemetry.
 
 The copilot may explain these records, but no model output can override the
 deterministic gate or create command authority. Simulated GNSS degradation and

@@ -89,15 +89,24 @@ export function captureDirectMove(
   state: RuntimeSnapshot,
   longitudeDeg: number,
   latitudeDeg: number,
+  explicitEntityIds?: string[],
 ): Omit<DirectMoveIntent, 'order'> {
   const reason = directContextReason(state);
   if (reason) throw new Error(reason);
   const frame = state.presentation.frame!,
     run = frame.interactive!;
-  const ids = state.session.selection.items
-    .filter((i) => i.kind === 'entity')
-    .map((i) => i.id);
+  const ids =
+    explicitEntityIds ??
+    state.session.selection.items
+      .filter((i) => i.kind === 'entity')
+      .map((i) => i.id);
   if (!ids.length) throw new Error('Select drones to move.');
+  if (new Set(ids).size !== ids.length)
+    throw new Error('Duplicate drone selection.');
+  for (const id of ids) {
+    const reason = directMovementReason(state, id);
+    if (reason) throw new Error(reason);
+  }
   const rows = entityRows(frame, state.session.filters);
   const members = ids.map((id) => {
     const controls = run.controls.filter((c) => c.entityId === id);
