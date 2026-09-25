@@ -715,8 +715,11 @@ class InteractiveService:
                 raise CommandError("INVALID_TRANSITION", "Start a scenario run before injecting a demo fault.")
             if not self._owns(mid, credential) or run.lease.holder_id != fault.holder_id or not run.lease.expires_at or now >= run.lease.expires_at:
                 raise CommandError("CONTROL_REQUIRED", "This session must hold current demo control.")
-            if frame.frame_id != fault.frame_id:
-                raise CommandError("FRAME_INVALID", "Demo frame changed. Review the latest state before injecting a fault.")
+            reviewed = self.frame_at(mid, fault.frame_id)
+            if (not reviewed.interactive or reviewed.interactive.run_id != run.run_id or
+                    reviewed.interactive.executor_epoch != run.executor_epoch or
+                    movement.age(now, reviewed.recorded_at) > 30):
+                raise CommandError("FRAME_INVALID", "Demo run changed or the reviewed frame expired; refresh before injecting a fault.")
             if not any(control.asset_id == fault.asset_id for control in run.controls):
                 raise CommandError("SELECTION_INVALID", "Select a controlled demo asset.")
             proposed = json.loads(canonical(frame))

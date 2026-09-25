@@ -167,7 +167,10 @@ def test_synthetic_faults_create_evidence_for_each_support_path_without_claiming
 
         with pytest.raises(CommandError, match="hold current demo control"):
             await h.service.inject_demo_fault(mid, fault("camera"), None)
-        result = await h.service.inject_demo_fault(mid, fault("camera"), CREDENTIAL)
+        reviewed_fault = fault("camera")
+        h.advance(0.2)
+        await h.service.tick()  # A continuously advancing source must not invalidate a recent UI click.
+        result = await h.service.inject_demo_fault(mid, reviewed_fault, CREDENTIAL)
         assert result["simulated"] and result["kind"] == "camera"
         assert "synthetic-relay" in h.authority.read(mid).assets[controls[-1].asset_id].capability_codes
         visibility = generate(h.authority.read(mid), TaskingRequest()).proposals[2]
