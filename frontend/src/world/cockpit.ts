@@ -4,6 +4,7 @@ import type { SessionState } from '../state/sessionStore';
 import type { ConnectionStatus } from '../state/worldStore';
 import type { PresentationFrame } from './presentation';
 import { entityRows } from './entityRows';
+import { EXTERNAL_SIMULATION_DOMAIN } from './externalRun';
 import { visualHeight } from '../renderers/cesium/altitude';
 
 export interface CockpitInput {
@@ -103,6 +104,11 @@ export function cockpitCandidate(
   const entity = frame.entities[entityId];
   if (!entity)
     return { reason: 'The selected entity is missing from this frame.' };
+  if (frame.mission.domain === EXTERNAL_SIMULATION_DOMAIN)
+    return {
+      reason:
+        'Video Feed is not available for external simulation entities. Affiliation grants no view or control.',
+    };
   if (entity.affiliation !== 'friendly' || !drone(frame, entityId))
     return { reason: 'Only friendly simulated drones support a Video Feed.' };
   const controls =

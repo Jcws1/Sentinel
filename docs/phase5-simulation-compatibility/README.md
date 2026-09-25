@@ -1,5 +1,7 @@
 # Phase 5 simulation compatibility
 
+> Current status: see the [Phase 5 closure](../phase5-closure/README.md) (24 September 2026). This record remains historical evidence about its own source.
+
 Phase 5 adds an isolated external batch workflow to the existing workspace.
 **Partial delivery; acceptance withheld.** Valid mixed-scale geometry, the full browser gate and independent foreground verification remain open. Final results are tracked
 in [VERIFICATION](VERIFICATION.md). This is local compatibility under the frozen

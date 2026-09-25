@@ -1,3 +1,5 @@
+import { ExactPoints } from './exactGeometry';
+
 /** Semantic guards complement generated schema checks at the replica boundary. */
 export function invariant(
   condition: unknown,
@@ -16,54 +18,27 @@ export function calendarInstant(value: string) {
 }
 type Point = readonly number[];
 type Ring = readonly Point[];
-const orientation = (a: Point, b: Point, c: Point) =>
-  (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
-const onSegment = (a: Point, b: Point, p: Point) =>
-  orientation(a, b, p) === 0 &&
-  Math.min(a[0], b[0]) <= p[0] &&
-  p[0] <= Math.max(a[0], b[0]) &&
-  Math.min(a[1], b[1]) <= p[1] &&
-  p[1] <= Math.max(a[1], b[1]);
-const opposite = (a: number, b: number) => (a < 0 && b > 0) || (b < 0 && a > 0);
-const intersects = (a: Point, b: Point, c: Point, d: Point) =>
-  (opposite(orientation(a, b, c), orientation(a, b, d)) &&
-    opposite(orientation(c, d, a), orientation(c, d, b))) ||
-  onSegment(a, b, c) ||
-  onSegment(a, b, d) ||
-  onSegment(c, d, a) ||
-  onSegment(c, d, b);
 const samePoint = (a: Point, b: Point) => a[0] === b[0] && a[1] === b[1];
-function inside(point: Point, ring: Ring) {
-  let result = false;
-  for (let i = 0; i < ring.length - 1; i++) {
-    const a = ring[i],
-      b = ring[i + 1];
-    if (
-      a[1] > point[1] !== b[1] > point[1] &&
-      point[0] < ((b[0] - a[0]) * (point[1] - a[1])) / (b[1] - a[1]) + a[0]
-    )
-      result = !result;
-  }
-  return result;
-}
+/**
+ * Exact planar topology on each coordinate's shortest round-trip decimal; see
+ * exactGeometry.ts. Source coordinates are validated as supplied, unchanged.
+ * Checks run in backend/app/domain/geometry.py's order, so both report the same
+ * first violation: each ring (closure, distinct vertices, zero area, then each
+ * edge), then each hole (inside the exterior, contact with every earlier ring,
+ * then overlap with earlier holes).
+ */
 export function polygonIntegrity(input: readonly Ring[]) {
   invariant(input.length > 0, 'Polygon requires an exterior ring');
   const points = input.flat();
   invariant(points.length > 0, 'Polygon requires positions');
-  const anchor = points[0];
-  const sx =
-    points.reduce((n, p) => Math.max(n, Math.abs(p[0] - anchor[0])), 0) || 1;
-  const sy =
-    points.reduce((n, p) => Math.max(n, Math.abs(p[1] - anchor[1])), 0) || 1;
-  // Positive affine normalization changes no source coordinates or topology.
-  // It prevents finite tiny polygons from underflowing during validation.
-  const rings =
-    Math.min(sx, sy) < 1e-120
-      ? input.map((ring) =>
-          ring.map((p) => [(p[0] - anchor[0]) / sx, (p[1] - anchor[1]) / sy]),
-        )
-      : input;
-  for (const ring of rings) {
+  const exact = new ExactPoints(points);
+  const starts: number[] = [];
+  let offset = 0;
+  for (const ring of input) {
+    starts.push(offset);
+    offset += ring.length;
+  }
+  input.forEach((ring, r) => {
     invariant(
       ring.length >= 4 && samePoint(ring[0], ring[ring.length - 1]),
       'Polygon ring is not closed',
@@ -73,45 +48,55 @@ export function polygonIntegrity(input: readonly Ring[]) {
         ring.length - 1,
       'Polygon ring contains repeated vertices',
     );
-    let area = 0;
-    for (let i = 0; i < ring.length - 1; i++) {
-      const a = ring[i],
-        b = ring[i + 1],
-        c = ring[(i + 2) % (ring.length - 1)];
-      // Translate before multiplying so tiny valid rings away from zero survive.
-      area += orientation(ring[0], a, b);
+    const s = starts[r],
+      n = ring.length - 1;
+    invariant(!exact.zeroArea(s, s + n), 'Polygon has zero area');
+    for (let i = 0; i < n; i++) {
+      const a = s + i,
+        b = a + 1,
+        c = s + ((i + 2) % n);
       invariant(
-        !onSegment(a, b, c) && !onSegment(b, c, a),
+        !exact.onSegment(a, b, c) && !exact.onSegment(b, c, a),
         'Polygon adjacent edges overlap',
       );
-      for (let j = i + 2; j < ring.length - 1; j++) {
-        if (i === 0 && j === ring.length - 2) continue;
+      for (let j = i + 2; j < n; j++) {
+        if (i === 0 && j === n - 1) continue;
         invariant(
-          !intersects(a, b, ring[j], ring[j + 1]),
+          !exact.touch(a, b, s + j, s + j + 1),
           'Polygon ring intersects itself',
         );
       }
     }
-    invariant(area !== 0, 'Polygon has zero area');
-  }
-  for (let i = 1; i < rings.length; i++) {
-    const hole = rings[i];
-    invariant(inside(hole[0], rings[0]), 'Polygon hole is outside exterior');
+  });
+  const outer = starts[0],
+    outerEnd = outer + input[0].length - 1;
+  for (let i = 1; i < input.length; i++) {
+    const hole = starts[i],
+      holeEnd = hole + input[i].length - 1;
+    invariant(
+      exact.evenOdd(hole, outer, outerEnd),
+      'Polygon hole is outside exterior',
+    );
     for (let j = 0; j < i; j++) {
-      const previous = rings[j];
-      for (let a = 0; a < hole.length - 1; a++) {
-        for (let b = 0; b < previous.length - 1; b++) {
+      const previous = starts[j],
+        previousEnd = previous + input[j].length - 1;
+      for (let a = hole; a < holeEnd; a++) {
+        for (let b = previous; b < previousEnd; b++) {
           invariant(
-            !intersects(hole[a], hole[a + 1], previous[b], previous[b + 1]),
+            !exact.touch(a, a + 1, b, b + 1),
             'Polygon rings intersect',
           );
         }
       }
-      if (j > 0)
-        invariant(
-          !inside(hole[0], previous) && !inside(previous[0], hole),
-          'Polygon holes overlap',
-        );
+    }
+    for (let j = 1; j < i; j++) {
+      const previous = starts[j],
+        previousEnd = previous + input[j].length - 1;
+      invariant(
+        !exact.evenOdd(hole, previous, previousEnd) &&
+          !exact.evenOdd(previous, hole, holeEnd),
+        'Polygon holes overlap',
+      );
     }
   }
 }

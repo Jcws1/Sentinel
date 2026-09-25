@@ -32,7 +32,11 @@ def fingerprint(text):
 async def exercise(fixture):
     h = Harness()
     try:
-        content = json.loads((ROOT / fixture).read_text())
+        # The frozen fingerprints were captured on Windows, where this implicit read
+        # decoded the UTF-8 fixture as cp1252 (the Sydney name holds a middle dot).
+        # Stating that decoding keeps the baseline identical in UTF-8 mode and on
+        # other platforms; no fixture, hash or assertion changes.
+        content = json.loads((ROOT / fixture).read_text(encoding="cp1252"))
         service = ScenarioService(h.authority, True)
         revision = (await service.write(write(content))).result
         request = run_request(revision)

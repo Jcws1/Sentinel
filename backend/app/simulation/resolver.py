@@ -9,6 +9,7 @@ import math
 from collections import defaultdict
 from itertools import product
 
+from app.domain.geometry import PreparedRing
 from app.simulation.policy import EARTH_RADIUS_M
 from app.simulation.validation import SimulationError, inside_polygon, pointer, validate_steps
 
@@ -35,12 +36,13 @@ def _cell(drone, radius):
 
 def candidate_steps(request, drones):
     area, radius = request["area"], request["resolution"]["interaction_radius_m"]
+    ring = PreparedRing(area["polygon"])
     buckets = defaultdict(list)
     reds = []
     for drone in drones:
         if (drone["status"] == "ACTIVE" and drone["health"] > 0 and drone["team"] in {"RED", "BLUE"}
                 and area["min_altitude_m"] <= drone["altitude_m"] <= area["max_altitude_m"]
-                and inside_polygon(drone, area["polygon"])):
+                and inside_polygon(drone, ring)):
             if drone["team"] == "BLUE":
                 buckets[_cell(drone, radius)].append(drone)
             else:

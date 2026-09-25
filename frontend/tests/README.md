@@ -126,23 +126,50 @@ The lifecycle helper defaults to120s and also accepts600s. The longer case keeps
 ## Phase 5 external compatibility
 
 Backend `test_simulation_resolver.py` and `test_simulation_service.py` cover the
-frozen golden/negative cases, numerical boundaries, lifecycle, rollback, process
+frozen golden/negative cases, numerical boundaries, lifecycle (the spec §8
+matrix is written out in the test, not read from the product), rollback, process
 death, exact reconciliation, ownership and additive v6 compatibility. Frontend
 `unit/simulation-client.test.ts` covers exact durable pending bodies, selection
-generations, storage failure, typed results and opaque command lookup identities.
-`browser/simulation-compatibility.spec.ts` adds default/Sydney40 lifecycle,
-lost-response reload/retry, recorded inspection and760/820/900/desktop checks.
+generations, storage failure (including a truthful quota refusal), typed results
+and opaque command lookup identities. `browser/simulation-compatibility.spec.ts`
+adds default/Sydney40 lifecycle, lost-response reload/retry, recorded inspection,
+760/820/900/desktop checks, the mixed-scale R3-1 and decimal-view areas, the
+spec §9 defensive sequence (ABORT confirmation, finalized-mission tag in the
+header at 1440 and 760 px and on the map, per-timestamp health changes) and the
+§9 ABORT batch submitted from the editor (confirmed like the ABORT control;
+recorded commands follow the selected run).
 
-`tests/simulation-ui/foreground.mjs <tag> [0|10|20]` uses a fresh headed browser and
-task-owned services;0 runs external workflows,10/20 separately exercise moving
-interactive workloads. Actual desktop enumeration/activation must precede its
-`foreground-approved` marker. It blocks external provider requests and preserves
-screenshots, raw intervals and cleanup reports. Do not fabricate that marker
-from `document.hasFocus()` alone. Source benchmarks use
+Polygon topology is exact on each coordinate's shortest round-trip decimal, in one
+predicate shared by the external validator, core `Polygon`, frontend decoder and
+resolver containment (Phase 5 closure). `fixtures/geometry/polygon-vectors.v1.json`
+(rings, polygons with up to four holes in every order, containment points) is
+consumed by both `unit/exactGeometry.test.ts` and backend
+`test_geometry_exact.py`, which assert the oracle's first violation; its
+generator and independent oracle are
+`backend/tests/geometry_vectors.py` and `geometry_oracle.py`. Randomized
+differential tests use fixed seeds; `SENTINEL_GEOMETRY_ITERATIONS` enlarges the
+backend run. `fixtures/simulation/defensive-s9.json` is the synthetic §9 dataset
+(generator `backend/tests/defensive_scenario.py`; backend criteria in
+`test_defensive_scenario.py`). After regenerating either fixture, format it with
+Prettier; tests compare parsed JSON.
+
+`tests/simulation-ui/foreground.mjs <tag> [0|10|20]` uses a fresh headed Edge
+profile with real focus and task-owned services (ports 5405/8205); 0 runs the
+external workflows including R3-1, §9 and the finalized mission's header tag
+and map chip, 10/20 exercise moving interactive workloads. Before every CDP screenshot it checks that the OS foreground window PID
+belongs to the task browser (`scripts/foreground_identity.py`); `document.hasFocus()`
+alone is never accepted. If Edge cannot become foreground it waits and writes
+`foreground-waiting.json`. `PHASE5_BUILD` selects the verification bundle and
+`PHASE5_EVIDENCE_ROOT` the output root. `storage-limit.mjs` measures the largest
+UI batch the browser can protect (draft plus pending), waiting for each
+multi-megabyte draft to finish rendering before it queries the page; `performance/decode-integrity.mjs`
+compares frame decoding with a baseline integrity module. Source benchmarks use
 `backend/.venv/Scripts/python.exe scripts/performance_simulation.py <tag> --kind
-<golden|local40|remote40|sparse10000|dense50|dense100|dense200>` from repository root.
-Keep performance windows exclusive and preserve failed attempts. See
-[Phase5 verification](../../docs/phase5-simulation-compatibility/VERIFICATION.md).
+<golden|local40|remote40|sparse10000|dense50|dense100|dense200>`; the black-box HTTP
+corpus is `scripts/simulation_system_corpus.py` and the concurrent-source probe is
+`scripts/performance_simulation_concurrency.py` (`--kinds` also takes the
+multi-timestamp `steps100x40` and `churn300`). Keep performance windows exclusive
+and preserve failed attempts. See the [closure testing guide](../../docs/phase5-closure/TESTING.md).
 
 ## Milestone 1 D7 and Details (historical workflow)
 

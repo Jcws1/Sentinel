@@ -1,5 +1,7 @@
 import asyncio
 import json
+import logging
+from app.observability import NULL_TELEMETRY
 from dataclasses import dataclass
 from typing import Callable
 from uuid import uuid4
@@ -21,10 +23,11 @@ class Subscription:
 
 
 class MissionService:
-    def __init__(self, repository: RecordingRepository, queue_size: int = 32, clock: Callable[[], str] = utc_now):
+    def __init__(self, repository: RecordingRepository, queue_size: int = 32, clock: Callable[[], str] = utc_now, telemetry=None):
         if queue_size < 1:
             raise ValueError("subscriber queue must be bounded and positive")
         self.repository = repository
+        self.telemetry = telemetry if telemetry is not None else NULL_TELEMETRY
         self.queue_size = queue_size
         self.clock = clock
         self._locks: dict[str, asyncio.Lock] = {}
@@ -135,9 +138,12 @@ class MissionService:
         return canonical(DeltaMessage.model_validate_json(canonical(payload)))
 
     def _publish(self, mission_id: str, message: str):
+        # All callers publish only after their encompassing transaction commits.
+        self.telemetry.published(mission_id, message)
         for subscription in tuple(self._subscribers.get(mission_id, set())):
             if subscription.queue.full():
                 self.unsubscribe(mission_id, subscription)
+                self.telemetry.event("stream.resync_required", level=logging.WARNING, mission_id=mission_id, reason="slow-consumer")
                 while not subscription.queue.empty():
                     subscription.queue.get_nowait()
                 subscription.queue.put_nowait(canonical(ResyncRequiredMessage(type="resync-required", schema_version=json.loads(message)["schemaVersion"], mission_id=mission_id, reason="slow-consumer")))

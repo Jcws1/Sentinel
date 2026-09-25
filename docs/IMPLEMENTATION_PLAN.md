@@ -1,5 +1,28 @@
 # Sentinel v3 — implementation plan and delivery status
 
+**Assessment preparation — 25 September 2026: current working-tree evidence.**
+Claude's candidate 6 was preserved and verified before adding application logs,
+local metrics/request correlation, a saved-plan review launcher and reproducible
+neutral input variations. The assessment source (`0207f2e9…154e5`, HEAD `f98de4f`
+plus uncommitted changes) passes 768 backend, 637 frontend, 132 browser and 387
+system checks, plus prerequisites and 26 native foreground ownership checks.
+The [assessment pack](assessment/START-HERE.md) links exact commands, retained
+failed attempts, corrected reruns and raw results. These author-run checks do
+not substitute for the remaining independent Phase 5 critic round.
+
+**Phase 5 implementation is present; formal closure remains pending.** The shared
+exact polygon predicate, synthetic §9 fixture and recorded inspection remain;
+Timeline replay is deferred to Phase 7. With logging enabled, ordinary 40-unit,
+two-timestamp batches (80 rows) have a worst update gap of about 300 ms against
+750 ms. Larger workloads pause delivery: 7.0 s for a single 10k snapshot, 8.9 s
+for 40×100 timestamps, and 16.2 s for 300 growing-world timestamps. The largest
+tested persisted UI body is 2,283,322 bytes (9,687 one-timestamp observations),
+not a portable maximum. [Measurements](assessment/PERFORMANCE-AND-LIMITS.md)
+disclose geometry costs, input dimensions and the scope of the continuity result.
+C01–C23 [sign-off](phase5-closure/COMPATIBILITY-DECISIONS.md), independent critic
+round 3 and the formal [closure decision](phase5-closure/README.md) remain open.
+P6-PACING, D7 display and configured Video remain open. No commit or push.
+
 **Current Phase 6 authorization — 20 September 2026:** Command Picture and the
 Vertical Engagement Profile are implemented in the existing shell. The complete
 backend regression passes 562 checks on candidate 22; its frontend passes 486
@@ -712,11 +735,11 @@ Fleet/Details, independent cameras, renderer retention, the primary observed-his
 
 ### Phase 5 — simulation compatibility end to end
 
-**Deferred. Recommended after the bounded D1–D7 demo in the revised delivery order**, beginning with the retained bounded resolver/adapter slice and explicitly reviewed compatibility policies; this document does not authorise its implementation. The demo roadmap changes delivery order, not this phase's external contract or acceptance obligations. There is no technical requirement to depend on the interactive executor when validating the pure compatibility resolver.
+**Status (25 September 2026): implemented; formal closure decision pending the final independent critic round.** Implemented under the 20 September authorization, followed by Claude's candidate-6 corrections and the separately identified [assessment build](assessment/TEST-RESULTS.md). The [Phase 5 closure](phase5-closure/README.md) records the outstanding decision; it is not marked closed. The [traceability matrix](phase5-closure/TRACEABILITY.md) retains named historical evidence and points to current regressions. Known limitations include large-batch source pausing across both unit and timestamp dimensions, the browser-storage limit on UI input size, and recorded inspection in place of Timeline replay (deferred to Phase 7). Organiser conformance remains unclaimed while C01–C23 are provisional. There is no technical requirement to depend on the interactive executor when validating the pure compatibility resolver.
 
 This phase supplies external run controls and outcome integration, not per-drone Move/destination authoring by implication. The local demo outcome is not conformance evidence. The submitted batch contract has no streaming append/tick command or selected-pair mask and requires MSL inputs. Do not emulate interaction streaming with repeated START or hidden HOLD/RESUME loops. Initially evaluate compatibility in separate missions/runs so its adapter cannot overwrite an interactive executor. A later bridge requires an explicit single-writer/source coordinator, run/sample continuation policy, selected-input scope, altitude mapping, profile governance and next-input-state/correction rules. Preserve §7's golden health-60 ACTIVE result and all organiser ambiguities.
 
-- **Files/modules:** backend `simulation/*`, `adapters/simulation_v1/*`, compatibility route, complete contract fixtures/tests; frontend `modules/counter-uas/*` controls/details.
+- **Files/modules:** backend `app/simulation/*`, `app/adapters/simulation_v1/*`, compatibility route, complete contract fixtures/tests; frontend `src/modules/simulation/*` controls/details.
 - **Dependencies:** Python stdlib hashing/decimal handling; add a polygon library only if its validated semantics reduce risk. Existing transport and persistence stack suffices.
 - **Interfaces:** exact external request/response, resolver, lifecycle service, idempotency registry, profile registry, adapter mapping and typed module details.
 - **Acceptance:** published golden result matches; all §10 negative/boundary cases covered; same canonical command returns stored result without duplicate recording; conflicting content gives 409; HOLD/RESUME/ABORT are backend acknowledged. Neutral/unknown/out-of-area rows persist; simultaneous outcomes and discontinuities are correct. No raw external drone schema enters core/frontend world state. Sparse 10,000-drone fixture passes and dense scaling is measured separately.

@@ -1,5 +1,6 @@
 import { Camera, Pin, X } from 'lucide-react';
 import { cockpitCandidate } from '../../world/cockpit';
+import { finalizedExternalMission } from '../../world/externalRun';
 import {
   useOperationalRuntime,
   useOperationalSnapshot,
@@ -196,6 +197,17 @@ export function EntityDetails({
   const outcome = frame?.fleetBehavior?.outcomes?.find((o) =>
     o.participants.some((p) => p.entityId === entityId),
   );
+  const videoUnavailable = row
+    ? cockpitCandidate(
+        {
+          presentation: state.presentation,
+          session: state.session,
+          connection: state.connection,
+          authoring: state.scenario.active,
+        },
+        row.entity.id,
+      ).reason
+    : undefined;
   return (
     <article
       className={`entity-details ${pinned ? 'entity-inspector' : 'selection-details'}`}
@@ -323,37 +335,33 @@ export function EntityDetails({
           )}
           {!row.track && <p className="entity-notice">No position supplied.</p>}
           {row.entity.affiliation === 'friendly' && (
-            <button
-              className="text-control entity-cockpit-action"
-              onClick={() => {
-                if (runtime.openCockpit(row.entity.id)) bridge.open('cockpit');
-              }}
-              disabled={
-                !cockpitCandidate(
-                  {
-                    presentation: state.presentation,
-                    session: state.session,
-                    connection: state.connection,
-                    authoring: state.scenario.active,
-                  },
-                  row.entity.id,
-                ).binding
-              }
-              title={
-                cockpitCandidate(
-                  {
-                    presentation: state.presentation,
-                    session: state.session,
-                    connection: state.connection,
-                    authoring: state.scenario.active,
-                  },
-                  row.entity.id,
-                ).reason ??
-                'Open or rebind the one simulated video view. Viewing does not acquire control.'
-              }
-            >
-              <Camera size={14} aria-hidden="true" /> Video Feed
-            </button>
+            <>
+              <button
+                className="text-control entity-cockpit-action"
+                onClick={() => {
+                  if (runtime.openCockpit(row.entity.id))
+                    bridge.open('cockpit');
+                }}
+                disabled={!!videoUnavailable}
+                aria-describedby={
+                  videoUnavailable ? `${row.entity.id}-video-reason` : undefined
+                }
+                title={
+                  videoUnavailable ??
+                  'Open or rebind the one simulated video view. Viewing does not acquire control.'
+                }
+              >
+                <Camera size={14} aria-hidden="true" /> Video Feed
+              </button>
+              {videoUnavailable && (
+                <p
+                  id={`${row.entity.id}-video-reason`}
+                  className="entity-notice"
+                >
+                  {videoUnavailable}
+                </p>
+              )}
+            </>
           )}
           {state.presentation.status === 'stale' && (
             <p className="entity-notice" role="status">
@@ -462,13 +470,15 @@ export function EntityDetails({
               </span>
               <span>
                 Delivery ·{' '}
-                {state.connection !== 'connected'
-                  ? state.connection
-                  : state.presentation.sourceDelayed
-                    ? 'source delayed'
-                    : state.presentation.status === 'current'
-                      ? 'current'
-                      : 'unverified'}
+                {finalizedExternalMission(frame.mission)
+                  ? 'recording finalized (ABORTED)'
+                  : state.connection !== 'connected'
+                    ? state.connection
+                    : state.presentation.sourceDelayed
+                      ? 'source delayed'
+                      : state.presentation.status === 'current'
+                        ? 'current'
+                        : 'unverified'}
               </span>
             </p>
           </section>

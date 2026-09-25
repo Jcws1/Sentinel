@@ -189,6 +189,72 @@ describe('external simulation command ownership', () => {
     client.dispose();
   });
 
+  it('explains a browser storage quota refusal and sends nothing', async () => {
+    const fetcher = vi.fn();
+    const store = storage();
+    const limited = {
+      ...store,
+      setItem(key: string, value: string) {
+        if (JSON.parse(value).pending)
+          throw new DOMException('Exceeded the quota', 'QuotaExceededError');
+        store.setItem(key, value);
+      },
+    };
+    const client = createSimulationClient({
+      base: '/api',
+      fetcher,
+      storage: limited,
+    });
+    client.edit(input);
+    await client.submit();
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(client.getSnapshot().error).toContain(
+      'too large to protect across reload',
+    );
+    expect(client.getSnapshot().error).toContain('It has not been sent.');
+    expect(client.getSnapshot().pending).toBeUndefined();
+    expect(client.getSnapshot().draft).toBe(input);
+    client.dispose();
+  });
+
+  it('names the saved draft when storage refuses a small control command', async () => {
+    const store = storage();
+    const limited = {
+      ...store,
+      setItem(key: string, value: string) {
+        if (JSON.parse(value).pending)
+          throw new DOMException('Exceeded the quota', 'QuotaExceededError');
+        store.setItem(key, value);
+      },
+    };
+    let posted = false;
+    const fetcher: Fetcher = async (url, init) => {
+      if (init?.method === 'POST') posted = true;
+      if (url.endsWith('/input')) return new Response(input);
+      if (url.endsWith('/runs')) return response([run]);
+      if (url.includes('/runs/')) return response(run);
+      return response(goldenResponse);
+    };
+    const client = createSimulationClient({
+      base: '/api',
+      storage: limited,
+      fetcher,
+    });
+    client.edit(input);
+    await client.inspect(run.missionId);
+    await client.control('HOLD');
+    const { error, pending, draft } = client.getSnapshot();
+    expect(error).toContain(
+      'the saved draft leaves no room to protect this HOLD command',
+    );
+    expect(error).toContain('It has not been sent.');
+    expect(error).not.toContain('too large');
+    expect(posted).toBe(false);
+    expect(pending).toBeUndefined();
+    expect(draft).toBe(input);
+    client.dispose();
+  });
+
   it('preserves corrupt storage without overwriting it', () => {
     const store = storage();
     store.setItem(simulationStorageKey, '{broken');
@@ -198,6 +264,9 @@ describe('external simulation command ownership', () => {
       storage: store,
     });
     expect(client.getSnapshot().blocked).toBe(true);
+    // The operator learns which entry blocks the pane and a safe next step.
+    expect(client.getSnapshot().error).toContain(simulationStorageKey);
+    expect(client.getSnapshot().error).toContain('left untouched');
     client.edit(input);
     expect(store.values.get(simulationStorageKey)).toBe('{broken');
     client.dispose();
@@ -211,17 +280,180 @@ describe('external simulation command ownership', () => {
         storage: storage(),
         fetcher: async () =>
           response(
-            { error: { message: 'Rejected', path: '/command' } },
+            {
+              error: {
+                code: 'EXAMPLE_CODE',
+                message: 'Rejected',
+                path: '/command',
+              },
+            },
             status,
           ),
       });
       client.edit(input);
       await client.submit();
       expect(client.getSnapshot().pending).toBeUndefined();
-      expect(client.getSnapshot().error).toBe('Rejected /command');
+      expect(client.getSnapshot().error).toBe(
+        'EXAMPLE_CODE: Rejected (at /command)',
+      );
+      // A rejection never creates or changes a run, whether or not one exists.
+      expect(client.getSnapshot().message).toBe(
+        'Command rejected by the authority. No run was created or changed.',
+      );
       client.dispose();
     },
   );
+
+  it.each([
+    [
+      'network failure',
+      () => Promise.reject(new TypeError('Failed to fetch')),
+      'The authority is unreachable. Outcome unknown.',
+    ],
+    [
+      'empty 502',
+      () => Promise.resolve(new Response('', { status: 502 })),
+      'Authority unavailable (HTTP 502); outcome unknown.',
+    ],
+    [
+      'unreadable acknowledgement',
+      () => Promise.resolve(new Response('{', { status: 200 })),
+      'The acknowledgement could not be read; outcome unknown.',
+    ],
+  ] as const)(
+    'explains an unknown outcome after a %s and keeps the exact command',
+    async (_, post, expected) => {
+      const client = createSimulationClient({
+        base: '/api',
+        storage: storage(),
+        fetcher: () => post(),
+      });
+      client.edit(input);
+      await client.submit();
+      const { error, pending } = client.getSnapshot();
+      expect(error).toContain(expected);
+      expect(error).toContain('Your exact command is saved');
+      expect(error).not.toMatch(/Failed to fetch|JSON|^Error:/);
+      expect(pending).toBe(input);
+      client.dispose();
+    },
+  );
+
+  it('says when an identical earlier command returned its stored result', async () => {
+    const aborted = { ...run, commandId: 'ABORT-1', state: 'ABORTED' };
+    const fetcher: Fetcher = async (url) =>
+      url.endsWith('/runs') ? response([aborted]) : response(goldenResponse);
+    const client = createSimulationClient({
+      base: '/api',
+      storage: storage(),
+      fetcher,
+    });
+    client.edit(input);
+    await client.submit();
+    const { message, selected } = client.getSnapshot();
+    expect(message).toContain('already recorded');
+    expect(message).toContain('no new command was created');
+    expect(message).toContain('Current run state: ABORTED');
+    expect(message).not.toContain('committed');
+    expect(selected?.state).toBe('ABORTED');
+    client.dispose();
+  });
+
+  it('names a fresh commit with its action and recorded run state', async () => {
+    const fetcher: Fetcher = async (url) =>
+      url.endsWith('/runs') ? response([run]) : response(goldenResponse);
+    const client = createSimulationClient({
+      base: '/api',
+      storage: storage(),
+      fetcher,
+    });
+    client.edit(input);
+    await client.submit();
+    expect(client.getSnapshot().message).toBe(
+      `${goldenRequest.command.command_id}: START committed · ${goldenResponse.command_ack.run_status}`,
+    );
+    client.dispose();
+  });
+
+  it('keeps the commit wording when the catalog cannot be refreshed after a commit', async () => {
+    const stale = { ...run, commandId: 'EARLIER-1', state: 'RUNNING' };
+    let catalogUp = true;
+    const fetcher: Fetcher = async (url, init) => {
+      if (init?.method === 'POST') {
+        catalogUp = false;
+        return response(goldenResponse);
+      }
+      return url.endsWith('/runs') && catalogUp
+        ? response([stale])
+        : new Response('', { status: 502 });
+    };
+    const client = createSimulationClient({
+      base: '/api',
+      storage: storage(),
+      fetcher,
+    });
+    await client.refresh();
+    client.edit(input);
+    await client.submit();
+    expect(client.getSnapshot().message).toContain('START committed');
+    expect(client.getSnapshot().message).not.toContain('already recorded');
+    client.dispose();
+  });
+
+  it('clears a read failure when that read next succeeds, and only then', async () => {
+    let catalogUp = false;
+    const fetcher: Fetcher = async (_url, init) => {
+      if (init?.method === 'POST')
+        return response(
+          { error: { code: 'INVALID_JSON', message: 'Bad', path: '' } },
+          400,
+        );
+      return catalogUp ? response([run]) : new Response('', { status: 502 });
+    };
+    const client = createSimulationClient({
+      base: '/api',
+      storage: storage(),
+      fetcher,
+    });
+    await client.refresh();
+    expect(client.getSnapshot().error).toBe(
+      'Simulation run catalog unavailable: the authority answered HTTP 502. Try again when it is available.',
+    );
+    catalogUp = true;
+    await client.refresh();
+    expect(client.getSnapshot().error).toBeUndefined();
+    client.edit(input);
+    await client.submit();
+    expect(client.getSnapshot().error).toBe('INVALID_JSON: Bad');
+    await client.refresh();
+    expect(client.getSnapshot().error).toBe('INVALID_JSON: Bad');
+    client.dispose();
+  });
+
+  it('keeps the chosen run visible while it loads', async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const fetcher: Fetcher = async (url) => {
+      if (url.includes('/runs/')) {
+        await gate;
+        return response(run);
+      }
+      return response(goldenResponse);
+    };
+    const client = createSimulationClient({
+      base: '/api',
+      storage: storage(),
+      fetcher,
+    });
+    const loading = client.inspect(run.missionId);
+    expect(client.getSnapshot().inspecting).toBe(run.missionId);
+    expect(client.getSnapshot().loading).toBe(true);
+    release();
+    await loading;
+    expect(client.getSnapshot().inspecting).toBeUndefined();
+    expect(client.getSnapshot().selected?.missionId).toBe(run.missionId);
+    client.dispose();
+  });
 
   it.each(['uncommitted', 'identity', 'malformed', 'unavailable'])(
     'retains pending for %s acknowledgements',
@@ -379,6 +611,163 @@ describe('external simulation command ownership', () => {
     );
     expect(JSON.parse(sent).samples_by_timestamp).toEqual({});
     expect(client.getSnapshot().draft).toBe(input);
+    client.dispose();
+  });
+
+  const summary = (commandId: string, sequence: number, action = 'START') => ({
+    action,
+    commandId,
+    sequence,
+    state: 'completed',
+    receivedAt: '2026-09-20T00:00:00.000Z',
+    completedAt: '2026-09-20T00:00:01.000Z',
+  });
+
+  it("drops another run's command list when a submission selects a different run", async () => {
+    const other = {
+      ...run,
+      missionId: 'other',
+      externalMissionId: 'OTHER',
+      commandId: 'OTHER-CMD',
+    };
+    const fetcher: Fetcher = async (url, init) => {
+      if (init?.method === 'POST')
+        return response({
+          ...goldenResponse,
+          mission_id: 'OTHER',
+          command_ack: {
+            ...goldenResponse.command_ack,
+            command_id: 'OTHER-CMD',
+          },
+        });
+      if (url.endsWith('/runs')) return response([run, other]);
+      if (url.includes('/commands?'))
+        return response([summary(run.commandId, 1)]);
+      if (url.includes('/runs/')) return response(run);
+      return response(goldenResponse);
+    };
+    const client = createSimulationClient({
+      base: '/api',
+      storage: storage(),
+      fetcher,
+    });
+    await client.inspect(run.missionId);
+    await client.commands();
+    expect(client.getSnapshot().commands).toHaveLength(1);
+    client.edit(
+      JSON.stringify({
+        ...goldenRequest,
+        mission_id: 'OTHER',
+        command: { ...goldenRequest.command, command_id: 'OTHER-CMD' },
+      }),
+    );
+    await client.submit();
+    const state = client.getSnapshot();
+    expect(state.selected?.missionId).toBe('other');
+    expect(state.result?.mission_id).toBe('OTHER');
+    expect(state.commands).toBeUndefined();
+    client.dispose();
+  });
+
+  it('reloads a loaded command list after a command for the same run commits', async () => {
+    let holdId = '';
+    const fetcher: Fetcher = async (url, init) => {
+      if (init?.method === 'POST') {
+        holdId = JSON.parse(String(init.body)).command.command_id;
+        return response({
+          ...goldenResponse,
+          command_ack: {
+            ...goldenResponse.command_ack,
+            command_id: holdId,
+            run_status: 'HELD',
+          },
+          results_by_timestamp: {},
+        });
+      }
+      if (url.endsWith('/input')) return new Response(input);
+      if (url.endsWith('/runs'))
+        return response([
+          holdId ? { ...run, state: 'HELD', commandId: holdId } : run,
+        ]);
+      if (url.includes('/commands?'))
+        return response(
+          holdId
+            ? [summary(run.commandId, 1), summary(holdId, 2, 'HOLD')]
+            : [summary(run.commandId, 1)],
+        );
+      if (url.includes('/runs/')) return response(run);
+      return response(goldenResponse);
+    };
+    const client = createSimulationClient({
+      base: '/api',
+      storage: storage(),
+      fetcher,
+    });
+    await client.inspect(run.missionId);
+    await client.commands();
+    expect(client.getSnapshot().commands?.map((c) => c.action)).toEqual([
+      'START',
+    ]);
+    await client.control('HOLD');
+    expect(client.getSnapshot().message).toContain('HOLD committed · HELD');
+    expect(client.getSnapshot().commands?.map((c) => c.action)).toEqual([
+      'START',
+      'HOLD',
+    ]);
+    client.dispose();
+  });
+
+  it.each([
+    [
+      'answers HTTP 502',
+      () => Promise.resolve(new Response('', { status: 502 })),
+      'HOLD not sent. The authority is unavailable (HTTP 502). Try again when it is available.',
+    ],
+    [
+      'is unreachable',
+      () => Promise.reject(new TypeError('Failed to fetch')),
+      'HOLD not sent. The authority is unreachable. Try again when it is available.',
+    ],
+  ] as const)(
+    'says a control was not sent when the authority %s',
+    async (_, readInput, expected) => {
+      let posted = false;
+      const fetcher: Fetcher = async (url, init) => {
+        if (init?.method === 'POST') posted = true;
+        if (url.endsWith('/input')) return readInput();
+        if (url.includes('/runs/')) return response(run);
+        return response(goldenResponse);
+      };
+      const client = createSimulationClient({
+        base: '/api',
+        storage: storage(),
+        fetcher,
+      });
+      await client.inspect(run.missionId);
+      await client.control('HOLD');
+      expect(client.getSnapshot().error).toBe(expected);
+      expect(client.getSnapshot().pending).toBeUndefined();
+      expect(posted).toBe(false);
+      client.dispose();
+    },
+  );
+
+  it('explains a refused draft save and points large batches to the HTTP API', () => {
+    const client = createSimulationClient({
+      base: '/api',
+      fetcher: vi.fn(),
+      storage: {
+        getItem: () => null,
+        setItem: () => {
+          throw new DOMException('Quota', 'QuotaExceededError');
+        },
+      },
+    });
+    client.edit(input);
+    const { error, draft } = client.getSnapshot();
+    expect(error).toContain('could not be saved to browser storage');
+    expect(error).toContain('HTTP API');
+    expect(draft).toBe('');
     client.dispose();
   });
 

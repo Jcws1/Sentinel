@@ -56,6 +56,7 @@ import { selectForDetails } from '../entities/selectionActions';
 import { countText } from '../entities/values';
 import { FilterItems, filtersActive } from '../entities/EntityFilters';
 import { entityRows } from '../../world/entityRows';
+import { finalizedExternalMission } from '../../world/externalRun';
 import { formatSgt } from '../../world/time';
 import { originFor } from '../../world/localGeometry';
 
@@ -1295,6 +1296,11 @@ export function TacticalMap({
                   Retry after closing or hiding a map
                 </button>
               </>
+            )}
+            {finalizedExternalMission(state.presentation.frame?.mission) && (
+              <span className="constraint-tag">
+                RECORDING FINALIZED · ABORTED
+              </span>
             )}
           </div>
           {scene.stale && scene.frameId && (

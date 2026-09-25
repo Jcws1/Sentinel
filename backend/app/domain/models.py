@@ -11,6 +11,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, JsonValue, fi
 from pydantic.alias_generators import to_camel
 
 
+from app.domain import geometry
 from app.domain.base import Model, Id, UtcInstant, Finite, Sequence, Longitude, Latitude
 from app.commands.contracts import InteractiveRun
 from app.commands.legacy_rts import LegacyRtsInteractiveRun
@@ -126,26 +127,16 @@ class Sensor(Model):
     provenance: Provenance
 
 
-def orientation(a, b, c):
-    return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
-
-
-def on_segment(a, b, point):
-    return orientation(a, b, point) == 0 and min(a[0], b[0]) <= point[0] <= max(a[0], b[0]) and min(a[1], b[1]) <= point[1] <= max(a[1], b[1])
-
-
-def intersects(a, b, c, d):
-    x, y, z, w = orientation(a, b, c), orientation(a, b, d), orientation(c, d, a), orientation(c, d, b)
-    opposite = lambda left, right: (left < 0 < right) or (right < 0 < left)
-    return (opposite(x, y) and opposite(z, w)) or any((on_segment(a, b, c), on_segment(a, b, d), on_segment(c, d, a), on_segment(c, d, b)))
-
-
-def inside(point, ring):
-    result = False
-    for a, b in zip(ring, ring[1:]):
-        if (a[1] > point[1]) != (b[1] > point[1]) and point[0] < (b[0] - a[0]) * (point[1] - a[1]) / (b[1] - a[1]) + a[0]:
-            result = not result
-    return result
+POLYGON_MESSAGES = {
+    geometry.UNCLOSED: "polygon rings require at least four positions and closure",
+    geometry.DUPLICATE: "polygon rings must have distinct vertices",
+    geometry.ZERO_AREA: "polygon ring has zero area",
+    geometry.ADJACENT_OVERLAP: "polygon adjacent edges overlap",
+    geometry.SELF_INTERSECTION: "polygon ring intersects itself",
+    geometry.HOLE_OUTSIDE: "polygon hole lies outside exterior",
+    geometry.RINGS_TOUCH: "polygon rings intersect or touch",
+    geometry.HOLES_OVERLAP: "polygon holes overlap",
+}
 
 
 class Polygon(Model):
@@ -156,48 +147,14 @@ class Polygon(Model):
     def valid_rings(self):
         # Explicit planar longitude/latitude geometry. Global wrapping semantics
         # remain an adapter/provider decision; no implicit shortest-edge wrapping.
-        # Validate in translated, independently scaled axes. Coordinates remain
-        # untouched; the positive affine transform preserves polygon topology
-        # while avoiding underflow for finite subnormal/small source geometry.
-        points = [point for ring in self.coordinates for point in ring]
-        if not points:
+        # Topology is exact on each coordinate's shortest round-trip decimal, the
+        # same predicate as external validation and the frontend decoder (C17).
+        # Coordinates remain untouched; there is no tolerance or minimum size.
+        if not any(self.coordinates):
             raise ValueError("polygon rings require positions")
-        anchor = points[0]
-        sx = max(abs(p[0] - anchor[0]) for p in points) or 1
-        sy = max(abs(p[1] - anchor[1]) for p in points) or 1
-        rings = ([[((p[0] - anchor[0]) / sx, (p[1] - anchor[1]) / sy) for p in ring] for ring in self.coordinates]
-                 if min(sx, sy) < 1e-120 else self.coordinates)
-        for ring in rings:
-            if len(ring) < 4 or ring[0] != ring[-1]:
-                raise ValueError("polygon rings require at least four positions and closure")
-            if len(set(ring[:-1])) != len(ring) - 1:
-                raise ValueError("polygon rings must have distinct vertices")
-            # Translate first: absolute longitude products cancel for valid tiny
-            # polygons far from zero. The geometry/schema semantics are unchanged.
-            from math import fsum
-            area = fsum(orientation(ring[0], a, b) for a, b in zip(ring, ring[1:]))
-            if area == 0:
-                raise ValueError("polygon ring has zero area")
-            edges = list(zip(ring, ring[1:]))
-            for i, (a, b) in enumerate(edges):
-                c = edges[(i + 1) % len(edges)][1]
-                if on_segment(a, b, c) or on_segment(b, c, a):
-                    raise ValueError("polygon adjacent edges overlap")
-                for j in range(i + 1, len(edges)):
-                    if j == i + 1 or (i == 0 and j == len(edges) - 1):
-                        continue
-                    if intersects(a, b, *edges[j]):
-                        raise ValueError("polygon ring intersects itself")
-        outer = rings[0]
-        for i, hole in enumerate(rings[1:], 1):
-            if not inside(hole[0], outer):
-                raise ValueError("polygon hole lies outside exterior")
-            for previous in rings[:i]:
-                if any(intersects(a, b, c, d) for a, b in zip(hole, hole[1:]) for c, d in zip(previous, previous[1:])):
-                    raise ValueError("polygon rings intersect or touch")
-            for previous in rings[1:i]:
-                if inside(hole[0], previous) or inside(previous[0], hole):
-                    raise ValueError("polygon holes overlap")
+        problem = geometry.polygon_violation(self.coordinates)
+        if problem:
+            raise ValueError(POLYGON_MESSAGES[problem])
         return self
 
 

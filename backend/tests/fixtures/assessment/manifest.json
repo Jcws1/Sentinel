@@ -1,0 +1,168 @@
+{
+  "purpose": "Synthetic input robustness demonstration; no sensor, aircraft or physical-effects validation.",
+  "parameters": {
+    "seed": 20260925,
+    "units": 40,
+    "timestamps": 6,
+    "drop_rate": 0.1,
+    "north_m": 2000,
+    "east_m": 0,
+    "jitter_m": 5,
+    "time_shift_s": 60,
+    "run_id": "review"
+  },
+  "coordinate_method": "Local spherical conversion, mean Earth radius 6371008.8 m, longitude scale at latitude 1.35 degrees.",
+  "baseline_rows": 240,
+  "variant_rows": 216,
+  "removed_rows": 24,
+  "actual_drop_rate": 0.1,
+  "removed_observations": [
+    {
+      "baseline_timestamp": "2026-09-25T00:00:01.000Z",
+      "variant_timestamp": "2026-09-25T00:01:01.000Z",
+      "drone_id": "OBS-003"
+    },
+    {
+      "baseline_timestamp": "2026-09-25T00:00:01.000Z",
+      "variant_timestamp": "2026-09-25T00:01:01.000Z",
+      "drone_id": "OBS-022"
+    },
+    {
+      "baseline_timestamp": "2026-09-25T00:00:01.000Z",
+      "variant_timestamp": "2026-09-25T00:01:01.000Z",
+      "drone_id": "OBS-031"
+    },
+    {
+      "baseline_timestamp": "2026-09-25T00:00:01.000Z",
+      "variant_timestamp": "2026-09-25T00:01:01.000Z",
+      "drone_id": "OBS-034"
+    },
+    {
+      "baseline_timestamp": "2026-09-25T00:00:02.000Z",
+      "variant_timestamp": "2026-09-25T00:01:02.000Z",
+      "drone_id": "OBS-021"
+    },
+    {
+      "baseline_timestamp": "2026-09-25T00:00:02.000Z",
+      "variant_timestamp": "2026-09-25T00:01:02.000Z",
+      "drone_id": "OBS-028"
+    },
+    {
+      "baseline_timestamp": "2026-09-25T00:00:02.000Z",
+      "variant_timestamp": "2026-09-25T00:01:02.000Z",
+      "drone_id": "OBS-036"
+    },
+    {
+      "baseline_timestamp": "2026-09-25T00:00:03.000Z",
+      "variant_timestamp": "2026-09-25T00:01:03.000Z",
+      "drone_id": "OBS-005"
+    },
+    {
+      "baseline_timestamp": "2026-09-25T00:00:03.000Z",
+      "variant_timestamp": "2026-09-25T00:01:03.000Z",
+      "drone_id": "OBS-008"
+    },
+    {
+      "baseline_timestamp": "2026-09-25T00:00:03.000Z",
+      "variant_timestamp": "2026-09-25T00:01:03.000Z",
+      "drone_id": "OBS-021"
+    },
+    {
+      "baseline_timestamp": "2026-09-25T00:00:03.000Z",
+      "variant_timestamp": "2026-09-25T00:01:03.000Z",
+      "drone_id": "OBS-031"
+    },
+    {
+      "baseline_timestamp": "2026-09-25T00:00:04.000Z",
+      "variant_timestamp": "2026-09-25T00:01:04.000Z",
+      "drone_id": "OBS-005"
+    },
+    {
+      "baseline_timestamp": "2026-09-25T00:00:04.000Z",
+      "variant_timestamp": "2026-09-25T00:01:04.000Z",
+      "drone_id": "OBS-011"
+    },
+    {
+      "baseline_timestamp": "2026-09-25T00:00:04.000Z",
+      "variant_timestamp": "2026-09-25T00:01:04.000Z",
+      "drone_id": "OBS-013"
+    },
+    {
+      "baseline_timestamp": "2026-09-25T00:00:04.000Z",
+      "variant_timestamp": "2026-09-25T00:01:04.000Z",
+      "drone_id": "OBS-025"
+    },
+    {
+      "baseline_timestamp": "2026-09-25T00:00:04.000Z",
+      "variant_timestamp": "2026-09-25T00:01:04.000Z",
+      "drone_id": "OBS-026"
+    },
+    {
+      "baseline_timestamp": "2026-09-25T00:00:04.000Z",
+      "variant_timestamp": "2026-09-25T00:01:04.000Z",
+      "drone_id": "OBS-033"
+    },
+    {
+      "baseline_timestamp": "2026-09-25T00:00:04.000Z",
+      "variant_timestamp": "2026-09-25T00:01:04.000Z",
+      "drone_id": "OBS-037"
+    },
+    {
+      "baseline_timestamp": "2026-09-25T00:00:04.000Z",
+      "variant_timestamp": "2026-09-25T00:01:04.000Z",
+      "drone_id": "OBS-038"
+    },
+    {
+      "baseline_timestamp": "2026-09-25T00:00:05.000Z",
+      "variant_timestamp": "2026-09-25T00:01:05.000Z",
+      "drone_id": "OBS-010"
+    },
+    {
+      "baseline_timestamp": "2026-09-25T00:00:05.000Z",
+      "variant_timestamp": "2026-09-25T00:01:05.000Z",
+      "drone_id": "OBS-023"
+    },
+    {
+      "baseline_timestamp": "2026-09-25T00:00:05.000Z",
+      "variant_timestamp": "2026-09-25T00:01:05.000Z",
+      "drone_id": "OBS-030"
+    },
+    {
+      "baseline_timestamp": "2026-09-25T00:00:05.000Z",
+      "variant_timestamp": "2026-09-25T00:01:05.000Z",
+      "drone_id": "OBS-033"
+    },
+    {
+      "baseline_timestamp": "2026-09-25T00:00:05.000Z",
+      "variant_timestamp": "2026-09-25T00:01:05.000Z",
+      "drone_id": "OBS-037"
+    }
+  ],
+  "expected_final_unobserved": [
+    "OBS-010",
+    "OBS-023",
+    "OBS-030",
+    "OBS-033",
+    "OBS-037"
+  ],
+  "expected": {
+    "baseline": "HTTP 200; supplied neutral observations recorded",
+    "variant": "HTTP 200; omitted observations remain unobserved, not removed or guessed",
+    "invalid": "HTTP 422; latitude 91 rejected before creating a recording",
+    "exact_retry": "Same command identity and body returns the stored result without another execution"
+  },
+  "files": {
+    "baseline.json": {
+      "sha256": "bfac2194652dcbffec6f5e391488585cf096c0ddd7510c3f695011e8fbfbbda1",
+      "bytes": 64390
+    },
+    "variant.json": {
+      "sha256": "41ba507982f65d3b99c6ae3a4bc6504c4cc4a206bbb81f3fe8f36444803125e7",
+      "bytes": 58246
+    },
+    "invalid.json": {
+      "sha256": "72b605c657636e87ac9427f232b66435096ac8de6dc2b7aed707268551f99dab",
+      "bytes": 58230
+    }
+  }
+}

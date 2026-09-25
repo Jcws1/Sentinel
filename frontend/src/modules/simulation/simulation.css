@@ -28,6 +28,15 @@
   max-width: 100%;
   margin-top: 6px;
 }
+/* A labelled picker shrinks with a narrow pane instead of scrolling it sideways. */
+.simulation-actions > label:not(.text-control) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
 .simulation-editor {
   display: grid;
   gap: 6px;
@@ -67,8 +76,35 @@
   font-size: 12px;
   overflow-wrap: anywhere;
 }
-.simulation-notice[role='alert'] {
+.simulation-alert {
   color: #f7b3aa;
+}
+/* The focused alert's outline sits outside its text, never over the first characters. */
+.simulation-pane .simulation-alert:focus,
+.simulation-pane .simulation-alert:focus-visible {
+  outline-offset: 2px;
+}
+/* Unavailable actions stay focusable (aria-disabled) but look unavailable, as in other panes. */
+.simulation-pane button[aria-disabled='true'],
+.simulation-pane button:disabled,
+.simulation-pane select:disabled,
+.simulation-pane textarea:disabled,
+.simulation-pane label.text-control:has(input:disabled) {
+  opacity: 0.45;
+  cursor: default;
+}
+/* ABORT is terminal: destructive colour, set apart from HOLD, confirmed first. */
+.simulation-pane .simulation-danger,
+.mission-plan-confirm .simulation-danger {
+  color: #f0b0ab;
+  border-color: #815651;
+}
+.simulation-separated {
+  margin-left: auto;
+}
+/* Roughly the run block's height, so browsing runs does not make the pane jump. */
+.simulation-run-loading {
+  min-height: 150px;
 }
 .simulation-policy {
   color: #9ba8b5;

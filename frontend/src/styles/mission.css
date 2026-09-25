@@ -38,6 +38,10 @@
   text-overflow: ellipsis;
   overflow: hidden;
 }
+/* A mission state the name could truncate stays whole beside the picker. */
+.mission-state-tag {
+  flex-shrink: 0;
+}
 .mission-menu {
   min-width: 280px;
   max-width: min(440px, calc(100vw - 24px));

@@ -9,9 +9,9 @@ import json
 import math
 import re
 from datetime import datetime
-from decimal import Decimal
 from pathlib import Path
 
+from app.domain import geometry
 from app.simulation.policy import POLICY_ID
 
 SCHEMA = json.loads((Path(__file__).resolve().parents[3] / "contracts/simulation/v1.request.schema.json").read_text(encoding="utf-8"))
@@ -90,57 +90,33 @@ def timestamp(value, path):
     return value
 
 
-def _orientation(a, b, c):
-    return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
-
-
-def _on(a, b, p):
-    return _orientation(a, b, p) == 0 and min(a[0], b[0]) <= p[0] <= max(a[0], b[0]) and min(a[1], b[1]) <= p[1] <= max(a[1], b[1])
-
-
-def _intersects(a, b, c, d):
-    x, y, z, w = _orientation(a, b, c), _orientation(a, b, d), _orientation(c, d, a), _orientation(c, d, b)
-    return (x * y < 0 and z * w < 0) or any((_on(a, b, c), _on(a, b, d), _on(c, d, a), _on(c, d, b)))
+RING_MESSAGES = {
+    geometry.UNCLOSED: "Polygon must be closed",
+    geometry.DUPLICATE: "Polygon vertices must be distinct except for closure",
+    geometry.ZERO_AREA: "Zero-area polygon is unsupported by " + POLICY_ID,
+    geometry.ADJACENT_OVERLAP: "Polygon adjacent edges overlap",
+    geometry.SELF_INTERSECTION: "Polygon must not self-intersect",
+}
 
 
 def validate_ring(ring, path):
-    # Decimal conversion of accepted numeric values avoids absolute-coordinate
-    # cancellation when a valid small ring is far from the numeric origin.
-    points = [tuple(Decimal(str(v)) for v in point) for point in ring]
-    if points[0] != points[-1]:
-        invalid(path, "Polygon must be closed")
-    if len(set(points[:-1])) != len(points) - 1:
-        invalid(path, "Polygon vertices must be distinct except for closure")
-    anchor = points[0]
-    if sum(_orientation(anchor, a, b) for a, b in zip(points, points[1:])) == 0:
-        invalid(path, "Zero-area polygon is unsupported by " + POLICY_ID)
-    edges = list(zip(points, points[1:]))
-    for i, (a, b) in enumerate(edges):
-        c = edges[(i + 1) % len(edges)][1]
-        if _on(a, b, c) or _on(b, c, a):
-            invalid(path, "Polygon adjacent edges overlap")
-        for j in range(i + 1, len(edges)):
-            if j == i + 1 or (i == 0 and j == len(edges) - 1):
-                continue
-            if _intersects(a, b, *edges[j]):
-                invalid(path, "Polygon must not self-intersect")
+    # C17: exact topology on each coordinate's shortest round-trip decimal -- the
+    # same predicate as the core Polygon and frontend decoder, so every accepted
+    # ring completes the mapped-world path. No tolerance or minimum feature size.
+    problem = geometry.ring_violation(ring)
+    if problem:
+        invalid(path, RING_MESSAGES[problem])
 
 
 def inside_polygon(drone, ring):
-    point = (drone["longitude_deg"], drone["latitude_deg"])
-    # Decimal edge classification is reserved for exact/near-edge candidates;
-    # ordinary crossing uses translated arithmetic. No geographic tolerance widens
-    # eligibility, and dateline wrapping is not inferred by the planar policy.
-    inside = False
-    for a, b in zip(ring, ring[1:]):
-        cross = _orientation(a, b, point)
-        if abs(cross) <= 1e-12:
-            da, db, dp = (tuple(Decimal(str(v)) for v in item) for item in (a, b, point))
-            if _on(da, db, dp):
-                return True
-        if (a[1] > point[1]) != (b[1] > point[1]) and point[0] < (point[1] - a[1]) / (b[1] - a[1]) * (b[0] - a[0]) + a[0]:
-            inside = not inside
-    return inside
+    """Inclusive planar containment (C17), exact on decimal spellings.
+
+    ``ring`` is the external closed ring or a PreparedRing reused per request.
+    No geographic tolerance widens eligibility, and dateline wrapping is not
+    inferred by the planar policy.
+    """
+    prepared = ring if isinstance(ring, geometry.PreparedRing) else geometry.PreparedRing(ring)
+    return prepared.contains(drone["longitude_deg"], drone["latitude_deg"])
 
 
 def validate_steps(request):

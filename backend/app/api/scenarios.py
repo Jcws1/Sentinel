@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Request
+from app.observability import log_receipt
 from app.scenarios.contracts import ScenarioWrite, ScenarioReceipt, ScenarioRevision, ScenarioList
 from app.scenarios.contracts import ScenarioRef
 from app.scenarios.review import ScenarioReview
@@ -11,7 +12,8 @@ async def catalog(request: Request):
 
 @router.post("", response_model=ScenarioReceipt, response_model_exclude_none=True)
 async def create(body: ScenarioWrite, request: Request):
-    return await request.app.state.scenarios.write(body)
+    receipt = await request.app.state.scenarios.write(body)
+    return log_receipt(request.app.state.telemetry, receipt, "scenario")
 
 @router.get("/creations", response_model=ScenarioReceipt, response_model_exclude_none=True)
 async def creation_receipt(identity: str, request: Request):
@@ -19,7 +21,11 @@ async def creation_receipt(identity: str, request: Request):
 
 @router.post("/validate", response_model=ScenarioReview, response_model_exclude_none=True)
 async def validate(body: ScenarioRef, request: Request):
-    return await request.app.state.scenarios.review_async(body)
+    result = await request.app.state.scenarios.review_async(body)
+    request.app.state.telemetry.event("scenario.reviewed", definition_id=result.reference.definition_id,
+                                    revision=result.reference.revision, unit_count=result.counts.total,
+                                    accepted=result.can_run, issue_codes=[issue.code for issue in result.issues])
+    return result
 
 @router.get("/{definition_id}", response_model=ScenarioRevision, response_model_exclude_none=True)
 async def read(definition_id: str, request: Request, revision: int | None = None):
@@ -27,7 +33,8 @@ async def read(definition_id: str, request: Request, revision: int | None = None
 
 @router.post("/{definition_id}/revisions", response_model=ScenarioReceipt, response_model_exclude_none=True)
 async def save(definition_id: str, body: ScenarioWrite, request: Request):
-    return await request.app.state.scenarios.write(body, definition_id)
+    receipt = await request.app.state.scenarios.write(body, definition_id)
+    return log_receipt(request.app.state.telemetry, receipt, "scenario")
 
 @router.get("/{definition_id}/receipts", response_model=ScenarioReceipt, response_model_exclude_none=True)
 async def receipt(definition_id: str, identity: str, request: Request):

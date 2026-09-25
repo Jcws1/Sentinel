@@ -110,6 +110,23 @@ it('uses concise display aliases without changing fixture IDs or inventing demo 
   expect(missionDisplayName({ id: 'opaque-id', name: 'Demo 042' })).toBe(
     'Demo 042',
   );
+  // A finalized external recording names its state, except where the header
+  // shows that state as its own tag.
+  const finalized = {
+    id: 'mapped',
+    name: 'Simulation · SYN-S9-NORTH',
+    domain: 'external-simulation-v1',
+    lifecycle: 'completed',
+  } as const;
+  expect(missionDisplayName(finalized)).toBe(
+    'Simulation · SYN-S9-NORTH · ABORTED · recording finalized',
+  );
+  expect(missionDisplayName(finalized, 'completed', false)).toBe(
+    'Simulation · SYN-S9-NORTH',
+  );
+  expect(missionDisplayName(finalized, 'active')).toBe(
+    'Simulation · SYN-S9-NORTH',
+  );
 });
 
 it('distinguishes no response and absent position from confirmed non-operational status', () => {

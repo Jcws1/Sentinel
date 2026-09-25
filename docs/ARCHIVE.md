@@ -1,5 +1,32 @@
 # Local historical archive
 
+## 25 September 2026 technical-review preparation
+
+The assessment evidence is retained **inside this checkout** under
+`test-results/assessment/`. [Start here](assessment/START-HERE.md) gives the user
+guide; [verification results](assessment/TEST-RESULTS.md) identify the tested source
+and link to complete results, commands, failures, measurements and rehearsal logs.
+
+- `baseline/candidate6-source.zip` preserves Claude's starting candidate, with
+  verified hash readback. The candidate-5 report was separately preserved under
+  `test-results/phase5-closure/gate-c5/`.
+- `assessment-ready/assessment-source.zip` preserves the frozen assessment source and the
+  documentation present at freeze time. Its identity and readback are recorded in
+  `assessment-ready/assessment-identity.json`; the user guide was completed later.
+- `assessment-ready/preservation-final.json` checks the final executable source,
+  original database metadata, environment files, protected files and stopped
+  services. `build-identities.json` identifies the three retained built bundles.
+- `rehearsal/final/` contains the production browser rehearsal, captured screens,
+  real application events and request-ID correlation evidence. The prepared
+  morning database is separate at `demo/sentinel.sqlite3`.
+
+Task-owned test databases and builds remain available with this evidence. These
+are local assessment records, not a sealed Phase 5 closure archive. Independent
+critic round 3 and organiser acceptance/sign-off remain pending. No commit or
+push was made.
+
+## Earlier repository cleanup
+
 The user chose a private GitHub repository with concise reports and reusable inputs in source control. Historical raw evidence and obsolete experiments are preserved outside this checkout:
 
 `../Sentinel3-archive/2026-09-19-repository-cleanup/`

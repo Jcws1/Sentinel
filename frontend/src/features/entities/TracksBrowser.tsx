@@ -18,6 +18,7 @@ import { EntityFilters, filtersActive } from './EntityFilters';
 import { selectForDetails } from './selectionActions';
 import { formatSgt } from '../../world/time';
 import { altitudeText, observationText, speedText } from './values';
+import { finalizedExternalMission } from '../../world/externalRun';
 import './entities.css';
 import { MovementToolbar } from '../movement/MovementPane';
 
@@ -46,7 +47,19 @@ const columns: ColumnDef<EntityRow>[] = [
     cell: ({ getValue }) => getValue<string>() ?? 'Unknown',
     sortUndefined: 'last',
   },
-  { id: 'observation', header: 'Observation', accessorFn: observationText },
+  {
+    id: 'observation',
+    header: 'Observation',
+    accessorFn: observationText,
+    // A finalized external recording shows its last samples, not live tracks.
+    cell: ({ getValue, table }) => {
+      const value = getValue<string>();
+      return value === 'Tracking' &&
+        (table.options.meta as { finalized?: boolean } | undefined)?.finalized
+        ? 'Last recorded'
+        : value;
+    },
+  },
   {
     id: 'altitude',
     header: 'Altitude / ref',
@@ -105,9 +118,11 @@ export function TracksBrowser({ bridge }: { bridge: WorkspaceBridge }) {
   const body = useRef<HTMLTableSectionElement>(null);
   const selected = state.session.selection.primary?.id;
   const selectedIds = new Set(state.session.selection.items.map((i) => i.id));
+  const finalized = finalizedExternalMission(frame?.mission);
   const table = useReactTable({
     data,
     columns,
+    meta: { finalized },
     getRowId: (r) => r.entity.id,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -176,6 +191,9 @@ export function TracksBrowser({ bridge }: { bridge: WorkspaceBridge }) {
         </span>
         {state.presentation.status === 'stale' && (
           <span className="constraint-tag">STALE FRAME</span>
+        )}
+        {finalized && (
+          <span className="constraint-tag">RECORDING FINALIZED · ABORTED</span>
         )}
       </div>
       <MovementToolbar state={state} runtime={runtime} bridge={bridge} />

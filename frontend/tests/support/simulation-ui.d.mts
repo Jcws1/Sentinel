@@ -10,11 +10,13 @@ export function submitSimulation(
   page: Page,
   body: string | SimulationRequest,
 ): Promise<SimulationResponse>;
+export function abortSimulation(page: Page): Promise<void>;
 export function simulationFlow(
   page: Page,
   base: string,
   output: string,
   kind?: 'golden' | 'local40' | 'remote40',
+  capture?: (path: string) => Promise<unknown>,
 ): Promise<{
   body: SimulationRequest;
   result: SimulationResponse;

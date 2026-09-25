@@ -97,6 +97,7 @@ class ScenarioService:
                 if row:
                     if row[0] != payload:
                         raise CommandError("IDENTITY_CONFLICT", "This scenario request already has different content.")
+                    self.authority.telemetry.event("scenario.retry_returned", command_id=request.request_id, definition_id=definition_id)
                     return ScenarioReceipt.model_validate_json(row[1])
                 if not self.enabled:
                     raise CommandError("DEMO_DISABLED", "Local scenario authoring is disabled.", 403)

@@ -6,6 +6,7 @@ No coroutine yields while the shared SQLite connection has an open transaction.
 """
 import asyncio
 import sqlite3
+import logging
 from uuid import uuid4
 
 from app.adapters.simulation_v1.projection import control_event, control_frame, mission_identity, new_mission, sample_frame
@@ -64,7 +65,7 @@ class SimulationService:
     async def submit(self, raw):
         if self._closing:
             raise SimulationError("SERVICE_UNAVAILABLE", "", "Service is stopping; retry the exact request", 503)
-        task = asyncio.create_task(self._submit(raw))
+        task = asyncio.create_task(self._observed_submit(raw))
         self._tasks.add(task)
         # A lost HTTP response must not cancel an accepted authoritative command.
         def finished(done):
@@ -73,6 +74,12 @@ class SimulationService:
                 done.exception()  # Consume exceptions also when the HTTP peer left.
         task.add_done_callback(finished)
         return await asyncio.shield(task)
+
+    async def _observed_submit(self, raw):
+        # The task inherits the HTTP trace and survives a disconnected caller.
+        # Diagnostics must not change how the parser rejects unsupported values.
+        with self.authority.telemetry.span("simulation.submit", input_bytes=len(raw) if isinstance(raw, bytes) else None):
+            return await self._submit(raw)
 
     def status(self, mission_id):
         run = self.journal.run(mission_id)
@@ -91,12 +98,16 @@ class SimulationService:
         digest = content_digest(request)
         command_id = request["command"]["command_id"]
         mission_id = mission_identity(request["mission_id"])
+        self.authority.telemetry.event("simulation.validated", mission_id=mission_id, command_id=command_id,
+                                       action=request["command"]["action"], timestamps=len(request["samples_by_timestamp"]),
+                                       input_rows=sum(len(rows) for rows in request["samples_by_timestamp"].values()))
         async with self._gate, self.authority._lock(mission_id):
             prior = self.journal.command(command_id)
             if prior:
                 if prior["digest"] != digest or prior["request_json"] != body:
                     raise SimulationError("COMMAND_ID_CONFLICT", "/command/command_id", "Command identity already has different content", 409)
                 if prior["state"] == "completed":
+                    self.authority.telemetry.event("simulation.retry_returned", mission_id=mission_id, command_id=command_id)
                     return prior["response_json"]
                 run = self.journal.run(mission_id)
                 if run is None or run.pending_command_id != command_id:
@@ -118,10 +129,12 @@ class SimulationService:
             try:
                 response, health = await cooperative(resolve_steps(request, run.last_health))
                 return self._complete(request, run, response, health)
-            except (Exception, asyncio.CancelledError):
+            except (Exception, asyncio.CancelledError) as error:
                 # The prepared journal survives; a failed completion transaction
                 # neither replaces the previous state nor publishes candidate frames.
                 self._mark_interrupted(run)
+                self.authority.telemetry.event("simulation.interrupted", level=logging.ERROR, mission_id=mission_id,
+                                               command_id=command_id, error_type=type(error).__name__, pending=True)
                 raise
 
     def _prepare(self, request, raw, body, digest, previous, artifact):
@@ -154,6 +167,8 @@ class SimulationService:
             self.authority.commit_locked(run.mission_id, build, publish=False, deferred_messages=deferred,
                                          source_owner=WRITER_ID, preserve_event_ids=True)
         self._publish(run.mission_id, deferred)
+        self.authority.telemetry.event("simulation.prepared", mission_id=run.mission_id, command_id=run.command_id,
+                                       action=request["command"]["action"], pending=True, recorded_at=now)
         return run
 
     def _complete(self, request, run, response, health):
@@ -183,6 +198,9 @@ class SimulationService:
             self.repository.db.execute("UPDATE simulation_commands SET state='completed',completed_at=?,response_json=?,response_digest=? WHERE command_id=?",
                 (completed, self.repository._stored(response_text), content_digest(response), run.command_id))
         self._publish(run.mission_id, deferred)
+        self.authority.telemetry.event("simulation.recorded", mission_id=run.mission_id, command_id=run.command_id,
+                                       run_status=final.state, timestamps=len(response["results_by_timestamp"]),
+                                       recorded_at=completed, pending=False)
         return response_text
 
     def _mark_interrupted(self, run):

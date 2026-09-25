@@ -57,6 +57,21 @@ Scenarios allow 40 units and at most 32 controlled units. The 20v20 workload use
 
 `legacy_*` modules are reachable compatibility code. `drafts/` and unversioned foundation contracts remain used by `scripts/verify_phase0.py`; specifications and hash guards are preserved.
 
+## Application diagnostics
+
+The backend prints selected application events by default. Set `SENTINEL_LOG_DIR`
+before startup to additionally save rotating `application-<pid>-<instance>.jsonl`
+files; `SENTINEL_LOG_CONSOLE=0` disables only the console sink. Each application
+instance has its own log file (5 MiB, three backups). The diagnostic fields omit
+request bodies, control headers, query strings and exception messages.
+
+HTTP replies include `X-Sentinel-Trace` for correlation with application events.
+`GET /api/diagnostics/metrics` returns bounded counters and elapsed-time summaries
+for the current process; these reset on restart and are not authoritative mission
+records. This local diagnostic endpoint is outside the frozen mission schema.
+See the [review runbook](../docs/assessment/DEMO-RUNBOOK.md) for the single-command
+launcher, printed logs and examples. The launcher uses a separate saved-plan copy.
+
 ## Checks
 
 ```powershell

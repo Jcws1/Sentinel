@@ -467,3 +467,7 @@
   align-items: center;
   gap: 6px;
 }
+.entity-cockpit-action:disabled {
+  opacity: 0.45;
+  cursor: default;
+}

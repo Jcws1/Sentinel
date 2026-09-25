@@ -1,0 +1,3449 @@
+{
+  "schema": "sentinel-polygon-vectors-v1",
+  "numericModel": "Each finite coordinate is the exact rational value of its shortest round-trip decimal spelling (Python repr(float) / ECMAScript Number#toString); topology is exact on those values.",
+  "generator": "backend/tests/geometry_vectors.py",
+  "oracle": "backend/tests/geometry_oracle.py",
+  "rings": [
+    {
+      "id": "r1-uniform-tiny-square",
+      "category": "historical",
+      "ring": [
+        [0, 0],
+        [1e-170, 0],
+        [1e-170, 1e-170],
+        [0, 1e-170],
+        [0, 0]
+      ],
+      "expected": "valid",
+      "reason": null,
+      "note": "Phase 5 critic round 1: uniform 1e-170 square underflowed downstream"
+    },
+    {
+      "id": "r2-small-crossing",
+      "category": "historical",
+      "ring": [
+        [0, 0],
+        [3e-100, 3e-100],
+        [0, 3e-100],
+        [2e-100, 0],
+        [0, 0]
+      ],
+      "expected": "invalid",
+      "reason": "self-intersection",
+      "note": "Phase 5 critic round 2: product underflow hid a crossing"
+    },
+    {
+      "id": "r3-1-mixed-scale",
+      "category": "historical",
+      "ring": [
+        [0, 0],
+        [2e-170, 2e-170],
+        [1e-170, 0],
+        [1, 0],
+        [1, 1],
+        [0, 1],
+        [0, 0]
+      ],
+      "expected": "valid",
+      "reason": null,
+      "note": "Phase 5 critic round 3 R3-1: HTTP 500 in the core after external acceptance"
+    },
+    {
+      "id": "r3-1-control-1e-100",
+      "category": "historical",
+      "ring": [
+        [0, 0],
+        [2e-100, 2e-100],
+        [1e-100, 0],
+        [1, 0],
+        [1, 1],
+        [0, 1],
+        [0, 0]
+      ],
+      "expected": "valid",
+      "reason": null,
+      "note": "R3-1 control that passed before"
+    },
+    {
+      "id": "closure-decimal-spike-valid",
+      "category": "decimal-view",
+      "ring": [
+        [0, 0],
+        [0.6000000000000001, 2],
+        [0.30000000000000004, 1],
+        [-1, 1],
+        [0, 0]
+      ],
+      "expected": "valid",
+      "reason": null,
+      "note": "Exactly collinear in binary but not in the decimal view: the core previously returned HTTP 500"
+    },
+    {
+      "id": "closure-decimal-collinear-spike",
+      "category": "decimal-view",
+      "ring": [
+        [0, 0],
+        [0.3, 3],
+        [0.1, 1],
+        [-1, 1],
+        [0, 0]
+      ],
+      "expected": "invalid",
+      "reason": "adjacent-overlap",
+      "note": "(0.1, 1) lies exactly on (0, 0)-(0.3, 3) in the decimal view"
+    },
+    {
+      "id": "tie-coordinate-square",
+      "category": "decimal-view",
+      "ring": [
+        [0.0, 0.0],
+        [1.0000076293945312, 0.0],
+        [1.0000076293945312, 1.0000076293945312],
+        [0.0, 1.0000076293945312],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null,
+      "note": "131073/131072 has two equally near 17-digit spellings; both runtimes choose ...312"
+    },
+    {
+      "id": "bowtie",
+      "category": "crossing",
+      "ring": [
+        [0, 0],
+        [1, 1],
+        [1, 0],
+        [0, 1],
+        [0, 0]
+      ],
+      "expected": "invalid",
+      "reason": "zero-area",
+      "note": "The symmetric bowtie's signed area cancels exactly, so area is checked first"
+    },
+    {
+      "id": "asymmetric-bowtie",
+      "category": "crossing",
+      "ring": [
+        [0, 0],
+        [2, 2],
+        [2, 0],
+        [0, 1],
+        [0, 0]
+      ],
+      "expected": "invalid",
+      "reason": "self-intersection"
+    },
+    {
+      "id": "vertex-touches-edge",
+      "category": "touching",
+      "ring": [
+        [0, 0],
+        [4, 0],
+        [4, 2],
+        [2, 0],
+        [0, 2],
+        [0, 0]
+      ],
+      "expected": "invalid",
+      "reason": "self-intersection"
+    },
+    {
+      "id": "repeated-vertex-figure-eight",
+      "category": "touching",
+      "ring": [
+        [0, 0],
+        [2, 0],
+        [1, 1],
+        [2, 2],
+        [0, 2],
+        [1, 1],
+        [0, 0]
+      ],
+      "expected": "invalid",
+      "reason": "duplicate-vertex"
+    },
+    {
+      "id": "collinear-triangle",
+      "category": "zero-area",
+      "ring": [
+        [0, 0],
+        [1, 0],
+        [2, 0],
+        [0, 0]
+      ],
+      "expected": "invalid",
+      "reason": "zero-area"
+    },
+    {
+      "id": "there-and-back",
+      "category": "zero-area",
+      "ring": [
+        [0, 0],
+        [1, 1],
+        [2, 2],
+        [1, 1],
+        [0, 0]
+      ],
+      "expected": "invalid",
+      "reason": "duplicate-vertex"
+    },
+    {
+      "id": "straight-through-vertex",
+      "category": "near-collinear",
+      "ring": [
+        [0, 0],
+        [1, 1],
+        [2, 2],
+        [2, 0],
+        [0, 0]
+      ],
+      "expected": "valid",
+      "reason": null,
+      "note": "A collinear continuation is not an overlap"
+    },
+    {
+      "id": "backtracking-spike",
+      "category": "near-collinear",
+      "ring": [
+        [0, 0],
+        [2, 2],
+        [1, 1],
+        [2, 0],
+        [0, 0]
+      ],
+      "expected": "invalid",
+      "reason": "adjacent-overlap"
+    },
+    {
+      "id": "unclosed",
+      "category": "structure",
+      "ring": [
+        [0, 0],
+        [1, 0],
+        [1, 1],
+        [0, 1]
+      ],
+      "expected": "invalid",
+      "reason": "unclosed"
+    },
+    {
+      "id": "duplicate-consecutive",
+      "category": "structure",
+      "ring": [
+        [0, 0],
+        [1, 0],
+        [1, 0],
+        [0, 1],
+        [0, 0]
+      ],
+      "expected": "invalid",
+      "reason": "duplicate-vertex"
+    },
+    {
+      "id": "negative-zero-closure",
+      "category": "structure",
+      "ring": [
+        [-0.0, 0],
+        [1, 0],
+        [1, 1],
+        [0, 1],
+        [0, 0]
+      ],
+      "expected": "valid",
+      "reason": null,
+      "note": "-0 and 0 are the same coordinate"
+    },
+    {
+      "id": "minimum-subnormal-square",
+      "category": "subnormal",
+      "ring": [
+        [0.0, 0.0],
+        [5e-324, 0.0],
+        [5e-324, 5e-324],
+        [0.0, 5e-324],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "subnormal-square",
+      "category": "subnormal",
+      "ring": [
+        [0.0, 0.0],
+        [1e-310, 0.0],
+        [1e-310, 1e-310],
+        [0.0, 1e-310],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "mixed-scale-notch-1e-10",
+      "category": "mixed-scale",
+      "ring": [
+        [0.0, 0.0],
+        [2e-10, 2e-10],
+        [1e-10, 0.0],
+        [1.0, 0.0],
+        [1.0, 1.0],
+        [0.0, 1.0],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "uniform-tiny-square-1e-10",
+      "category": "uniform-tiny",
+      "ring": [
+        [0.0, 0.0],
+        [1e-10, 0.0],
+        [1e-10, 1e-10],
+        [0.0, 1e-10],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "mixed-scale-notch-1e-50",
+      "category": "mixed-scale",
+      "ring": [
+        [0.0, 0.0],
+        [2e-50, 2e-50],
+        [1e-50, 0.0],
+        [1.0, 0.0],
+        [1.0, 1.0],
+        [0.0, 1.0],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "uniform-tiny-square-1e-50",
+      "category": "uniform-tiny",
+      "ring": [
+        [0.0, 0.0],
+        [1e-50, 0.0],
+        [1e-50, 1e-50],
+        [0.0, 1e-50],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "mixed-scale-notch-1e-100",
+      "category": "mixed-scale",
+      "ring": [
+        [0.0, 0.0],
+        [2e-100, 2e-100],
+        [1e-100, 0.0],
+        [1.0, 0.0],
+        [1.0, 1.0],
+        [0.0, 1.0],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "uniform-tiny-square-1e-100",
+      "category": "uniform-tiny",
+      "ring": [
+        [0.0, 0.0],
+        [1e-100, 0.0],
+        [1e-100, 1e-100],
+        [0.0, 1e-100],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "mixed-scale-notch-1e-150",
+      "category": "mixed-scale",
+      "ring": [
+        [0.0, 0.0],
+        [2e-150, 2e-150],
+        [1e-150, 0.0],
+        [1.0, 0.0],
+        [1.0, 1.0],
+        [0.0, 1.0],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "uniform-tiny-square-1e-150",
+      "category": "uniform-tiny",
+      "ring": [
+        [0.0, 0.0],
+        [1e-150, 0.0],
+        [1e-150, 1e-150],
+        [0.0, 1e-150],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "mixed-scale-notch-1e-200",
+      "category": "mixed-scale",
+      "ring": [
+        [0.0, 0.0],
+        [2e-200, 2e-200],
+        [1e-200, 0.0],
+        [1.0, 0.0],
+        [1.0, 1.0],
+        [0.0, 1.0],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "uniform-tiny-square-1e-200",
+      "category": "uniform-tiny",
+      "ring": [
+        [0.0, 0.0],
+        [1e-200, 0.0],
+        [1e-200, 1e-200],
+        [0.0, 1e-200],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "mixed-scale-notch-1e-250",
+      "category": "mixed-scale",
+      "ring": [
+        [0.0, 0.0],
+        [2e-250, 2e-250],
+        [1e-250, 0.0],
+        [1.0, 0.0],
+        [1.0, 1.0],
+        [0.0, 1.0],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "uniform-tiny-square-1e-250",
+      "category": "uniform-tiny",
+      "ring": [
+        [0.0, 0.0],
+        [1e-250, 0.0],
+        [1e-250, 1e-250],
+        [0.0, 1e-250],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "mixed-scale-notch-1e-300",
+      "category": "mixed-scale",
+      "ring": [
+        [0.0, 0.0],
+        [2e-300, 2e-300],
+        [1e-300, 0.0],
+        [1.0, 0.0],
+        [1.0, 1.0],
+        [0.0, 1.0],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "uniform-tiny-square-1e-300",
+      "category": "uniform-tiny",
+      "ring": [
+        [0.0, 0.0],
+        [1e-300, 0.0],
+        [1e-300, 1e-300],
+        [0.0, 1e-300],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "mixed-scale-notch-1e-307",
+      "category": "mixed-scale",
+      "ring": [
+        [0.0, 0.0],
+        [2e-307, 2e-307],
+        [1e-307, 0.0],
+        [1.0, 0.0],
+        [1.0, 1.0],
+        [0.0, 1.0],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "uniform-tiny-square-1e-307",
+      "category": "uniform-tiny",
+      "ring": [
+        [0.0, 0.0],
+        [1e-307, 0.0],
+        [1e-307, 1e-307],
+        [0.0, 1e-307],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "mixed-scale-notch-1e-308",
+      "category": "mixed-scale",
+      "ring": [
+        [0.0, 0.0],
+        [2e-308, 2e-308],
+        [1e-308, 0.0],
+        [1.0, 0.0],
+        [1.0, 1.0],
+        [0.0, 1.0],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "uniform-tiny-square-1e-308",
+      "category": "uniform-tiny",
+      "ring": [
+        [0.0, 0.0],
+        [1e-308, 0.0],
+        [1e-308, 1e-308],
+        [0.0, 1e-308],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "mixed-scale-notch-1e-310",
+      "category": "mixed-scale",
+      "ring": [
+        [0.0, 0.0],
+        [2e-310, 2e-310],
+        [1e-310, 0.0],
+        [1.0, 0.0],
+        [1.0, 1.0],
+        [0.0, 1.0],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "uniform-tiny-square-1e-310",
+      "category": "uniform-tiny",
+      "ring": [
+        [0.0, 0.0],
+        [1e-310, 0.0],
+        [1e-310, 1e-310],
+        [0.0, 1e-310],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "mixed-scale-notch-1e-315",
+      "category": "mixed-scale",
+      "ring": [
+        [0.0, 0.0],
+        [1.999999997e-315, 1.999999997e-315],
+        [1e-315, 0.0],
+        [1.0, 0.0],
+        [1.0, 1.0],
+        [0.0, 1.0],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "uniform-tiny-square-1e-315",
+      "category": "uniform-tiny",
+      "ring": [
+        [0.0, 0.0],
+        [1e-315, 0.0],
+        [1e-315, 1e-315],
+        [0.0, 1e-315],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "mixed-scale-notch-1e-320",
+      "category": "mixed-scale",
+      "ring": [
+        [0.0, 0.0],
+        [2e-320, 2e-320],
+        [1e-320, 0.0],
+        [1.0, 0.0],
+        [1.0, 1.0],
+        [0.0, 1.0],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "uniform-tiny-square-1e-320",
+      "category": "uniform-tiny",
+      "ring": [
+        [0.0, 0.0],
+        [1e-320, 0.0],
+        [1e-320, 1e-320],
+        [0.0, 1e-320],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "mixed-scale-notch-1e-322",
+      "category": "mixed-scale",
+      "ring": [
+        [0.0, 0.0],
+        [2e-322, 2e-322],
+        [1e-322, 0.0],
+        [1.0, 0.0],
+        [1.0, 1.0],
+        [0.0, 1.0],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "uniform-tiny-square-1e-322",
+      "category": "uniform-tiny",
+      "ring": [
+        [0.0, 0.0],
+        [1e-322, 0.0],
+        [1e-322, 1e-322],
+        [0.0, 1e-322],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "mixed-scale-notch-1e-323",
+      "category": "mixed-scale",
+      "ring": [
+        [0.0, 0.0],
+        [2e-323, 2e-323],
+        [1e-323, 0.0],
+        [1.0, 0.0],
+        [1.0, 1.0],
+        [0.0, 1.0],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "uniform-tiny-square-1e-323",
+      "category": "uniform-tiny",
+      "ring": [
+        [0.0, 0.0],
+        [1e-323, 0.0],
+        [1e-323, 1e-323],
+        [0.0, 1e-323],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "mixed-scale-notch-5e-324",
+      "category": "mixed-scale",
+      "ring": [
+        [0.0, 0.0],
+        [1e-323, 1e-323],
+        [5e-324, 0.0],
+        [1.0, 0.0],
+        [1.0, 1.0],
+        [0.0, 1.0],
+        [0.0, 0.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "mixed-scale-crossing-1e-20",
+      "category": "mixed-scale",
+      "ring": [
+        [0, 0],
+        [2e-20, 2e-20],
+        [0, 2e-20],
+        [2e-20, 0],
+        [1, 0],
+        [1, 1],
+        [-1, 1],
+        [0, 0]
+      ],
+      "expected": "invalid",
+      "reason": "self-intersection"
+    },
+    {
+      "id": "mixed-scale-turn-below-axis-1e-20",
+      "category": "mixed-scale",
+      "ring": [
+        [0, 0],
+        [2e-20, 1e-20],
+        [1e-20, -1e-20],
+        [1, 0],
+        [1, 1],
+        [0, 1],
+        [0, 0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "mixed-scale-backtrack-1e-20",
+      "category": "mixed-scale",
+      "ring": [
+        [0, 0],
+        [2e-20, 0],
+        [1e-20, 0],
+        [1, 1],
+        [0, 1],
+        [0, 0]
+      ],
+      "expected": "invalid",
+      "reason": "adjacent-overlap"
+    },
+    {
+      "id": "mixed-scale-crossing-1e-170",
+      "category": "mixed-scale",
+      "ring": [
+        [0, 0],
+        [2e-170, 2e-170],
+        [0, 2e-170],
+        [2e-170, 0],
+        [1, 0],
+        [1, 1],
+        [-1, 1],
+        [0, 0]
+      ],
+      "expected": "invalid",
+      "reason": "self-intersection"
+    },
+    {
+      "id": "mixed-scale-turn-below-axis-1e-170",
+      "category": "mixed-scale",
+      "ring": [
+        [0, 0],
+        [2e-170, 1e-170],
+        [1e-170, -1e-170],
+        [1, 0],
+        [1, 1],
+        [0, 1],
+        [0, 0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "mixed-scale-backtrack-1e-170",
+      "category": "mixed-scale",
+      "ring": [
+        [0, 0],
+        [2e-170, 0],
+        [1e-170, 0],
+        [1, 1],
+        [0, 1],
+        [0, 0]
+      ],
+      "expected": "invalid",
+      "reason": "adjacent-overlap"
+    },
+    {
+      "id": "mixed-scale-crossing-1e-310",
+      "category": "mixed-scale",
+      "ring": [
+        [0, 0],
+        [2e-310, 2e-310],
+        [0, 2e-310],
+        [2e-310, 0],
+        [1, 0],
+        [1, 1],
+        [-1, 1],
+        [0, 0]
+      ],
+      "expected": "invalid",
+      "reason": "self-intersection"
+    },
+    {
+      "id": "mixed-scale-turn-below-axis-1e-310",
+      "category": "mixed-scale",
+      "ring": [
+        [0, 0],
+        [2e-310, 1e-310],
+        [1e-310, -1e-310],
+        [1, 0],
+        [1, 1],
+        [0, 1],
+        [0, 0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "mixed-scale-backtrack-1e-310",
+      "category": "mixed-scale",
+      "ring": [
+        [0, 0],
+        [2e-310, 0],
+        [1e-310, 0],
+        [1, 1],
+        [0, 1],
+        [0, 0]
+      ],
+      "expected": "invalid",
+      "reason": "adjacent-overlap"
+    },
+    {
+      "id": "large-longitude-ulp-square",
+      "category": "large-longitude",
+      "ring": [
+        [179.99999999999994, 10],
+        [179.99999999999997, 10],
+        [179.99999999999997, 10.000000000000002],
+        [179.99999999999994, 10.000000000000002],
+        [179.99999999999994, 10]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "large-longitude-mixed-notch",
+      "category": "large-longitude",
+      "ring": [
+        [179.0, -89.0],
+        [179.0000000000002, -88.9999999999998],
+        [179.0000000000001, -89.0],
+        [179.5, -89.0],
+        [179.5, -88.5],
+        [179.0, -88.5],
+        [179.0, -89.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "large-longitude-west-notch",
+      "category": "large-longitude",
+      "ring": [
+        [-180.0, 45.0],
+        [-179.999999999998, 45.000000000002],
+        [-179.999999999999, 45.0],
+        [-179.75, 45.0],
+        [-179.75, 45.25],
+        [-180.0, 45.25],
+        [-180.0, 45.0]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "large-longitude-collinear-backtrack",
+      "category": "large-longitude",
+      "ring": [
+        [179.99999999999991, 0],
+        [179.99999999999997, 0],
+        [179.99999999999994, 0],
+        [179.99999999999994, 1],
+        [179.99999999999991, 0]
+      ],
+      "expected": "invalid",
+      "reason": "adjacent-overlap"
+    },
+    {
+      "id": "large-longitude-one-ulp-turn",
+      "category": "large-longitude",
+      "ring": [
+        [179.99999999999991, 0],
+        [179.99999999999997, 0],
+        [179.99999999999994, 2.842170943040401e-14],
+        [179.99999999999994, 1],
+        [179.99999999999991, 0]
+      ],
+      "expected": "valid",
+      "reason": null,
+      "note": "A one-ulp turn is a real turn"
+    },
+    {
+      "id": "large-longitude-with-subnormal-latitude",
+      "category": "large-longitude",
+      "ring": [
+        [179.5, 0],
+        [180, 0],
+        [180, 5e-324],
+        [179.5, 1e-323],
+        [179.5, 0]
+      ],
+      "expected": "valid",
+      "reason": null
+    }
+  ],
+  "polygons": [
+    {
+      "id": "valid-hole",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [4, 4],
+          [6, 4],
+          [6, 6],
+          [4, 6],
+          [4, 4]
+        ]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "hole-touching-exterior",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [1, 4],
+          [0, 5],
+          [1, 6],
+          [1, 4]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-outside",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [20, 20],
+          [21, 20],
+          [21, 21],
+          [20, 21],
+          [20, 20]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "hole-outside"
+    },
+    {
+      "id": "crossing-holes",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [2, 2],
+          [6, 2],
+          [6, 6],
+          [2, 6],
+          [2, 2]
+        ],
+        [
+          [4, 4],
+          [8, 4],
+          [8, 8],
+          [4, 8],
+          [4, 4]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "nested-holes",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [2, 2],
+          [8, 2],
+          [8, 8],
+          [2, 8],
+          [2, 2]
+        ],
+        [
+          [4, 4],
+          [5, 4],
+          [5, 5],
+          [4, 5],
+          [4, 4]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "holes-overlap"
+    },
+    {
+      "id": "mixed-scale-hole",
+      "rings": [
+        [
+          [-5, -5],
+          [5, -5],
+          [5, 5],
+          [-5, 5],
+          [-5, -5]
+        ],
+        [
+          [0.0, 0.0],
+          [2e-300, 2e-300],
+          [1e-300, 0.0],
+          [1.0, 0.0],
+          [1.0, 1.0],
+          [0.0, 1.0],
+          [0.0, 0.0]
+        ]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "subnormal-hole-in-tiny-exterior",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [1e-300, 0.0],
+          [1e-300, 1e-300],
+          [0.0, 1e-300],
+          [0.0, 0.0]
+        ],
+        [
+          [1e-310, 1e-310],
+          [1.00000000000005e-310, 1e-310],
+          [1.00000000000005e-310, 1.00000000000005e-310],
+          [1e-310, 1.00000000000005e-310],
+          [1e-310, 1e-310]
+        ]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "five-disjoint-holes",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [1, 1],
+          [3, 1],
+          [3, 3],
+          [1, 3],
+          [1, 1]
+        ],
+        [
+          [4, 1],
+          [6, 1],
+          [6, 3],
+          [4, 3],
+          [4, 1]
+        ],
+        [
+          [7, 1],
+          [9, 1],
+          [9, 3],
+          [7, 3],
+          [7, 1]
+        ],
+        [
+          [1, 4],
+          [3, 4],
+          [3, 6],
+          [1, 6],
+          [1, 4]
+        ],
+        [
+          [4, 4],
+          [6, 4],
+          [6, 6],
+          [4, 6],
+          [4, 4]
+        ]
+      ],
+      "expected": "valid",
+      "reason": null
+    },
+    {
+      "id": "third-hole-touch-reported-before-overlap",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [1, 1],
+          [4, 1],
+          [4, 4],
+          [1, 4],
+          [1, 1]
+        ],
+        [
+          [4.5, 1],
+          [6, 1],
+          [6, 2],
+          [4.5, 2],
+          [4.5, 1]
+        ],
+        [
+          [0.5, 0.5],
+          [4.5, 0.5],
+          [4.5, 4.5],
+          [0.5, 4.5],
+          [0.5, 0.5]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "third-hole-nested-without-contact",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [1, 1],
+          [5, 1],
+          [5, 5],
+          [1, 5],
+          [1, 1]
+        ],
+        [
+          [6, 6],
+          [7, 6],
+          [7, 7],
+          [6, 7],
+          [6, 6]
+        ],
+        [
+          [2, 2],
+          [3, 2],
+          [3, 3],
+          [2, 3],
+          [2, 2]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "holes-overlap"
+    },
+    {
+      "id": "fourth-hole-outside",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [1, 1],
+          [2, 1],
+          [2, 2],
+          [1, 2],
+          [1, 1]
+        ],
+        [
+          [3, 3],
+          [4, 3],
+          [4, 4],
+          [3, 4],
+          [3, 3]
+        ],
+        [
+          [5, 5],
+          [6, 5],
+          [6, 6],
+          [5, 6],
+          [5, 5]
+        ],
+        [
+          [20, 20],
+          [21, 20],
+          [21, 21],
+          [20, 21],
+          [20, 20]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "hole-outside"
+    },
+    {
+      "id": "hole-order-unit-1234",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [1, 1],
+          [4, 1],
+          [4, 4],
+          [1, 4],
+          [1, 1]
+        ],
+        [
+          [4.5, 1],
+          [6, 1],
+          [6, 2],
+          [4.5, 2],
+          [4.5, 1]
+        ],
+        [
+          [0.5, 0.5],
+          [4.5, 0.5],
+          [4.5, 4.5],
+          [0.5, 4.5],
+          [0.5, 0.5]
+        ],
+        [
+          [7, 7],
+          [8, 7],
+          [8, 8],
+          [7, 8],
+          [7, 7]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-unit-1243",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [1, 1],
+          [4, 1],
+          [4, 4],
+          [1, 4],
+          [1, 1]
+        ],
+        [
+          [4.5, 1],
+          [6, 1],
+          [6, 2],
+          [4.5, 2],
+          [4.5, 1]
+        ],
+        [
+          [7, 7],
+          [8, 7],
+          [8, 8],
+          [7, 8],
+          [7, 7]
+        ],
+        [
+          [0.5, 0.5],
+          [4.5, 0.5],
+          [4.5, 4.5],
+          [0.5, 4.5],
+          [0.5, 0.5]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-unit-1324",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [1, 1],
+          [4, 1],
+          [4, 4],
+          [1, 4],
+          [1, 1]
+        ],
+        [
+          [0.5, 0.5],
+          [4.5, 0.5],
+          [4.5, 4.5],
+          [0.5, 4.5],
+          [0.5, 0.5]
+        ],
+        [
+          [4.5, 1],
+          [6, 1],
+          [6, 2],
+          [4.5, 2],
+          [4.5, 1]
+        ],
+        [
+          [7, 7],
+          [8, 7],
+          [8, 8],
+          [7, 8],
+          [7, 7]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "holes-overlap"
+    },
+    {
+      "id": "hole-order-unit-1342",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [1, 1],
+          [4, 1],
+          [4, 4],
+          [1, 4],
+          [1, 1]
+        ],
+        [
+          [0.5, 0.5],
+          [4.5, 0.5],
+          [4.5, 4.5],
+          [0.5, 4.5],
+          [0.5, 0.5]
+        ],
+        [
+          [7, 7],
+          [8, 7],
+          [8, 8],
+          [7, 8],
+          [7, 7]
+        ],
+        [
+          [4.5, 1],
+          [6, 1],
+          [6, 2],
+          [4.5, 2],
+          [4.5, 1]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "holes-overlap"
+    },
+    {
+      "id": "hole-order-unit-1423",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [1, 1],
+          [4, 1],
+          [4, 4],
+          [1, 4],
+          [1, 1]
+        ],
+        [
+          [7, 7],
+          [8, 7],
+          [8, 8],
+          [7, 8],
+          [7, 7]
+        ],
+        [
+          [4.5, 1],
+          [6, 1],
+          [6, 2],
+          [4.5, 2],
+          [4.5, 1]
+        ],
+        [
+          [0.5, 0.5],
+          [4.5, 0.5],
+          [4.5, 4.5],
+          [0.5, 4.5],
+          [0.5, 0.5]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-unit-1432",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [1, 1],
+          [4, 1],
+          [4, 4],
+          [1, 4],
+          [1, 1]
+        ],
+        [
+          [7, 7],
+          [8, 7],
+          [8, 8],
+          [7, 8],
+          [7, 7]
+        ],
+        [
+          [0.5, 0.5],
+          [4.5, 0.5],
+          [4.5, 4.5],
+          [0.5, 4.5],
+          [0.5, 0.5]
+        ],
+        [
+          [4.5, 1],
+          [6, 1],
+          [6, 2],
+          [4.5, 2],
+          [4.5, 1]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "holes-overlap"
+    },
+    {
+      "id": "hole-order-unit-2134",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [4.5, 1],
+          [6, 1],
+          [6, 2],
+          [4.5, 2],
+          [4.5, 1]
+        ],
+        [
+          [1, 1],
+          [4, 1],
+          [4, 4],
+          [1, 4],
+          [1, 1]
+        ],
+        [
+          [0.5, 0.5],
+          [4.5, 0.5],
+          [4.5, 4.5],
+          [0.5, 4.5],
+          [0.5, 0.5]
+        ],
+        [
+          [7, 7],
+          [8, 7],
+          [8, 8],
+          [7, 8],
+          [7, 7]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-unit-2143",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [4.5, 1],
+          [6, 1],
+          [6, 2],
+          [4.5, 2],
+          [4.5, 1]
+        ],
+        [
+          [1, 1],
+          [4, 1],
+          [4, 4],
+          [1, 4],
+          [1, 1]
+        ],
+        [
+          [7, 7],
+          [8, 7],
+          [8, 8],
+          [7, 8],
+          [7, 7]
+        ],
+        [
+          [0.5, 0.5],
+          [4.5, 0.5],
+          [4.5, 4.5],
+          [0.5, 4.5],
+          [0.5, 0.5]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-unit-2314",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [4.5, 1],
+          [6, 1],
+          [6, 2],
+          [4.5, 2],
+          [4.5, 1]
+        ],
+        [
+          [0.5, 0.5],
+          [4.5, 0.5],
+          [4.5, 4.5],
+          [0.5, 4.5],
+          [0.5, 0.5]
+        ],
+        [
+          [1, 1],
+          [4, 1],
+          [4, 4],
+          [1, 4],
+          [1, 1]
+        ],
+        [
+          [7, 7],
+          [8, 7],
+          [8, 8],
+          [7, 8],
+          [7, 7]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-unit-2341",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [4.5, 1],
+          [6, 1],
+          [6, 2],
+          [4.5, 2],
+          [4.5, 1]
+        ],
+        [
+          [0.5, 0.5],
+          [4.5, 0.5],
+          [4.5, 4.5],
+          [0.5, 4.5],
+          [0.5, 0.5]
+        ],
+        [
+          [7, 7],
+          [8, 7],
+          [8, 8],
+          [7, 8],
+          [7, 7]
+        ],
+        [
+          [1, 1],
+          [4, 1],
+          [4, 4],
+          [1, 4],
+          [1, 1]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-unit-2413",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [4.5, 1],
+          [6, 1],
+          [6, 2],
+          [4.5, 2],
+          [4.5, 1]
+        ],
+        [
+          [7, 7],
+          [8, 7],
+          [8, 8],
+          [7, 8],
+          [7, 7]
+        ],
+        [
+          [1, 1],
+          [4, 1],
+          [4, 4],
+          [1, 4],
+          [1, 1]
+        ],
+        [
+          [0.5, 0.5],
+          [4.5, 0.5],
+          [4.5, 4.5],
+          [0.5, 4.5],
+          [0.5, 0.5]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-unit-2431",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [4.5, 1],
+          [6, 1],
+          [6, 2],
+          [4.5, 2],
+          [4.5, 1]
+        ],
+        [
+          [7, 7],
+          [8, 7],
+          [8, 8],
+          [7, 8],
+          [7, 7]
+        ],
+        [
+          [0.5, 0.5],
+          [4.5, 0.5],
+          [4.5, 4.5],
+          [0.5, 4.5],
+          [0.5, 0.5]
+        ],
+        [
+          [1, 1],
+          [4, 1],
+          [4, 4],
+          [1, 4],
+          [1, 1]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-unit-3124",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [0.5, 0.5],
+          [4.5, 0.5],
+          [4.5, 4.5],
+          [0.5, 4.5],
+          [0.5, 0.5]
+        ],
+        [
+          [1, 1],
+          [4, 1],
+          [4, 4],
+          [1, 4],
+          [1, 1]
+        ],
+        [
+          [4.5, 1],
+          [6, 1],
+          [6, 2],
+          [4.5, 2],
+          [4.5, 1]
+        ],
+        [
+          [7, 7],
+          [8, 7],
+          [8, 8],
+          [7, 8],
+          [7, 7]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "holes-overlap"
+    },
+    {
+      "id": "hole-order-unit-3142",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [0.5, 0.5],
+          [4.5, 0.5],
+          [4.5, 4.5],
+          [0.5, 4.5],
+          [0.5, 0.5]
+        ],
+        [
+          [1, 1],
+          [4, 1],
+          [4, 4],
+          [1, 4],
+          [1, 1]
+        ],
+        [
+          [7, 7],
+          [8, 7],
+          [8, 8],
+          [7, 8],
+          [7, 7]
+        ],
+        [
+          [4.5, 1],
+          [6, 1],
+          [6, 2],
+          [4.5, 2],
+          [4.5, 1]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "holes-overlap"
+    },
+    {
+      "id": "hole-order-unit-3214",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [0.5, 0.5],
+          [4.5, 0.5],
+          [4.5, 4.5],
+          [0.5, 4.5],
+          [0.5, 0.5]
+        ],
+        [
+          [4.5, 1],
+          [6, 1],
+          [6, 2],
+          [4.5, 2],
+          [4.5, 1]
+        ],
+        [
+          [1, 1],
+          [4, 1],
+          [4, 4],
+          [1, 4],
+          [1, 1]
+        ],
+        [
+          [7, 7],
+          [8, 7],
+          [8, 8],
+          [7, 8],
+          [7, 7]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-unit-3241",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [0.5, 0.5],
+          [4.5, 0.5],
+          [4.5, 4.5],
+          [0.5, 4.5],
+          [0.5, 0.5]
+        ],
+        [
+          [4.5, 1],
+          [6, 1],
+          [6, 2],
+          [4.5, 2],
+          [4.5, 1]
+        ],
+        [
+          [7, 7],
+          [8, 7],
+          [8, 8],
+          [7, 8],
+          [7, 7]
+        ],
+        [
+          [1, 1],
+          [4, 1],
+          [4, 4],
+          [1, 4],
+          [1, 1]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-unit-3412",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [0.5, 0.5],
+          [4.5, 0.5],
+          [4.5, 4.5],
+          [0.5, 4.5],
+          [0.5, 0.5]
+        ],
+        [
+          [7, 7],
+          [8, 7],
+          [8, 8],
+          [7, 8],
+          [7, 7]
+        ],
+        [
+          [1, 1],
+          [4, 1],
+          [4, 4],
+          [1, 4],
+          [1, 1]
+        ],
+        [
+          [4.5, 1],
+          [6, 1],
+          [6, 2],
+          [4.5, 2],
+          [4.5, 1]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "holes-overlap"
+    },
+    {
+      "id": "hole-order-unit-3421",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [0.5, 0.5],
+          [4.5, 0.5],
+          [4.5, 4.5],
+          [0.5, 4.5],
+          [0.5, 0.5]
+        ],
+        [
+          [7, 7],
+          [8, 7],
+          [8, 8],
+          [7, 8],
+          [7, 7]
+        ],
+        [
+          [4.5, 1],
+          [6, 1],
+          [6, 2],
+          [4.5, 2],
+          [4.5, 1]
+        ],
+        [
+          [1, 1],
+          [4, 1],
+          [4, 4],
+          [1, 4],
+          [1, 1]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-unit-4123",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [7, 7],
+          [8, 7],
+          [8, 8],
+          [7, 8],
+          [7, 7]
+        ],
+        [
+          [1, 1],
+          [4, 1],
+          [4, 4],
+          [1, 4],
+          [1, 1]
+        ],
+        [
+          [4.5, 1],
+          [6, 1],
+          [6, 2],
+          [4.5, 2],
+          [4.5, 1]
+        ],
+        [
+          [0.5, 0.5],
+          [4.5, 0.5],
+          [4.5, 4.5],
+          [0.5, 4.5],
+          [0.5, 0.5]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-unit-4132",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [7, 7],
+          [8, 7],
+          [8, 8],
+          [7, 8],
+          [7, 7]
+        ],
+        [
+          [1, 1],
+          [4, 1],
+          [4, 4],
+          [1, 4],
+          [1, 1]
+        ],
+        [
+          [0.5, 0.5],
+          [4.5, 0.5],
+          [4.5, 4.5],
+          [0.5, 4.5],
+          [0.5, 0.5]
+        ],
+        [
+          [4.5, 1],
+          [6, 1],
+          [6, 2],
+          [4.5, 2],
+          [4.5, 1]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "holes-overlap"
+    },
+    {
+      "id": "hole-order-unit-4213",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [7, 7],
+          [8, 7],
+          [8, 8],
+          [7, 8],
+          [7, 7]
+        ],
+        [
+          [4.5, 1],
+          [6, 1],
+          [6, 2],
+          [4.5, 2],
+          [4.5, 1]
+        ],
+        [
+          [1, 1],
+          [4, 1],
+          [4, 4],
+          [1, 4],
+          [1, 1]
+        ],
+        [
+          [0.5, 0.5],
+          [4.5, 0.5],
+          [4.5, 4.5],
+          [0.5, 4.5],
+          [0.5, 0.5]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-unit-4231",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [7, 7],
+          [8, 7],
+          [8, 8],
+          [7, 8],
+          [7, 7]
+        ],
+        [
+          [4.5, 1],
+          [6, 1],
+          [6, 2],
+          [4.5, 2],
+          [4.5, 1]
+        ],
+        [
+          [0.5, 0.5],
+          [4.5, 0.5],
+          [4.5, 4.5],
+          [0.5, 4.5],
+          [0.5, 0.5]
+        ],
+        [
+          [1, 1],
+          [4, 1],
+          [4, 4],
+          [1, 4],
+          [1, 1]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-unit-4312",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [7, 7],
+          [8, 7],
+          [8, 8],
+          [7, 8],
+          [7, 7]
+        ],
+        [
+          [0.5, 0.5],
+          [4.5, 0.5],
+          [4.5, 4.5],
+          [0.5, 4.5],
+          [0.5, 0.5]
+        ],
+        [
+          [1, 1],
+          [4, 1],
+          [4, 4],
+          [1, 4],
+          [1, 1]
+        ],
+        [
+          [4.5, 1],
+          [6, 1],
+          [6, 2],
+          [4.5, 2],
+          [4.5, 1]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "holes-overlap"
+    },
+    {
+      "id": "hole-order-unit-4321",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [10.0, 0.0],
+          [10.0, 10.0],
+          [0.0, 10.0],
+          [0.0, 0.0]
+        ],
+        [
+          [7, 7],
+          [8, 7],
+          [8, 8],
+          [7, 8],
+          [7, 7]
+        ],
+        [
+          [0.5, 0.5],
+          [4.5, 0.5],
+          [4.5, 4.5],
+          [0.5, 4.5],
+          [0.5, 0.5]
+        ],
+        [
+          [4.5, 1],
+          [6, 1],
+          [6, 2],
+          [4.5, 2],
+          [4.5, 1]
+        ],
+        [
+          [1, 1],
+          [4, 1],
+          [4, 4],
+          [1, 4],
+          [1, 1]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-tiny-1234",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [1e-299, 0.0],
+          [1e-299, 1e-299],
+          [0.0, 1e-299],
+          [0.0, 0.0]
+        ],
+        [
+          [1e-300, 1e-300],
+          [4e-300, 1e-300],
+          [4e-300, 4e-300],
+          [1e-300, 4e-300],
+          [1e-300, 1e-300]
+        ],
+        [
+          [4.5e-300, 1e-300],
+          [6e-300, 1e-300],
+          [6e-300, 2e-300],
+          [4.5e-300, 2e-300],
+          [4.5e-300, 1e-300]
+        ],
+        [
+          [5e-301, 5e-301],
+          [4.5e-300, 5e-301],
+          [4.5e-300, 4.5e-300],
+          [5e-301, 4.5e-300],
+          [5e-301, 5e-301]
+        ],
+        [
+          [7e-300, 7e-300],
+          [8e-300, 7e-300],
+          [8e-300, 8e-300],
+          [7e-300, 8e-300],
+          [7e-300, 7e-300]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-tiny-1243",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [1e-299, 0.0],
+          [1e-299, 1e-299],
+          [0.0, 1e-299],
+          [0.0, 0.0]
+        ],
+        [
+          [1e-300, 1e-300],
+          [4e-300, 1e-300],
+          [4e-300, 4e-300],
+          [1e-300, 4e-300],
+          [1e-300, 1e-300]
+        ],
+        [
+          [4.5e-300, 1e-300],
+          [6e-300, 1e-300],
+          [6e-300, 2e-300],
+          [4.5e-300, 2e-300],
+          [4.5e-300, 1e-300]
+        ],
+        [
+          [7e-300, 7e-300],
+          [8e-300, 7e-300],
+          [8e-300, 8e-300],
+          [7e-300, 8e-300],
+          [7e-300, 7e-300]
+        ],
+        [
+          [5e-301, 5e-301],
+          [4.5e-300, 5e-301],
+          [4.5e-300, 4.5e-300],
+          [5e-301, 4.5e-300],
+          [5e-301, 5e-301]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-tiny-1324",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [1e-299, 0.0],
+          [1e-299, 1e-299],
+          [0.0, 1e-299],
+          [0.0, 0.0]
+        ],
+        [
+          [1e-300, 1e-300],
+          [4e-300, 1e-300],
+          [4e-300, 4e-300],
+          [1e-300, 4e-300],
+          [1e-300, 1e-300]
+        ],
+        [
+          [5e-301, 5e-301],
+          [4.5e-300, 5e-301],
+          [4.5e-300, 4.5e-300],
+          [5e-301, 4.5e-300],
+          [5e-301, 5e-301]
+        ],
+        [
+          [4.5e-300, 1e-300],
+          [6e-300, 1e-300],
+          [6e-300, 2e-300],
+          [4.5e-300, 2e-300],
+          [4.5e-300, 1e-300]
+        ],
+        [
+          [7e-300, 7e-300],
+          [8e-300, 7e-300],
+          [8e-300, 8e-300],
+          [7e-300, 8e-300],
+          [7e-300, 7e-300]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "holes-overlap"
+    },
+    {
+      "id": "hole-order-tiny-1342",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [1e-299, 0.0],
+          [1e-299, 1e-299],
+          [0.0, 1e-299],
+          [0.0, 0.0]
+        ],
+        [
+          [1e-300, 1e-300],
+          [4e-300, 1e-300],
+          [4e-300, 4e-300],
+          [1e-300, 4e-300],
+          [1e-300, 1e-300]
+        ],
+        [
+          [5e-301, 5e-301],
+          [4.5e-300, 5e-301],
+          [4.5e-300, 4.5e-300],
+          [5e-301, 4.5e-300],
+          [5e-301, 5e-301]
+        ],
+        [
+          [7e-300, 7e-300],
+          [8e-300, 7e-300],
+          [8e-300, 8e-300],
+          [7e-300, 8e-300],
+          [7e-300, 7e-300]
+        ],
+        [
+          [4.5e-300, 1e-300],
+          [6e-300, 1e-300],
+          [6e-300, 2e-300],
+          [4.5e-300, 2e-300],
+          [4.5e-300, 1e-300]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "holes-overlap"
+    },
+    {
+      "id": "hole-order-tiny-1423",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [1e-299, 0.0],
+          [1e-299, 1e-299],
+          [0.0, 1e-299],
+          [0.0, 0.0]
+        ],
+        [
+          [1e-300, 1e-300],
+          [4e-300, 1e-300],
+          [4e-300, 4e-300],
+          [1e-300, 4e-300],
+          [1e-300, 1e-300]
+        ],
+        [
+          [7e-300, 7e-300],
+          [8e-300, 7e-300],
+          [8e-300, 8e-300],
+          [7e-300, 8e-300],
+          [7e-300, 7e-300]
+        ],
+        [
+          [4.5e-300, 1e-300],
+          [6e-300, 1e-300],
+          [6e-300, 2e-300],
+          [4.5e-300, 2e-300],
+          [4.5e-300, 1e-300]
+        ],
+        [
+          [5e-301, 5e-301],
+          [4.5e-300, 5e-301],
+          [4.5e-300, 4.5e-300],
+          [5e-301, 4.5e-300],
+          [5e-301, 5e-301]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-tiny-1432",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [1e-299, 0.0],
+          [1e-299, 1e-299],
+          [0.0, 1e-299],
+          [0.0, 0.0]
+        ],
+        [
+          [1e-300, 1e-300],
+          [4e-300, 1e-300],
+          [4e-300, 4e-300],
+          [1e-300, 4e-300],
+          [1e-300, 1e-300]
+        ],
+        [
+          [7e-300, 7e-300],
+          [8e-300, 7e-300],
+          [8e-300, 8e-300],
+          [7e-300, 8e-300],
+          [7e-300, 7e-300]
+        ],
+        [
+          [5e-301, 5e-301],
+          [4.5e-300, 5e-301],
+          [4.5e-300, 4.5e-300],
+          [5e-301, 4.5e-300],
+          [5e-301, 5e-301]
+        ],
+        [
+          [4.5e-300, 1e-300],
+          [6e-300, 1e-300],
+          [6e-300, 2e-300],
+          [4.5e-300, 2e-300],
+          [4.5e-300, 1e-300]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "holes-overlap"
+    },
+    {
+      "id": "hole-order-tiny-2134",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [1e-299, 0.0],
+          [1e-299, 1e-299],
+          [0.0, 1e-299],
+          [0.0, 0.0]
+        ],
+        [
+          [4.5e-300, 1e-300],
+          [6e-300, 1e-300],
+          [6e-300, 2e-300],
+          [4.5e-300, 2e-300],
+          [4.5e-300, 1e-300]
+        ],
+        [
+          [1e-300, 1e-300],
+          [4e-300, 1e-300],
+          [4e-300, 4e-300],
+          [1e-300, 4e-300],
+          [1e-300, 1e-300]
+        ],
+        [
+          [5e-301, 5e-301],
+          [4.5e-300, 5e-301],
+          [4.5e-300, 4.5e-300],
+          [5e-301, 4.5e-300],
+          [5e-301, 5e-301]
+        ],
+        [
+          [7e-300, 7e-300],
+          [8e-300, 7e-300],
+          [8e-300, 8e-300],
+          [7e-300, 8e-300],
+          [7e-300, 7e-300]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-tiny-2143",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [1e-299, 0.0],
+          [1e-299, 1e-299],
+          [0.0, 1e-299],
+          [0.0, 0.0]
+        ],
+        [
+          [4.5e-300, 1e-300],
+          [6e-300, 1e-300],
+          [6e-300, 2e-300],
+          [4.5e-300, 2e-300],
+          [4.5e-300, 1e-300]
+        ],
+        [
+          [1e-300, 1e-300],
+          [4e-300, 1e-300],
+          [4e-300, 4e-300],
+          [1e-300, 4e-300],
+          [1e-300, 1e-300]
+        ],
+        [
+          [7e-300, 7e-300],
+          [8e-300, 7e-300],
+          [8e-300, 8e-300],
+          [7e-300, 8e-300],
+          [7e-300, 7e-300]
+        ],
+        [
+          [5e-301, 5e-301],
+          [4.5e-300, 5e-301],
+          [4.5e-300, 4.5e-300],
+          [5e-301, 4.5e-300],
+          [5e-301, 5e-301]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-tiny-2314",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [1e-299, 0.0],
+          [1e-299, 1e-299],
+          [0.0, 1e-299],
+          [0.0, 0.0]
+        ],
+        [
+          [4.5e-300, 1e-300],
+          [6e-300, 1e-300],
+          [6e-300, 2e-300],
+          [4.5e-300, 2e-300],
+          [4.5e-300, 1e-300]
+        ],
+        [
+          [5e-301, 5e-301],
+          [4.5e-300, 5e-301],
+          [4.5e-300, 4.5e-300],
+          [5e-301, 4.5e-300],
+          [5e-301, 5e-301]
+        ],
+        [
+          [1e-300, 1e-300],
+          [4e-300, 1e-300],
+          [4e-300, 4e-300],
+          [1e-300, 4e-300],
+          [1e-300, 1e-300]
+        ],
+        [
+          [7e-300, 7e-300],
+          [8e-300, 7e-300],
+          [8e-300, 8e-300],
+          [7e-300, 8e-300],
+          [7e-300, 7e-300]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-tiny-2341",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [1e-299, 0.0],
+          [1e-299, 1e-299],
+          [0.0, 1e-299],
+          [0.0, 0.0]
+        ],
+        [
+          [4.5e-300, 1e-300],
+          [6e-300, 1e-300],
+          [6e-300, 2e-300],
+          [4.5e-300, 2e-300],
+          [4.5e-300, 1e-300]
+        ],
+        [
+          [5e-301, 5e-301],
+          [4.5e-300, 5e-301],
+          [4.5e-300, 4.5e-300],
+          [5e-301, 4.5e-300],
+          [5e-301, 5e-301]
+        ],
+        [
+          [7e-300, 7e-300],
+          [8e-300, 7e-300],
+          [8e-300, 8e-300],
+          [7e-300, 8e-300],
+          [7e-300, 7e-300]
+        ],
+        [
+          [1e-300, 1e-300],
+          [4e-300, 1e-300],
+          [4e-300, 4e-300],
+          [1e-300, 4e-300],
+          [1e-300, 1e-300]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-tiny-2413",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [1e-299, 0.0],
+          [1e-299, 1e-299],
+          [0.0, 1e-299],
+          [0.0, 0.0]
+        ],
+        [
+          [4.5e-300, 1e-300],
+          [6e-300, 1e-300],
+          [6e-300, 2e-300],
+          [4.5e-300, 2e-300],
+          [4.5e-300, 1e-300]
+        ],
+        [
+          [7e-300, 7e-300],
+          [8e-300, 7e-300],
+          [8e-300, 8e-300],
+          [7e-300, 8e-300],
+          [7e-300, 7e-300]
+        ],
+        [
+          [1e-300, 1e-300],
+          [4e-300, 1e-300],
+          [4e-300, 4e-300],
+          [1e-300, 4e-300],
+          [1e-300, 1e-300]
+        ],
+        [
+          [5e-301, 5e-301],
+          [4.5e-300, 5e-301],
+          [4.5e-300, 4.5e-300],
+          [5e-301, 4.5e-300],
+          [5e-301, 5e-301]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-tiny-2431",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [1e-299, 0.0],
+          [1e-299, 1e-299],
+          [0.0, 1e-299],
+          [0.0, 0.0]
+        ],
+        [
+          [4.5e-300, 1e-300],
+          [6e-300, 1e-300],
+          [6e-300, 2e-300],
+          [4.5e-300, 2e-300],
+          [4.5e-300, 1e-300]
+        ],
+        [
+          [7e-300, 7e-300],
+          [8e-300, 7e-300],
+          [8e-300, 8e-300],
+          [7e-300, 8e-300],
+          [7e-300, 7e-300]
+        ],
+        [
+          [5e-301, 5e-301],
+          [4.5e-300, 5e-301],
+          [4.5e-300, 4.5e-300],
+          [5e-301, 4.5e-300],
+          [5e-301, 5e-301]
+        ],
+        [
+          [1e-300, 1e-300],
+          [4e-300, 1e-300],
+          [4e-300, 4e-300],
+          [1e-300, 4e-300],
+          [1e-300, 1e-300]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-tiny-3124",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [1e-299, 0.0],
+          [1e-299, 1e-299],
+          [0.0, 1e-299],
+          [0.0, 0.0]
+        ],
+        [
+          [5e-301, 5e-301],
+          [4.5e-300, 5e-301],
+          [4.5e-300, 4.5e-300],
+          [5e-301, 4.5e-300],
+          [5e-301, 5e-301]
+        ],
+        [
+          [1e-300, 1e-300],
+          [4e-300, 1e-300],
+          [4e-300, 4e-300],
+          [1e-300, 4e-300],
+          [1e-300, 1e-300]
+        ],
+        [
+          [4.5e-300, 1e-300],
+          [6e-300, 1e-300],
+          [6e-300, 2e-300],
+          [4.5e-300, 2e-300],
+          [4.5e-300, 1e-300]
+        ],
+        [
+          [7e-300, 7e-300],
+          [8e-300, 7e-300],
+          [8e-300, 8e-300],
+          [7e-300, 8e-300],
+          [7e-300, 7e-300]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "holes-overlap"
+    },
+    {
+      "id": "hole-order-tiny-3142",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [1e-299, 0.0],
+          [1e-299, 1e-299],
+          [0.0, 1e-299],
+          [0.0, 0.0]
+        ],
+        [
+          [5e-301, 5e-301],
+          [4.5e-300, 5e-301],
+          [4.5e-300, 4.5e-300],
+          [5e-301, 4.5e-300],
+          [5e-301, 5e-301]
+        ],
+        [
+          [1e-300, 1e-300],
+          [4e-300, 1e-300],
+          [4e-300, 4e-300],
+          [1e-300, 4e-300],
+          [1e-300, 1e-300]
+        ],
+        [
+          [7e-300, 7e-300],
+          [8e-300, 7e-300],
+          [8e-300, 8e-300],
+          [7e-300, 8e-300],
+          [7e-300, 7e-300]
+        ],
+        [
+          [4.5e-300, 1e-300],
+          [6e-300, 1e-300],
+          [6e-300, 2e-300],
+          [4.5e-300, 2e-300],
+          [4.5e-300, 1e-300]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "holes-overlap"
+    },
+    {
+      "id": "hole-order-tiny-3214",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [1e-299, 0.0],
+          [1e-299, 1e-299],
+          [0.0, 1e-299],
+          [0.0, 0.0]
+        ],
+        [
+          [5e-301, 5e-301],
+          [4.5e-300, 5e-301],
+          [4.5e-300, 4.5e-300],
+          [5e-301, 4.5e-300],
+          [5e-301, 5e-301]
+        ],
+        [
+          [4.5e-300, 1e-300],
+          [6e-300, 1e-300],
+          [6e-300, 2e-300],
+          [4.5e-300, 2e-300],
+          [4.5e-300, 1e-300]
+        ],
+        [
+          [1e-300, 1e-300],
+          [4e-300, 1e-300],
+          [4e-300, 4e-300],
+          [1e-300, 4e-300],
+          [1e-300, 1e-300]
+        ],
+        [
+          [7e-300, 7e-300],
+          [8e-300, 7e-300],
+          [8e-300, 8e-300],
+          [7e-300, 8e-300],
+          [7e-300, 7e-300]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-tiny-3241",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [1e-299, 0.0],
+          [1e-299, 1e-299],
+          [0.0, 1e-299],
+          [0.0, 0.0]
+        ],
+        [
+          [5e-301, 5e-301],
+          [4.5e-300, 5e-301],
+          [4.5e-300, 4.5e-300],
+          [5e-301, 4.5e-300],
+          [5e-301, 5e-301]
+        ],
+        [
+          [4.5e-300, 1e-300],
+          [6e-300, 1e-300],
+          [6e-300, 2e-300],
+          [4.5e-300, 2e-300],
+          [4.5e-300, 1e-300]
+        ],
+        [
+          [7e-300, 7e-300],
+          [8e-300, 7e-300],
+          [8e-300, 8e-300],
+          [7e-300, 8e-300],
+          [7e-300, 7e-300]
+        ],
+        [
+          [1e-300, 1e-300],
+          [4e-300, 1e-300],
+          [4e-300, 4e-300],
+          [1e-300, 4e-300],
+          [1e-300, 1e-300]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-tiny-3412",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [1e-299, 0.0],
+          [1e-299, 1e-299],
+          [0.0, 1e-299],
+          [0.0, 0.0]
+        ],
+        [
+          [5e-301, 5e-301],
+          [4.5e-300, 5e-301],
+          [4.5e-300, 4.5e-300],
+          [5e-301, 4.5e-300],
+          [5e-301, 5e-301]
+        ],
+        [
+          [7e-300, 7e-300],
+          [8e-300, 7e-300],
+          [8e-300, 8e-300],
+          [7e-300, 8e-300],
+          [7e-300, 7e-300]
+        ],
+        [
+          [1e-300, 1e-300],
+          [4e-300, 1e-300],
+          [4e-300, 4e-300],
+          [1e-300, 4e-300],
+          [1e-300, 1e-300]
+        ],
+        [
+          [4.5e-300, 1e-300],
+          [6e-300, 1e-300],
+          [6e-300, 2e-300],
+          [4.5e-300, 2e-300],
+          [4.5e-300, 1e-300]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "holes-overlap"
+    },
+    {
+      "id": "hole-order-tiny-3421",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [1e-299, 0.0],
+          [1e-299, 1e-299],
+          [0.0, 1e-299],
+          [0.0, 0.0]
+        ],
+        [
+          [5e-301, 5e-301],
+          [4.5e-300, 5e-301],
+          [4.5e-300, 4.5e-300],
+          [5e-301, 4.5e-300],
+          [5e-301, 5e-301]
+        ],
+        [
+          [7e-300, 7e-300],
+          [8e-300, 7e-300],
+          [8e-300, 8e-300],
+          [7e-300, 8e-300],
+          [7e-300, 7e-300]
+        ],
+        [
+          [4.5e-300, 1e-300],
+          [6e-300, 1e-300],
+          [6e-300, 2e-300],
+          [4.5e-300, 2e-300],
+          [4.5e-300, 1e-300]
+        ],
+        [
+          [1e-300, 1e-300],
+          [4e-300, 1e-300],
+          [4e-300, 4e-300],
+          [1e-300, 4e-300],
+          [1e-300, 1e-300]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-tiny-4123",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [1e-299, 0.0],
+          [1e-299, 1e-299],
+          [0.0, 1e-299],
+          [0.0, 0.0]
+        ],
+        [
+          [7e-300, 7e-300],
+          [8e-300, 7e-300],
+          [8e-300, 8e-300],
+          [7e-300, 8e-300],
+          [7e-300, 7e-300]
+        ],
+        [
+          [1e-300, 1e-300],
+          [4e-300, 1e-300],
+          [4e-300, 4e-300],
+          [1e-300, 4e-300],
+          [1e-300, 1e-300]
+        ],
+        [
+          [4.5e-300, 1e-300],
+          [6e-300, 1e-300],
+          [6e-300, 2e-300],
+          [4.5e-300, 2e-300],
+          [4.5e-300, 1e-300]
+        ],
+        [
+          [5e-301, 5e-301],
+          [4.5e-300, 5e-301],
+          [4.5e-300, 4.5e-300],
+          [5e-301, 4.5e-300],
+          [5e-301, 5e-301]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-tiny-4132",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [1e-299, 0.0],
+          [1e-299, 1e-299],
+          [0.0, 1e-299],
+          [0.0, 0.0]
+        ],
+        [
+          [7e-300, 7e-300],
+          [8e-300, 7e-300],
+          [8e-300, 8e-300],
+          [7e-300, 8e-300],
+          [7e-300, 7e-300]
+        ],
+        [
+          [1e-300, 1e-300],
+          [4e-300, 1e-300],
+          [4e-300, 4e-300],
+          [1e-300, 4e-300],
+          [1e-300, 1e-300]
+        ],
+        [
+          [5e-301, 5e-301],
+          [4.5e-300, 5e-301],
+          [4.5e-300, 4.5e-300],
+          [5e-301, 4.5e-300],
+          [5e-301, 5e-301]
+        ],
+        [
+          [4.5e-300, 1e-300],
+          [6e-300, 1e-300],
+          [6e-300, 2e-300],
+          [4.5e-300, 2e-300],
+          [4.5e-300, 1e-300]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "holes-overlap"
+    },
+    {
+      "id": "hole-order-tiny-4213",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [1e-299, 0.0],
+          [1e-299, 1e-299],
+          [0.0, 1e-299],
+          [0.0, 0.0]
+        ],
+        [
+          [7e-300, 7e-300],
+          [8e-300, 7e-300],
+          [8e-300, 8e-300],
+          [7e-300, 8e-300],
+          [7e-300, 7e-300]
+        ],
+        [
+          [4.5e-300, 1e-300],
+          [6e-300, 1e-300],
+          [6e-300, 2e-300],
+          [4.5e-300, 2e-300],
+          [4.5e-300, 1e-300]
+        ],
+        [
+          [1e-300, 1e-300],
+          [4e-300, 1e-300],
+          [4e-300, 4e-300],
+          [1e-300, 4e-300],
+          [1e-300, 1e-300]
+        ],
+        [
+          [5e-301, 5e-301],
+          [4.5e-300, 5e-301],
+          [4.5e-300, 4.5e-300],
+          [5e-301, 4.5e-300],
+          [5e-301, 5e-301]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-tiny-4231",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [1e-299, 0.0],
+          [1e-299, 1e-299],
+          [0.0, 1e-299],
+          [0.0, 0.0]
+        ],
+        [
+          [7e-300, 7e-300],
+          [8e-300, 7e-300],
+          [8e-300, 8e-300],
+          [7e-300, 8e-300],
+          [7e-300, 7e-300]
+        ],
+        [
+          [4.5e-300, 1e-300],
+          [6e-300, 1e-300],
+          [6e-300, 2e-300],
+          [4.5e-300, 2e-300],
+          [4.5e-300, 1e-300]
+        ],
+        [
+          [5e-301, 5e-301],
+          [4.5e-300, 5e-301],
+          [4.5e-300, 4.5e-300],
+          [5e-301, 4.5e-300],
+          [5e-301, 5e-301]
+        ],
+        [
+          [1e-300, 1e-300],
+          [4e-300, 1e-300],
+          [4e-300, 4e-300],
+          [1e-300, 4e-300],
+          [1e-300, 1e-300]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    },
+    {
+      "id": "hole-order-tiny-4312",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [1e-299, 0.0],
+          [1e-299, 1e-299],
+          [0.0, 1e-299],
+          [0.0, 0.0]
+        ],
+        [
+          [7e-300, 7e-300],
+          [8e-300, 7e-300],
+          [8e-300, 8e-300],
+          [7e-300, 8e-300],
+          [7e-300, 7e-300]
+        ],
+        [
+          [5e-301, 5e-301],
+          [4.5e-300, 5e-301],
+          [4.5e-300, 4.5e-300],
+          [5e-301, 4.5e-300],
+          [5e-301, 5e-301]
+        ],
+        [
+          [1e-300, 1e-300],
+          [4e-300, 1e-300],
+          [4e-300, 4e-300],
+          [1e-300, 4e-300],
+          [1e-300, 1e-300]
+        ],
+        [
+          [4.5e-300, 1e-300],
+          [6e-300, 1e-300],
+          [6e-300, 2e-300],
+          [4.5e-300, 2e-300],
+          [4.5e-300, 1e-300]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "holes-overlap"
+    },
+    {
+      "id": "hole-order-tiny-4321",
+      "rings": [
+        [
+          [0.0, 0.0],
+          [1e-299, 0.0],
+          [1e-299, 1e-299],
+          [0.0, 1e-299],
+          [0.0, 0.0]
+        ],
+        [
+          [7e-300, 7e-300],
+          [8e-300, 7e-300],
+          [8e-300, 8e-300],
+          [7e-300, 8e-300],
+          [7e-300, 7e-300]
+        ],
+        [
+          [5e-301, 5e-301],
+          [4.5e-300, 5e-301],
+          [4.5e-300, 4.5e-300],
+          [5e-301, 4.5e-300],
+          [5e-301, 5e-301]
+        ],
+        [
+          [4.5e-300, 1e-300],
+          [6e-300, 1e-300],
+          [6e-300, 2e-300],
+          [4.5e-300, 2e-300],
+          [4.5e-300, 1e-300]
+        ],
+        [
+          [1e-300, 1e-300],
+          [4e-300, 1e-300],
+          [4e-300, 4e-300],
+          [1e-300, 4e-300],
+          [1e-300, 1e-300]
+        ]
+      ],
+      "expected": "invalid",
+      "reason": "rings-intersect"
+    }
+  ],
+  "containment": [
+    {
+      "id": "golden-center",
+      "ring": [
+        [103.8, 1.3],
+        [103.9, 1.3],
+        [103.9, 1.4],
+        [103.8, 1.4],
+        [103.8, 1.3]
+      ],
+      "point": [103.85, 1.35],
+      "inside": true
+    },
+    {
+      "id": "golden-vertex",
+      "ring": [
+        [103.8, 1.3],
+        [103.9, 1.3],
+        [103.9, 1.4],
+        [103.8, 1.4],
+        [103.8, 1.3]
+      ],
+      "point": [103.8, 1.3],
+      "inside": true
+    },
+    {
+      "id": "golden-west-edge",
+      "ring": [
+        [103.8, 1.3],
+        [103.9, 1.3],
+        [103.9, 1.4],
+        [103.8, 1.4],
+        [103.8, 1.3]
+      ],
+      "point": [103.8, 1.35],
+      "inside": true
+    },
+    {
+      "id": "golden-just-west",
+      "ring": [
+        [103.8, 1.3],
+        [103.9, 1.3],
+        [103.9, 1.4],
+        [103.8, 1.4],
+        [103.8, 1.3]
+      ],
+      "point": [103.7999999999, 1.35],
+      "inside": false
+    },
+    {
+      "id": "golden-one-ulp-west",
+      "ring": [
+        [103.8, 1.3],
+        [103.9, 1.3],
+        [103.9, 1.4],
+        [103.8, 1.4],
+        [103.8, 1.3]
+      ],
+      "point": [103.79999999999998, 1.35],
+      "inside": false
+    },
+    {
+      "id": "golden-one-ulp-inside",
+      "ring": [
+        [103.8, 1.3],
+        [103.9, 1.3],
+        [103.9, 1.4],
+        [103.8, 1.4],
+        [103.8, 1.3]
+      ],
+      "point": [103.80000000000001, 1.35],
+      "inside": true
+    },
+    {
+      "id": "slanted-decimal-edge-point",
+      "ring": [
+        [0, 0],
+        [0.3, 3],
+        [-1, 3],
+        [0, 0]
+      ],
+      "point": [0.1, 1],
+      "inside": true
+    },
+    {
+      "id": "slanted-just-right",
+      "ring": [
+        [0, 0],
+        [0.3, 3],
+        [-1, 3],
+        [0, 0]
+      ],
+      "point": [0.10000000000000002, 1],
+      "inside": false
+    },
+    {
+      "id": "long-edge-near-miss",
+      "ring": [
+        [-170, -80],
+        [170.3, 80.7],
+        [-170, 80],
+        [-170, -80]
+      ],
+      "point": [-3.991293408785402, -1.6056445806400745],
+      "inside": false
+    },
+    {
+      "id": "long-edge-inside",
+      "ring": [
+        [-170, -80],
+        [170.3, 80.7],
+        [-170, 80],
+        [-170, -80]
+      ],
+      "point": [-5, 0],
+      "inside": true
+    },
+    {
+      "id": "tiny-notch-inside",
+      "ring": [
+        [0, 0],
+        [2e-170, 2e-170],
+        [1e-170, 0],
+        [1, 0],
+        [1, 1],
+        [0, 1],
+        [0, 0]
+      ],
+      "point": [3e-170, 5e-171],
+      "inside": true
+    },
+    {
+      "id": "tiny-notch-cut-out",
+      "ring": [
+        [0, 0],
+        [2e-170, 2e-170],
+        [1e-170, 0],
+        [1, 0],
+        [1, 1],
+        [0, 1],
+        [0, 0]
+      ],
+      "point": [1.5e-170, 1.2e-170],
+      "inside": false
+    },
+    {
+      "id": "tiny-notch-apex",
+      "ring": [
+        [0, 0],
+        [2e-170, 2e-170],
+        [1e-170, 0],
+        [1, 0],
+        [1, 1],
+        [0, 1],
+        [0, 0]
+      ],
+      "point": [2e-170, 2e-170],
+      "inside": true
+    },
+    {
+      "id": "tiny-notch-outside-gap",
+      "ring": [
+        [0, 0],
+        [2e-170, 2e-170],
+        [1e-170, 0],
+        [1, 0],
+        [1, 1],
+        [0, 1],
+        [0, 0]
+      ],
+      "point": [1e-170, 5e-171],
+      "inside": false
+    },
+    {
+      "id": "unit-square-center-of-r3-1",
+      "ring": [
+        [0, 0],
+        [2e-170, 2e-170],
+        [1e-170, 0],
+        [1, 0],
+        [1, 1],
+        [0, 1],
+        [0, 0]
+      ],
+      "point": [0.5, 0.5],
+      "inside": true
+    },
+    {
+      "id": "antimeridian-edge",
+      "ring": [
+        [179, -1],
+        [180, -1],
+        [180, 1],
+        [179, 1],
+        [179, -1]
+      ],
+      "point": [180, 0],
+      "inside": true
+    }
+  ]
+}

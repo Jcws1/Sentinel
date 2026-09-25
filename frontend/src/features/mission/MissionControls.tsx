@@ -10,6 +10,7 @@ import type { ApplicationRuntime } from '../../app/runtime';
 import type { Mission } from '../../contracts/generated';
 import type { DeepReadonly } from '../../contracts/types';
 import type { WorkspaceBridge } from '../workspace/workspaceBridge';
+import { finalizedExternalMission } from '../../world/externalRun';
 import '../../styles/mission.css';
 
 export function MissionControls({ bridge }: { bridge?: WorkspaceBridge } = {}) {
@@ -23,20 +24,33 @@ const fixtureNames: Record<string, string> = {
   'fixture-tactical': 'Tactical',
   'fixture-observations': 'Observations',
 };
+/**
+ * `lifecycle` may come from the presented frame, which can be newer than the
+ * catalog entry: a finalized external recording must never read as current.
+ * The header shows that state as its own tag (`withState` false), because a
+ * long name truncates.
+ */
 export function missionDisplayName(
   mission?: DeepReadonly<
-    Pick<Mission, 'id' | 'name'> & Partial<Pick<Mission, 'extensions'>>
+    Pick<Mission, 'id' | 'name'> &
+      Partial<Pick<Mission, 'extensions' | 'domain' | 'lifecycle'>>
   >,
+  lifecycle = mission?.lifecycle,
+  withState = true,
 ) {
   const scenario = mission?.extensions?.['sentinel.scenario'] as
     { name?: string; revision?: number } | undefined;
   if (scenario?.name && typeof scenario.revision === 'number')
     return `${scenario.name} · r${scenario.revision} · ${mission!.name}`;
-  return mission
-    ? mission.name === `Synthetic ${fixtureNames[mission.id]}`
+  if (!mission) return 'No mission';
+  const name =
+    mission.name === `Synthetic ${fixtureNames[mission.id]}`
       ? fixtureNames[mission.id]
-      : mission.name
-    : 'No mission';
+      : mission.name;
+  return withState &&
+    finalizedExternalMission({ domain: mission.domain, lifecycle })
+    ? `${name} · ABORTED · recording finalized`
+    : name;
 }
 
 function Controls({
@@ -54,10 +68,18 @@ function Controls({
   const mission =
     state.catalog.missions.find((item) => item.id === state.missionId) ??
     frame?.mission;
+  const lifecycle =
+    mission && frame?.mission.id === mission.id
+      ? frame.mission.lifecycle
+      : mission?.lifecycle;
+  const finalized =
+    !state.scenario.active &&
+    !!mission &&
+    finalizedExternalMission({ domain: mission.domain, lifecycle });
   const name = state.scenario.active
     ? `${state.scenario.draft.name} · ${state.scenario.dirty || !state.scenario.saved ? 'Unsaved plan' : `Saved r${state.scenario.saved.revision}`} · Not started`
     : mission
-      ? missionDisplayName(mission)
+      ? missionDisplayName(mission, lifecycle)
       : state.missionId
         ? 'Loading mission'
         : state.interactive.entry?.activeMissionId
@@ -151,7 +173,9 @@ function Controls({
           aria-busy={loading}
           title={name}
         >
-          <span className="mission-name">{name}</span>
+          <span className="mission-name">
+            {finalized ? missionDisplayName(mission, lifecycle, false) : name}
+          </span>
           <ChevronDown size={11} />
         </Menu.Trigger>
         <Menu.Portal>
@@ -277,6 +301,11 @@ function Controls({
           </Menu.Content>
         </Menu.Portal>
       </Menu.Root>
+      {finalized && (
+        <span className="constraint-tag mission-state-tag">
+          RECORDING FINALIZED · ABORTED
+        </span>
+      )}
       <Dialog.Root
         open={!!replaceId}
         onOpenChange={(open) => {
@@ -367,9 +396,18 @@ export function MissionStatus() {
 }
 function Status({ runtime }: { runtime: ApplicationRuntime }) {
   const state = useOperationalSnapshot(runtime);
+  const frame = state.presentation.frame;
   const mission =
     state.catalog.missions.find((m) => m.id === state.missionId) ??
-    state.presentation.frame?.mission;
+    frame?.mission;
+  const name = mission
+    ? missionDisplayName(
+        mission,
+        frame?.mission.id === mission.id
+          ? frame.mission.lifecycle
+          : mission.lifecycle,
+      )
+    : 'Loading mission';
   return (
     <span className="mission-status" role="status">
       {state.missionId ? (
@@ -379,11 +417,8 @@ function Status({ runtime }: { runtime: ApplicationRuntime }) {
               ? 'CONNECTED'
               : state.connection.toUpperCase()}
           </span>
-          <span
-            className="status-mission-name"
-            title={mission ? missionDisplayName(mission) : 'Loading mission'}
-          >
-            {mission ? missionDisplayName(mission) : 'Loading mission'}
+          <span className="status-mission-name" title={name}>
+            {name}
           </span>
         </>
       ) : state.scenario.active ? (

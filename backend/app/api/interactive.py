@@ -1,4 +1,5 @@
 import re
+from app.observability import log_receipt
 from fastapi import APIRouter, Request
 from app.commands.contracts import CommandRequest, CreateRunRequest, DemoEntry, Intent, IntentRequest, ReceiptRead, RunRead, MoveRequest, DirectMoveRequest, ExecutionRead, RecommendationRequest, RecommendationSet
 from app.commands.service import CommandError
@@ -20,7 +21,8 @@ async def entry(request: Request):
 
 @router.post("/runs", response_model=ReceiptRead, response_model_exclude_none=True)
 async def create(command: CreateRunRequest, request: Request):
-    return await request.app.state.interactive.create(command)
+    receipt = await request.app.state.interactive.create(command)
+    return log_receipt(request.app.state.telemetry, receipt)
 
 
 # Query lookups preserve every opaque ID, including URL dot segments. Keep path aliases.
@@ -48,7 +50,8 @@ async def recommendations(mission_id: str, selection: RecommendationRequest, req
 
 @router.post("/{mission_id}/commands", response_model=ReceiptRead, response_model_exclude_none=True)
 async def command(mission_id: str, command: CommandRequest, request: Request):
-    return await request.app.state.interactive.command(mission_id, command, credential(request))
+    receipt = await request.app.state.interactive.command(mission_id, command, credential(request))
+    return log_receipt(request.app.state.telemetry, receipt)
 
 
 @router.get("/{mission_id}/receipts", response_model=ReceiptRead, response_model_exclude_none=True)
@@ -59,7 +62,8 @@ async def receipt(mission_id: str, identity: str, request: Request):
 
 @router.post("/{mission_id}/moves", response_model=ReceiptRead, response_model_exclude_none=True)
 async def move(mission_id: str, command: MoveRequest, request: Request):
-    return await request.app.state.interactive.move(mission_id, command, credential(request))
+    receipt = await request.app.state.interactive.move(mission_id, command, credential(request))
+    return log_receipt(request.app.state.telemetry, receipt)
 
 
 @router.get("/{mission_id}/executions", response_model=ExecutionRead, response_model_exclude_none=True)
@@ -69,4 +73,5 @@ async def executions(mission_id: str, request: Request, throughFrameId: str | No
 
 @router.post("/{mission_id}/direct-moves", response_model=ReceiptRead, response_model_exclude_none=True)
 async def direct_move(mission_id: str, command: DirectMoveRequest, request: Request):
-    return await request.app.state.interactive.direct_move(mission_id, command, credential(request))
+    receipt = await request.app.state.interactive.direct_move(mission_id, command, credential(request))
+    return log_receipt(request.app.state.telemetry, receipt)

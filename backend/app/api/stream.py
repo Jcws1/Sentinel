@@ -1,5 +1,7 @@
 import asyncio
 import json
+import logging
+from uuid import uuid4
 from contextlib import suppress
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -12,6 +14,8 @@ router = APIRouter()
 @router.websocket("/api/missions/{mission_id:path}/stream")
 async def stream(websocket: WebSocket, mission_id: str):
     service = websocket.app.state.service
+    telemetry = service.telemetry
+    connection_id = uuid4().hex[:16]
     try:
         snapshot, subscription = await service.subscribe(mission_id)
     except KeyError:
@@ -21,6 +25,8 @@ async def stream(websocket: WebSocket, mission_id: str):
     async def send():
         cursor = json.loads(snapshot)
         await asyncio.wait_for(websocket.send_text(snapshot), timeout=5)
+        telemetry.event("stream.connected", connection_id=connection_id, mission_id=mission_id,
+                        sequence=cursor["sequence"], subscriber_count=service.subscriber_count(mission_id))
         while True:
             try:
                 message = await asyncio.wait_for(subscription.queue.get(), timeout=websocket.app.state.heartbeat_seconds)
@@ -56,10 +62,12 @@ async def stream(websocket: WebSocket, mission_id: str):
         done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         for task in done:
             task.result()
-    except (WebSocketDisconnect, RuntimeError, asyncio.TimeoutError):
-        pass
+    except (WebSocketDisconnect, RuntimeError, asyncio.TimeoutError) as error:
+        telemetry.event("stream.failed", level=logging.WARNING, connection_id=connection_id, mission_id=mission_id, error_type=type(error).__name__)
     finally:
         service.unsubscribe(mission_id, subscription)
+        telemetry.event("stream.disconnected", connection_id=connection_id, mission_id=mission_id,
+                        subscriber_count=service.subscriber_count(mission_id))
         for task in tasks:
             task.cancel()
         for task in tasks:

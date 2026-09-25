@@ -1,0 +1,2470 @@
+{
+  "schema_version": "1.0",
+  "mission_id": "ASSESSMENT-review-62fcdef8bc-BASE",
+  "command": {
+    "command_id": "ASSESSMENT-review-62fcdef8bc-BASE-START",
+    "action": "START",
+    "issued_at": "2026-09-25T00:00:00.000Z",
+    "execute_at": "2026-09-25T00:00:00.000Z",
+    "source_mode": "SIMULATED"
+  },
+  "area": {
+    "area_id": "SYNTHETIC-OBSERVATION-AREA",
+    "polygon": [
+      [
+        103.84415279462826,
+        1.3441544176357907
+      ],
+      [
+        103.85584720537173,
+        1.3441544176357907
+      ],
+      [
+        103.85584720537173,
+        1.3558455823642095
+      ],
+      [
+        103.84415279462826,
+        1.3558455823642095
+      ],
+      [
+        103.84415279462826,
+        1.3441544176357907
+      ]
+    ],
+    "min_altitude_m": 0,
+    "max_altitude_m": 500
+  },
+  "resolution": {
+    "interaction_radius_m": 1,
+    "location_grid_deg": 0.001
+  },
+  "calibration_profile": {
+    "profile_id": "ASSESSMENT-NEUTRAL-OBSERVATIONS",
+    "version": "1.0.0",
+    "evidence_status": "NOTIONAL",
+    "source_summary": "Synthetic neutral observations for software input robustness only.",
+    "rules": [
+      {
+        "actor_class": "I",
+        "subject_class": "I",
+        "probability": 0,
+        "health_delta": -1
+      }
+    ]
+  },
+  "samples_by_timestamp": {
+    "2026-09-25T00:00:00.000Z": [
+      {
+        "drone_id": "OBS-001",
+        "longitude_deg": 103.84730128982842,
+        "latitude_deg": 1.3473020389088264,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-002",
+        "longitude_deg": 103.84820085988562,
+        "latitude_deg": 1.3473020389088264,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-003",
+        "longitude_deg": 103.84910042994281,
+        "latitude_deg": 1.3473020389088264,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-004",
+        "longitude_deg": 103.85,
+        "latitude_deg": 1.3473020389088264,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-005",
+        "longitude_deg": 103.85089957005718,
+        "latitude_deg": 1.3473020389088264,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-006",
+        "longitude_deg": 103.85179914011437,
+        "latitude_deg": 1.3473020389088264,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-007",
+        "longitude_deg": 103.85269871017157,
+        "latitude_deg": 1.3473020389088264,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-008",
+        "longitude_deg": 103.84730128982842,
+        "latitude_deg": 1.348201359272551,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-009",
+        "longitude_deg": 103.84820085988562,
+        "latitude_deg": 1.348201359272551,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-010",
+        "longitude_deg": 103.84910042994281,
+        "latitude_deg": 1.348201359272551,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-011",
+        "longitude_deg": 103.85,
+        "latitude_deg": 1.348201359272551,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-012",
+        "longitude_deg": 103.85089957005718,
+        "latitude_deg": 1.348201359272551,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-013",
+        "longitude_deg": 103.85179914011437,
+        "latitude_deg": 1.348201359272551,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-014",
+        "longitude_deg": 103.85269871017157,
+        "latitude_deg": 1.348201359272551,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-015",
+        "longitude_deg": 103.84730128982842,
+        "latitude_deg": 1.3491006796362754,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-016",
+        "longitude_deg": 103.84820085988562,
+        "latitude_deg": 1.3491006796362754,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-017",
+        "longitude_deg": 103.84910042994281,
+        "latitude_deg": 1.3491006796362754,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-018",
+        "longitude_deg": 103.85,
+        "latitude_deg": 1.3491006796362754,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-019",
+        "longitude_deg": 103.85089957005718,
+        "latitude_deg": 1.3491006796362754,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-020",
+        "longitude_deg": 103.85179914011437,
+        "latitude_deg": 1.3491006796362754,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-021",
+        "longitude_deg": 103.85269871017157,
+        "latitude_deg": 1.3491006796362754,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-022",
+        "longitude_deg": 103.84730128982842,
+        "latitude_deg": 1.35,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-023",
+        "longitude_deg": 103.84820085988562,
+        "latitude_deg": 1.35,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-024",
+        "longitude_deg": 103.84910042994281,
+        "latitude_deg": 1.35,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-025",
+        "longitude_deg": 103.85,
+        "latitude_deg": 1.35,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-026",
+        "longitude_deg": 103.85089957005718,
+        "latitude_deg": 1.35,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-027",
+        "longitude_deg": 103.85179914011437,
+        "latitude_deg": 1.35,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-028",
+        "longitude_deg": 103.85269871017157,
+        "latitude_deg": 1.35,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-029",
+        "longitude_deg": 103.84730128982842,
+        "latitude_deg": 1.3508993203637247,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-030",
+        "longitude_deg": 103.84820085988562,
+        "latitude_deg": 1.3508993203637247,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-031",
+        "longitude_deg": 103.84910042994281,
+        "latitude_deg": 1.3508993203637247,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-032",
+        "longitude_deg": 103.85,
+        "latitude_deg": 1.3508993203637247,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-033",
+        "longitude_deg": 103.85089957005718,
+        "latitude_deg": 1.3508993203637247,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-034",
+        "longitude_deg": 103.85179914011437,
+        "latitude_deg": 1.3508993203637247,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-035",
+        "longitude_deg": 103.85269871017157,
+        "latitude_deg": 1.3508993203637247,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-036",
+        "longitude_deg": 103.84730128982842,
+        "latitude_deg": 1.3517986407274492,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-037",
+        "longitude_deg": 103.84820085988562,
+        "latitude_deg": 1.3517986407274492,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-038",
+        "longitude_deg": 103.84910042994281,
+        "latitude_deg": 1.3517986407274492,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-039",
+        "longitude_deg": 103.85,
+        "latitude_deg": 1.3517986407274492,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-040",
+        "longitude_deg": 103.85089957005718,
+        "latitude_deg": 1.3517986407274492,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      }
+    ],
+    "2026-09-25T00:00:01.000Z": [
+      {
+        "drone_id": "OBS-001",
+        "longitude_deg": 103.84731928122957,
+        "latitude_deg": 1.3473290185197382,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-002",
+        "longitude_deg": 103.84821885128676,
+        "latitude_deg": 1.3473290185197382,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-003",
+        "longitude_deg": 103.84911842134395,
+        "latitude_deg": 1.3473290185197382,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-004",
+        "longitude_deg": 103.85001799140113,
+        "latitude_deg": 1.3473290185197382,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-005",
+        "longitude_deg": 103.85091756145833,
+        "latitude_deg": 1.3473290185197382,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-006",
+        "longitude_deg": 103.85181713151552,
+        "latitude_deg": 1.3473290185197382,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-007",
+        "longitude_deg": 103.8527167015727,
+        "latitude_deg": 1.3473290185197382,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-008",
+        "longitude_deg": 103.84731928122957,
+        "latitude_deg": 1.3482283388834628,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-009",
+        "longitude_deg": 103.84821885128676,
+        "latitude_deg": 1.3482283388834628,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-010",
+        "longitude_deg": 103.84911842134395,
+        "latitude_deg": 1.3482283388834628,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-011",
+        "longitude_deg": 103.85001799140113,
+        "latitude_deg": 1.3482283388834628,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-012",
+        "longitude_deg": 103.85091756145833,
+        "latitude_deg": 1.3482283388834628,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-013",
+        "longitude_deg": 103.85181713151552,
+        "latitude_deg": 1.3482283388834628,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-014",
+        "longitude_deg": 103.8527167015727,
+        "latitude_deg": 1.3482283388834628,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-015",
+        "longitude_deg": 103.84731928122957,
+        "latitude_deg": 1.3491276592471872,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-016",
+        "longitude_deg": 103.84821885128676,
+        "latitude_deg": 1.3491276592471872,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-017",
+        "longitude_deg": 103.84911842134395,
+        "latitude_deg": 1.3491276592471872,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-018",
+        "longitude_deg": 103.85001799140113,
+        "latitude_deg": 1.3491276592471872,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-019",
+        "longitude_deg": 103.85091756145833,
+        "latitude_deg": 1.3491276592471872,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-020",
+        "longitude_deg": 103.85181713151552,
+        "latitude_deg": 1.3491276592471872,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-021",
+        "longitude_deg": 103.8527167015727,
+        "latitude_deg": 1.3491276592471872,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-022",
+        "longitude_deg": 103.84731928122957,
+        "latitude_deg": 1.350026979610912,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-023",
+        "longitude_deg": 103.84821885128676,
+        "latitude_deg": 1.350026979610912,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-024",
+        "longitude_deg": 103.84911842134395,
+        "latitude_deg": 1.350026979610912,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-025",
+        "longitude_deg": 103.85001799140113,
+        "latitude_deg": 1.350026979610912,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-026",
+        "longitude_deg": 103.85091756145833,
+        "latitude_deg": 1.350026979610912,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-027",
+        "longitude_deg": 103.85181713151552,
+        "latitude_deg": 1.350026979610912,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-028",
+        "longitude_deg": 103.8527167015727,
+        "latitude_deg": 1.350026979610912,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-029",
+        "longitude_deg": 103.84731928122957,
+        "latitude_deg": 1.3509262999746363,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-030",
+        "longitude_deg": 103.84821885128676,
+        "latitude_deg": 1.3509262999746363,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-031",
+        "longitude_deg": 103.84911842134395,
+        "latitude_deg": 1.3509262999746363,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-032",
+        "longitude_deg": 103.85001799140113,
+        "latitude_deg": 1.3509262999746363,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-033",
+        "longitude_deg": 103.85091756145833,
+        "latitude_deg": 1.3509262999746363,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-034",
+        "longitude_deg": 103.85181713151552,
+        "latitude_deg": 1.3509262999746363,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-035",
+        "longitude_deg": 103.8527167015727,
+        "latitude_deg": 1.3509262999746363,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-036",
+        "longitude_deg": 103.84731928122957,
+        "latitude_deg": 1.351825620338361,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-037",
+        "longitude_deg": 103.84821885128676,
+        "latitude_deg": 1.351825620338361,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-038",
+        "longitude_deg": 103.84911842134395,
+        "latitude_deg": 1.351825620338361,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-039",
+        "longitude_deg": 103.85001799140113,
+        "latitude_deg": 1.351825620338361,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-040",
+        "longitude_deg": 103.85091756145833,
+        "latitude_deg": 1.351825620338361,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      }
+    ],
+    "2026-09-25T00:00:02.000Z": [
+      {
+        "drone_id": "OBS-001",
+        "longitude_deg": 103.84733727263071,
+        "latitude_deg": 1.34735599813065,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-002",
+        "longitude_deg": 103.84823684268791,
+        "latitude_deg": 1.34735599813065,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-003",
+        "longitude_deg": 103.8491364127451,
+        "latitude_deg": 1.34735599813065,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-004",
+        "longitude_deg": 103.85003598280228,
+        "latitude_deg": 1.34735599813065,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-005",
+        "longitude_deg": 103.85093555285947,
+        "latitude_deg": 1.34735599813065,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-006",
+        "longitude_deg": 103.85183512291665,
+        "latitude_deg": 1.34735599813065,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-007",
+        "longitude_deg": 103.85273469297385,
+        "latitude_deg": 1.34735599813065,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-008",
+        "longitude_deg": 103.84733727263071,
+        "latitude_deg": 1.3482553184943744,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-009",
+        "longitude_deg": 103.84823684268791,
+        "latitude_deg": 1.3482553184943744,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-010",
+        "longitude_deg": 103.8491364127451,
+        "latitude_deg": 1.3482553184943744,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-011",
+        "longitude_deg": 103.85003598280228,
+        "latitude_deg": 1.3482553184943744,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-012",
+        "longitude_deg": 103.85093555285947,
+        "latitude_deg": 1.3482553184943744,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-013",
+        "longitude_deg": 103.85183512291665,
+        "latitude_deg": 1.3482553184943744,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-014",
+        "longitude_deg": 103.85273469297385,
+        "latitude_deg": 1.3482553184943744,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-015",
+        "longitude_deg": 103.84733727263071,
+        "latitude_deg": 1.349154638858099,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-016",
+        "longitude_deg": 103.84823684268791,
+        "latitude_deg": 1.349154638858099,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-017",
+        "longitude_deg": 103.8491364127451,
+        "latitude_deg": 1.349154638858099,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-018",
+        "longitude_deg": 103.85003598280228,
+        "latitude_deg": 1.349154638858099,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-019",
+        "longitude_deg": 103.85093555285947,
+        "latitude_deg": 1.349154638858099,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-020",
+        "longitude_deg": 103.85183512291665,
+        "latitude_deg": 1.349154638858099,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-021",
+        "longitude_deg": 103.85273469297385,
+        "latitude_deg": 1.349154638858099,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-022",
+        "longitude_deg": 103.84733727263071,
+        "latitude_deg": 1.3500539592218235,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-023",
+        "longitude_deg": 103.84823684268791,
+        "latitude_deg": 1.3500539592218235,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-024",
+        "longitude_deg": 103.8491364127451,
+        "latitude_deg": 1.3500539592218235,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-025",
+        "longitude_deg": 103.85003598280228,
+        "latitude_deg": 1.3500539592218235,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-026",
+        "longitude_deg": 103.85093555285947,
+        "latitude_deg": 1.3500539592218235,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-027",
+        "longitude_deg": 103.85183512291665,
+        "latitude_deg": 1.3500539592218235,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-028",
+        "longitude_deg": 103.85273469297385,
+        "latitude_deg": 1.3500539592218235,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-029",
+        "longitude_deg": 103.84733727263071,
+        "latitude_deg": 1.3509532795855481,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-030",
+        "longitude_deg": 103.84823684268791,
+        "latitude_deg": 1.3509532795855481,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-031",
+        "longitude_deg": 103.8491364127451,
+        "latitude_deg": 1.3509532795855481,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-032",
+        "longitude_deg": 103.85003598280228,
+        "latitude_deg": 1.3509532795855481,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-033",
+        "longitude_deg": 103.85093555285947,
+        "latitude_deg": 1.3509532795855481,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-034",
+        "longitude_deg": 103.85183512291665,
+        "latitude_deg": 1.3509532795855481,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-035",
+        "longitude_deg": 103.85273469297385,
+        "latitude_deg": 1.3509532795855481,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-036",
+        "longitude_deg": 103.84733727263071,
+        "latitude_deg": 1.3518525999492725,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-037",
+        "longitude_deg": 103.84823684268791,
+        "latitude_deg": 1.3518525999492725,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-038",
+        "longitude_deg": 103.8491364127451,
+        "latitude_deg": 1.3518525999492725,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-039",
+        "longitude_deg": 103.85003598280228,
+        "latitude_deg": 1.3518525999492725,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-040",
+        "longitude_deg": 103.85093555285947,
+        "latitude_deg": 1.3518525999492725,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      }
+    ],
+    "2026-09-25T00:00:03.000Z": [
+      {
+        "drone_id": "OBS-001",
+        "longitude_deg": 103.84735526403186,
+        "latitude_deg": 1.3473829777415618,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-002",
+        "longitude_deg": 103.84825483408905,
+        "latitude_deg": 1.3473829777415618,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-003",
+        "longitude_deg": 103.84915440414623,
+        "latitude_deg": 1.3473829777415618,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-004",
+        "longitude_deg": 103.85005397420342,
+        "latitude_deg": 1.3473829777415618,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-005",
+        "longitude_deg": 103.85095354426062,
+        "latitude_deg": 1.3473829777415618,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-006",
+        "longitude_deg": 103.8518531143178,
+        "latitude_deg": 1.3473829777415618,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-007",
+        "longitude_deg": 103.85275268437499,
+        "latitude_deg": 1.3473829777415618,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-008",
+        "longitude_deg": 103.84735526403186,
+        "latitude_deg": 1.3482822981052862,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-009",
+        "longitude_deg": 103.84825483408905,
+        "latitude_deg": 1.3482822981052862,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-010",
+        "longitude_deg": 103.84915440414623,
+        "latitude_deg": 1.3482822981052862,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-011",
+        "longitude_deg": 103.85005397420342,
+        "latitude_deg": 1.3482822981052862,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-012",
+        "longitude_deg": 103.85095354426062,
+        "latitude_deg": 1.3482822981052862,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-013",
+        "longitude_deg": 103.8518531143178,
+        "latitude_deg": 1.3482822981052862,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-014",
+        "longitude_deg": 103.85275268437499,
+        "latitude_deg": 1.3482822981052862,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-015",
+        "longitude_deg": 103.84735526403186,
+        "latitude_deg": 1.3491816184690109,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-016",
+        "longitude_deg": 103.84825483408905,
+        "latitude_deg": 1.3491816184690109,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-017",
+        "longitude_deg": 103.84915440414623,
+        "latitude_deg": 1.3491816184690109,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-018",
+        "longitude_deg": 103.85005397420342,
+        "latitude_deg": 1.3491816184690109,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-019",
+        "longitude_deg": 103.85095354426062,
+        "latitude_deg": 1.3491816184690109,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-020",
+        "longitude_deg": 103.8518531143178,
+        "latitude_deg": 1.3491816184690109,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-021",
+        "longitude_deg": 103.85275268437499,
+        "latitude_deg": 1.3491816184690109,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-022",
+        "longitude_deg": 103.84735526403186,
+        "latitude_deg": 1.3500809388327353,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-023",
+        "longitude_deg": 103.84825483408905,
+        "latitude_deg": 1.3500809388327353,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-024",
+        "longitude_deg": 103.84915440414623,
+        "latitude_deg": 1.3500809388327353,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-025",
+        "longitude_deg": 103.85005397420342,
+        "latitude_deg": 1.3500809388327353,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-026",
+        "longitude_deg": 103.85095354426062,
+        "latitude_deg": 1.3500809388327353,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-027",
+        "longitude_deg": 103.8518531143178,
+        "latitude_deg": 1.3500809388327353,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-028",
+        "longitude_deg": 103.85275268437499,
+        "latitude_deg": 1.3500809388327353,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-029",
+        "longitude_deg": 103.84735526403186,
+        "latitude_deg": 1.35098025919646,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-030",
+        "longitude_deg": 103.84825483408905,
+        "latitude_deg": 1.35098025919646,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-031",
+        "longitude_deg": 103.84915440414623,
+        "latitude_deg": 1.35098025919646,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-032",
+        "longitude_deg": 103.85005397420342,
+        "latitude_deg": 1.35098025919646,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-033",
+        "longitude_deg": 103.85095354426062,
+        "latitude_deg": 1.35098025919646,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-034",
+        "longitude_deg": 103.8518531143178,
+        "latitude_deg": 1.35098025919646,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-035",
+        "longitude_deg": 103.85275268437499,
+        "latitude_deg": 1.35098025919646,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-036",
+        "longitude_deg": 103.84735526403186,
+        "latitude_deg": 1.3518795795601843,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-037",
+        "longitude_deg": 103.84825483408905,
+        "latitude_deg": 1.3518795795601843,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-038",
+        "longitude_deg": 103.84915440414623,
+        "latitude_deg": 1.3518795795601843,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-039",
+        "longitude_deg": 103.85005397420342,
+        "latitude_deg": 1.3518795795601843,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-040",
+        "longitude_deg": 103.85095354426062,
+        "latitude_deg": 1.3518795795601843,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      }
+    ],
+    "2026-09-25T00:00:04.000Z": [
+      {
+        "drone_id": "OBS-001",
+        "longitude_deg": 103.847373255433,
+        "latitude_deg": 1.3474099573524734,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-002",
+        "longitude_deg": 103.84827282549018,
+        "latitude_deg": 1.3474099573524734,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-003",
+        "longitude_deg": 103.84917239554738,
+        "latitude_deg": 1.3474099573524734,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-004",
+        "longitude_deg": 103.85007196560457,
+        "latitude_deg": 1.3474099573524734,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-005",
+        "longitude_deg": 103.85097153566176,
+        "latitude_deg": 1.3474099573524734,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-006",
+        "longitude_deg": 103.85187110571894,
+        "latitude_deg": 1.3474099573524734,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-007",
+        "longitude_deg": 103.85277067577614,
+        "latitude_deg": 1.3474099573524734,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-008",
+        "longitude_deg": 103.847373255433,
+        "latitude_deg": 1.348309277716198,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-009",
+        "longitude_deg": 103.84827282549018,
+        "latitude_deg": 1.348309277716198,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-010",
+        "longitude_deg": 103.84917239554738,
+        "latitude_deg": 1.348309277716198,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-011",
+        "longitude_deg": 103.85007196560457,
+        "latitude_deg": 1.348309277716198,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-012",
+        "longitude_deg": 103.85097153566176,
+        "latitude_deg": 1.348309277716198,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-013",
+        "longitude_deg": 103.85187110571894,
+        "latitude_deg": 1.348309277716198,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-014",
+        "longitude_deg": 103.85277067577614,
+        "latitude_deg": 1.348309277716198,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-015",
+        "longitude_deg": 103.847373255433,
+        "latitude_deg": 1.3492085980799224,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-016",
+        "longitude_deg": 103.84827282549018,
+        "latitude_deg": 1.3492085980799224,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-017",
+        "longitude_deg": 103.84917239554738,
+        "latitude_deg": 1.3492085980799224,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-018",
+        "longitude_deg": 103.85007196560457,
+        "latitude_deg": 1.3492085980799224,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-019",
+        "longitude_deg": 103.85097153566176,
+        "latitude_deg": 1.3492085980799224,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-020",
+        "longitude_deg": 103.85187110571894,
+        "latitude_deg": 1.3492085980799224,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-021",
+        "longitude_deg": 103.85277067577614,
+        "latitude_deg": 1.3492085980799224,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-022",
+        "longitude_deg": 103.847373255433,
+        "latitude_deg": 1.350107918443647,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-023",
+        "longitude_deg": 103.84827282549018,
+        "latitude_deg": 1.350107918443647,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-024",
+        "longitude_deg": 103.84917239554738,
+        "latitude_deg": 1.350107918443647,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-025",
+        "longitude_deg": 103.85007196560457,
+        "latitude_deg": 1.350107918443647,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-026",
+        "longitude_deg": 103.85097153566176,
+        "latitude_deg": 1.350107918443647,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-027",
+        "longitude_deg": 103.85187110571894,
+        "latitude_deg": 1.350107918443647,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-028",
+        "longitude_deg": 103.85277067577614,
+        "latitude_deg": 1.350107918443647,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-029",
+        "longitude_deg": 103.847373255433,
+        "latitude_deg": 1.3510072388073715,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-030",
+        "longitude_deg": 103.84827282549018,
+        "latitude_deg": 1.3510072388073715,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-031",
+        "longitude_deg": 103.84917239554738,
+        "latitude_deg": 1.3510072388073715,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-032",
+        "longitude_deg": 103.85007196560457,
+        "latitude_deg": 1.3510072388073715,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-033",
+        "longitude_deg": 103.85097153566176,
+        "latitude_deg": 1.3510072388073715,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-034",
+        "longitude_deg": 103.85187110571894,
+        "latitude_deg": 1.3510072388073715,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-035",
+        "longitude_deg": 103.85277067577614,
+        "latitude_deg": 1.3510072388073715,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-036",
+        "longitude_deg": 103.847373255433,
+        "latitude_deg": 1.3519065591710961,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-037",
+        "longitude_deg": 103.84827282549018,
+        "latitude_deg": 1.3519065591710961,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-038",
+        "longitude_deg": 103.84917239554738,
+        "latitude_deg": 1.3519065591710961,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-039",
+        "longitude_deg": 103.85007196560457,
+        "latitude_deg": 1.3519065591710961,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-040",
+        "longitude_deg": 103.85097153566176,
+        "latitude_deg": 1.3519065591710961,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      }
+    ],
+    "2026-09-25T00:00:05.000Z": [
+      {
+        "drone_id": "OBS-001",
+        "longitude_deg": 103.84739124683415,
+        "latitude_deg": 1.3474369369633852,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-002",
+        "longitude_deg": 103.84829081689134,
+        "latitude_deg": 1.3474369369633852,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-003",
+        "longitude_deg": 103.84919038694852,
+        "latitude_deg": 1.3474369369633852,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-004",
+        "longitude_deg": 103.85008995700571,
+        "latitude_deg": 1.3474369369633852,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-005",
+        "longitude_deg": 103.85098952706291,
+        "latitude_deg": 1.3474369369633852,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-006",
+        "longitude_deg": 103.8518890971201,
+        "latitude_deg": 1.3474369369633852,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-007",
+        "longitude_deg": 103.85278866717728,
+        "latitude_deg": 1.3474369369633852,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-008",
+        "longitude_deg": 103.84739124683415,
+        "latitude_deg": 1.3483362573271096,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-009",
+        "longitude_deg": 103.84829081689134,
+        "latitude_deg": 1.3483362573271096,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-010",
+        "longitude_deg": 103.84919038694852,
+        "latitude_deg": 1.3483362573271096,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-011",
+        "longitude_deg": 103.85008995700571,
+        "latitude_deg": 1.3483362573271096,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-012",
+        "longitude_deg": 103.85098952706291,
+        "latitude_deg": 1.3483362573271096,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-013",
+        "longitude_deg": 103.8518890971201,
+        "latitude_deg": 1.3483362573271096,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-014",
+        "longitude_deg": 103.85278866717728,
+        "latitude_deg": 1.3483362573271096,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-015",
+        "longitude_deg": 103.84739124683415,
+        "latitude_deg": 1.3492355776908342,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-016",
+        "longitude_deg": 103.84829081689134,
+        "latitude_deg": 1.3492355776908342,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-017",
+        "longitude_deg": 103.84919038694852,
+        "latitude_deg": 1.3492355776908342,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-018",
+        "longitude_deg": 103.85008995700571,
+        "latitude_deg": 1.3492355776908342,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-019",
+        "longitude_deg": 103.85098952706291,
+        "latitude_deg": 1.3492355776908342,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-020",
+        "longitude_deg": 103.8518890971201,
+        "latitude_deg": 1.3492355776908342,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-021",
+        "longitude_deg": 103.85278866717728,
+        "latitude_deg": 1.3492355776908342,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-022",
+        "longitude_deg": 103.84739124683415,
+        "latitude_deg": 1.3501348980545587,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-023",
+        "longitude_deg": 103.84829081689134,
+        "latitude_deg": 1.3501348980545587,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-024",
+        "longitude_deg": 103.84919038694852,
+        "latitude_deg": 1.3501348980545587,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-025",
+        "longitude_deg": 103.85008995700571,
+        "latitude_deg": 1.3501348980545587,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-026",
+        "longitude_deg": 103.85098952706291,
+        "latitude_deg": 1.3501348980545587,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-027",
+        "longitude_deg": 103.8518890971201,
+        "latitude_deg": 1.3501348980545587,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-028",
+        "longitude_deg": 103.85278866717728,
+        "latitude_deg": 1.3501348980545587,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-029",
+        "longitude_deg": 103.84739124683415,
+        "latitude_deg": 1.3510342184182833,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-030",
+        "longitude_deg": 103.84829081689134,
+        "latitude_deg": 1.3510342184182833,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-031",
+        "longitude_deg": 103.84919038694852,
+        "latitude_deg": 1.3510342184182833,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-032",
+        "longitude_deg": 103.85008995700571,
+        "latitude_deg": 1.3510342184182833,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-033",
+        "longitude_deg": 103.85098952706291,
+        "latitude_deg": 1.3510342184182833,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-034",
+        "longitude_deg": 103.8518890971201,
+        "latitude_deg": 1.3510342184182833,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-035",
+        "longitude_deg": 103.85278866717728,
+        "latitude_deg": 1.3510342184182833,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-036",
+        "longitude_deg": 103.84739124683415,
+        "latitude_deg": 1.351933538782008,
+        "altitude_m": 100,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-037",
+        "longitude_deg": 103.84829081689134,
+        "latitude_deg": 1.351933538782008,
+        "altitude_m": 110,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-038",
+        "longitude_deg": 103.84919038694852,
+        "latitude_deg": 1.351933538782008,
+        "altitude_m": 120,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-039",
+        "longitude_deg": 103.85008995700571,
+        "latitude_deg": 1.351933538782008,
+        "altitude_m": 130,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      },
+      {
+        "drone_id": "OBS-040",
+        "longitude_deg": 103.85098952706291,
+        "latitude_deg": 1.351933538782008,
+        "altitude_m": 140,
+        "class": "I",
+        "team": "NEUTRAL",
+        "health": 100,
+        "status": "ACTIVE"
+      }
+    ]
+  }
+}

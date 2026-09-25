@@ -26,9 +26,7 @@ export async function openSimulation(page) {
 export async function submitSimulation(page, body) {
   const pane = await openSimulation(page);
   const raw = typeof body === 'string' ? body : JSON.stringify(body, null, 2);
-  await pane
-    .getByRole('textbox', { name: 'External simulation request JSON' })
-    .fill(raw);
+  await pane.getByRole('textbox', { name: 'External request JSON' }).fill(raw);
   const committed = page.waitForResponse(
     (response) =>
       response.url().endsWith('/simulation/v1/commands') &&
@@ -43,7 +41,29 @@ export async function submitSimulation(page, body) {
   return result;
 }
 
-export async function simulationFlow(page, base, output, kind = 'remote40') {
+/** ABORT is terminal, so the pane asks for confirmation first. */
+export async function abortSimulation(page) {
+  const pane = page.locator('[data-view="simulation"]');
+  await pane
+    .getByRole('button', { name: 'ABORT external run', exact: true })
+    .click();
+  const dialog = page.getByRole('alertdialog');
+  await expect(dialog).toContainText('cannot be held or resumed');
+  await dialog
+    .getByRole('button', { name: 'Confirm ABORT', exact: true })
+    .click();
+  await expect(pane.locator('.simulation-notice')).toContainText(
+    'committed · ABORTED',
+  );
+}
+
+export async function simulationFlow(
+  page,
+  base,
+  output,
+  kind = 'remote40',
+  capture = (path) => page.screenshot({ path }),
+) {
   mkdirSync(output, { recursive: true });
   const errors = [],
     blockedExternal = [];
@@ -95,7 +115,7 @@ export async function simulationFlow(page, base, output, kind = 'remote40') {
   await expect(
     page.getByRole('region', { name: 'External simulation detail' }),
   ).toContainText('NOTIONAL');
-  await page.screenshot({ path: resolve(output, 'mapped-tracks.png') });
+  await capture(resolve(output, 'mapped-tracks.png'));
   await openSimulation(page);
   await pane
     .getByRole('button', { name: 'HOLD external run', exact: true })
@@ -109,13 +129,8 @@ export async function simulationFlow(page, base, output, kind = 'remote40') {
   resumed.command.source_mode = 'REPLAY';
   const resumedResult = await submitSimulation(page, resumed);
   expect(resumedResult.command_ack.run_status).toBe('RUNNING');
-  await page.screenshot({ path: resolve(output, 'resume-outcomes.png') });
-  await pane
-    .getByRole('button', { name: 'ABORT external run', exact: true })
-    .click();
-  await expect(pane.locator('.simulation-notice')).toContainText(
-    'committed · ABORTED',
-  );
+  await capture(resolve(output, 'resume-outcomes.png'));
+  await abortSimulation(page);
   await expect(
     pane.getByRole('button', { name: 'HOLD external run', exact: true }),
   ).toBeDisabled();
@@ -127,7 +142,7 @@ export async function simulationFlow(page, base, output, kind = 'remote40') {
   await page.reload();
   await openSimulation(page);
   await pane
-    .getByRole('combobox', { name: 'External simulation run', exact: true })
+    .getByRole('combobox', { name: 'Recorded run', exact: true })
     .selectOption(run.missionId);
   await expect(
     pane.getByRole('region', { name: 'Recorded simulation outcome' }),
@@ -136,12 +151,12 @@ export async function simulationFlow(page, base, output, kind = 'remote40') {
     .getByRole('button', { name: 'Load recorded commands', exact: true })
     .click();
   await pane
-    .getByRole('combobox', { name: 'Recorded external command', exact: true })
+    .getByRole('combobox', { name: 'Recorded command', exact: true })
     .selectOption(body.command.command_id);
   await expect(
     pane.getByRole('region', { name: 'Recorded simulation outcome' }),
   ).toContainText('MUTUAL_EFFECT');
-  await page.screenshot({ path: resolve(output, 'recorded-inspection.png') });
+  await capture(resolve(output, 'recorded-inspection.png'));
   expect(errors).toEqual([]);
   expect(blockedExternal).toEqual([]);
   return {

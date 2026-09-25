@@ -323,7 +323,9 @@ export function App({
             {view
               ? item.id === 'tracks'
                 ? 'Entities and demo controls'
-                : 'View only'
+                : item.id === 'simulation'
+                  ? 'Submit and inspect external batches'
+                  : 'View only'
               : 'Not implemented'}
           </span>
         </span>

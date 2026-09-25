@@ -82,6 +82,28 @@ def test_complete_validation_precedes_any_recording_or_resolution(api, batch, mo
     assert not app.state.service.repository.has_mission(mission_identity(batch["mission_id"]))
 
 
+# Spec §8 cells (C) and the register's provisional C02/C03 cells (P) from
+# contracts/simulation/compatibility-decisions.md, written out here rather than
+# read from app.simulation.policy, so the product table is tested, not trusted.
+# A success cell is the run status; a rejection cell is the 409 error code.
+LIFECYCLE = {
+    None: {"START": ("RUNNING", "C"), "HOLD": ("RUN_NOT_STARTED", "P"),
+           "RESUME": ("RUN_NOT_HELD", "C"), "ABORT": ("RUN_NOT_STARTED", "P")},
+    "RUNNING": {"START": ("RUN_ALREADY_STARTED", "C"), "HOLD": ("HELD", "C"),
+                "RESUME": ("RUN_NOT_HELD", "P"), "ABORT": ("ABORTED", "C")},
+    "HELD": {"START": ("RUN_ALREADY_STARTED", "P"), "HOLD": ("HELD", "P"),
+             "RESUME": ("RUNNING", "C"), "ABORT": ("ABORTED", "C")},
+    "ABORTED": {"START": ("RUN_TERMINAL", "C"), "HOLD": ("RUN_TERMINAL", "C"),
+                "RESUME": ("RUN_NOT_HELD", "P"), "ABORT": ("RUN_TERMINAL", "C")},
+}
+
+
+def test_product_transition_table_matches_the_written_matrix():
+    written = {prior: {action: cell[0] for action, cell in row.items()} for prior, row in LIFECYCLE.items()}
+    assert {prior: row for prior, row in TRANSITIONS.items() if prior != "FAILED"} == written
+    assert set(TRANSITIONS["FAILED"].values()) == {"RUN_TERMINAL"}  # C03 provisional; unreachable through the API
+
+
 @pytest.mark.parametrize("prior", [None, "RUNNING", "HELD", "ABORTED"])
 @pytest.mark.parametrize("action", ["START", "HOLD", "RESUME", "ABORT"])
 def test_lifecycle_confirmed_and_provisional_matrix(api, batch, prior, action):
@@ -93,7 +115,7 @@ def test_lifecycle_confirmed_and_provisional_matrix(api, batch, prior, action):
     if prior == "ABORTED":
         assert send(client, transition(batch, "ABORT", "SETUP-ABORT")).status_code == 200
     response = send(client, transition(batch, action, "UNDER-TEST"))
-    expected = TRANSITIONS[prior][action]
+    expected = LIFECYCLE[prior][action][0]
     assert response.status_code == (200 if expected in {"RUNNING", "HELD", "ABORTED"} else 409)
     assert response.json()["command_ack"]["run_status" if response.status_code == 200 else "error_code"] == expected
     if response.status_code == 409 and prior:
@@ -443,3 +465,39 @@ def test_small_crossing_ring_rejected_by_core_without_product_underflow():
     ring = [[0, 0], [3e-100, 3e-100], [0, 3e-100], [2e-100, 0], [0, 0]]
     with pytest.raises(ValueError, match="intersects"):
         Polygon.model_validate_json(json.dumps({"type": "Polygon", "coordinates": [ring]}))
+
+
+@pytest.mark.parametrize("ring,position", [
+    # Phase 5 critic R3-1: tiny local turn inside an ordinary square (HTTP 500 at baseline).
+    ([[0, 0], [2e-170, 2e-170], [1e-170, 0], [1, 0], [1, 1], [0, 1], [0, 0]], (0.5, 0.5)),
+    # Binary-collinear but decimal-valid spike (HTTP 500 at baseline).
+    ([[0, 0], [0.6000000000000001, 2], [0.30000000000000004, 1], [-1, 1], [0, 0]], (-0.2, 0.8)),
+])
+def test_externally_valid_exact_geometry_completes_mapped_world_path(api, batch, ring, position):
+    app, client = api
+    batch["area"]["polygon"] = ring
+    for row in next(iter(batch["samples_by_timestamp"].values())):
+        row["longitude_deg"], row["latitude_deg"] = position
+    response = send(client, batch)
+    assert response.status_code == 200
+    golden = json.loads((FIXTURES / "golden.response.json").read_text())
+    outcome = next(iter(response.json()["results_by_timestamp"].values()))
+    expected = next(iter(golden["results_by_timestamp"].values()))
+    assert [i["outcome"] for i in outcome["interactions"]] == ["MUTUAL_EFFECT"]
+    assert outcome["drone_health"] == expected["drone_health"]
+    frame = client.get(f"/api/missions/{mission_identity(batch['mission_id'])}/world").json()
+    assert next(iter(frame["zones"].values()))["geometry"]["coordinates"] == [ring]
+    assert app.state.simulation.status(mission_identity(batch["mission_id"])).phase == "ready"
+
+
+def test_exact_containment_excludes_near_long_edge_point(api, batch):
+    _, client = api
+    batch["area"]["polygon"] = [[-170, -80], [170.3, 80.7], [-170, 80], [-170, -80]]
+    for row in next(iter(batch["samples_by_timestamp"].values())):
+        row["longitude_deg"], row["latitude_deg"] = -3.991293408785402, -1.6056445806400745
+    response = send(client, batch)
+    assert response.status_code == 200
+    outcome = next(iter(response.json()["results_by_timestamp"].values()))
+    # Exactly outside the ring (about 1e-13 degrees from the long edge): no pair, unchanged rows.
+    assert outcome["interactions"] == []
+    assert {row["health_after"] for row in outcome["drone_health"]} == {100}

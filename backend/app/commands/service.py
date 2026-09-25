@@ -122,7 +122,9 @@ class InteractiveService:
         if saved:
             if saved[0] != payload:
                 raise CommandError("IDENTITY_CONFLICT", "This request identity already has different content.")
-            return self._read_receipt(saved[1])
+            receipt = self._read_receipt(saved[1])
+            self.authority.telemetry.event("command.retry_returned", command_id=identity, mission_id=mid, accepted=receipt.accepted, code=receipt.code)
+            return receipt
         return None
 
     def lookup(self, identity, mid=None):

@@ -3,7 +3,11 @@ import raw from '../../../contracts/sentinel/v1.11/fixture.world.json';
 import { validateFrame } from '../../src/contracts/decode';
 import { initialSession } from '../../src/state/sessionStore';
 import { entityRows, selectionStatus } from '../../src/world/entityRows';
-import { altitudeText, speedText } from '../../src/features/entities/values';
+import {
+  altitudeText,
+  freshness,
+  speedText,
+} from '../../src/features/entities/values';
 import {
   inspectorId,
   inspectorIdentity,
@@ -58,6 +62,20 @@ it('keeps unlocated identities discoverable, counts Entity once and distinguishe
     ),
   ).toBe('filtered');
 });
+it('states observation age in seconds below an hour, then in hours or days', () => {
+  const frame = validateFrame(structuredClone(raw)),
+    filters = initialSession(frame.mission.id).filters;
+  const row = entityRows(frame, filters).find((r) => r.track)!;
+  const observed = Date.parse(row.track!.latest.timestamp);
+  const after = (seconds: number) =>
+    new Date(observed + seconds * 1000).toISOString();
+  expect(freshness(row, after(12.34))).toBe('12.3 s before frame');
+  expect(freshness(row, after(3599))).toBe('3,599 s before frame');
+  expect(freshness(row, after(3600 + 25 * 60))).toBe('1 h 25 min before frame');
+  expect(freshness(row, after(1_603_467.9))).toBe('18 d 13 h before frame');
+  expect(freshness(row, after(-5))).toBe('0 s before frame');
+});
+
 it('searches supplied identity/class/source and source arbitration agrees with map projection', () => {
   const frame = validateFrame(structuredClone(raw)),
     filters = initialSession(frame.mission.id).filters,

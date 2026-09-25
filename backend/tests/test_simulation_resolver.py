@@ -33,12 +33,37 @@ def test_frozen_golden_exact(request_data):
     assert resolve_drone_attack_simulation(request_data) == json.loads((FIXTURES / "golden.response.json").read_text())
 
 
-@pytest.mark.parametrize("name", [case["file"] for case in json.loads((FIXTURES / "manifest.json").read_text())["cases"]
-                                  if case["semantic"] in {"invalid", "invalid-deferred"}])
+# Each frozen negative fixture changes one field of the golden request; the error must name that
+# field (C08 first error in document order: a reversed band at its upper bound, an early sample
+# at its timestamp, a missing rule at the rule list).
+INVALID_FIXTURES = {
+    "invalid-live.request.json": ("VALIDATION_ERROR", "/command/source_mode"),
+    "invalid-unknown-field.request.json": ("VALIDATION_ERROR", "/unexpected"),
+    "invalid-null.request.json": ("VALIDATION_ERROR", "/resolution/interaction_radius_m"),
+    "invalid-active-zero.request.json": ("VALIDATION_ERROR", "/samples_by_timestamp/2026-09-06T00:00:01.000Z/0/health"),
+    "invalid-probability.request.json": ("VALIDATION_ERROR", "/calibration_profile/rules/0/probability"),
+    "invalid-positive-delta.request.json": ("VALIDATION_ERROR", "/calibration_profile/rules/0/health_delta"),
+    "invalid-coordinate.request.json": ("VALIDATION_ERROR", "/samples_by_timestamp/2026-09-06T00:00:01.000Z/0/latitude_deg"),
+    "invalid-offset.request.json": ("VALIDATION_ERROR", "/command/issued_at"),
+    "unclosed-ring.request.json": ("VALIDATION_ERROR", "/area/polygon"),
+    "duplicate-drone-id.request.json": ("VALIDATION_ERROR", "/samples_by_timestamp/2026-09-06T00:00:01.000Z/2/drone_id"),
+    "reversed-band.request.json": ("VALIDATION_ERROR", "/area/max_altitude_m"),
+    "before-execute.request.json": ("VALIDATION_ERROR", "/samples_by_timestamp/2026-09-06T00:00:01.000Z"),
+    "missing-rule.request.json": ("MISSING_RULE", "/calibration_profile/rules"),
+}
+INVALID_MANIFEST = [case["file"] for case in json.loads((FIXTURES / "manifest.json").read_text())["cases"]
+                    if case["semantic"] in {"invalid", "invalid-deferred"}]
+
+
+def test_every_frozen_invalid_fixture_has_a_pinned_error():
+    assert sorted(INVALID_MANIFEST) == sorted(INVALID_FIXTURES)
+
+
+@pytest.mark.parametrize("name", INVALID_MANIFEST)
 def test_frozen_invalid_fixtures(name):
     with pytest.raises(SimulationError) as fault:
         exhaust(validate_complete_steps(json.loads((FIXTURES / name).read_text())))
-    assert fault.value.status == 422
+    assert (fault.value.status, fault.value.code, fault.value.path) == (422, *INVALID_FIXTURES[name])
 
 
 @pytest.mark.parametrize("raw,code", [('x', "INVALID_JSON"), ('{"a":1,"a":2}', "DUPLICATE_KEY"),

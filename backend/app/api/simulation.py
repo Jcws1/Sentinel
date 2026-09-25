@@ -2,6 +2,7 @@
 import json
 import re
 import sqlite3
+import logging
 
 from fastapi import APIRouter, Request, HTTPException, Query
 from fastapi.responses import JSONResponse, Response
@@ -35,8 +36,10 @@ async def submit(request: Request):
         result = await request.app.state.simulation.submit(raw)
         return Response(result, media_type="application/json")
     except SimulationError as error:
+        request.app.state.telemetry.event("request.rejected", level=logging.WARNING, code=error.code, http_status=error.status)
         return Response(json.dumps(failure(raw, error), ensure_ascii=True, allow_nan=False), media_type="application/json", status_code=error.status)
-    except sqlite3.Error:
+    except sqlite3.Error as error:
+        request.app.state.telemetry.event("recording.failed", level=logging.ERROR, error_type=type(error).__name__, pending=True)
         # Preparation might already have committed. Never falsely report rollback
         # of the entire command or acknowledge a result that has not committed.
         return JSONResponse(dict(error=dict(code="RECORDING_UNAVAILABLE", path="",

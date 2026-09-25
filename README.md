@@ -2,6 +2,8 @@
 
 Sentinel is a local mission workspace for synthetic interactive scenarios, recorded operational inspection and supported external simulation batches. It combines Tactical and 3D maps, Fleet controls, scenario authoring, shared entity Details, Command Picture analytics and a Vertical Profile. It is a simulation/development application, not a deployed command system or a real video feed.
 
+**25 September technical review:** start with the [assessment guide](docs/assessment/START-HERE.md). It contains the verified single-command launcher, printed application logs, current test results, varied inputs and a plain-language architecture explanation. The launcher uses a separate copy of saved plans on ports 8040/5240.
+
 ## Project Structure
 ```text
 <FILL IN>
@@ -107,6 +109,8 @@ The [documentation verification ledger](docs/maintenance/documentation-2026-09-2
 
 ## Current limits and further reading
 
-This is a loopback, single-authority application without deployment user authentication. Do not expose it as a multi-user service without additional controls. Supported scenario authoring permits 40 units, at most 32 controlled actors. External compatibility remains provisional: valid mixed-scale geometry can fail, and large batches can block source responsiveness. Combined Profiles have an open frame-pacing finding; inherited strict-display and configured-Video gates remain open. Video is a simulated viewpoint. Timeline playback, operational pop-outs, sensor-confidence/coverage and predictive risk are not implemented capabilities.
+This is a loopback, single-authority application without deployment user authentication. Do not expose it as a multi-user service without additional controls. Supported scenario authoring permits 40 units, at most 32 controlled actors. External compatibility remains provisional: the C01–C23 interpretations await sign-off, so organiser conformance is not claimed. With application logging enabled, the assessment measured worst interactive update gaps of about **7.0 s** for 10,000 observations at one timestamp, **8.9 s** for 40 observations at 100 timestamps, and **16.2 s** for 300 timestamps introducing one identity each. Published updates were not lost or reordered, but the source itself pauses. The ordinary 40-observation/two-timestamp workload (80 rows) had a worst gap of about 300 ms against a 750 ms budget.
+
+The UI's largest tested persisted request in a clean Edge profile was **2,283,322 bytes / 9,687 observations at one timestamp**; this sampled result is not a portable maximum. Browser storage, timestamp count, identifiers and formatting affect the usable batch size. See [current performance and limits](docs/assessment/PERFORMANCE-AND-LIMITS.md). Combined Profiles have an open frame-pacing finding; inherited strict-display and configured-Video gates remain open. Video is a simulated viewpoint. Timeline playback, operational pop-outs, sensor-confidence/coverage and predictive risk are not implemented capabilities. Formal Phase 5 independent critic/acceptance work remains pending.
 
 See the [architecture and review ledger](docs/architecture.md), [documentation index](docs/README.md), [analytic definitions](docs/phase6-command-picture/METRICS.md) and [current Phase 6 delivery boundaries](docs/phase6-command-picture/DELIVERY.md).
