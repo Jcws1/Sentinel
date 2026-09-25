@@ -1185,7 +1185,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
             'Outcome unknown. Check Attention and Activity before retrying.',
         );
       if (!receipt.accepted) throw new Error(receipt.message);
-      return `Simulator command accepted. Inspect Activity for member outcomes; this enabled proximity Intercept, not a target-specific assignment.`;
+      return `Simulator command accepted. Live policy state and interception outcomes will appear on this card and the map.`;
     },
     async prepareTaskingMove(
       advice: TaskingAdvice,
@@ -1300,7 +1300,7 @@ export function createRuntime(dependencies: RuntimeDependencies = {}) {
       const result = await interactive.submitDirect(reviewed.intent);
       if (result?.stage === 'rejected') throw new Error(result.message);
       return result?.stage === 'accepted'
-        ? `Simulator move accepted for ${reviewed.assetId}; inspect Activity and verify the outcome. No restored camera or link is claimed.`
+        ? `Simulator move accepted for ${reviewed.assetId}; live movement will appear on this card and the map. No restored camera or link is claimed.`
         : `Simulator move submitted for ${reviewed.assetId}; receipt pending. Reconcile in Activity before retrying.`;
     },
     async injectTaskingDemoFault(

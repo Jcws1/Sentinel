@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   useOperationalRuntime,
   useOperationalSnapshot,
@@ -12,6 +12,7 @@ import type {
   RecommendationOption,
   RecommendationSet,
 } from '../../contracts/generated';
+import type { ImmutableFrame } from '../../contracts/types';
 import './assistant.css';
 
 type Turn = {
@@ -20,6 +21,13 @@ type Turn = {
   assessment?: SituationAssessment;
   advice?: TaskingAdvice;
   error?: string;
+};
+
+type TaskingSubmission = {
+  code: TaskingProposal['code'];
+  assetIds: string[];
+  targetIds: string[];
+  submittedSequence: number;
 };
 
 export function ObserveOrientPane() {
@@ -35,6 +43,9 @@ export function ObserveOrientPane() {
   const [busy, setBusy] = useState(false);
   const request = useRef<AbortController | undefined>(undefined);
   const transcript = useRef<HTMLDivElement>(null);
+  const automaticMission = useRef('');
+  const automaticPending = useRef('');
+  const displayedMission = useRef<string | undefined>(undefined);
   useEffect(() => () => request.current?.abort(), []);
   useEffect(() => {
     if (transcript.current)
@@ -76,38 +87,81 @@ export function ObserveOrientPane() {
     }
   }
 
-  async function recommend() {
-    if (!frame || busy) return;
-    request.current?.abort();
-    const controller = new AbortController();
-    request.current = controller;
-    const id = Date.now();
-    setTurns((current) => [
-      ...current,
-      { id, question: 'Monitor · Respond · Support recommendations' },
-    ]);
-    setBusy(true);
-    try {
-      const advice = await runtime.observeOrient.tasking(
-        frame.mission.id,
-        focusZoneId || undefined,
-        controller.signal,
-      );
-      setTurns((current) =>
-        current.map((turn) => (turn.id === id ? { ...turn, advice } : turn)),
-      );
-    } catch (caught) {
-      if (!controller.signal.aborted) {
-        const error =
-          caught instanceof Error ? caught.message : 'Tasking advice failed.';
-        setTurns((current) =>
-          current.map((turn) => (turn.id === id ? { ...turn, error } : turn)),
+  const recommend = useCallback(
+    async (automatic = false) => {
+      if (!frame || busy) return false;
+      request.current?.abort();
+      const controller = new AbortController();
+      request.current = controller;
+      const id = Date.now();
+      setTurns((current) => {
+        const retained = automatic
+          ? current.filter(
+              (turn) =>
+                turn.question !== 'Live Monitor · Respond · Support review',
+            )
+          : current;
+        return [
+          ...retained,
+          {
+            id,
+            question: automatic
+              ? 'Live Monitor · Respond · Support review'
+              : 'Refresh Monitor · Respond · Support review',
+          },
+        ];
+      });
+      setBusy(true);
+      try {
+        const advice = await runtime.observeOrient.tasking(
+          frame.mission.id,
+          focusZoneId || undefined,
+          controller.signal,
         );
+        setTurns((current) =>
+          current.map((turn) => (turn.id === id ? { ...turn, advice } : turn)),
+        );
+        return true;
+      } catch (caught) {
+        if (!controller.signal.aborted) {
+          const error =
+            caught instanceof Error ? caught.message : 'Tasking advice failed.';
+          setTurns((current) =>
+            current.map((turn) => (turn.id === id ? { ...turn, error } : turn)),
+          );
+        } else setTurns((current) => current.filter((turn) => turn.id !== id));
+        return false;
+      } finally {
+        if (request.current === controller) setBusy(false);
       }
-    } finally {
-      if (request.current === controller) setBusy(false);
-    }
-  }
+    },
+    [busy, focusZoneId, frame, runtime],
+  );
+
+  useEffect(() => {
+    const missionId = frame?.mission.id;
+    if (displayedMission.current === missionId) return;
+    displayedMission.current = missionId;
+    setTurns([]);
+  }, [frame?.mission.id]);
+
+  useEffect(() => {
+    const missionId = frame?.interactive ? frame.mission.id : undefined;
+    const reviewKey = missionId
+      ? `${missionId}:${frame?.interactive?.state}`
+      : undefined;
+    if (
+      !reviewKey ||
+      automaticMission.current === reviewKey ||
+      automaticPending.current === reviewKey
+    )
+      return;
+    automaticPending.current = reviewKey;
+    void recommend(true).then((completed) => {
+      if (completed) automaticMission.current = reviewKey;
+      if (automaticPending.current === reviewKey) automaticPending.current = '';
+    });
+  }, [frame?.interactive, frame?.mission.id, recommend]);
 
   async function injectFault(kind: 'camera' | 'link' | 'asset') {
     const asset = faultAssetId || frame?.interactive?.controls[0]?.assetId;
@@ -116,6 +170,7 @@ export function ObserveOrientPane() {
     setFaultNotice('');
     try {
       setFaultNotice(await runtime.injectTaskingDemoFault(kind, asset));
+      await recommend(true);
     } catch (error) {
       setFaultNotice(
         error instanceof Error
@@ -206,9 +261,9 @@ export function ObserveOrientPane() {
         <button
           type="button"
           disabled={!frame || busy}
-          onClick={() => void recommend()}
+          onClick={() => void recommend(false)}
         >
-          Recommend
+          Refresh recommendations
         </button>
         {frame?.scenario && frame.interactive && (
           <details>
@@ -304,6 +359,8 @@ function TaskingMessage({
   stale: boolean;
 }) {
   const runtime = useOperationalRuntime()!;
+  const state = useOperationalSnapshot(runtime);
+  const frame = state.presentation.frame;
   const [opened, setOpened] = useState<TaskingProposal['code'] | undefined>();
   const [reviewed, setReviewed] = useState<{
     set: RecommendationSet;
@@ -313,7 +370,7 @@ function TaskingMessage({
     useState<Awaited<ReturnType<typeof runtime.prepareTaskingMove>>>();
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
-  const [submitted, setSubmitted] = useState(false);
+  const [submission, setSubmission] = useState<TaskingSubmission>();
   const reviewGeneration = useRef(0);
 
   async function open(proposal: TaskingProposal) {
@@ -323,6 +380,13 @@ function TaskingMessage({
     setReviewedMove(undefined);
     setNotice('');
     setBusy(false);
+    const selected = [
+      ...proposal.targetIds,
+      ...proposal.assetIds
+        .map((id) => frame?.assets?.[id]?.entityId)
+        .filter((id): id is string => !!id),
+    ];
+    if (selected.length > 0) runtime.selectEntities(selected);
     if (proposal.status !== 'candidate') return;
     setBusy(true);
     try {
@@ -347,6 +411,8 @@ function TaskingMessage({
 
   async function confirm() {
     if ((!reviewed && !reviewedMove) || busy) return;
+    const proposal = advice.proposals.find((item) => item.code === opened);
+    if (!proposal) return;
     setBusy(true);
     try {
       setNotice(
@@ -356,7 +422,12 @@ function TaskingMessage({
       );
       setReviewed(undefined);
       setReviewedMove(undefined);
-      setSubmitted(true);
+      setSubmission({
+        code: proposal.code,
+        assetIds: [...proposal.assetIds],
+        targetIds: [...proposal.targetIds],
+        submittedSequence: frame?.sequence ?? advice.sequence,
+      });
     } catch (error) {
       setNotice(
         error instanceof Error
@@ -370,22 +441,36 @@ function TaskingMessage({
     }
   }
 
+  const progress = submission ? taskingProgress(frame, submission) : undefined;
+
   return (
     <article
       className="oo-message oo-message--agent oo-tasking"
       data-advice-frame={advice.frameId}
     >
-      {stale && (
+      {stale && !submission && (
         <p className="oo-message__notice">
-          A newer frame is displayed. Any Confirm requires a fresh validated
-          simulator review.
+          Live state advanced. Opening a card revalidates its action against the
+          current simulator frame.
         </p>
       )}
       <p className="oo-message__summary">
-        {submitted
-          ? 'Simulator command submitted · check Activity for outcomes'
-          : 'Decision support only · no command submitted'}
+        {submission
+          ? 'Command flow live · map and outcome status update automatically'
+          : 'Decision support · open a card to review its current action'}
       </p>
+      {progress && submission && (
+        <div
+          className={`oo-tasking__progress is-${progress.tone}`}
+          role="status"
+        >
+          <span>{progress.label}</span>
+          <strong>{progress.detail}</strong>
+          <small>
+            Committed frame {frame?.sequence ?? submission.submittedSequence}
+          </small>
+        </div>
+      )}
       {advice.proposals.map((proposal) => (
         <section key={proposal.code}>
           <button
@@ -463,7 +548,7 @@ function TaskingMessage({
                     setBusy(false);
                   }}
                 >
-                  Cancel
+                  {submission?.code === proposal.code ? 'Close' : 'Cancel'}
                 </button>
               </div>
             </div>
@@ -542,4 +627,101 @@ function CompactList({ title, values }: { title: string; values: string[] }) {
       </ul>
     </section>
   );
+}
+
+function taskingProgress(
+  frame: ImmutableFrame | undefined,
+  submission: TaskingSubmission,
+): {
+  label: string;
+  detail: string;
+  tone: 'pending' | 'active' | 'complete' | 'error';
+} {
+  if (!frame || frame.sequence <= submission.submittedSequence)
+    return {
+      label: 'Accepted',
+      detail: 'Waiting for the next committed simulator frame…',
+      tone: 'pending',
+    };
+
+  if (submission.code === 'RESPOND') {
+    const entityIds = new Set(
+      submission.assetIds
+        .map((id) => frame.assets?.[id]?.entityId)
+        .filter((id): id is string => !!id),
+    );
+    const relevantOutcomes = (frame.fleetBehavior?.outcomes ?? []).filter(
+      (outcome) =>
+        outcome.committedSequence > submission.submittedSequence &&
+        outcome.participants.some(
+          (participant) =>
+            entityIds.has(participant.entityId) ||
+            submission.targetIds.includes(participant.entityId),
+        ),
+    );
+    if (relevantOutcomes.length >= submission.assetIds.length)
+      return {
+        label: 'Outcome recorded',
+        detail: `${submission.assetIds.length}/${submission.assetIds.length} simulated interception outcomes committed and visible on the map.`,
+        tone: 'complete',
+      };
+    if (relevantOutcomes.length > 0)
+      return {
+        label: 'Outcome progress',
+        detail: `${relevantOutcomes.length}/${submission.assetIds.length} simulated interception outcomes committed; remaining pairings are still unresolved.`,
+        tone: 'active',
+      };
+    const members = (frame.fleetBehavior?.members ?? []).filter(
+      (member) =>
+        submission.assetIds.includes(member.assetId) &&
+        member.policy === 'intercept',
+    );
+    if (members.length > 0)
+      return {
+        label: 'Interception active',
+        detail: `${members.length}/${submission.assetIds.length} interceptor${members.length === 1 ? '' : 's'} committed to the proximity policy; positions stream directly to the map.`,
+        tone: 'active',
+      };
+    return {
+      label: 'Accepted',
+      detail: 'The receipt is recorded; waiting for committed policy state.',
+      tone: 'pending',
+    };
+  }
+
+  const execution = [...(frame.interactive?.executions ?? [])]
+    .filter(
+      (item) =>
+        submission.assetIds.includes(item.assetId) &&
+        item.acceptedSequence >= submission.submittedSequence,
+    )
+    .sort((left, right) => right.revision - left.revision)[0];
+  if (!execution)
+    return {
+      label: 'Accepted',
+      detail:
+        'Waiting for the movement execution to appear in committed state.',
+      tone: 'pending',
+    };
+  if (execution.state === 'Completed')
+    return {
+      label: 'Movement complete',
+      detail: `${execution.assetId} reached the reviewed destination; verify the requested operational effect from fresh evidence.`,
+      tone: 'complete',
+    };
+  if (
+    ['Cancelled', 'Failed', 'Expired', 'Interrupted'].includes(execution.state)
+  )
+    return {
+      label: execution.state,
+      detail:
+        execution.reason ??
+        'The simulator ended this movement without a completed arrival.',
+      tone: 'error',
+    };
+  return {
+    label: `Movement ${execution.state.toLowerCase()}`,
+    detail: `${execution.assetId} · ${Math.round(execution.remainingMetres)} m remaining · map position is live.`,
+    tone: 'active',
+  };
 }

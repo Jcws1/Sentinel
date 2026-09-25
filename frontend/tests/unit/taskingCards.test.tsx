@@ -66,6 +66,7 @@ function setup() {
   const confirmMove = vi.fn(
     async () => 'Simulator move accepted; outcome unverified.',
   );
+  const selectEntities = vi.fn();
   const snapshot = {
     presentation: {
       frame: { mission: { id: 'mission' }, frameId: 'frame', zones: {} },
@@ -79,18 +80,28 @@ function setup() {
     confirmTaskingRespond: confirm,
     prepareTaskingMove: prepareMove,
     confirmTaskingMove: confirmMove,
+    selectEntities,
   } as unknown as ApplicationRuntime;
   render(
     <OperationalContext.Provider value={runtime}>
       <ObserveOrientPane />
     </OperationalContext.Provider>,
   );
-  return { tasking, prepare, confirm, prepareMove, confirmMove };
+  return {
+    tasking,
+    prepare,
+    confirm,
+    prepareMove,
+    confirmMove,
+    selectEntities,
+  };
 }
 
 it('opens a card with Confirm and Cancel but only submits a freshly reviewed simulator action', async () => {
   const { prepare, confirm, prepareMove, confirmMove } = setup();
-  fireEvent.click(screen.getByRole('button', { name: 'Recommend' }));
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Refresh recommendations' }),
+  );
   fireEvent.click(
     await screen.findByRole('button', { name: /Monitor · MONITOR/ }),
   );
@@ -114,12 +125,14 @@ it('opens a card with Confirm and Cancel but only submits a freshly reviewed sim
   );
   fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
   await waitFor(() => expect(confirm).toHaveBeenCalledOnce());
-  expect(await screen.findByText(/Simulator command submitted/)).toBeTruthy();
+  expect(await screen.findByText(/Command flow live/)).toBeTruthy();
 });
 
 it('submits a reviewed non-kinetic simulator move only after Confirm', async () => {
   const { prepareMove, confirmMove } = setup();
-  fireEvent.click(screen.getByRole('button', { name: 'Recommend' }));
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Refresh recommendations' }),
+  );
   fireEvent.click(
     await screen.findByRole('button', { name: /Monitor · MONITOR/ }),
   );
