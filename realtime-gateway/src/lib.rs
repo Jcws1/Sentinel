@@ -10,6 +10,10 @@ use axum::{
 };
 use chrono::{SecondsFormat, Utc};
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
+use sentinel_interceptor_providers::{
+    DispatchContext, ExternalOperationState, InterceptCommand, InterceptorProvider, ProviderError,
+    SafetyGateInput, SubmitDisposition, validate_safety_gate,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -161,6 +165,46 @@ pub struct LeaseRequest {
     pub retry_after_ms: Option<u64>,
     #[serde(default)]
     pub error: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderExecutionRequest {
+    pub worker_id: String,
+    pub lease_token: String,
+    pub retry_after_ms: u64,
+    pub scenario_id: String,
+    pub command: InterceptCommand,
+    /// Worker-supplied evidence evaluated by the gateway. This prototype does
+    /// not yet own authoritative asset availability or geofence state.
+    pub worker_gate_evidence: SafetyGateInput,
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderExecutionState {
+    Accepted,
+    Rejected,
+    RetryableNotDispatched,
+    UnknownExternalOutcome,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ProviderExecutionResult {
+    pub command_id: String,
+    pub attempt_id: String,
+    pub state: ProviderExecutionState,
+    pub automatic_retry_allowed: bool,
+    pub reason: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ReconciliationState {
+    AwaitingReconciliation,
+    AuthoritativeSucceeded,
+    AuthoritativeFailed,
+    ManualUnverifiable,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -353,7 +397,7 @@ impl AppState {
         connection.pragma_update(None, "synchronous", "FULL")?;
         let user_version: u32 =
             connection.pragma_query_value(None, "user_version", |r| r.get(0))?;
-        if user_version > 2 {
+        if user_version > 4 {
             return Err(rusqlite::Error::InvalidQuery);
         }
         if user_version == 0 {
@@ -404,6 +448,91 @@ impl AppState {
                  PRAGMA user_version=2;",
             )?;
         }
+        if user_version < 3 {
+            connection.execute_batch(
+                "CREATE TABLE IF NOT EXISTS provider_dispatch_attempts (
+                    attempt_id TEXT PRIMARY KEY,
+                    command_id TEXT NOT NULL REFERENCES commands(command_id) ON DELETE CASCADE,
+                    worker_id TEXT NOT NULL,
+                    lease_token TEXT NOT NULL,
+                    provider_id TEXT NOT NULL,
+                    operation_id TEXT NOT NULL,
+                    request_fingerprint TEXT NOT NULL,
+                    state TEXT NOT NULL CHECK(state IN
+                      ('prepared','sending','accepted','rejected','retryable_not_dispatched','unknown_external_outcome')),
+                    automatic_retry_allowed INTEGER NOT NULL DEFAULT 0,
+                    reason TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                 );
+                 CREATE INDEX IF NOT EXISTS provider_attempts_command
+                   ON provider_dispatch_attempts(command_id,created_at);
+                 PRAGMA user_version=3;",
+            )?;
+        }
+        if user_version < 4 {
+            connection.execute_batch(
+                "BEGIN IMMEDIATE;
+                 ALTER TABLE provider_dispatch_attempts RENAME TO provider_dispatch_attempts_v3;
+                 CREATE TABLE provider_dispatch_attempts (
+                    attempt_id TEXT PRIMARY KEY,
+                    command_id TEXT NOT NULL REFERENCES commands(command_id) ON DELETE CASCADE,
+                    worker_id TEXT NOT NULL,
+                    lease_token TEXT NOT NULL,
+                    provider_id TEXT NOT NULL,
+                    operation_id TEXT NOT NULL,
+                    request_fingerprint TEXT NOT NULL,
+                    state TEXT NOT NULL CHECK(state IN
+                      ('prepared','sending','awaiting_reconciliation','reconciling',
+                       'authoritative_succeeded','authoritative_failed','manual_unverifiable',
+                       'rejected','retryable_not_dispatched','unknown_external_outcome')),
+                    automatic_retry_allowed INTEGER NOT NULL DEFAULT 0,
+                    reason TEXT,
+                    external_operation_id TEXT,
+                    provider_accepted_at TEXT,
+                    reconciliation_worker_id TEXT,
+                    reconciliation_token TEXT,
+                    reconciliation_lease_expires_at_ms INTEGER,
+                    reconciliation_outcome_json TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                 );
+                 INSERT INTO provider_dispatch_attempts
+                   SELECT attempt_id,command_id,worker_id,lease_token,provider_id,operation_id,
+                          request_fingerprint,
+                          CASE WHEN state='accepted' THEN 'awaiting_reconciliation' ELSE state END,
+                          automatic_retry_allowed,reason,NULL,NULL,NULL,NULL,NULL,NULL,created_at,updated_at
+                   FROM provider_dispatch_attempts_v3;
+                 DROP TABLE provider_dispatch_attempts_v3;
+                 CREATE INDEX provider_attempts_command
+                   ON provider_dispatch_attempts(command_id,created_at);
+                 PRAGMA user_version=4;
+                 COMMIT;",
+            )?;
+        }
+        // A process that died after recording `sending` may have reached the
+        // provider. Never reclaim and blindly resend such an operation.
+        connection.execute(
+            "UPDATE commands SET execution_state='terminal',worker_id=NULL,lease_token=NULL,
+             lease_expires_at_ms=NULL,last_error='unknown_external_outcome:gateway_restarted_during_send'
+             WHERE command_id IN (SELECT command_id FROM provider_dispatch_attempts
+                                  WHERE state='sending')",
+            [],
+        )?;
+        connection.execute(
+            "UPDATE provider_dispatch_attempts SET state='unknown_external_outcome',
+             automatic_retry_allowed=0, reason='gateway_restarted_during_send', updated_at=?1
+             WHERE state='sending'",
+            [now()],
+        )?;
+        connection.execute(
+            "UPDATE provider_dispatch_attempts SET state='awaiting_reconciliation',
+             reconciliation_worker_id=NULL,reconciliation_token=NULL,
+             reconciliation_lease_expires_at_ms=NULL,
+             reason='gateway_restarted_during_reconciliation',updated_at=?1
+             WHERE state='reconciling'",
+            [now()],
+        )?;
         let integrity: String = connection.query_row("PRAGMA quick_check", [], |r| r.get(0))?;
         if integrity != "ok" {
             return Err(rusqlite::Error::InvalidQuery);
@@ -435,6 +564,532 @@ impl AppState {
     }
     fn next_command_sequence(&self) -> u64 {
         self.command_sequence.fetch_add(1, Ordering::SeqCst) + 1
+    }
+
+    /// Execute a currently leased command through an injected provider.
+    ///
+    /// The durable `sending` transition is committed before `submit` is
+    /// invoked. Once that boundary is crossed, an ambiguous transport result
+    /// is fenced as `unknown_external_outcome` and is never automatically
+    /// reclaimed.
+    pub async fn execute_provider_claim(
+        &self,
+        request: ProviderExecutionRequest,
+        provider: &dyn InterceptorProvider,
+    ) -> Result<ProviderExecutionResult, String> {
+        if !valid_id(&request.worker_id)
+            || !valid_id(&request.lease_token)
+            || request.command.command_id.is_empty()
+            || request.retry_after_ms > 86_400_000
+        {
+            return Err("invalid_provider_execution_request".into());
+        }
+        let command_id = request.command.command_id.clone();
+        let attempt_id = Uuid::new_v4().to_string();
+        // Bind every safety-critical provider field to the immutable command
+        // envelope admitted into the durable journal. A lease holder cannot
+        // substitute provider, operation, interceptor, intent, constraints or
+        // authority after admission.
+        {
+            let db = self.command_db.lock().unwrap();
+            let now_ms = unix_ms();
+            let stored_json: Option<String> = db
+                .query_row(
+                    "SELECT command_json FROM commands WHERE command_id=?1 AND execution_state='pending'
+                     AND worker_id=?2 AND lease_token=?3 AND lease_expires_at_ms>?4",
+                    params![command_id, request.worker_id, request.lease_token, now_ms],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(|_| "provider_binding_lookup_failed")?;
+            let stored: Command =
+                serde_json::from_str(&stored_json.ok_or_else(|| "lease_not_current".to_string())?)
+                    .map_err(|_| "stored_command_invalid")?;
+            let durable = stored
+                .parameters
+                .get("provider_command")
+                .ok_or_else(|| "durable_provider_command_missing".to_string())?;
+            let supplied =
+                serde_json::to_value(&request.command).map_err(|_| "provider_command_invalid")?;
+            if durable != &supplied
+                || stored.target_id != request.command.target.track_id
+                || stored.command_name != "intercept"
+            {
+                return Err("provider_command_does_not_match_durable_envelope".into());
+            }
+            if request.command.expected_world_epoch != *self.epoch
+                || request.command.expected_world_revision
+                    > self.delta_sequence.load(Ordering::SeqCst)
+            {
+                return Err("durable_world_precondition_not_current".into());
+            }
+        }
+        let gate = match validate_safety_gate(&request.command, &request.worker_gate_evidence) {
+            Ok(gate) => gate,
+            Err(reason) => {
+                return self.finish_without_dispatch(
+                    &command_id,
+                    &request,
+                    &attempt_id,
+                    ProviderExecutionState::Rejected,
+                    format!("safety_gate:{reason:?}"),
+                );
+            }
+        };
+        let context = DispatchContext {
+            scenario_id: request.scenario_id.clone(),
+            gate,
+        };
+        let prepared = match provider.prepare(&context, &request.command).await {
+            Ok(prepared) => prepared,
+            Err(ProviderError::Transport(reason)) => {
+                return self.finish_without_dispatch(
+                    &command_id,
+                    &request,
+                    &attempt_id,
+                    ProviderExecutionState::RetryableNotDispatched,
+                    format!("prepare_transport:{reason}"),
+                );
+            }
+            Err(reason) => {
+                return self.finish_without_dispatch(
+                    &command_id,
+                    &request,
+                    &attempt_id,
+                    ProviderExecutionState::Rejected,
+                    format!("prepare:{reason:?}"),
+                );
+            }
+        };
+
+        // Revalidate current time/authority/target freshness immediately before
+        // the irreversible boundary, then atomically verify the lease and
+        // persist the exact provider request fingerprint.
+        let mut send_gate = request.worker_gate_evidence.clone();
+        send_gate.now = Utc::now();
+        if let Err(reason) = validate_safety_gate(&request.command, &send_gate) {
+            return self.finish_without_dispatch(
+                &command_id,
+                &request,
+                &attempt_id,
+                ProviderExecutionState::Rejected,
+                format!("safety_gate_before_send:{reason:?}"),
+            );
+        }
+        {
+            let mut db = self.command_db.lock().unwrap();
+            let tx = db
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .map_err(|_| "begin_dispatch_attempt_transaction_failed")?;
+            let now_ms = unix_ms();
+            let current: Option<String> = tx
+                .query_row(
+                    "SELECT command_json FROM commands WHERE command_id=?1 AND execution_state='pending'
+                     AND worker_id=?2 AND lease_token=?3 AND lease_expires_at_ms>?4",
+                    params![command_id, request.worker_id, request.lease_token, now_ms],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(|_| "dispatch_lease_lookup_failed")?;
+            let Some(stored_json) = current else {
+                return Err("lease_not_current".into());
+            };
+            let stored: Command =
+                serde_json::from_str(&stored_json).map_err(|_| "stored_command_invalid")?;
+            if stored.command_id != request.command.command_id
+                || stored.target_id != request.command.target.track_id
+                || stored.command_name != "intercept"
+            {
+                return Err("provider_command_does_not_match_leased_command".into());
+            }
+            let fenced = tx
+                .execute(
+                    "UPDATE commands SET execution_state='terminal',last_error='provider_dispatch_in_progress'
+                     WHERE command_id=?1 AND execution_state='pending' AND worker_id=?2
+                     AND lease_token=?3 AND lease_expires_at_ms>?4",
+                    params![command_id, request.worker_id, request.lease_token, now_ms],
+                )
+                .map_err(|_| "fence_dispatch_command_failed")?;
+            if fenced != 1 {
+                return Err("lease_not_current".into());
+            }
+            tx.execute(
+                "INSERT INTO provider_dispatch_attempts(
+                   attempt_id,command_id,worker_id,lease_token,provider_id,operation_id,
+                   request_fingerprint,state,automatic_retry_allowed,created_at,updated_at)
+                 VALUES(?1,?2,?3,?4,?5,?6,?7,'sending',0,?8,?8)",
+                params![
+                    attempt_id,
+                    command_id,
+                    request.worker_id,
+                    request.lease_token,
+                    prepared.provider_id.0,
+                    prepared.operation_id,
+                    prepared.command_fingerprint,
+                    now(),
+                ],
+            )
+            .map_err(|_| "persist_dispatch_attempt_failed")?;
+            tx.commit().map_err(|_| "commit_dispatch_attempt_failed")?;
+        }
+
+        let disposition = provider.submit(&prepared).await;
+        let (state, retry, reason, external_operation_id, provider_accepted_at) = match disposition
+        {
+            Ok(SubmitDisposition::Accepted { submission }) => (
+                ProviderExecutionState::Accepted,
+                false,
+                None,
+                submission.provider_operation_id,
+                Some(submission.accepted_at.to_rfc3339()),
+            ),
+            Ok(SubmitDisposition::Rejected { code, reason }) if code == "not_dispatched" => (
+                ProviderExecutionState::RetryableNotDispatched,
+                true,
+                Some(format!("{code}:{reason}")),
+                None,
+                None,
+            ),
+            Ok(SubmitDisposition::Rejected { code, reason }) => (
+                ProviderExecutionState::Rejected,
+                false,
+                Some(format!("{code}:{reason}")),
+                None,
+                None,
+            ),
+            Ok(SubmitDisposition::UnknownExternalOutcome {
+                reason,
+                automatic_retry_allowed,
+            }) => (
+                ProviderExecutionState::UnknownExternalOutcome,
+                automatic_retry_allowed,
+                Some(reason),
+                None,
+                None,
+            ),
+            Err(error) => (
+                ProviderExecutionState::UnknownExternalOutcome,
+                false,
+                Some(format!("submit:{error:?}")),
+                None,
+                None,
+            ),
+        };
+        let reason_ref = reason.as_deref();
+        let mut db = self.command_db.lock().unwrap();
+        let tx = db
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|_| "begin_dispatch_result_transaction_failed")?;
+        let tx_state = match state {
+            ProviderExecutionState::Accepted => "awaiting_reconciliation",
+            ProviderExecutionState::Rejected => "rejected",
+            ProviderExecutionState::UnknownExternalOutcome => "unknown_external_outcome",
+            ProviderExecutionState::RetryableNotDispatched => "retryable_not_dispatched",
+        };
+        let changed = tx
+            .execute(
+                "UPDATE provider_dispatch_attempts SET state=?1,automatic_retry_allowed=?2,
+                 reason=?3,external_operation_id=?4,provider_accepted_at=?5,updated_at=?6
+                 WHERE attempt_id=?7 AND state='sending'",
+                params![
+                    tx_state,
+                    retry as i64,
+                    reason_ref,
+                    external_operation_id,
+                    provider_accepted_at,
+                    now(),
+                    attempt_id
+                ],
+            )
+            .map_err(|_| "persist_dispatch_result_failed")?;
+        if changed != 1 {
+            return Err("dispatch_attempt_not_current".into());
+        }
+        let command_state = if retry { "pending" } else { "terminal" };
+        let next_attempt = unix_ms().saturating_add(request.retry_after_ms as i64);
+        let fenced = tx
+            .execute(
+                "UPDATE commands SET execution_state=?1,worker_id=NULL,lease_token=NULL,
+             lease_expires_at_ms=NULL,last_error=?2,next_attempt_at_ms=?3
+             WHERE command_id=?4 AND execution_state='terminal'
+             AND worker_id=?5 AND lease_token=?6",
+                params![
+                    command_state,
+                    reason_ref,
+                    next_attempt,
+                    command_id,
+                    request.worker_id,
+                    request.lease_token
+                ],
+            )
+            .map_err(|_| "persist_dispatch_terminal_failed")?;
+        if fenced != 1 {
+            return Err("dispatch_completion_not_current".into());
+        }
+        tx.commit().map_err(|_| "commit_dispatch_result_failed")?;
+        Ok(ProviderExecutionResult {
+            command_id,
+            attempt_id,
+            state,
+            automatic_retry_allowed: retry,
+            reason,
+        })
+    }
+
+    fn finish_without_dispatch(
+        &self,
+        command_id: &str,
+        request: &ProviderExecutionRequest,
+        attempt_id: &str,
+        state: ProviderExecutionState,
+        reason: String,
+    ) -> Result<ProviderExecutionResult, String> {
+        let retry = state == ProviderExecutionState::RetryableNotDispatched;
+        let mut db = self.command_db.lock().unwrap();
+        let tx = db
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|_| "begin_pre_dispatch_result_transaction_failed")?;
+        let now_ms = unix_ms();
+        let next = now_ms.saturating_add(request.retry_after_ms as i64);
+        let terminal = !retry;
+        let execution_state = if terminal { "terminal" } else { "pending" };
+        let changed = tx
+            .execute(
+                "UPDATE commands SET execution_state=?1,worker_id=NULL,lease_token=NULL,
+             lease_expires_at_ms=NULL,next_attempt_at_ms=?2,last_error=?3
+             WHERE command_id=?4 AND execution_state='pending' AND worker_id=?5
+             AND lease_token=?6 AND lease_expires_at_ms>?7",
+                params![
+                    execution_state,
+                    next,
+                    reason,
+                    command_id,
+                    request.worker_id,
+                    request.lease_token,
+                    now_ms
+                ],
+            )
+            .map_err(|_| "persist_pre_dispatch_result_failed")?;
+        if changed != 1 {
+            return Err("lease_not_current".into());
+        }
+        tx.execute(
+            "INSERT INTO provider_dispatch_attempts(attempt_id,command_id,worker_id,lease_token,
+             provider_id,operation_id,request_fingerprint,state,automatic_retry_allowed,reason,
+             created_at,updated_at) VALUES(?1,?2,?3,?4,?5,?6,'not_prepared',?7,?8,?9,?10,?10)",
+            params![
+                attempt_id,
+                command_id,
+                request.worker_id,
+                request.lease_token,
+                request.command.provider_id.0,
+                request.command.operation_id,
+                if retry {
+                    "retryable_not_dispatched"
+                } else {
+                    "rejected"
+                },
+                retry as i64,
+                reason,
+                now()
+            ],
+        )
+        .map_err(|_| "persist_pre_dispatch_attempt_failed")?;
+        tx.commit()
+            .map_err(|_| "commit_pre_dispatch_result_failed")?;
+        Ok(ProviderExecutionResult {
+            command_id: command_id.into(),
+            attempt_id: attempt_id.into(),
+            state,
+            automatic_retry_allowed: retry,
+            reason: Some(reason),
+        })
+    }
+
+    /// Claims one accepted provider operation for reconciliation. Reconciliation
+    /// is read-only at the provider boundary, so an interrupted claim is reset
+    /// to `awaiting_reconciliation` when the gateway restarts.
+    pub async fn reconcile_provider_operation(
+        &self,
+        command_id: &str,
+        worker_id: &str,
+        provider: &dyn InterceptorProvider,
+    ) -> Result<ReconciliationState, String> {
+        self.reconcile_provider_operation_with_limits(
+            command_id,
+            worker_id,
+            provider,
+            Duration::from_secs(30),
+            Duration::from_secs(5),
+        )
+        .await
+    }
+
+    pub async fn reconcile_provider_operation_with_limits(
+        &self,
+        command_id: &str,
+        worker_id: &str,
+        provider: &dyn InterceptorProvider,
+        lease_duration: Duration,
+        provider_timeout: Duration,
+    ) -> Result<ReconciliationState, String> {
+        if !valid_id(command_id) || !valid_id(worker_id) {
+            return Err("invalid_reconciliation_request".into());
+        }
+        if lease_duration.is_zero() || provider_timeout.is_zero() {
+            return Err("invalid_reconciliation_limits".into());
+        }
+        let token = Uuid::new_v4().to_string();
+        let external_id = {
+            let mut db = self.command_db.lock().unwrap();
+            let tx = db
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .map_err(|_| "begin_reconciliation_claim_failed")?;
+            let claim_now = unix_ms();
+            let row: Option<(String, Option<String>, String)> = tx
+                .query_row(
+                    "SELECT operation_id,external_operation_id,provider_id
+                     FROM provider_dispatch_attempts
+                     WHERE command_id=?1 AND (state='awaiting_reconciliation'
+                       OR (state='reconciling' AND reconciliation_lease_expires_at_ms<=?2))
+                     ORDER BY created_at DESC LIMIT 1",
+                    params![command_id, claim_now],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .optional()
+                .map_err(|_| "lookup_reconciliation_operation_failed")?;
+            let Some((operation_id, provider_operation_id, durable_provider_id)) = row else {
+                return Err("operation_not_awaiting_reconciliation".into());
+            };
+            if provider.provider_id().0 != durable_provider_id {
+                return Err("reconciliation_provider_mismatch".into());
+            }
+            let lease_ms = i64::try_from(lease_duration.as_millis()).unwrap_or(i64::MAX);
+            let lease_expires = claim_now.saturating_add(lease_ms);
+            let changed = tx
+                .execute(
+                    "UPDATE provider_dispatch_attempts SET state='reconciling',
+                     reconciliation_worker_id=?1,reconciliation_token=?2,
+                     reconciliation_lease_expires_at_ms=?3,updated_at=?4
+                     WHERE command_id=?5 AND (state='awaiting_reconciliation'
+                       OR (state='reconciling' AND reconciliation_lease_expires_at_ms<=?6))",
+                    params![
+                        worker_id,
+                        token,
+                        lease_expires,
+                        now(),
+                        command_id,
+                        claim_now
+                    ],
+                )
+                .map_err(|_| "claim_reconciliation_operation_failed")?;
+            if changed != 1 {
+                return Err("reconciliation_claim_conflict".into());
+            }
+            tx.commit()
+                .map_err(|_| "commit_reconciliation_claim_failed")?;
+            provider_operation_id.unwrap_or(operation_id)
+        };
+
+        let report =
+            match tokio::time::timeout(provider_timeout, provider.reconcile(&external_id)).await {
+                Ok(report) => report,
+                Err(_) => Err(ProviderError::Transport("provider_call_timeout".into())),
+            };
+        let (state, db_state, reason, outcome_json) = match report {
+            Ok(report) => {
+                let encoded = serde_json::to_string(&report)
+                    .map_err(|_| "encode_reconciliation_report_failed")?;
+                if let Some(outcome) = &report.outcome {
+                    if outcome.intercepted {
+                        (
+                            ReconciliationState::AuthoritativeSucceeded,
+                            "authoritative_succeeded",
+                            None,
+                            Some(encoded),
+                        )
+                    } else {
+                        (
+                            ReconciliationState::AuthoritativeFailed,
+                            "authoritative_failed",
+                            None,
+                            Some(encoded),
+                        )
+                    }
+                } else if matches!(
+                    report.state,
+                    ExternalOperationState::Failed { .. }
+                        | ExternalOperationState::Cancelled
+                        | ExternalOperationState::Rejected { .. }
+                ) {
+                    (
+                        ReconciliationState::AuthoritativeFailed,
+                        "authoritative_failed",
+                        Some("provider_terminal_without_intercept".into()),
+                        Some(encoded),
+                    )
+                } else if matches!(
+                    report.state,
+                    ExternalOperationState::UnknownExternalOutcome { .. }
+                ) {
+                    (
+                        ReconciliationState::ManualUnverifiable,
+                        "manual_unverifiable",
+                        Some("provider_reports_unknown_external_outcome".into()),
+                        Some(encoded),
+                    )
+                } else {
+                    (
+                        ReconciliationState::AwaitingReconciliation,
+                        "awaiting_reconciliation",
+                        Some("provider_operation_not_terminal".into()),
+                        Some(encoded),
+                    )
+                }
+            }
+            Err(ProviderError::Unsupported(_)) => (
+                ReconciliationState::ManualUnverifiable,
+                "manual_unverifiable",
+                Some("provider_has_no_authoritative_lookup".into()),
+                None,
+            ),
+            Err(ProviderError::Transport(reason)) => (
+                ReconciliationState::AwaitingReconciliation,
+                "awaiting_reconciliation",
+                Some(format!("reconciliation_transport:{reason}")),
+                None,
+            ),
+            Err(error) => (
+                ReconciliationState::ManualUnverifiable,
+                "manual_unverifiable",
+                Some(format!("reconciliation:{error:?}")),
+                None,
+            ),
+        };
+        let db = self.command_db.lock().unwrap();
+        let changed = db
+            .execute(
+                "UPDATE provider_dispatch_attempts SET state=?1,reason=?2,
+                 reconciliation_outcome_json=?3,reconciliation_worker_id=NULL,
+                 reconciliation_token=NULL,reconciliation_lease_expires_at_ms=NULL,
+                 updated_at=?4 WHERE command_id=?5
+                 AND state='reconciling' AND reconciliation_worker_id=?6
+                 AND reconciliation_token=?7",
+                params![
+                    db_state,
+                    reason,
+                    outcome_json,
+                    now(),
+                    command_id,
+                    worker_id,
+                    token
+                ],
+            )
+            .map_err(|_| "persist_reconciliation_result_failed")?;
+        if changed != 1 {
+            return Err("reconciliation_claim_not_current".into());
+        }
+        Ok(state)
     }
 }
 
@@ -1309,7 +1964,14 @@ fn valid_timestamp(value: &str) -> bool {
 mod tests {
     use super::*;
     use axum::{body::Body, http::Request};
+    use chrono::Duration as ChronoDuration;
     use http_body_util::BodyExt;
+    use sentinel_interceptor_providers::{
+        AuthorityProof, CancelDisposition, ConstraintSet, Correlation as ProviderCorrelation,
+        InterceptIntent, LocalSimulatorAdapter, PreparedOperation, ProviderCapabilities,
+        ProviderId, ReconciliationReport, Submission, TargetRef, TelemetrySample,
+    };
+    use std::sync::atomic::AtomicBool;
     use tower::ServiceExt;
 
     fn observation(seq: u64) -> Value {
@@ -1320,6 +1982,176 @@ mod tests {
             "command":{"schema_version":VERSION,"message_type":"command","message_id":"m-cmd","stream_id":"operator","stream_sequence":1,
             "emitted_at":"2026-09-25T00:00:00Z","correlation":{"correlation_id":"c-cmd"},"command_id":"cmd-1",
             "command_name":"intercept","target_id":target,"idempotency_key":"idem-1","parameters":{}}})
+    }
+
+    fn provider_execution(worker: &str, token: &str, epoch: &str) -> ProviderExecutionRequest {
+        let current = Utc::now();
+        ProviderExecutionRequest {
+            worker_id: worker.into(),
+            lease_token: token.into(),
+            retry_after_ms: 25,
+            scenario_id: "scenario-1".into(),
+            command: InterceptCommand {
+                command_id: "cmd-1".into(),
+                operation_id: "operation-1".into(),
+                provider_id: ProviderId("local-simulator".into()),
+                interceptor_id: "interceptor-1".into(),
+                launch_site_id: None,
+                target_label: None,
+                target: TargetRef {
+                    track_id: "drone-1".into(),
+                    revision: 0,
+                    observed_at: current,
+                },
+                intent: InterceptIntent {
+                    azimuth_deg: None,
+                    altitude_deg: None,
+                    distance_m: None,
+                    direction_deg: None,
+                    altitude_m: None,
+                    speed_m_s: None,
+                },
+                constraints: ConstraintSet {
+                    keep_in_area_ids: vec![],
+                    avoid_area_ids: vec![],
+                    expires_at: current + ChronoDuration::minutes(5),
+                },
+                authority: AuthorityProof {
+                    grant_id: "grant-1".into(),
+                    revision: 1,
+                    valid_until: current + ChronoDuration::minutes(5),
+                    permits_intercept: true,
+                },
+                expected_world_epoch: epoch.into(),
+                expected_world_revision: 0,
+                correlation: ProviderCorrelation {
+                    correlation_id: "c-cmd".into(),
+                    causation_id: None,
+                    trace_id: None,
+                },
+            },
+            worker_gate_evidence: SafetyGateInput {
+                now: current,
+                current_world_epoch: epoch.into(),
+                current_world_revision: 0,
+                max_observation_age_ms: 1_000,
+                asset_available: true,
+                asset_capable: true,
+                inside_keep_in: true,
+                outside_avoid: true,
+            },
+        }
+    }
+    fn provider_command_body(epoch: &str, command: &InterceptCommand) -> Value {
+        let mut body = command_body(epoch, &command.target.track_id);
+        body["command"]["parameters"]["provider_command"] = serde_json::to_value(command).unwrap();
+        body
+    }
+
+    #[derive(Clone, Copy)]
+    enum SubmitMode {
+        AcceptedNoLookup,
+        AcceptedHang,
+        NotDispatched,
+        Reject,
+        Unknown(bool),
+    }
+
+    struct ScriptedProvider {
+        local: LocalSimulatorAdapter,
+        id: ProviderId,
+        mode: SubmitMode,
+        prepare_delay: Duration,
+        submit_called: AtomicBool,
+    }
+
+    impl ScriptedProvider {
+        fn new(mode: SubmitMode) -> Self {
+            Self {
+                local: LocalSimulatorAdapter::default(),
+                id: ProviderId("local-simulator".into()),
+                mode,
+                prepare_delay: Duration::ZERO,
+                submit_called: AtomicBool::new(false),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl InterceptorProvider for ScriptedProvider {
+        fn provider_id(&self) -> &ProviderId {
+            &self.id
+        }
+        fn capabilities(&self) -> ProviderCapabilities {
+            let mut capabilities = self.local.capabilities();
+            capabilities.provider_id = self.id.clone();
+            capabilities
+        }
+        async fn prepare(
+            &self,
+            ctx: &DispatchContext,
+            cmd: &InterceptCommand,
+        ) -> Result<PreparedOperation, ProviderError> {
+            if !self.prepare_delay.is_zero() {
+                tokio::time::sleep(self.prepare_delay).await;
+            }
+            self.local.prepare(ctx, cmd).await
+        }
+        async fn submit(
+            &self,
+            _op: &PreparedOperation,
+        ) -> Result<SubmitDisposition, ProviderError> {
+            self.submit_called.store(true, Ordering::SeqCst);
+            Ok(match self.mode {
+                SubmitMode::AcceptedNoLookup | SubmitMode::AcceptedHang => {
+                    SubmitDisposition::Accepted {
+                        submission: Submission {
+                            provider_operation_id: Some("external-1".into()),
+                            accepted_at: Utc::now(),
+                        },
+                    }
+                }
+                SubmitMode::NotDispatched => SubmitDisposition::Rejected {
+                    code: "not_dispatched".into(),
+                    reason: "provider_unavailable_before_send".into(),
+                },
+                SubmitMode::Reject => SubmitDisposition::Rejected {
+                    code: "denied".into(),
+                    reason: "provider_rejected".into(),
+                },
+                SubmitMode::Unknown(automatic_retry_allowed) => {
+                    SubmitDisposition::UnknownExternalOutcome {
+                        reason: "ambiguous".into(),
+                        automatic_retry_allowed,
+                    }
+                }
+            })
+        }
+        async fn status(&self, id: &str) -> Result<ExternalOperationState, ProviderError> {
+            self.local.status(id).await
+        }
+        async fn telemetry(&self, id: &str) -> Result<Vec<TelemetrySample>, ProviderError> {
+            self.local.telemetry(id).await
+        }
+        async fn outcome(
+            &self,
+            id: &str,
+        ) -> Result<Option<sentinel_interceptor_providers::AuthoritativeOutcome>, ProviderError>
+        {
+            self.local.outcome(id).await
+        }
+        async fn reconcile(&self, id: &str) -> Result<ReconciliationReport, ProviderError> {
+            if matches!(self.mode, SubmitMode::AcceptedNoLookup) {
+                return Err(ProviderError::Unsupported("status"));
+            }
+            if matches!(self.mode, SubmitMode::AcceptedHang) {
+                tokio::time::sleep(Duration::from_secs(60)).await;
+            }
+            self.local.reconcile(id).await
+        }
+        async fn cancel(&self, id: &str) -> Result<CancelDisposition, ProviderError> {
+            self.local.cancel(id).await
+        }
     }
     async fn request(router: Router, method: &str, uri: &str, body: Value) -> (StatusCode, Value) {
         let r = router
@@ -1915,6 +2747,461 @@ mod tests {
         assert_eq!(
             request(router, "POST", "/v1/observations", changed).await.0,
             StatusCode::CONFLICT
+        );
+    }
+
+    #[tokio::test]
+    async fn provider_execution_records_attempt_before_local_submit() {
+        let state = AppState::new(4);
+        let router = app(state.clone());
+        let epoch = state.epoch.to_string();
+        let mut execution = provider_execution("provider-worker", "pending-token", &epoch);
+        assert_eq!(
+            request(
+                router.clone(),
+                "POST",
+                "/v1/commands",
+                provider_command_body(&epoch, &execution.command)
+            )
+            .await
+            .0,
+            StatusCode::ACCEPTED
+        );
+        let token = claim(router, "provider-worker").await;
+        execution.lease_token = token;
+        let provider = LocalSimulatorAdapter::default();
+        let result = state
+            .execute_provider_claim(execution, &provider)
+            .await
+            .unwrap();
+        assert_eq!(result.state, ProviderExecutionState::Accepted);
+        assert!(!result.automatic_retry_allowed);
+        let row: (String, i64, String, Option<String>, Option<String>) = state
+            .command_db
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT a.state,a.automatic_retry_allowed,c.execution_state,
+                        a.external_operation_id,a.provider_accepted_at
+                 FROM provider_dispatch_attempts a JOIN commands c USING(command_id)
+                 WHERE a.attempt_id=?1",
+                [result.attempt_id],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                },
+            )
+            .unwrap();
+        assert_eq!(row.0, "awaiting_reconciliation");
+        assert_eq!(row.1, 0);
+        assert_eq!(row.2, "terminal");
+        assert_eq!(row.3.as_deref(), Some("operation-1"));
+        assert!(row.4.is_some());
+        provider
+            .complete_interception("operation-1", "evidence-1")
+            .unwrap();
+        assert_eq!(
+            state
+                .reconcile_provider_operation("cmd-1", "reconciler-1", &provider)
+                .await
+                .unwrap(),
+            ReconciliationState::AuthoritativeSucceeded
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_gate_never_calls_provider_and_is_terminal_rejection() {
+        let state = AppState::new(4);
+        let router = app(state.clone());
+        let epoch = state.epoch.to_string();
+        let mut execution = provider_execution("provider-worker", "pending-token", &epoch);
+        request(
+            router.clone(),
+            "POST",
+            "/v1/commands",
+            provider_command_body(&epoch, &execution.command),
+        )
+        .await;
+        let token = claim(router, "provider-worker").await;
+        execution.lease_token = token;
+        let provider = LocalSimulatorAdapter::default();
+        execution.worker_gate_evidence.inside_keep_in = false;
+        let result = state
+            .execute_provider_claim(execution, &provider)
+            .await
+            .unwrap();
+        assert_eq!(result.state, ProviderExecutionState::Rejected);
+        assert!(!result.automatic_retry_allowed);
+        assert!(matches!(
+            provider.status("operation-1").await,
+            Err(ProviderError::NotFound)
+        ));
+    }
+
+    async fn admitted_provider_execution() -> (AppState, ProviderExecutionRequest) {
+        let state = AppState::new(4);
+        let router = app(state.clone());
+        let epoch = state.epoch.to_string();
+        let mut execution = provider_execution("provider-worker", "pending-token", &epoch);
+        assert_eq!(
+            request(
+                router.clone(),
+                "POST",
+                "/v1/commands",
+                provider_command_body(&epoch, &execution.command),
+            )
+            .await
+            .0,
+            StatusCode::ACCEPTED
+        );
+        execution.lease_token = claim(router, "provider-worker").await;
+        (state, execution)
+    }
+
+    #[tokio::test]
+    async fn provider_payload_is_immutably_bound_at_admission() {
+        let (state, mut execution) = admitted_provider_execution().await;
+        execution.command.interceptor_id = "substituted-interceptor".into();
+        let provider = ScriptedProvider::new(SubmitMode::Reject);
+        assert_eq!(
+            state
+                .execute_provider_claim(execution, &provider)
+                .await
+                .unwrap_err(),
+            "provider_command_does_not_match_durable_envelope"
+        );
+        assert!(!provider.submit_called.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn provider_dispositions_have_distinct_reclaim_semantics() {
+        let (state, execution) = admitted_provider_execution().await;
+        let not_sent = ScriptedProvider::new(SubmitMode::NotDispatched);
+        let result = state
+            .execute_provider_claim(execution, &not_sent)
+            .await
+            .unwrap();
+        assert_eq!(result.state, ProviderExecutionState::RetryableNotDispatched);
+        assert!(result.automatic_retry_allowed);
+        let command_state: String = state
+            .command_db
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT execution_state FROM commands WHERE command_id='cmd-1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(command_state, "pending");
+
+        let (state, execution) = admitted_provider_execution().await;
+        let rejected = ScriptedProvider::new(SubmitMode::Reject);
+        let result = state
+            .execute_provider_claim(execution, &rejected)
+            .await
+            .unwrap();
+        assert_eq!(result.state, ProviderExecutionState::Rejected);
+        assert!(!result.automatic_retry_allowed);
+    }
+
+    #[tokio::test]
+    async fn unknown_outcome_honors_provider_retry_evidence() {
+        for retryable in [false, true] {
+            let (state, execution) = admitted_provider_execution().await;
+            let provider = ScriptedProvider::new(SubmitMode::Unknown(retryable));
+            let result = state
+                .execute_provider_claim(execution, &provider)
+                .await
+                .unwrap();
+            assert_eq!(result.state, ProviderExecutionState::UnknownExternalOutcome);
+            assert_eq!(result.automatic_retry_allowed, retryable);
+            let command_state: String = state
+                .command_db
+                .lock()
+                .unwrap()
+                .query_row(
+                    "SELECT execution_state FROM commands WHERE command_id='cmd-1'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(
+                command_state,
+                if retryable { "pending" } else { "terminal" }
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn accepted_provider_without_lookup_becomes_manual_unverifiable() {
+        let (state, execution) = admitted_provider_execution().await;
+        let provider = ScriptedProvider::new(SubmitMode::AcceptedNoLookup);
+        assert_eq!(
+            state
+                .execute_provider_claim(execution, &provider)
+                .await
+                .unwrap()
+                .state,
+            ProviderExecutionState::Accepted
+        );
+        assert_eq!(
+            state
+                .reconcile_provider_operation("cmd-1", "reconciler-1", &provider)
+                .await
+                .unwrap(),
+            ReconciliationState::ManualUnverifiable
+        );
+        let state_value: String = state
+            .command_db
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT state FROM provider_dispatch_attempts WHERE command_id='cmd-1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(state_value, "manual_unverifiable");
+    }
+
+    #[tokio::test]
+    async fn reconciliation_rejects_wrong_provider_before_claim() {
+        let (state, execution) = admitted_provider_execution().await;
+        let provider = LocalSimulatorAdapter::default();
+        state
+            .execute_provider_claim(execution, &provider)
+            .await
+            .unwrap();
+        let mut wrong = ScriptedProvider::new(SubmitMode::Reject);
+        wrong.id = ProviderId("different-provider".into());
+        assert_eq!(
+            state
+                .reconcile_provider_operation("cmd-1", "reconciler-1", &wrong)
+                .await
+                .unwrap_err(),
+            "reconciliation_provider_mismatch"
+        );
+        let attempt_state: String = state
+            .command_db
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT state FROM provider_dispatch_attempts WHERE command_id='cmd-1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(attempt_state, "awaiting_reconciliation");
+    }
+
+    #[tokio::test]
+    async fn expired_reconciliation_claim_is_reclaimed() {
+        let (state, execution) = admitted_provider_execution().await;
+        let provider = LocalSimulatorAdapter::default();
+        state
+            .execute_provider_claim(execution, &provider)
+            .await
+            .unwrap();
+        provider
+            .complete_interception("operation-1", "evidence-reclaimed")
+            .unwrap();
+        state
+            .command_db
+            .lock()
+            .unwrap()
+            .execute(
+                "UPDATE provider_dispatch_attempts SET state='reconciling',
+                 reconciliation_worker_id='dead-worker',reconciliation_token='dead-token',
+                 reconciliation_lease_expires_at_ms=0 WHERE command_id='cmd-1'",
+                [],
+            )
+            .unwrap();
+        assert_eq!(
+            state
+                .reconcile_provider_operation("cmd-1", "replacement-worker", &provider)
+                .await
+                .unwrap(),
+            ReconciliationState::AuthoritativeSucceeded
+        );
+    }
+
+    #[tokio::test]
+    async fn reconciliation_provider_timeout_releases_claim_for_retry() {
+        let (state, execution) = admitted_provider_execution().await;
+        let provider = ScriptedProvider::new(SubmitMode::AcceptedHang);
+        state
+            .execute_provider_claim(execution, &provider)
+            .await
+            .unwrap();
+        assert_eq!(
+            state
+                .reconcile_provider_operation_with_limits(
+                    "cmd-1",
+                    "reconciler-1",
+                    &provider,
+                    Duration::from_secs(1),
+                    Duration::from_millis(10),
+                )
+                .await
+                .unwrap(),
+            ReconciliationState::AwaitingReconciliation
+        );
+        let row: (String, Option<String>) = state
+            .command_db
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT state,reconciliation_token FROM provider_dispatch_attempts
+                 WHERE command_id='cmd-1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(row, ("awaiting_reconciliation".into(), None));
+    }
+
+    #[tokio::test]
+    async fn expiry_during_prepare_is_rejected_before_submit() {
+        let state = AppState::new(4);
+        let router = app(state.clone());
+        let epoch = state.epoch.to_string();
+        let mut execution = provider_execution("provider-worker", "pending-token", &epoch);
+        execution.command.constraints.expires_at = Utc::now() + ChronoDuration::milliseconds(100);
+        let body = provider_command_body(&epoch, &execution.command);
+        request(router.clone(), "POST", "/v1/commands", body).await;
+        execution.lease_token = claim(router, "provider-worker").await;
+        let mut provider = ScriptedProvider::new(SubmitMode::Reject);
+        provider.prepare_delay = Duration::from_millis(150);
+        let result = state
+            .execute_provider_claim(execution, &provider)
+            .await
+            .unwrap();
+        assert_eq!(result.state, ProviderExecutionState::Rejected);
+        assert!(!provider.submit_called.load(Ordering::SeqCst));
+        assert!(
+            result
+                .reason
+                .unwrap()
+                .starts_with("safety_gate_before_send")
+        );
+    }
+
+    #[tokio::test]
+    async fn restart_fences_an_attempt_that_may_have_been_sent() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("provider-restart.sqlite3");
+        let state = AppState::with_database(4, 16, &path).unwrap();
+        let router = app(state.clone());
+        let epoch = state.epoch.to_string();
+        request(
+            router.clone(),
+            "POST",
+            "/v1/commands",
+            command_body(&epoch, "drone-1"),
+        )
+        .await;
+        let token = claim(router, "worker-crashed").await;
+        {
+            let mut db = state.command_db.lock().unwrap();
+            let tx = db
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .unwrap();
+            tx.execute(
+                "UPDATE commands SET execution_state='terminal',last_error='provider_dispatch_in_progress'
+                 WHERE command_id='cmd-1' AND worker_id='worker-crashed' AND lease_token=?1",
+                [&token],
+            )
+            .unwrap();
+            tx.execute(
+                "INSERT INTO provider_dispatch_attempts(attempt_id,command_id,worker_id,lease_token,
+                 provider_id,operation_id,request_fingerprint,state,automatic_retry_allowed,
+                 created_at,updated_at) VALUES('attempt-crashed','cmd-1','worker-crashed',?1,
+                 'local-simulator','operation-1','fp','sending',0,?2,?2)",
+                params![token, now()],
+            )
+            .unwrap();
+            tx.commit().unwrap();
+        }
+        drop(state);
+        let recovered = AppState::with_database(4, 16, &path).unwrap();
+        let db = recovered.command_db.lock().unwrap();
+        let row: (String, i64, String, Option<String>) = db
+            .query_row(
+                "SELECT a.state,a.automatic_retry_allowed,c.execution_state,c.lease_token
+                 FROM provider_dispatch_attempts a JOIN commands c USING(command_id)
+                 WHERE a.attempt_id='attempt-crashed'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            row,
+            (
+                "unknown_external_outcome".into(),
+                0,
+                "terminal".into(),
+                None
+            )
+        );
+    }
+
+    #[test]
+    fn v3_to_v4_migration_preserves_attempt_and_command() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("migration-v3.sqlite3");
+        let db = Connection::open(&path).unwrap();
+        db.execute_batch(
+            "PRAGMA foreign_keys=ON;
+             CREATE TABLE commands(command_id TEXT PRIMARY KEY,idempotency_key TEXT NOT NULL UNIQUE,
+               fingerprint TEXT NOT NULL,command_json TEXT NOT NULL,receipt_json TEXT NOT NULL,
+               execution_state TEXT NOT NULL,created_at TEXT NOT NULL,worker_id TEXT,lease_token TEXT,
+               lease_expires_at_ms INTEGER,attempt_count INTEGER NOT NULL DEFAULT 0,
+               next_attempt_at_ms INTEGER NOT NULL DEFAULT 0,last_error TEXT);
+             CREATE TABLE command_outcomes(command_id TEXT PRIMARY KEY REFERENCES commands(command_id),
+               outcome_id TEXT NOT NULL UNIQUE,fingerprint TEXT NOT NULL,outcome_json TEXT NOT NULL,
+               created_at TEXT NOT NULL,completed_worker_id TEXT,completed_lease_token TEXT);
+             CREATE TABLE provider_dispatch_attempts(attempt_id TEXT PRIMARY KEY,
+               command_id TEXT NOT NULL REFERENCES commands(command_id),worker_id TEXT NOT NULL,
+               lease_token TEXT NOT NULL,provider_id TEXT NOT NULL,operation_id TEXT NOT NULL,
+               request_fingerprint TEXT NOT NULL,state TEXT NOT NULL,automatic_retry_allowed INTEGER NOT NULL,
+               reason TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
+             INSERT INTO commands VALUES('cmd-old','idem-old','fp','{}',
+               '{\"stream_sequence\":7}','terminal','then',NULL,NULL,NULL,1,0,NULL);
+             INSERT INTO provider_dispatch_attempts VALUES('attempt-old','cmd-old','worker','lease',
+               'provider','operation','request-fp','accepted',0,NULL,'then','then');
+             PRAGMA user_version=3;",
+        )
+        .unwrap();
+        drop(db);
+        let migrated = AppState::with_database(4, 16, &path).unwrap();
+        let db = migrated.command_db.lock().unwrap();
+        let version: i64 = db
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        let row: (String, String, String, Option<String>) = db
+            .query_row(
+                "SELECT a.state,a.operation_id,c.command_id,a.external_operation_id
+                 FROM provider_dispatch_attempts a JOIN commands c USING(command_id)
+                 WHERE a.attempt_id='attempt-old'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(version, 4);
+        assert_eq!(
+            row,
+            (
+                "awaiting_reconciliation".into(),
+                "operation".into(),
+                "cmd-old".into(),
+                None
+            )
         );
     }
 }

@@ -110,11 +110,34 @@ effect and crash before recording the outcome. Exactly-once Wedgetail effects
 require the external API to honor a stable idempotency key or offer an
 authoritative reconciliation query.
 
+### Provider execution and reconciliation checkpoint
+
+The provider-neutral execution slice now durably binds the complete provider
+command envelope at admission, records a fenced dispatch attempt before send,
+and separates definite pre-dispatch failure, explicit rejection, accepted
+submission, and ambiguous external outcome. Accepted submissions persist the
+provider's external operation ID and acceptance time and remain
+`awaiting_reconciliation`; they are not treated as successful interceptions.
+
+Reconciliation has its own durable claim and fencing token. Providers with a
+verified status/outcome contract can reach authoritative success or failure.
+Providers without such a contract become `manual_unverifiable`. This is the
+required Wedgetail result because its public sandbox exposes target injection
+and browser-local visuals, but no authoritative operation lookup or intercept
+outcome. An interrupted send becomes non-reclaimable unknown state unless the
+provider's verified native idempotency contract permits a safe retry.
+
+The SQLite v3→v4 migration is transactional and preservation-tested. Current
+verification is 22/22 gateway tests plus 15/15 provider tests, strict release
+Clippy, formatting and diff checks. All provider tests are offline fixtures;
+this is not evidence of a live external call.
+
 ## Remaining release gates
 
-1. Idempotent Wedgetail submission/reconciliation using the stable Sentinel
-   command ID; otherwise explicitly manage the unavoidable ambiguous-effect
-   state. Add maximum attempts and a governed exponential retry schedule.
+1. Add a concrete secret-aware HTTPS transport and run approved live contract
+   tests. Wedgetail ambiguity remains manual/non-retryable; other providers may
+   retry only when their verified native idempotency contract permits it. Add
+   maximum attempts and a governed exponential retry schedule.
 2. Crash injection immediately before/after SQLite commit and before the HTTP
    response, plus corruption, read-only and disk-full tests.
 3. Successor protocol contract with epoch, base/result cursor, heartbeat and
@@ -129,5 +152,7 @@ authoritative reconciliation query.
    median and worst run retained and no failed-run replacement.
 9. TLS, authentication, mission-scoped authorization, rate/connection limits
    and operator audit identity before any cloud exposure.
-10. Final NLP → deterministic recommendation → confirmation → Wedgetail API →
-   genuine hosted observations → correlated interception outcome acceptance.
+10. Final NLP → deterministic recommendation → confirmation → selected provider
+   → correlated authoritative interception outcome acceptance. Wedgetail can
+   satisfy submission and visual-demo evidence only; the full authoritative
+   gate requires the local simulator or another verified provider.

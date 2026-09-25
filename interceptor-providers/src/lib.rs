@@ -965,7 +965,13 @@ impl<T: ProviderTransport> InterceptorProvider for GenericHttpAdapter<T> {
             }),
             TransportResult::Response(r) => Ok(SubmitDisposition::UnknownExternalOutcome {
                 reason: format!("unverified_http_{}", r.status),
-                automatic_retry_allowed: false,
+                // A native operation/idempotency key makes replay of an
+                // ambiguous server error safe. Providers without that
+                // guarantee (including Wedgetail) remain non-retryable.
+                automatic_retry_allowed: matches!(
+                    self.caps.idempotency,
+                    IdempotencyMode::NativeKey { .. }
+                ),
             }),
         }
     }
