@@ -6,8 +6,8 @@
   "outputDirectory": "frontend/dist",
   "redirects": [
     {
-      "source": "/:path*",
-      "destination": "https://sentinel-wedgetail-api.onrender.com/:path*",
+      "source": "/(.*)",
+      "destination": "https://sentinel-wedgetail-api.onrender.com/$1",
       "permanent": false
     }
   ]
