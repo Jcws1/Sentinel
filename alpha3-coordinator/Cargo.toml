@@ -12,5 +12,3 @@ path = "src/lib.rs"
 lto = true
 codegen-units = 1
 panic = "abort"
-
-

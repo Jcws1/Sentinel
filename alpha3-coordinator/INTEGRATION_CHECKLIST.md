@@ -35,4 +35,3 @@ feasibility, duplicate assignment and operator confirmation.
 - Pair thresholds and weights are uncalibrated development defaults.
 - There is no Parquet replay adapter or Frozen-v1 score yet.
 - There are no per-stage latency measurements yet.
-
