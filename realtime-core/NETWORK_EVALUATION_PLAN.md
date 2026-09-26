@@ -180,6 +180,12 @@ identifies the adverse profile's different expectation.
 - Healthy-client queue age p99 <= 250 ms and queue use remains below 75% of its
   configured bound in local/expected-cloud steady state. Any saturation must be
   visible as a metric and explicit resync, never unbounded growth.
+- The expected-cloud ingestion client retains at most 8,192 unacknowledged
+  frames for stable-ID replay (about 13.6 seconds at 600/s). This bound was
+  frozen after the preserved 4,096-frame formal-trial failure demonstrated
+  that loss-induced TCP acknowledgement backlog can exceed 6.8 seconds over a
+  ten-minute run. Offer cadence is still gated independently, so the larger
+  recovery window cannot turn overload into a pass.
 - After the 100 Hz burst, queues return below 25% within 5 s of the 20 Hz rate
   resuming, or affected clients are explicitly resynchronized within the same
   bound. The service must remain responsive to snapshot and command requests.

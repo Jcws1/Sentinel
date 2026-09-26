@@ -1119,17 +1119,29 @@ async def run_live(args: argparse.Namespace) -> dict[str, Any]:
                     observation_started_ns.record(
                         payload["message_id"], time.perf_counter_ns()
                     )
+                    # A reconnect that begins near the end of the nominal
+                    # offer interval still receives one bounded connection
+                    # attempt budget. Offered cadence remains a separate hard
+                    # acceptance gate, so this cannot hide overload.
+                    connection_deadline = max(
+                        deadline,
+                        asyncio.get_running_loop().time()
+                        + float(getattr(args, "ingest_reconnect_deadline", 30.0)),
+                    )
                     await stream.offer(
                         payload["message_id"],
                         json.dumps(payload, separators=(",", ":")),
-                        deadline,
+                        connection_deadline,
                     )
             # Throughput is the offered-stream duration. Acknowledgements
             # prove acceptance separately and are deliberately pipelined;
             # including their final network drain would reintroduce a
             # one-RTT tail into the offered-rate measurement.
             producer_send_completed_ns = time.perf_counter_ns()
-            await stream.wait_complete(deadline)
+            await stream.wait_complete(
+                asyncio.get_running_loop().time()
+                + float(getattr(args, "ingest_reconnect_deadline", 30.0))
+            )
             acceptance_completed_ns = time.perf_counter_ns()
             if rejected:
                 raise RuntimeError(
