@@ -211,16 +211,26 @@ class ReliableObservationStream:
                         self.metrics.reconnects += 1
                     self._ever_connected = True
                     replay = list(self.pending.values())
+                    # Start draining acknowledgements before replaying the
+                    # pending window.  Waiting until all frames were resent
+                    # made a large recovery self-block on the gateway's
+                    # bounded ACK queue and amplified one TCP stall into an
+                    # application-wide pause.
+                    self._socket = socket
+                    self._reader = asyncio.create_task(self._read_acks(socket))
                     for frame in replay:
                         await socket.send(frame)
                     self.metrics.resends += len(replay)
-                    self._socket = socket
-                    self._reader = asyncio.create_task(self._read_acks(socket))
                     return socket
                 except (asyncio.CancelledError, KeyboardInterrupt):
                     raise
                 except BaseException as error:
                     last_error = error
+                    reader = self._reader
+                    self._socket = self._reader = None
+                    if reader is not None:
+                        reader.cancel()
+                        await asyncio.gather(reader, return_exceptions=True)
                     if socket is not None:
                         try:
                             await socket.close()

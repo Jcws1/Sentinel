@@ -1702,6 +1702,7 @@ async fn observation_stream(socket: WebSocket, state: AppState) {
 
     let mut bound_source: Option<String> = None;
     let mut abort_writer = false;
+    let mut processed_since_yield = 0usize;
     loop {
         let incoming =
             match tokio::time::timeout(OBSERVATION_STREAM_READ_IDLE_TIMEOUT, reader.next()).await {
@@ -1820,6 +1821,14 @@ async fn observation_stream(socket: WebSocket, state: AppState) {
                 abort_writer = true;
                 break;
             }
+        }
+        processed_since_yield += 1;
+        if processed_since_yield == 64 {
+            // A reconnect may make thousands of idempotent observations
+            // immediately readable.  Yield between bounded chunks so replay
+            // reconciliation cannot starve observer WebSocket writers.
+            processed_since_yield = 0;
+            tokio::task::yield_now().await;
         }
     }
     drop(ack_tx);
