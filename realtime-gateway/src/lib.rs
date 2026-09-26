@@ -46,7 +46,7 @@ const OBSERVER_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(1);
 // writer drain its already-bounded queue efficiently instead of turning a
 // recoverable cloud-network pause into a snapshot cycle.
 const DELTA_BATCH_MAX_COUNT: usize = 64;
-const DELTA_BATCH_MAX_WAIT: Duration = Duration::from_millis(5);
+const DELTA_BATCH_MAX_WAIT: Duration = Duration::from_millis(10);
 const DELTA_BATCH_MAX_DECOMPRESSED_BYTES: usize = 1024 * 1024;
 const GZIP_BATCH_MAGIC: &[u8; 4] = b"SDG1";
 const DEFAULT_OBSERVATION_IDEMPOTENCY_RETENTION: usize = 100_000;
@@ -2460,7 +2460,10 @@ fn gzip_delta_batch(state: &AppState, payloads: Vec<String>) -> Result<(Vec<u8>,
     if json.len() > DELTA_BATCH_MAX_DECOMPRESSED_BYTES {
         return Err("delta_batch_decompressed_size_exceeded".into());
     }
-    let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
+    // Observer routes are loss/RTT constrained in the expected-cloud profile.
+    // Default gzip materially reduces bytes on the wire versus the fastest
+    // level, and the gateway has ample measured CPU headroom for this stream.
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
     encoder
         .write_all(json.as_bytes())
         .map_err(|_| "delta_batch_compression_failed")?;
