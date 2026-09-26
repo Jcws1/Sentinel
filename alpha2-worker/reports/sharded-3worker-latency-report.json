@@ -1,0 +1,68 @@
+{
+  "schema": "sentinel.alpha2-sharded-benchmark/v1",
+  "created_at": "2026-09-26T08:56:33.154097+00:00",
+  "model_version": "3.0.0-alpha.2",
+  "transport": "loopback HTTP JSON; 3 stateless process shards",
+  "results": [
+    {
+      "tracks": 3,
+      "workers": 3,
+      "rounds": 20,
+      "required_rate_per_second": 6,
+      "achieved_completion_rate_per_second_at_median": 9.028100866588067,
+      "meets_2hz_profile": true,
+      "end_to_end": {
+        "samples": 20,
+        "p50_ms": 332.2958000062499,
+        "p95_ms": 401.74760000081733,
+        "p99_ms": 649.0152000333183,
+        "max_ms": 649.0152000333183
+      }
+    },
+    {
+      "tracks": 10,
+      "workers": 3,
+      "rounds": 20,
+      "required_rate_per_second": 20,
+      "achieved_completion_rate_per_second_at_median": 24.520062682746296,
+      "meets_2hz_profile": true,
+      "end_to_end": {
+        "samples": 20,
+        "p50_ms": 407.8293000056874,
+        "p95_ms": 708.2524000434205,
+        "p99_ms": 871.1398000014015,
+        "max_ms": 871.1398000014015
+      }
+    },
+    {
+      "tracks": 30,
+      "workers": 3,
+      "rounds": 20,
+      "required_rate_per_second": 60,
+      "achieved_completion_rate_per_second_at_median": 64.89655543263008,
+      "meets_2hz_profile": true,
+      "end_to_end": {
+        "samples": 20,
+        "p50_ms": 462.2741499915719,
+        "p95_ms": 773.0632000020705,
+        "p99_ms": 1038.9568000100553,
+        "max_ms": 1038.9568000100553
+      }
+    },
+    {
+      "tracks": 100,
+      "workers": 3,
+      "rounds": 20,
+      "required_rate_per_second": 200,
+      "achieved_completion_rate_per_second_at_median": 127.29526894758045,
+      "meets_2hz_profile": false,
+      "end_to_end": {
+        "samples": 20,
+        "p50_ms": 785.5751500173938,
+        "p95_ms": 1085.335900017526,
+        "p99_ms": 1215.2330999961123,
+        "max_ms": 1215.2330999961123
+      }
+    }
+  ]
+}

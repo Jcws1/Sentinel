@@ -119,3 +119,19 @@ def test_version_is_consistent_across_package_manifest_and_artifact(engine: Alph
     assert __version__ == MODEL_VERSION
     assert engine.model.version == MODEL_VERSION
 
+
+def test_batched_inference_preserves_individual_identities(engine: Alpha2Engine):
+    first = request()
+    second = request()
+    second["request_id"] = "request-2"
+    second["track_id"] = "track-2"
+    responses = engine.infer_batch([first, second])
+    assert [item["request_id"] for item in responses] == ["request-1", "request-2"]
+    assert [item["track_id"] for item in responses] == ["track-1", "track-2"]
+    assert all(item["timing_ms"]["batch_size"] == 2 for item in responses)
+
+
+def test_batch_rejects_duplicate_request_identity(engine: Alpha2Engine):
+    duplicated = request()
+    with pytest.raises(ContractError, match="identities must be unique"):
+        engine.infer_batch([duplicated, duplicated])

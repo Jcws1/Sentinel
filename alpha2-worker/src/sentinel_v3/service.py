@@ -8,7 +8,9 @@ from threading import Lock
 from typing import Any
 import json
 
-from .worker import Alpha2Engine, CONTRACT_VERSION, MODEL_VERSION, response_json
+from .worker import (
+    Alpha2Engine, CONTRACT_VERSION, MODEL_VERSION, batch_response_json, response_json,
+)
 
 
 class WorkerMetrics:
@@ -70,7 +72,7 @@ def handler_for(engine: Alpha2Engine) -> type[BaseHTTPRequestHandler]:
             })
 
         def do_POST(self) -> None:  # noqa: N802 - stdlib callback name
-            if self.path != "/v1/infer":
+            if self.path not in {"/v1/infer", "/v1/infer-batch"}:
                 self._write(HTTPStatus.NOT_FOUND, {"error": "not_found"})
                 return
             try:
@@ -78,13 +80,22 @@ def handler_for(engine: Alpha2Engine) -> type[BaseHTTPRequestHandler]:
             except ValueError:
                 self._write(HTTPStatus.BAD_REQUEST, {"error": "invalid_length"})
                 return
-            if length <= 0 or length > 1_048_576:
+            if length <= 0 or length > 8_388_608:
                 self._write(HTTPStatus.BAD_REQUEST, {"error": "invalid_length"})
                 return
-            result = response_json(engine, self.rfile.read(length))
+            body = self.rfile.read(length)
+            result = (
+                batch_response_json(engine, body)
+                if self.path == "/v1/infer-batch"
+                else response_json(engine, body)
+            )
             decoded = json.loads(result)
-            metrics.record(decoded)
-            status = HTTPStatus.BAD_REQUEST if decoded.get("error") else HTTPStatus.OK
+            if isinstance(decoded, list):
+                for item in decoded:
+                    metrics.record(item)
+            else:
+                metrics.record(decoded)
+            status = HTTPStatus.BAD_REQUEST if isinstance(decoded, dict) and decoded.get("error") else HTTPStatus.OK
             self._write(status, result)
 
         def log_message(self, format: str, *args: object) -> None:

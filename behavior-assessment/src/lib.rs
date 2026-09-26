@@ -3,7 +3,11 @@ use chrono::{DateTime, Utc};
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{collections::BTreeSet, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeSet, HashMap},
+    sync::Arc,
+    time::Duration,
+};
 use thiserror::Error;
 
 pub const CONTRACT_VERSION: &str = "sentinel.behavior-assessment/v1";
@@ -100,6 +104,14 @@ pub trait InferenceWorker: Send + Sync + 'static {
     -> Result<AssessmentResponse, InferenceError>;
 }
 
+#[async_trait]
+pub trait BatchInferenceWorker: InferenceWorker {
+    async fn infer_batch(
+        &self,
+        requests: Vec<AssessmentRequest>,
+    ) -> Result<Vec<AssessmentResponse>, InferenceError>;
+}
+
 #[derive(Clone)]
 pub struct HttpInferenceWorker {
     client: reqwest::Client,
@@ -127,6 +139,34 @@ impl InferenceWorker for HttpInferenceWorker {
             .client
             .post(self.endpoint.clone())
             .json(&request)
+            .send()
+            .await
+            .map_err(|error| InferenceError::Unavailable(error.to_string()))?;
+        if !response.status().is_success() {
+            return Err(InferenceError::InvalidResponse(format!(
+                "HTTP {}",
+                response.status()
+            )));
+        }
+        response
+            .json()
+            .await
+            .map_err(|error| InferenceError::InvalidResponse(error.to_string()))
+    }
+}
+
+#[async_trait]
+impl BatchInferenceWorker for HttpInferenceWorker {
+    async fn infer_batch(
+        &self,
+        requests: Vec<AssessmentRequest>,
+    ) -> Result<Vec<AssessmentResponse>, InferenceError> {
+        let mut endpoint = self.endpoint.clone();
+        endpoint.set_path("/v1/infer-batch");
+        let response = self
+            .client
+            .post(endpoint)
+            .json(&requests)
             .send()
             .await
             .map_err(|error| InferenceError::Unavailable(error.to_string()))?;
@@ -274,5 +314,69 @@ impl<W: InferenceWorker, A: AuthorityReader> AssessmentCoordinator<W, A> {
             };
         }
         AssessmentDisposition::Accepted(Box::new(response))
+    }
+}
+
+impl<W: BatchInferenceWorker, A: AuthorityReader> AssessmentCoordinator<W, A> {
+    /// Sends one bounded transport batch while retaining per-request validation.
+    pub async fn assess_batch(
+        &self,
+        requests: Vec<AssessmentRequest>,
+    ) -> Vec<AssessmentDisposition> {
+        if requests.is_empty() {
+            return Vec::new();
+        }
+        if requests.len() > 128 {
+            return requests
+                .iter()
+                .map(|_| AssessmentDisposition::Rejected {
+                    reason: "batch_too_large",
+                })
+                .collect();
+        }
+        let result =
+            tokio::time::timeout(self.timeout, self.worker.infer_batch(requests.clone())).await;
+        let responses = match result {
+            Err(_) => {
+                return requests
+                    .iter()
+                    .map(|_| AssessmentDisposition::Unavailable {
+                        detail: InferenceError::Timeout.to_string(),
+                    })
+                    .collect();
+            }
+            Ok(Err(error)) => {
+                return requests
+                    .iter()
+                    .map(|_| AssessmentDisposition::Unavailable {
+                        detail: error.to_string(),
+                    })
+                    .collect();
+            }
+            Ok(Ok(responses)) => responses,
+        };
+        let mut by_id = HashMap::with_capacity(responses.len());
+        for response in responses {
+            if by_id
+                .insert(response.request_id.clone(), response)
+                .is_some()
+            {
+                return requests
+                    .iter()
+                    .map(|_| AssessmentDisposition::Rejected {
+                        reason: "duplicate_batch_response",
+                    })
+                    .collect();
+            }
+        }
+        requests
+            .iter()
+            .map(|request| match by_id.remove(&request.request_id) {
+                Some(response) => self.validate(request, response, Utc::now()),
+                None => AssessmentDisposition::Rejected {
+                    reason: "missing_batch_response",
+                },
+            })
+            .collect()
     }
 }

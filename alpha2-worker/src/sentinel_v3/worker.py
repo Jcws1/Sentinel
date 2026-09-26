@@ -110,53 +110,69 @@ class Alpha2Engine:
         return cls(loaded, digest)
 
     def infer(self, payload: dict[str, Any]) -> dict[str, Any]:
-        validate_request(payload)
+        return self.infer_batch([payload])[0]
+
+    def infer_batch(self, payloads: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Evaluate a bounded set of immutable per-track requests vectorially."""
+        if not payloads:
+            raise ContractError("batch cannot be empty")
+        if len(payloads) > 128:
+            raise ContractError("batch exceeds 128 requests")
+        for payload in payloads:
+            validate_request(payload)
+        identities = [
+            (p["request_id"], p["mission_id"], p["mission_epoch"], p["track_id"], p["track_revision"])
+            for p in payloads
+        ]
+        if len(set(identities)) != len(identities):
+            raise ContractError("batch request identities must be unique")
         started = perf_counter_ns()
-        mission_id = payload["mission_id"]
-        track_id = payload["track_id"]
-        raw = pd.DataFrame(payload["history"]).rename(columns={
+        raw_parts = []
+        for payload in payloads:
+            part = pd.DataFrame(payload["history"]).rename(columns={
             "x_m": "observed_x_m", "y_m": "observed_y_m", "z_m": "observed_z_m",
             "vx_mps": "observed_vx_mps", "vy_mps": "observed_vy_mps",
             "vz_mps": "observed_vz_mps", "speed_mps": "observed_speed_mps",
             "heading_deg": "observed_heading_deg",
-        })
-        raw["scenario_id"] = mission_id
-        raw["fused_track_id"] = track_id
+            })
+            part["scenario_id"] = payload["mission_id"]
+            part["fused_track_id"] = payload["track_id"]
+            raw_parts.append(part)
+        raw = pd.concat(raw_parts, ignore_index=True)
         features_started = perf_counter_ns()
         track = track_features(raw)
         feature_ms = (perf_counter_ns() - features_started) / 1e6
-        latest = track.iloc[[-1]]
+        latest = track.groupby(
+            ["scenario_id", "fused_track_id"], sort=False, observed=True
+        ).tail(1).reset_index(drop=True)
         model_started = perf_counter_ns()
-        motion_probabilities = self.model.motion_model.predict_proba(
-            latest[MOTION_FEATURES]
-        )[0]
-        motion_index = int(np.argmax(motion_probabilities))
-        motion = str(self.model.motion_model.classes_[motion_index])
+        motion_probabilities = self.model.motion_model.predict_proba(latest[MOTION_FEATURES])
         irregular_index = list(self.model.motion_model.classes_).index("irregular")
-        if motion_probabilities[irregular_index] >= self.model.irregular_threshold:
-            motion = "irregular"
-        motion_confidence = float(np.max(motion_probabilities) * latest.quality.iloc[0])
-        motion, motion_status = _label(motion, motion_confidence)
-
-        relations: list[dict[str, Any]] = []
-        if payload.get("assets"):
+        relation_by_track: dict[tuple[str, str], list[dict[str, Any]]] = {}
+        asset_parts = []
+        template_rows = []
+        for payload in payloads:
+            if not payload.get("assets"):
+                continue
             assets = pd.DataFrame(payload["assets"]).rename(
                 columns={"monitoring_radius_m": "wider_monitoring_radius_m"}
             )
-            assets["scenario_id"] = mission_id
-            template = pd.DataFrame([
-                {
-                    "scenario_id": mission_id,
-                    "timestamp_s": float(raw.timestamp_s.iloc[-1]),
-                    "fused_track_id": track_id,
-                    "asset_id": asset["asset_id"],
-                }
-                for asset in payload["assets"]
-            ])
-            relation = relation_features(track, template, assets)
-            probabilities = self.model.relation_model.predict_proba(
-                relation[RELATION_FEATURES]
+            assets["scenario_id"] = payload["mission_id"]
+            asset_parts.append(assets)
+            latest_timestamp = float(payload["history"][-1]["timestamp_s"])
+            template_rows.extend({
+                "scenario_id": payload["mission_id"],
+                "timestamp_s": latest_timestamp,
+                "fused_track_id": payload["track_id"],
+                "asset_id": asset["asset_id"],
+            } for asset in payload["assets"])
+        if template_rows:
+            assets = pd.concat(asset_parts, ignore_index=True).drop_duplicates(
+                ["scenario_id", "asset_id"]
             )
+            template = pd.DataFrame(template_rows)
+            relation = relation_features(track, template, assets)
+            probabilities = self.model.relation_model.predict_proba(relation[RELATION_FEATURES])
             for row_index, row in relation.reset_index(drop=True).iterrows():
                 values = probabilities[row_index]
                 relation_index = int(np.argmax(values))
@@ -166,7 +182,9 @@ class Alpha2Engine:
                     label = "approaching"
                 confidence = float(np.max(values) * row.quality)
                 visible_label, status = _label(label, confidence)
-                relations.append({
+                relation_by_track.setdefault(
+                    (str(row.scenario_id), str(row.fused_track_id)), []
+                ).append({
                     "asset_id": str(row.asset_id),
                     "relation": visible_label,
                     "raw_relation": label,
@@ -178,7 +196,25 @@ class Alpha2Engine:
                 })
         model_ms = (perf_counter_ns() - model_started) / 1e6
         total_ms = (perf_counter_ns() - started) / 1e6
-        return {
+        produced_at = datetime.now(timezone.utc).isoformat()
+        responses = []
+        latest_lookup = {
+            (str(row.scenario_id), str(row.fused_track_id)): index
+            for index, row in latest.iterrows()
+        }
+        for payload in payloads:
+            mission_id = payload["mission_id"]
+            track_id = payload["track_id"]
+            latest_index = latest_lookup[(mission_id, track_id)]
+            values = motion_probabilities[latest_index]
+            motion_index = int(np.argmax(values))
+            raw_motion = str(self.model.motion_model.classes_[motion_index])
+            motion = raw_motion
+            if values[irregular_index] >= self.model.irregular_threshold:
+                motion = "irregular"
+            confidence = float(np.max(values) * latest.quality.iloc[latest_index])
+            motion, motion_status = _label(motion, confidence)
+            responses.append({
             "contract_version": CONTRACT_VERSION,
             "feature_contract_version": FEATURE_CONTRACT_VERSION,
             "request_id": payload["request_id"],
@@ -188,17 +224,17 @@ class Alpha2Engine:
             "track_revision": payload["track_revision"],
             "captured_at": payload["captured_at"],
             "expires_at": payload["expires_at"],
-            "produced_at": datetime.now(timezone.utc).isoformat(),
+            "produced_at": produced_at,
             "model_version": MODEL_VERSION,
             "artifact_sha256": self.artifact_sha256,
             "authority": "non_authoritative_decision_support",
             "motion": {
                 "label": motion,
-                "raw_label": str(self.model.motion_model.classes_[motion_index]),
-                "confidence": motion_confidence,
+                "raw_label": raw_motion,
+                "confidence": confidence,
                 "status": motion_status,
             },
-            "asset_relations": relations,
+            "asset_relations": relation_by_track.get((mission_id, track_id), []),
             "coordination": {
                 "status": "EXPERIMENTAL_DISABLED",
                 "reason_codes": ["ALPHA2_COORDINATION_NOT_INTEGRATION_READY"],
@@ -207,8 +243,10 @@ class Alpha2Engine:
                 "feature_preparation": feature_ms,
                 "model_inference": model_ms,
                 "worker_total": total_ms,
+                "batch_size": len(payloads),
             },
-        }
+            })
+        return responses
 
 
 def response_json(engine: Alpha2Engine, body: bytes) -> bytes:
@@ -218,6 +256,21 @@ def response_json(engine: Alpha2Engine, body: bytes) -> bytes:
             raise ContractError("request body must be an object")
         response = engine.infer(payload)
         return json.dumps(response, separators=(",", ":"), allow_nan=False).encode()
+    except (ContractError, json.JSONDecodeError) as error:
+        return json.dumps({
+            "contract_version": CONTRACT_VERSION,
+            "error": "invalid_request",
+            "detail": str(error),
+        }, separators=(",", ":")).encode()
+
+
+def batch_response_json(engine: Alpha2Engine, body: bytes) -> bytes:
+    try:
+        payload = json.loads(body)
+        if not isinstance(payload, list):
+            raise ContractError("batch request body must be an array")
+        responses = engine.infer_batch(payload)
+        return json.dumps(responses, separators=(",", ":"), allow_nan=False).encode()
     except (ContractError, json.JSONDecodeError) as error:
         return json.dumps({
             "contract_version": CONTRACT_VERSION,

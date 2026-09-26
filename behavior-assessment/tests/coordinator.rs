@@ -41,6 +41,19 @@ impl InferenceWorker for Worker {
     }
 }
 
+#[async_trait]
+impl BatchInferenceWorker for Worker {
+    async fn infer_batch(
+        &self,
+        requests: Vec<AssessmentRequest>,
+    ) -> Result<Vec<AssessmentResponse>, InferenceError> {
+        if self.failure {
+            return Err(InferenceError::Unavailable("synthetic outage".into()));
+        }
+        Ok(requests.iter().map(response).rev().collect())
+    }
+}
+
 fn request() -> AssessmentRequest {
     let captured = Utc::now();
     AssessmentRequest {
@@ -225,5 +238,28 @@ async fn worker_failure_and_timeout_are_isolated_from_authoritative_state() {
             .unwrap()
             .track_revision,
         8
+    );
+}
+
+#[tokio::test]
+async fn batch_responses_are_validated_individually_by_identity() {
+    let (coordinator, authority) = configured(Duration::ZERO, false);
+    let first = request();
+    let mut second = request();
+    second.request_id = "request-2".into();
+    second.track_id = "track-2".into();
+    authority.0.lock().unwrap().insert(
+        ("mission-1".into(), "track-2".into()),
+        CurrentTrackAuthority {
+            mission_epoch: "epoch-1".into(),
+            track_revision: 7,
+        },
+    );
+    let results = coordinator.assess_batch(vec![first, second]).await;
+    assert_eq!(results.len(), 2);
+    assert!(
+        results
+            .iter()
+            .all(|item| matches!(item, AssessmentDisposition::Accepted(_)))
     );
 }
