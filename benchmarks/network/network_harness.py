@@ -5,16 +5,20 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import base64
 import hashlib
 import json
 import math
 import os
+import secrets
 import shlex
+import socket
 import statistics
 import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 import tempfile
@@ -358,6 +362,7 @@ async def run_dry(args: argparse.Namespace) -> dict[str, Any]:
 
 async def run_live(args: argparse.Namespace) -> dict[str, Any]:
     try:
+        import aiohttp  # type: ignore
         import websockets  # type: ignore
     except ImportError as error:
         raise SystemExit("live mode requires: python -m pip install -r benchmarks/network/requirements.txt") from error
@@ -369,6 +374,51 @@ async def run_live(args: argparse.Namespace) -> dict[str, Any]:
     clients = [ClientModel(f"client-{i + 1}") for i in range(CLIENT_COUNT)]
     endpoint_rtts: dict[str, list[float]] = {"snapshot": [], "observation": [], "command": []}
     stop = asyncio.Event()
+
+    async def raw_no_read_client(index: int) -> None:
+        """Handshake at the transport layer and then stop reading entirely."""
+        parsed = urllib.parse.urlsplit(
+            f"{args.ws_url}?after_sequence={clients[index].sequence}"
+        )
+        host = parsed.hostname or "127.0.0.1"
+        port = parsed.port or 80
+        path = parsed.path + (f"?{parsed.query}" if parsed.query else "")
+        reader, writer = await asyncio.open_connection(host, port)
+        sock = writer.get_extra_info("socket")
+        if sock is not None:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024)
+        key = base64.b64encode(secrets.token_bytes(16)).decode("ascii")
+        request = (
+            f"GET {path} HTTP/1.1\r\nHost: {host}:{port}\r\n"
+            "Upgrade: websocket\r\nConnection: Upgrade\r\n"
+            f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n"
+        )
+        writer.write(request.encode("ascii"))
+        await writer.drain()
+        response = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 5)
+        if not response.startswith(b"HTTP/1.1 101"):
+            raise RuntimeError(f"raw slow-reader handshake failed: {response[:120]!r}")
+        headers = {}
+        for line in response.decode("latin-1").split("\r\n")[1:]:
+            if ":" in line:
+                name, value = line.split(":", 1)
+                headers[name.strip().lower()] = value.strip()
+        expected_accept = base64.b64encode(
+            hashlib.sha1(
+                (key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode("ascii")
+            ).digest()
+        ).decode("ascii")
+        if headers.get("sec-websocket-accept") != expected_accept:
+            raise RuntimeError("raw slow-reader handshake accept value is invalid")
+        # asyncio otherwise keeps draining the kernel buffer into StreamReader.
+        # Pausing the transport makes this a genuine no-read peer.
+        writer.transport.pause_reading()
+        try:
+            await stop.wait()
+        finally:
+            writer.transport.resume_reading()
+            writer.close()
+            await writer.wait_closed()
 
     async def resync(client: ClientModel) -> None:
         status, body, rtt, headers = await http_json("GET", snapshot_url)
@@ -415,7 +465,15 @@ async def run_live(args: argparse.Namespace) -> dict[str, Any]:
             if reconnect and not stop.is_set():
                 await resync(client)
 
-    consumers = [asyncio.create_task(consume(client, i)) for i, client in enumerate(clients)]
+    raw_slow = bool(getattr(args, "raw_slow_reader", False))
+    consumers = [
+        asyncio.create_task(
+            raw_no_read_client(i)
+            if raw_slow and i == args.slow_client
+            else consume(client, i)
+        )
+        for i, client in enumerate(clients)
+    ]
     await asyncio.sleep(0.1)
     ticks = max(1, round(args.duration * args.hz))
     producer_started = time.perf_counter_ns()
@@ -424,30 +482,56 @@ async def run_live(args: argparse.Namespace) -> dict[str, Any]:
     accepted = 0
     rejected = 0
 
-    async def produce_track(drone: int) -> None:
-        nonlocal accepted, rejected
-        for tick in range(ticks):
-            target = producer_started + round(tick * 1e9 / args.hz)
-            delay = (target - time.perf_counter_ns()) / 1e9
-            if delay > 0:
-                await asyncio.sleep(delay)
-            # One coroutine owns each track, preserving source order. The
-            # shared semaphore bounds total HTTP work without serializing tracks.
-            async with semaphore:
-                scheduling_lag_ms.append(max(0.0, (time.perf_counter_ns() - target) / 1e6))
-                status, body, rtt, _ = await http_json(
-                    "POST",
-                    observation_url,
-                    observation(drone, tick, args.seed, round(tick * 1000 / args.hz)),
-                )
-                endpoint_rtts["observation"].append(rtt)
-            if status in (200, 202, 204):
-                accepted += 1
-            else:
-                rejected += 1
-                raise RuntimeError(f"observation rejected: HTTP {status}: {body}")
+    # urllib opens a fresh connection and allocates a worker thread per request;
+    # that measured the Python driver rather than the gateway above ~1.7k/s.
+    # A single pooled aiohttp session keeps the semantic contract unchanged:
+    # one ordered HTTP request per track observation, with no batching.
+    timeout = aiohttp.ClientTimeout(total=10)
+    connector = aiohttp.TCPConnector(
+        limit=max(args.ingest_concurrency, args.drones),
+        limit_per_host=max(args.ingest_concurrency, args.drones),
+        force_close=False,
+    )
+    async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
+        async def produce_track_pooled(drone: int) -> None:
+            nonlocal accepted, rejected
+            for tick in range(ticks):
+                target = producer_started + round(tick * 1e9 / args.hz)
+                delay = (target - time.perf_counter_ns()) / 1e9
+                if delay > 0:
+                    await asyncio.sleep(delay)
+                async with semaphore:
+                    scheduling_lag_ms.append(
+                        max(0.0, (time.perf_counter_ns() - target) / 1e6)
+                    )
+                    started = time.perf_counter_ns()
+                    async with session.post(
+                        observation_url,
+                        json=observation(
+                            drone, tick, args.seed, round(tick * 1000 / args.hz)
+                        ),
+                        headers={"Accept": "application/json"},
+                    ) as response:
+                        raw = await response.read()
+                        status = response.status
+                        try:
+                            body = json.loads(raw) if raw else {}
+                        except json.JSONDecodeError:
+                            body = {"error": raw.decode(errors="replace")}
+                    endpoint_rtts["observation"].append(
+                        (time.perf_counter_ns() - started) / 1e6
+                    )
+                if status in (200, 202, 204):
+                    accepted += 1
+                else:
+                    rejected += 1
+                    raise RuntimeError(
+                        f"observation rejected: HTTP {status}: {body}"
+                    )
 
-    await asyncio.gather(*(produce_track(drone) for drone in range(args.drones)))
+        await asyncio.gather(
+            *(produce_track_pooled(drone) for drone in range(args.drones))
+        )
     elapsed_ms = (time.perf_counter_ns() - producer_started) / 1e6
     intended = ticks * args.drones
     producer_stats = {
@@ -459,7 +543,7 @@ async def run_live(args: argparse.Namespace) -> dict[str, Any]:
         "accepted_rate_per_second": accepted / (elapsed_ms / 1000),
         "target_rate_per_second": args.drones * args.hz,
         "scheduling_lag": latency_summary(scheduling_lag_ms),
-        "max_concurrent_requests": args.ingest_concurrency,
+        "configured_concurrency_limit": args.ingest_concurrency,
         "per_track_source_order_preserved": True,
     }
 
@@ -531,6 +615,9 @@ async def run_live(args: argparse.Namespace) -> dict[str, Any]:
     )
     summary["gateway_metrics"] = gateway_metrics
     summary["run"]["slow_reader_delay_seconds"] = args.slow_reader_delay
+    summary["run"]["raw_slow_reader"] = bool(
+        getattr(args, "raw_slow_reader", False)
+    )
     summary["run"]["disconnect_client"] = args.disconnect_client
     summary["run"]["forced_disconnects"] = sum(c.forced_disconnects for c in clients)
     return summary
@@ -816,6 +903,7 @@ def parser() -> argparse.ArgumentParser:
     live.add_argument("--slow-client", type=int, default=-1,
                       help="zero-based client index to delay while reading")
     live.add_argument("--slow-reader-delay", type=float, default=0.0)
+    live.add_argument("--raw-slow-reader", action="store_true")
     live.add_argument("--disconnect-client", type=int, default=-1,
                       help="zero-based client index to disconnect once")
     live.add_argument("--disconnect-at", type=int, default=0)

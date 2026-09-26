@@ -106,7 +106,14 @@ def evaluate_scenario(summary: dict[str, Any], spec: dict[str, Any]) -> dict[str
         and int(queue_high_water) >= 0
         and int(queue_high_water) <= int(spec.get("queue_capacity", 256)),
         "resource_samples_present": int(resources.get("samples", 0)) > 0,
-        "all_clients_converged": len(clients) == 5 and all(c.get("converged") for c in clients),
+        "all_clients_converged": len(clients) == 5 and (
+            all(c.get("converged") for c in clients)
+            if spec.get("required_fault") != "slow_reader_overflow"
+            else all(
+                c.get("converged") for index, c in enumerate(clients)
+                if index != int(spec["slow_client"])
+            )
+        ),
     }
     required_fault = spec.get("required_fault")
     if required_fault == "disconnect":
@@ -120,7 +127,8 @@ def evaluate_scenario(summary: dict[str, Any], spec: dict[str, Any]) -> dict[str
         )
         checks["slow_reader_isolated_from_healthy_clients"] = all(
             client.get("converged") and int(client.get("gaps_detected", 0)) == 0
-            for index, client in enumerate(clients) if index != slow_index and index != 4
+            for index, client in enumerate(clients)
+            if index != slow_index and (not spec.get("gap_fault", True) or index != 4)
         )
     if spec.get("gap_fault", True):
         checks["application_gap_fault_occurred_and_recovered"] = (
@@ -171,6 +179,7 @@ async def run_scenario(root: Path, port: int, spec: dict[str, Any]) -> dict[str,
             drain=float(spec.get("drain", 2)), gateway_command=None, gateway_timeout=60,
             slow_client=int(spec.get("slow_client", -1)),
             slow_reader_delay=float(spec.get("slow_reader_delay", 0)),
+            raw_slow_reader=bool(spec.get("raw_slow_reader", False)),
             disconnect_client=int(spec.get("disconnect_client", -1)),
             disconnect_at=int(spec.get("disconnect_at", 0)),
         )
@@ -283,9 +292,9 @@ async def main_async(args: argparse.Namespace) -> int:
         {"name": "steady-30", "drones": 30, "hz": 20, "duration": duration, "seed": 3030},
         {"name": "burst-30x100", "drones": 30, "hz": 100, "duration": max(1, duration / 2), "seed": 3100},
         {"name": "slow-reader", "drones": 30, "hz": 100, "duration": max(1, duration),
-         "seed": 3200, "queue_capacity": 8, "client_queue": 1,
-         "slow_client": 3, "slow_reader_delay": 0.1, "drain": 3,
-         "required_fault": "slow_reader_overflow"},
+         "seed": 3200, "queue_capacity": 256, "client_queue": 256,
+         "slow_client": 3, "slow_reader_delay": 0, "raw_slow_reader": True, "drain": 3,
+         "required_fault": "slow_reader_overflow", "gap_fault": False},
         {"name": "disconnect-resync", "drones": 30, "hz": 20, "duration": duration,
          "seed": 3300, "disconnect_client": 2, "disconnect_at": 20,
          "required_fault": "disconnect"},

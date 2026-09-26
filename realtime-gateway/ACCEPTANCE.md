@@ -82,6 +82,27 @@ Evidence is retained at
 sub-second/short smoke cases. They do not replace the five 10-minute trials or
 prove overload and slow-reader acceptance.
 
+Pooled-producer follow-on: replacing the calibration driver's per-request
+`urllib` connection/thread handoff with a persistent `aiohttp` pool removed the
+driver bottleneck without batching or changing the one-request-per-observation
+contract. A standalone 30×100 Hz ×3 s run accepted all 9,000 observations with
+zero ingestion rejection at 2,990/s, HTTP p99 10.83 ms and gateway processing
+p99 219 µs. This is a short localhost capacity calibration, not proof of
+10-minute 3,000/s support.
+
+A genuine raw no-read WebSocket peer validated the handshake and paused TCP
+reads. At 30×100 Hz ×3 s, all 9,000 observations were accepted at 2,938/s, the
+bounded client queue reached 256 and the gateway isolated the slow peer exactly
+once. The four healthy clients each applied all 9,000 ordered deltas with zero
+gaps and matching hashes. The fault peer converged only through a final HTTP
+snapshot after the fault; it did not continuously consume the WebSocket stream.
+
+The seven-scenario pooled short calibration passes its purpose-specific gates.
+Its 1.5-second burst reached 2,596/s (86.6% of the 3,000/s target), which exceeds
+the calibration's 80% scheduler gate but is not release acceptance. Evidence is
+retained under `test-results/realtime-core/network/load-calibration/` and
+`test-results/realtime-core/reliability-pooled-short/`.
+
 ## Remaining release gates
 
 ### Durable restart checkpoint
