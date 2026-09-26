@@ -4,7 +4,10 @@ use sentinel_behavior_assessment::*;
 use serde_json::json;
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
     time::Duration,
 };
 
@@ -25,6 +28,7 @@ impl AuthorityReader for Authority {
 struct Worker {
     delay: Duration,
     failure: bool,
+    batches: Arc<AtomicU64>,
 }
 
 #[async_trait]
@@ -47,6 +51,7 @@ impl BatchInferenceWorker for Worker {
         &self,
         requests: Vec<AssessmentRequest>,
     ) -> Result<Vec<AssessmentResponse>, InferenceError> {
+        self.batches.fetch_add(1, Ordering::Relaxed);
         if self.failure {
             return Err(InferenceError::Unavailable("synthetic outage".into()));
         }
@@ -120,12 +125,55 @@ fn configured(
     );
     (
         AssessmentCoordinator::alpha2(
-            Arc::new(Worker { delay, failure }),
+            Arc::new(Worker {
+                delay,
+                failure,
+                batches: Arc::new(AtomicU64::new(0)),
+            }),
             authority.clone(),
             Duration::from_millis(100),
         ),
         authority,
     )
+}
+
+#[tokio::test]
+async fn micro_batcher_groups_requests_and_preserves_individual_results() {
+    let authority = Arc::new(Authority::default());
+    for index in 0..3 {
+        authority.0.lock().unwrap().insert(
+            ("mission-1".into(), format!("track-{index}")),
+            CurrentTrackAuthority {
+                mission_epoch: "epoch-1".into(),
+                track_revision: 7,
+            },
+        );
+    }
+    let batches = Arc::new(AtomicU64::new(0));
+    let worker = Arc::new(Worker {
+        delay: Duration::ZERO,
+        failure: false,
+        batches: batches.clone(),
+    });
+    let coordinator = AssessmentCoordinator::alpha2(worker, authority, Duration::from_secs(1));
+    let batcher = spawn_batch_assessment(coordinator, 30, Duration::from_millis(25), 60);
+    let results = futures_util::future::join_all((0..3).map(|index| {
+        let mut item = request();
+        item.request_id = format!("request-{index}");
+        item.track_id = format!("track-{index}");
+        batcher.assess(item)
+    }))
+    .await;
+    assert!(
+        results
+            .iter()
+            .all(|item| matches!(item, AssessmentDisposition::Accepted(_)))
+    );
+    assert_eq!(batches.load(Ordering::Relaxed), 1);
+    assert_eq!(
+        batcher.metrics.requests_processed.load(Ordering::Relaxed),
+        3
+    );
 }
 
 #[tokio::test]

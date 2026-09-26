@@ -5,10 +5,14 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
     collections::{BTreeSet, HashMap},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
     time::Duration,
 };
 use thiserror::Error;
+use tokio::sync::{mpsc, oneshot};
 
 pub const CONTRACT_VERSION: &str = "sentinel.behavior-assessment/v1";
 pub const FEATURE_CONTRACT_VERSION: &str = "sentinel.behavior-features/v1";
@@ -379,4 +383,89 @@ impl<W: BatchInferenceWorker, A: AuthorityReader> AssessmentCoordinator<W, A> {
             })
             .collect()
     }
+}
+
+struct QueuedAssessment {
+    request: AssessmentRequest,
+    reply: oneshot::Sender<AssessmentDisposition>,
+}
+
+#[derive(Default)]
+pub struct BatchQueueMetrics {
+    pub accepted: AtomicU64,
+    pub rejected_overload: AtomicU64,
+    pub batches: AtomicU64,
+    pub requests_processed: AtomicU64,
+}
+
+#[derive(Clone)]
+pub struct BatchAssessmentHandle {
+    sender: mpsc::Sender<QueuedAssessment>,
+    pub metrics: Arc<BatchQueueMetrics>,
+}
+
+impl BatchAssessmentHandle {
+    pub async fn assess(&self, request: AssessmentRequest) -> AssessmentDisposition {
+        let (reply, receiver) = oneshot::channel();
+        if self
+            .sender
+            .try_send(QueuedAssessment { request, reply })
+            .is_err()
+        {
+            self.metrics
+                .rejected_overload
+                .fetch_add(1, Ordering::Relaxed);
+            return AssessmentDisposition::Unavailable {
+                detail: "assessment_queue_overloaded".into(),
+            };
+        }
+        self.metrics.accepted.fetch_add(1, Ordering::Relaxed);
+        receiver
+            .await
+            .unwrap_or_else(|_| AssessmentDisposition::Unavailable {
+                detail: "assessment_batcher_stopped".into(),
+            })
+    }
+}
+
+/// Start a bounded micro-batcher without putting authoritative tracking behind
+/// model latency. Admission is non-blocking and every result remains subject to
+/// independent revision, epoch, TTL and model validation.
+pub fn spawn_batch_assessment<W, A>(
+    coordinator: AssessmentCoordinator<W, A>,
+    max_batch: usize,
+    batch_window: Duration,
+    queue_capacity: usize,
+) -> BatchAssessmentHandle
+where
+    W: BatchInferenceWorker,
+    A: AuthorityReader,
+{
+    assert!((1..=128).contains(&max_batch));
+    assert!(queue_capacity >= max_batch);
+    let (sender, mut receiver) = mpsc::channel::<QueuedAssessment>(queue_capacity);
+    let metrics = Arc::new(BatchQueueMetrics::default());
+    let task_metrics = metrics.clone();
+    tokio::spawn(async move {
+        while let Some(first) = receiver.recv().await {
+            let mut queued = vec![first];
+            let deadline = tokio::time::Instant::now() + batch_window;
+            while queued.len() < max_batch {
+                match tokio::time::timeout_at(deadline, receiver.recv()).await {
+                    Ok(Some(item)) => queued.push(item),
+                    Ok(None) | Err(_) => break,
+                }
+            }
+            let requests = queued.iter().map(|item| item.request.clone()).collect();
+            let results = coordinator.assess_batch(requests).await;
+            task_metrics.batches.fetch_add(1, Ordering::Relaxed);
+            task_metrics
+                .requests_processed
+                .fetch_add(results.len() as u64, Ordering::Relaxed);
+            for (item, result) in queued.into_iter().zip(results) {
+                let _ = item.reply.send(result);
+            }
+        }
+    });
+    BatchAssessmentHandle { sender, metrics }
 }

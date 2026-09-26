@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: sentinel-rust-countermeasure-demo
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile.countermeasure-demo
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit
+    envVars:
+      - key: SENTINEL_DEMO_ADDR
+        value: 0.0.0.0:10000
+      - key: SENTINEL_DEMO_DB
+        value: /var/data/sentinel-countermeasure-demo.sqlite3
+    disk:
+      name: sentinel-countermeasure-demo-data
+      mountPath: /var/data
+      sizeGB: 1
+

@@ -1,5 +1,9 @@
 # Sentinel v3
 
+The Rust real-time backend requirements and acceptance gates are maintained in
+[docs/REALTIME_RUST_PRD.md](docs/REALTIME_RUST_PRD.md). The isolated hosted
+simulation acceptance surface lives in `countermeasure-demo/`.
+
 Sentinel is a local mission workspace for synthetic interactive scenarios, recorded operational inspection and supported external simulation batches. It combines Tactical and 3D maps, Fleet controls, scenario authoring, shared entity Details, Command Picture analytics and a Vertical Profile. It is a simulation/development application, not a deployed command system or a real video feed.
 
 ## Observe / Orient copilot (feature branch)
