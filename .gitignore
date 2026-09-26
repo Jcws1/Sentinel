@@ -12,6 +12,7 @@ dist/
 # Tool caches and incremental compilation.
 .cache/
 /target/
+**/target/
 .vite/
 __pycache__/
 *.py[cod]

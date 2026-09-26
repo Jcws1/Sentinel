@@ -1,0 +1,12 @@
+{
+  "schema_version": "sentinel.model-artifact/v1",
+  "model_version": "3.0.0-alpha.2",
+  "feature_contract_version": "sentinel.behavior-features/v1",
+  "artifact": "artifacts/sentinel_level3_v3_alpha2.joblib",
+  "sha256": "0002ad0a3be0ebcae8ad9385d2358f1e1395f8b83a920ee380c4cc67fbfa50af",
+  "python": "3.11.*",
+  "scikit_learn": "1.8.0",
+  "authority": "non_authoritative_decision_support",
+  "coordination_status": "experimental_diagnostic_only"
+}
+

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel.invalid/contracts/behavior-assessment/v1/response.schema.json",
+  "title": "Non-authoritative behavior assessment response",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "contract_version", "feature_contract_version", "request_id", "mission_id",
+    "mission_epoch", "track_id", "track_revision", "captured_at", "expires_at",
+    "produced_at", "model_version", "authority", "motion", "asset_relations",
+    "coordination", "timing_ms"
+  ],
+  "properties": {
+    "contract_version": {"const": "sentinel.behavior-assessment/v1"},
+    "feature_contract_version": {"const": "sentinel.behavior-features/v1"},
+    "request_id": {"type": "string"}, "mission_id": {"type": "string"},
+    "mission_epoch": {"type": "string"}, "track_id": {"type": "string"},
+    "track_revision": {"type": "integer", "minimum": 0},
+    "captured_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "produced_at": {"type": "string", "format": "date-time"},
+    "model_version": {"const": "3.0.0-alpha.2"},
+    "authority": {"const": "non_authoritative_decision_support"},
+    "motion": {"type": "object"}, "asset_relations": {"type": "array"},
+    "coordination": {"type": "object"}, "timing_ms": {"type": "object"}
+  }
+}
+
