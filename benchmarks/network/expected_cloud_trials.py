@@ -132,6 +132,29 @@ def resource_summary(path: Path, duration: float, cpu_budget_percent: float,
         and thread_tail <= thread_baseline
         and thread_max <= thread_baseline + thread_transient_allowance
     )
+    # The first resource sample can precede establishment of the five observer
+    # WebSockets and the ingest stream.  A regression slope over that lifecycle
+    # transition falsely reports growth even when every subsequent sample is
+    # flat.  Use robust endpoint windows, as for threads, while retaining a
+    # frozen ceiling that still rejects a sustained plateau or socket spike.
+    socket_window = max(3, len(socket_rows) // 10)
+    socket_baseline = statistics.median(
+        float(row["open_sockets"]) for row in socket_rows[:socket_window]
+    ) if socket_rows else None
+    socket_tail = statistics.median(
+        float(row["open_sockets"]) for row in socket_rows[-socket_window:]
+    ) if socket_rows else None
+    socket_max = max(
+        (float(row["open_sockets"]) for row in socket_rows), default=None
+    )
+    socket_transient_allowance = 4
+    no_sustained_socket_growth = (
+        socket_baseline is not None
+        and socket_tail is not None
+        and socket_max is not None
+        and socket_tail <= socket_baseline
+        and socket_max <= socket_baseline + socket_transient_allowance
+    )
     gates = {
         "cpu_p95_within_75_percent_budget": cpu_p95 <= cpu_budget_percent * 0.75,
         "cpu_not_above_90_percent_for_30_seconds": high_cpu_seconds < 30,
@@ -142,7 +165,7 @@ def resource_summary(path: Path, duration: float, cpu_budget_percent: float,
         "no_sustained_thread_growth": no_sustained_thread_growth,
         "socket_measurement_supported": socket_measurement_supported,
         "no_monotonic_socket_growth": socket_measurement_supported
-            and socket_slope is not None and socket_slope <= 0,
+            and no_sustained_socket_growth,
     }
     gates["passed"] = all(gates.values())
     return {
@@ -163,6 +186,11 @@ def resource_summary(path: Path, duration: float, cpu_budget_percent: float,
         "open_sockets_per_minute_linear_slope": socket_slope,
         "socket_samples": len(socket_rows),
         "socket_sample_interval_seconds": SOCKET_SAMPLE_INTERVAL_SECONDS,
+        "socket_endpoint_window_samples": socket_window,
+        "socket_baseline_median": socket_baseline,
+        "socket_tail_median": socket_tail,
+        "socket_max": socket_max,
+        "socket_transient_allowance": socket_transient_allowance,
         "high_cpu_contiguous_seconds_max": high_cpu_seconds,
         "resource_budget_frozen_before_run": True,
         "os_enforced_containment": False,

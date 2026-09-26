@@ -158,6 +158,38 @@ def test_resource_summary_uses_only_actual_socket_observations(tmp_path: Path) -
     assert summary["gates"]["no_monotonic_socket_growth"] is True
 
 
+def test_resource_summary_ignores_connection_establishment_but_rejects_socket_leak(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "resources.ndjson"
+    stable = [1.0, 7.0, 7.0, 7.0, 7.0, 7.0, 7.0, 7.0, 7.0]
+
+    def rows_for(sockets: list[float]) -> list[dict[str, object]]:
+        return [
+            {
+                "elapsed_seconds": float(index * 30),
+                "cpu_percent": 20.0,
+                "rss_bytes": 50_000_000.0,
+                "threads": 4.0,
+                "socket_sampled": True,
+                "open_sockets": value,
+                "socket_measurement_supported": True,
+            }
+            for index, value in enumerate(sockets)
+        ]
+
+    write_rows(path, rows_for(stable))
+    summary = trials.resource_summary(path, 270, 100.0, 268_435_456)
+    assert summary["socket_baseline_median"] == 7.0
+    assert summary["socket_tail_median"] == 7.0
+    assert summary["gates"]["no_monotonic_socket_growth"] is True
+
+    write_rows(path, rows_for(stable[:-3] + [8.0, 9.0, 10.0]))
+    leaked = trials.resource_summary(path, 270, 100.0, 268_435_456)
+    assert leaked["socket_tail_median"] == 9.0
+    assert leaked["gates"]["no_monotonic_socket_growth"] is False
+
+
 def test_sampler_uses_absolute_cadence_despite_slow_socket_scan(
     tmp_path: Path, monkeypatch: object
 ) -> None:
