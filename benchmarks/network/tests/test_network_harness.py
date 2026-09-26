@@ -163,6 +163,26 @@ class HarnessTests(unittest.TestCase):
                 "items": [{}] * (network_harness.DELTA_BATCH_MAX_COUNT + 1),
             })
 
+    def test_gzip_observation_ack_batch_decodes_with_strict_bounds(self):
+        ack = {"message_type": "observation_ack", "message_id": "m1", "accepted": True}
+        batch = {"message_type": "observation_ack_batch", "encoding": "gzip-v1",
+                 "items": [ack]}
+        frame = network_harness.ACK_GZIP_BATCH_MAGIC + gzip.compress(
+            json.dumps(batch).encode()
+        )
+        self.assertEqual(network_harness.decode_observation_ack_frame(frame), [ack])
+        self.assertEqual(
+            network_harness.decode_observation_ack_frame(json.dumps(ack)), [ack]
+        )
+        with self.assertRaisesRegex(ValueError, "trailing"):
+            network_harness.decode_observation_ack_frame(frame + b"x")
+        oversized = dict(batch, items=[ack] * (network_harness.ACK_BATCH_MAX_COUNT + 1))
+        with self.assertRaisesRegex(ValueError, "item count"):
+            network_harness.decode_observation_ack_frame(
+                network_harness.ACK_GZIP_BATCH_MAGIC
+                + gzip.compress(json.dumps(oversized).encode())
+            )
+
     def test_monotonic_watchdog_covers_no_progress_and_queue_age(self):
         timeout = 100
         self.assertFalse(network_harness.monotonic_watchdog_expired(99, 0, None, timeout))

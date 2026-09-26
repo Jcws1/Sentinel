@@ -49,6 +49,9 @@ const DELTA_BATCH_MAX_COUNT: usize = 64;
 const DELTA_BATCH_MAX_WAIT: Duration = Duration::from_millis(10);
 const DELTA_BATCH_MAX_DECOMPRESSED_BYTES: usize = 1024 * 1024;
 const GZIP_BATCH_MAGIC: &[u8; 4] = b"SDG1";
+const ACK_GZIP_BATCH_MAGIC: &[u8; 4] = b"SDA1";
+const ACK_BATCH_MAX_COUNT: usize = 64;
+const ACK_BATCH_MAX_WAIT: Duration = Duration::from_millis(10);
 const DEFAULT_OBSERVATION_IDEMPOTENCY_RETENTION: usize = 100_000;
 const OBSERVATION_LATENCY_SAMPLE_RETENTION: usize = 100_000;
 const DEFAULT_MAX_TRACKS: usize = 30;
@@ -1611,13 +1614,23 @@ async fn ingest(State(s): State<AppState>, Json(o): Json<Observation>) -> Respon
     }
 }
 
-async fn observation_stream_upgrade(State(s): State<AppState>, ws: WebSocketUpgrade) -> Response {
+#[derive(Default, Deserialize)]
+struct ObservationStreamParams {
+    ack_batch: Option<String>,
+}
+
+async fn observation_stream_upgrade(
+    State(s): State<AppState>,
+    Query(params): Query<ObservationStreamParams>,
+    ws: WebSocketUpgrade,
+) -> Response {
     let state = s.clone();
+    let gzip_ack_batches = params.ack_batch.as_deref() == Some("gzip-v1");
     with_epoch(
         &s,
         ws.max_message_size(64 * 1024)
             .max_frame_size(64 * 1024)
-            .on_upgrade(move |socket| observation_stream(socket, state)),
+            .on_upgrade(move |socket| observation_stream(socket, state, gzip_ack_batches)),
     )
 }
 
@@ -1628,23 +1641,47 @@ fn stream_ack(
     duplicate: bool,
     result_sequence: Option<u64>,
     error: Option<&'static str>,
-) -> Message {
-    Message::Text(
-        serde_json::to_string(&ObservationStreamAck {
-            transport_version: "sentinel-gateway/v1",
-            message_type: "observation_ack",
-            server_epoch: state.epoch.as_str().to_owned(),
-            message_id: observation.map(|item| item.message_id.clone()),
-            observation_id: observation.map(|item| item.observation_id.clone()),
-            correlation_id: observation.map(|item| item.correlation.correlation_id.clone()),
-            accepted,
-            duplicate,
-            result_sequence,
-            error,
-        })
-        .expect("serialize observation acknowledgement")
-        .into(),
-    )
+) -> String {
+    serde_json::to_string(&ObservationStreamAck {
+        transport_version: "sentinel-gateway/v1",
+        message_type: "observation_ack",
+        server_epoch: state.epoch.as_str().to_owned(),
+        message_id: observation.map(|item| item.message_id.clone()),
+        observation_id: observation.map(|item| item.observation_id.clone()),
+        correlation_id: observation.map(|item| item.correlation.correlation_id.clone()),
+        accepted,
+        duplicate,
+        result_sequence,
+        error,
+    })
+    .expect("serialize observation acknowledgement")
+}
+
+fn gzip_ack_batch(payloads: &[String]) -> Message {
+    let items: Vec<Value> = payloads
+        .iter()
+        .map(|payload| serde_json::from_str(payload).expect("serialized ACK remains valid JSON"))
+        .collect();
+    let raw = serde_json::to_vec(&json!({
+        "message_type":"observation_ack_batch",
+        "encoding":"gzip-v1",
+        "items":items
+    }))
+    .expect("serialize observation ACK batch");
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+    encoder
+        .write_all(&raw)
+        .expect("compress observation ACK batch");
+    let compressed = encoder.finish().expect("finish observation ACK batch");
+    let mut frame = Vec::with_capacity(ACK_GZIP_BATCH_MAGIC.len() + compressed.len());
+    frame.extend_from_slice(ACK_GZIP_BATCH_MAGIC);
+    frame.extend_from_slice(&compressed);
+    Message::Binary(frame.into())
+}
+
+enum ObservationStreamReply {
+    Ack(String),
+    Pong(axum::body::Bytes),
 }
 
 /// One ordered, full-duplex observation stream per source. The reader never
@@ -1652,9 +1689,9 @@ fn stream_ack(
 /// are placed on a bounded writer queue in receive order. If the peer does not
 /// read acknowledgements, only that stream is disconnected instead of allowing
 /// unbounded memory growth.
-async fn observation_stream(socket: WebSocket, state: AppState) {
+async fn observation_stream(socket: WebSocket, state: AppState, gzip_ack_batches: bool) {
     let (mut writer, mut reader) = socket.split();
-    let (ack_tx, mut ack_rx) = mpsc::channel::<Message>(state.client_queue_capacity);
+    let (ack_tx, mut ack_rx) = mpsc::channel::<ObservationStreamReply>(state.client_queue_capacity);
     state
         .metrics
         .observation_streams_connected
@@ -1667,6 +1704,8 @@ async fn observation_stream(socket: WebSocket, state: AppState) {
             "schema_version":VERSION,
             "server_epoch":state.epoch.as_str(),
             "acknowledgement":"per_message_ordered",
+            "ack_transport_capabilities":["ack_batch=gzip-v1"],
+            "active_ack_batch":if gzip_ack_batches { Some("gzip-v1") } else { None },
             "source_binding":"first_observation_source_id",
             "max_message_bytes":64 * 1024,
             "ack_queue_capacity":state.client_queue_capacity
@@ -1682,10 +1721,38 @@ async fn observation_stream(socket: WebSocket, state: AppState) {
         ) {
             return;
         }
-        while let Some(message) = ack_rx.recv().await {
+        while let Some(reply) = ack_rx.recv().await {
             if !ack_send_delay.is_zero() {
                 tokio::time::sleep(ack_send_delay).await;
             }
+            let message = match reply {
+                ObservationStreamReply::Pong(payload) => Message::Pong(payload),
+                ObservationStreamReply::Ack(first) if gzip_ack_batches => {
+                    let mut batch = vec![first];
+                    let deadline = tokio::time::Instant::now() + ACK_BATCH_MAX_WAIT;
+                    while batch.len() < ACK_BATCH_MAX_COUNT {
+                        match tokio::time::timeout_at(deadline, ack_rx.recv()).await {
+                            Ok(Some(ObservationStreamReply::Ack(ack))) => batch.push(ack),
+                            Ok(Some(ObservationStreamReply::Pong(payload))) => {
+                                if writer.send(gzip_ack_batch(&batch)).await.is_err() {
+                                    return;
+                                }
+                                batch.clear();
+                                if writer.send(Message::Pong(payload)).await.is_err() {
+                                    return;
+                                }
+                                break;
+                            }
+                            Ok(None) | Err(_) => break,
+                        }
+                    }
+                    if batch.is_empty() {
+                        continue;
+                    }
+                    gzip_ack_batch(&batch)
+                }
+                ObservationStreamReply::Ack(ack) => Message::Text(ack.into()),
+            };
             if !matches!(
                 tokio::time::timeout(OBSERVATION_STREAM_WRITE_TIMEOUT, writer.send(message)).await,
                 Ok(Ok(()))
@@ -1714,7 +1781,10 @@ async fn observation_stream(socket: WebSocket, state: AppState) {
             Ok(Message::Binary(value)) => value.to_vec(),
             Ok(Message::Close(_)) | Err(_) => break,
             Ok(Message::Ping(payload)) => {
-                if ack_tx.try_send(Message::Pong(payload)).is_err() {
+                if ack_tx
+                    .try_send(ObservationStreamReply::Pong(payload))
+                    .is_err()
+                {
                     state
                         .metrics
                         .observation_stream_backpressure_disconnects
@@ -1804,7 +1874,12 @@ async fn observation_stream(socket: WebSocket, state: AppState) {
         // instead of disconnecting and replaying the whole producer window.
         // The writer independently bounds every socket write with the same
         // timeout, so a peer that truly stops reading still terminates.
-        match tokio::time::timeout(OBSERVATION_STREAM_WRITE_TIMEOUT, ack_tx.send(ack)).await {
+        match tokio::time::timeout(
+            OBSERVATION_STREAM_WRITE_TIMEOUT,
+            ack_tx.send(ObservationStreamReply::Ack(ack)),
+        )
+        .await
+        {
             Ok(Ok(())) => {
                 let depth = ack_tx.max_capacity() - ack_tx.capacity();
                 state
@@ -3149,6 +3224,48 @@ mod tests {
             2
         );
         assert_eq!(retained_state.delta_sequence.load(Ordering::Relaxed), 2);
+        socket.close(None).await.unwrap();
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn observation_stream_negotiates_bounded_gzip_ack_batches() {
+        let state = AppState::new(64);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app(state)).await.unwrap();
+        });
+        let (mut socket, _) = tokio_tungstenite::connect_async(format!(
+            "ws://{address}/v1/observations/stream?ack_batch=gzip-v1"
+        ))
+        .await
+        .unwrap();
+
+        let hello: Value =
+            serde_json::from_str(socket.next().await.unwrap().unwrap().to_text().unwrap()).unwrap();
+        assert_eq!(hello["active_ack_batch"], "gzip-v1");
+        assert_eq!(hello["ack_transport_capabilities"][0], "ack_batch=gzip-v1");
+        for sequence in 1..=64 {
+            socket
+                .send(tokio_tungstenite::tungstenite::Message::Text(
+                    observation(sequence).to_string().into(),
+                ))
+                .await
+                .unwrap();
+        }
+        let frame = socket.next().await.unwrap().unwrap();
+        let bytes = frame.into_data();
+        assert_eq!(&bytes[..4], ACK_GZIP_BATCH_MAGIC);
+        assert_eq!(&bytes[4..6], &[0x1f, 0x8b]);
+        let mut decoder = flate2::read::GzDecoder::new(&bytes[4..]);
+        let mut decoded = String::new();
+        std::io::Read::read_to_string(&mut decoder, &mut decoded).unwrap();
+        let batch: Value = serde_json::from_str(&decoded).unwrap();
+        let items = batch["items"].as_array().unwrap();
+        assert!(!items.is_empty() && items.len() <= ACK_BATCH_MAX_COUNT);
+        assert_eq!(items[0]["message_type"], "observation_ack");
+
         socket.close(None).await.unwrap();
         server.abort();
     }

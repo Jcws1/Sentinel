@@ -35,8 +35,11 @@ PROTOCOL = "realtime/v1"
 LATENCY_RESERVOIR_CAPACITY = 16_384
 INGRESS_TIMESTAMP_CAPACITY = 32_768
 GZIP_BATCH_MAGIC = b"SDG1"
+ACK_GZIP_BATCH_MAGIC = b"SDA1"
 DELTA_BATCH_MAX_COUNT = 64
 DELTA_BATCH_MAX_DECOMPRESSED_BYTES = 1024 * 1024
+ACK_BATCH_MAX_COUNT = 64
+ACK_BATCH_MAX_DECOMPRESSED_BYTES = 1024 * 1024
 INGEST_PENDING_WINDOW = 4096
 
 
@@ -165,25 +168,28 @@ class ReliableObservationStream:
 
     async def _read_acks(self, socket: Any) -> None:
         async for raw in socket:
-            ack = json.loads(raw)
-            if ack.get("message_type") != "observation_ack":
-                raise RuntimeError(f"unexpected observation stream response: {ack}")
-            message_id = ack.get("message_id")
-            if not isinstance(message_id, str):
-                raise RuntimeError(f"observation ACK has no message_id: {ack}")
-            async with self._condition:
-                if message_id in self.acked_ids:
-                    self.metrics.duplicate_acks += 1
-                    continue
-                if message_id not in self.pending:
-                    raise RuntimeError(f"observation ACK is for an unknown message: {message_id}")
-                self.acked_ids.add(message_id)
-                self._acked_order.append(message_id)
-                while len(self._acked_order) > self._acked_capacity:
-                    self.acked_ids.discard(self._acked_order.popleft())
-                del self.pending[message_id]
-                self._condition.notify_all()
-            self.on_ack(ack)
+            for ack in decode_observation_ack_frame(raw):
+                await self._account_ack(ack)
+
+    async def _account_ack(self, ack: dict[str, Any]) -> None:
+        if ack.get("message_type") != "observation_ack":
+            raise RuntimeError(f"unexpected observation stream response: {ack}")
+        message_id = ack.get("message_id")
+        if not isinstance(message_id, str):
+            raise RuntimeError(f"observation ACK has no message_id: {ack}")
+        async with self._condition:
+            if message_id in self.acked_ids:
+                self.metrics.duplicate_acks += 1
+                return
+            if message_id not in self.pending:
+                raise RuntimeError(f"observation ACK is for an unknown message: {message_id}")
+            self.acked_ids.add(message_id)
+            self._acked_order.append(message_id)
+            while len(self._acked_order) > self._acked_capacity:
+                self.acked_ids.discard(self._acked_order.popleft())
+            del self.pending[message_id]
+            self._condition.notify_all()
+        self.on_ack(ack)
 
     async def _ensure_connected(self, deadline: float) -> Any:
         async with self._connect_lock:
@@ -193,7 +199,7 @@ class ReliableObservationStream:
                 return self._socket
             if self._reader is not None and self._reader.done():
                 reader_error = self._reader.exception()
-                if isinstance(reader_error, (RuntimeError, json.JSONDecodeError)):
+                if isinstance(reader_error, (RuntimeError, ValueError)):
                     raise RuntimeError(
                         f"invalid observation ACK stream: {reader_error}"
                     ) from reader_error
@@ -207,6 +213,11 @@ class ReliableObservationStream:
                     hello = json.loads(await socket.recv())
                     if hello.get("message_type") != "observation_stream_hello":
                         raise RuntimeError(f"unexpected observation stream hello: {hello}")
+                    requested_gzip = urllib.parse.parse_qs(
+                        urllib.parse.urlsplit(self.url).query
+                    ).get("ack_batch") == ["gzip-v1"]
+                    if requested_gzip and hello.get("active_ack_batch") != "gzip-v1":
+                        raise RuntimeError(f"gzip ACK batching was not negotiated: {hello}")
                     if self._ever_connected:
                         self.metrics.reconnects += 1
                     self._ever_connected = True
@@ -498,6 +509,36 @@ def decode_gateway_frame(raw: str | bytes) -> dict[str, Any]:
     if not isinstance(message, dict) or message.get("message_type") != "delta_batch":
         raise ValueError("compressed gateway frame is not a delta batch")
     return message
+
+
+def decode_observation_ack_frame(raw: str | bytes) -> list[dict[str, Any]]:
+    """Decode one legacy text ACK or one bounded SDA1 gzip ACK batch."""
+    if isinstance(raw, str):
+        message = json.loads(raw)
+        return [message]
+    if not raw.startswith(ACK_GZIP_BATCH_MAGIC):
+        raise ValueError("unknown binary observation ACK frame")
+    compressed = raw[len(ACK_GZIP_BATCH_MAGIC):]
+    if not compressed:
+        raise ValueError("empty compressed observation ACK frame")
+    decoder = zlib.decompressobj(wbits=31)
+    decoded = decoder.decompress(compressed, ACK_BATCH_MAX_DECOMPRESSED_BYTES + 1)
+    if len(decoded) > ACK_BATCH_MAX_DECOMPRESSED_BYTES or decoder.unconsumed_tail:
+        raise ValueError("observation ACK batch exceeds decompressed size limit")
+    decoded += decoder.flush()
+    if len(decoded) > ACK_BATCH_MAX_DECOMPRESSED_BYTES:
+        raise ValueError("observation ACK batch exceeds decompressed size limit")
+    if not decoder.eof or decoder.unused_data:
+        raise ValueError("invalid or trailing gzip observation ACK data")
+    message = json.loads(decoded)
+    if not isinstance(message, dict) or message.get("message_type") != "observation_ack_batch":
+        raise ValueError("compressed observation ACK frame is not an ACK batch")
+    items = message.get("items")
+    if not isinstance(items, list) or not 1 <= len(items) <= ACK_BATCH_MAX_COUNT:
+        raise ValueError("observation ACK batch has invalid item count")
+    if not all(isinstance(item, dict) for item in items):
+        raise ValueError("observation ACK batch contains a non-object item")
+    return items
 
 
 def monotonic_watchdog_expired(
@@ -1084,6 +1125,13 @@ async def run_live(args: argparse.Namespace) -> dict[str, Any]:
             stream_url = urllib.parse.urlunsplit(
                 (scheme, parsed.netloc, args.observation_stream_path, "", "")
             )
+        parsed_stream = urllib.parse.urlsplit(stream_url)
+        stream_query = urllib.parse.parse_qsl(parsed_stream.query, keep_blank_values=True)
+        stream_query = [(key, value) for key, value in stream_query if key != "ack_batch"]
+        stream_query.append(("ack_batch", "gzip-v1"))
+        stream_url = urllib.parse.urlunsplit(parsed_stream._replace(
+            query=urllib.parse.urlencode(stream_query)
+        ))
         intended_count = ticks * args.drones
         def account_ack(ack: dict[str, Any]) -> None:
             nonlocal accepted, rejected

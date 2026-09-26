@@ -263,3 +263,44 @@ measured here.
 - Durable command/receipt audit showing retry and uncertainty outcomes.
 - Every failed attempt, environmental anomaly and scope limitation.
 - Independent rerun report and explicit pass/fail decision per gate.
+
+## 2026-09-26 long-run findings and release decision
+
+The five-run expected-cloud gate remains **open**. Failed runs are immutable
+evidence under `test-results/realtime-core/`; they must not be replaced by the
+short calibrations that motivated each correction.
+
+- `expected-cloud-acceptance-e229b51/trial-1` exhausted the reconnect deadline
+  after its 4,096-message replay window filled.
+- `expected-cloud-acceptance-70e2365/trial-1` accepted and converged all data,
+  but ACK pressure and observer TCP backlog caused reconnects, queue saturation,
+  outage windows and latency failure.
+- `expected-cloud-acceptance-78bcb46/trial-1` passed all realtime gates but
+  exposed a socket-slope measurement defect: the first sample preceded normal
+  connection establishment while every later sample was exactly seven.
+- `expected-cloud-acceptance-9175308/trial-1` passed (600.045/s, 100%
+  availability, publish-to-apply p95 110.307 ms/p99 138.755 ms); trial 2 then
+  failed queue and p99 gates (depth 239, p99 550.594 ms). One passing run is not
+  a release pass.
+- `expected-cloud-acceptance-e8c1d6e/trial-1` showed that an 8,192-message ingest
+  replay could starve all five observers for roughly 3.3 seconds. Concurrent
+  ACK drain and bounded Rust task yielding corrected that amplification.
+- `expected-cloud-acceptance-eac89af/trial-1` kept every observer at 100%
+  availability with p95 122.140 ms/p99 187.179 ms, but the reverse stream of
+  600 individual JSON ACKs/s limited offer cadence to 518.876/s.
+
+The gateway and harness now negotiate bounded gzip ACK batches (`SDA1`, at most
+64 ACKs and 1 MiB decompressed) while preserving legacy per-message text ACKs.
+A two-minute calibration restored 600.205/s offer cadence with zero reconnects
+or resends. It still saw forward observer p95 245.420 ms/p99 666.236 ms under
+one loss realization. Increasing the delta batch loss unit to 20 ms made the
+tail worse (p95 369.223 ms/p99 971.620 ms), so that experiment was reverted.
+
+Decision: do not relax the frozen 2-second freshness, 200/500 ms latency,
+100%-availability or queue gates. Random loss on a single ordered TCP flow can
+still create shared head-of-line tails after payload compression and fair
+replay are fixed. Before repeating five formal runs, implement and compare a
+loss-resilient browser transport (QUIC/WebTransport preferred) or independently
+recoverable redundant delivery lanes with ordered merge, bounded reordering,
+and explicit per-lane resource metrics. TCP/WebSocket remains the compatibility
+path, not yet the release-qualified expected-cloud path.
