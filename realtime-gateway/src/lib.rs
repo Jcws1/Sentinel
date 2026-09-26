@@ -45,9 +45,14 @@ const OBSERVER_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(1);
 // larger ceiling matters after brief TCP head-of-line stalls: it lets the
 // writer drain its already-bounded queue efficiently instead of turning a
 // recoverable cloud-network pause into a snapshot cycle.
-const DELTA_BATCH_MAX_COUNT: usize = 64;
-const DELTA_BATCH_MAX_WAIT: Duration = Duration::from_millis(10);
+// Close batches on authoritative sequence multiples so independently scheduled
+// subscribers produce identical ranges and reuse one cached compressed frame.
+// Sixteen deltas fill in about 26.7 ms at the 600 Hz acceptance load; the
+// deadline bounds latency at lower rates and after partial reconnect suffixes.
+const DELTA_BATCH_MAX_COUNT: usize = 16;
+const DELTA_BATCH_MAX_WAIT: Duration = Duration::from_millis(40);
 const DELTA_BATCH_MAX_DECOMPRESSED_BYTES: usize = 1024 * 1024;
+const DELTA_BATCH_CACHE_CAPACITY: usize = 1024;
 const GZIP_BATCH_MAGIC: &[u8; 4] = b"SDG1";
 const ACK_GZIP_BATCH_MAGIC: &[u8; 4] = b"SDA1";
 const ACK_BATCH_MAX_COUNT: usize = 64;
@@ -343,6 +348,8 @@ pub struct Metrics {
     deltas_sent_in_batches: AtomicU64,
     delta_batch_compressed_bytes: AtomicU64,
     delta_batch_uncompressed_bytes: AtomicU64,
+    delta_batch_cache_hits: AtomicU64,
+    delta_batch_cache_misses: AtomicU64,
     observation_latency_us: Mutex<VecDeque<u64>>,
     observation_idempotency_evictions: AtomicU64,
     track_capacity_rejections: AtomicU64,
@@ -373,6 +380,8 @@ struct MetricsView {
     deltas_sent_in_batches: u64,
     delta_batch_compressed_bytes: u64,
     delta_batch_uncompressed_bytes: u64,
+    delta_batch_cache_hits: u64,
+    delta_batch_cache_misses: u64,
     max_client_queue_depth: usize,
     observation_latency_us_p50: u64,
     observation_latency_us_p95: u64,
@@ -442,6 +451,36 @@ struct Hub {
     clients: HashMap<u64, Subscriber>,
     retained: VecDeque<RetainedDelta>,
     retention: usize,
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+struct DeltaBatchKey {
+    first_sequence: u64,
+    last_sequence: u64,
+    count: usize,
+}
+
+#[derive(Default)]
+struct DeltaBatchCache {
+    entries: HashMap<DeltaBatchKey, (Arc<Vec<u8>>, usize)>,
+    insertion_order: VecDeque<DeltaBatchKey>,
+}
+
+impl DeltaBatchCache {
+    fn get(&self, key: &DeltaBatchKey) -> Option<(Arc<Vec<u8>>, usize)> {
+        self.entries.get(key).cloned()
+    }
+
+    fn insert(&mut self, key: DeltaBatchKey, frame: Arc<Vec<u8>>, size: usize) {
+        if self.entries.insert(key, (frame, size)).is_none() {
+            self.insertion_order.push_back(key);
+        }
+        while self.entries.len() > DELTA_BATCH_CACHE_CAPACITY {
+            if let Some(oldest) = self.insertion_order.pop_front() {
+                self.entries.remove(&oldest);
+            }
+        }
+    }
 }
 
 impl Hub {
@@ -546,6 +585,7 @@ pub struct AppState {
     ingestion_lock: Arc<Mutex<()>>,
     command_db: Arc<Mutex<Connection>>,
     hub: Arc<Mutex<Hub>>,
+    delta_batch_cache: Arc<Mutex<DeltaBatchCache>>,
     pub metrics: Arc<Metrics>,
     client_queue_capacity: usize,
     observation_ack_send_delay: Duration,
@@ -772,6 +812,7 @@ impl AppState {
             ingestion_lock: Default::default(),
             command_db: Arc::new(Mutex::new(connection)),
             hub: Arc::new(Mutex::new(Hub::new(delta_retention))),
+            delta_batch_cache: Default::default(),
             metrics: Default::default(),
             client_queue_capacity,
             observation_ack_send_delay: Duration::ZERO,
@@ -1425,6 +1466,8 @@ async fn metrics(State(s): State<AppState>) -> Json<MetricsView> {
             .metrics
             .delta_batch_uncompressed_bytes
             .load(Ordering::Relaxed),
+        delta_batch_cache_hits: s.metrics.delta_batch_cache_hits.load(Ordering::Relaxed),
+        delta_batch_cache_misses: s.metrics.delta_batch_cache_misses.load(Ordering::Relaxed),
         max_client_queue_depth: s.metrics.max_client_queue_depth.load(Ordering::Relaxed),
         observation_latency_us_p50: percentile(&mut samples.clone(), 0.50),
         observation_latency_us_p95: percentile(&mut samples.clone(), 0.95),
@@ -2534,6 +2577,31 @@ struct WsParams {
     batch: Option<String>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DeltaBatchMode {
+    None,
+    Json,
+    Gzip,
+}
+
+impl DeltaBatchMode {
+    fn negotiate(value: Option<&str>) -> Self {
+        match value {
+            Some("json-v1") => Self::Json,
+            Some("gzip-v1") => Self::Gzip,
+            _ => Self::None,
+        }
+    }
+
+    fn label(self) -> Option<&'static str> {
+        match self {
+            Self::None => None,
+            Self::Json => Some("json-v1"),
+            Self::Gzip => Some("gzip-v1"),
+        }
+    }
+}
+
 async fn ws_upgrade(
     State(s): State<AppState>,
     Query(params): Query<WsParams>,
@@ -2547,7 +2615,7 @@ async fn ws_upgrade(
                 socket,
                 state,
                 params.after_sequence,
-                params.batch.as_deref() == Some("gzip-v1"),
+                DeltaBatchMode::negotiate(params.batch.as_deref()),
             )
         }),
     )
@@ -2594,21 +2662,81 @@ fn gzip_delta_batch(state: &AppState, payloads: Vec<String>) -> Result<(Vec<u8>,
     Ok((frame, json.len()))
 }
 
+fn delta_sequence_from_payload(payload: &str) -> Option<u64> {
+    serde_json::from_str::<Value>(payload)
+        .ok()?
+        .get("result_sequence")?
+        .as_u64()
+}
+
+fn delta_batch_key(payloads: &[String]) -> Option<DeltaBatchKey> {
+    Some(DeltaBatchKey {
+        first_sequence: delta_sequence_from_payload(payloads.first()?)?,
+        last_sequence: delta_sequence_from_payload(payloads.last()?)?,
+        count: payloads.len(),
+    })
+}
+
+fn cached_gzip_delta_batch(
+    state: &AppState,
+    payloads: Vec<String>,
+) -> Result<(Vec<u8>, usize), String> {
+    let key = delta_batch_key(&payloads);
+    if let Some(key) = key
+        && let Some((frame, uncompressed_len)) = state.delta_batch_cache.lock().unwrap().get(&key)
+    {
+        state
+            .metrics
+            .delta_batch_cache_hits
+            .fetch_add(1, Ordering::Relaxed);
+        return Ok((frame.as_ref().clone(), uncompressed_len));
+    }
+    state
+        .metrics
+        .delta_batch_cache_misses
+        .fetch_add(1, Ordering::Relaxed);
+    let (frame, uncompressed_len) = gzip_delta_batch(state, payloads)?;
+    if let Some(key) = key {
+        state.delta_batch_cache.lock().unwrap().insert(
+            key,
+            Arc::new(frame.clone()),
+            uncompressed_len,
+        );
+    }
+    Ok((frame, uncompressed_len))
+}
+
 async fn send_delta_payloads<S>(
     socket: &mut S,
     state: &AppState,
     payloads: Vec<String>,
-    gzip_batches: bool,
+    batch_mode: DeltaBatchMode,
 ) -> Result<(), S::Error>
 where
     S: Sink<Message> + Unpin,
 {
-    if !gzip_batches || payloads.len() == 1 {
+    if batch_mode == DeltaBatchMode::None || payloads.len() == 1 {
         return socket
             .send(Message::Text(payloads.into_iter().next().unwrap().into()))
             .await;
     }
-    let (frame, uncompressed_len) = match gzip_delta_batch(state, payloads.clone()) {
+    if batch_mode == DeltaBatchMode::Json {
+        let json = delta_batch_message(state, payloads.clone());
+        state
+            .metrics
+            .delta_batches_sent
+            .fetch_add(1, Ordering::Relaxed);
+        state
+            .metrics
+            .deltas_sent_in_batches
+            .fetch_add(payloads.len() as u64, Ordering::Relaxed);
+        state
+            .metrics
+            .delta_batch_uncompressed_bytes
+            .fetch_add(json.len() as u64, Ordering::Relaxed);
+        return socket.send(Message::Text(json.into())).await;
+    }
+    let (frame, uncompressed_len) = match cached_gzip_delta_batch(state, payloads.clone()) {
         Ok(frame) => frame,
         Err(_) => {
             for payload in payloads {
@@ -2636,7 +2764,7 @@ where
     socket.send(Message::Binary(frame.into())).await
 }
 
-async fn ws_client(mut socket: WebSocket, state: AppState, after: u64, gzip_batches: bool) {
+async fn ws_client(mut socket: WebSocket, state: AppState, after: u64, batch_mode: DeltaBatchMode) {
     let subscription = state
         .hub
         .lock()
@@ -2664,20 +2792,20 @@ async fn ws_client(mut socket: WebSocket, state: AppState, after: u64, gzip_batc
     let hello = json!({"message_type":"gateway_hello","schema_version":VERSION,"server_epoch":state.epoch.as_str(),
         "transport_version":"sentinel-gateway/v1","stream_id":STREAM_ID,"requested_after_sequence":after,
         "current_sequence":subscription_cursor,"recovery":"GET /v1/snapshot",
-        "transport_capabilities":["batch=gzip-v1"],
-        "active_batch":if gzip_batches { Some("gzip-v1") } else { None }});
+        "transport_capabilities":["batch=json-v1","batch=gzip-v1"],
+        "active_batch":batch_mode.label()});
     if sender
         .send(Message::Text(hello.to_string().into()))
         .await
         .is_ok()
     {
-        let suffix_chunk_size = if gzip_batches {
+        let suffix_chunk_size = if batch_mode != DeltaBatchMode::None {
             DELTA_BATCH_MAX_COUNT
         } else {
             1
         };
         for payloads in suffix.chunks(suffix_chunk_size) {
-            if send_delta_payloads(&mut sender, &state, payloads.to_vec(), gzip_batches)
+            if send_delta_payloads(&mut sender, &state, payloads.to_vec(), batch_mode)
                 .await
                 .is_err()
             {
@@ -2691,19 +2819,30 @@ async fn ws_client(mut socket: WebSocket, state: AppState, after: u64, gzip_batc
             tokio::select! {
                 item = rx.recv() => match item {
                     Some(first) => {
-                        if !gzip_batches {
-                            if send_delta_payloads(&mut sender, &state, vec![first], false).await.is_err(){break}
+                        if batch_mode == DeltaBatchMode::None {
+                            if send_delta_payloads(&mut sender, &state, vec![first], batch_mode).await.is_err(){break}
                             continue;
                         }
+                        let first_sequence = delta_sequence_from_payload(&first);
+                        let boundary = first_sequence.map(|sequence| {
+                            ((sequence - 1) / DELTA_BATCH_MAX_COUNT as u64 + 1)
+                                * DELTA_BATCH_MAX_COUNT as u64
+                        });
+                        let mut last_sequence = first_sequence;
                         let mut payloads = vec![first];
                         let deadline = tokio::time::Instant::now() + DELTA_BATCH_MAX_WAIT;
-                        while payloads.len() < DELTA_BATCH_MAX_COUNT {
+                        while payloads.len() < DELTA_BATCH_MAX_COUNT
+                            && boundary.is_none_or(|end| last_sequence != Some(end))
+                        {
                             match tokio::time::timeout_at(deadline, rx.recv()).await {
-                                Ok(Some(next)) => payloads.push(next),
+                                Ok(Some(next)) => {
+                                    last_sequence = delta_sequence_from_payload(&next);
+                                    payloads.push(next);
+                                },
                                 Ok(None) | Err(_) => break,
                             }
                         }
-                        if send_delta_payloads(&mut sender, &state, payloads, true).await.is_err(){break}
+                        if send_delta_payloads(&mut sender, &state, payloads, batch_mode).await.is_err(){break}
                     },
                     None => break
                 },
@@ -2798,6 +2937,24 @@ mod tests {
     }
 
     #[test]
+    fn delta_batch_mode_is_explicit_and_fail_closed() {
+        assert_eq!(
+            DeltaBatchMode::negotiate(Some("json-v1")),
+            DeltaBatchMode::Json
+        );
+        assert_eq!(
+            DeltaBatchMode::negotiate(Some("gzip-v1")),
+            DeltaBatchMode::Gzip
+        );
+        assert_eq!(
+            DeltaBatchMode::negotiate(Some("unknown")),
+            DeltaBatchMode::None
+        );
+        assert_eq!(DeltaBatchMode::negotiate(None), DeltaBatchMode::None);
+        assert_eq!(DeltaBatchMode::Json.label(), Some("json-v1"));
+    }
+
+    #[test]
     fn gzip_batch_has_versioned_magic_and_bounded_round_trip() {
         let state = AppState::new(8);
         let items = vec![
@@ -2813,6 +2970,30 @@ mod tests {
         assert_eq!(decoded.len(), decompressed_len);
         let batch: Value = serde_json::from_str(&decoded).unwrap();
         assert_eq!(batch["items"].as_array().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn equivalent_sequence_batch_reuses_bounded_compressed_frame() {
+        let state = AppState::new(8);
+        let items = vec![
+            json!({"transport_version":"sentinel-gateway/v1","result_sequence":1}).to_string(),
+            json!({"transport_version":"sentinel-gateway/v1","result_sequence":2}).to_string(),
+        ];
+        let first = cached_gzip_delta_batch(&state, items.clone()).unwrap();
+        let second = cached_gzip_delta_batch(&state, items).unwrap();
+        assert_eq!(first, second);
+        assert_eq!(
+            state
+                .metrics
+                .delta_batch_cache_misses
+                .load(Ordering::Relaxed),
+            1
+        );
+        assert_eq!(
+            state.metrics.delta_batch_cache_hits.load(Ordering::Relaxed),
+            1
+        );
+        assert_eq!(state.delta_batch_cache.lock().unwrap().entries.len(), 1);
     }
 
     #[tokio::test]

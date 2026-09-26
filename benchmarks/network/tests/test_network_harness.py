@@ -170,6 +170,25 @@ class HarnessTests(unittest.TestCase):
         with self.assertRaisesRegex(network_harness.ObserverMergeError, "age"):
             merge.check_age(13)
 
+    def test_redundant_merge_marks_duplicate_outside_history_as_lane_local(self):
+        model = network_harness.ClientModel("logical")
+        model.install_snapshot({"stream_epoch": "e", "sequence": 0, "tracks": []})
+        merge = network_harness.RedundantObserverMerge(
+            model, max_count=1, max_distance=1, max_age_ns=100
+        )
+        deltas = [
+            {"stream_epoch": "e", "base_sequence": sequence - 1,
+             "sequence": sequence,
+             "track": {"track_id": "T", "revision": sequence}}
+            for sequence in range(1, 6)
+        ]
+        for delta in deltas:
+            merge.offer(delta, 0, delta["sequence"])
+        with self.assertRaisesRegex(
+            network_harness.ObserverLaneStaleError, "outside fingerprint history"
+        ):
+            merge.offer(deltas[0], 1, 10)
+
     def test_live_parser_exposes_redundant_observer_contract(self):
         args = network_harness.parser().parse_args([
             "live", "--observer-lanes", "2",

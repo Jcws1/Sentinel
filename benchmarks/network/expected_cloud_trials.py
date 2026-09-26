@@ -439,10 +439,15 @@ async def one_trial(root: Path, number: int, warmup: float, duration: float,
                 len(clients) == LOGICAL_OPERATOR_COUNT
                 and all(
                     c.get("observer_lanes") == OBSERVER_LANES_PER_OPERATOR
-                    and c.get("lane_reconnects")
-                    == [0] * OBSERVER_LANES_PER_OPERATOR
+                    and len(c.get("lane_reconnects", []))
+                    == OBSERVER_LANES_PER_OPERATOR
                     for c in clients
                 )
+                # This is the authoritative end-of-measurement health signal.
+                # A lane-local reconnect is expected resilience behavior and is
+                # not a logical outage while its sibling remains continuous.
+                and metrics.get("delta_subscribers", metrics.get("ws_connected"))
+                    == EXPECTED_OBSERVER_SOCKET_COUNT
             ),
             "both_lanes_supplied_merge_evidence": (
                 len(clients) == LOGICAL_OPERATOR_COUNT

@@ -407,6 +407,10 @@ class ObserverMergeError(RuntimeError):
     """The redundant lanes cannot be merged without an authoritative snapshot."""
 
 
+class ObserverLaneStaleError(ObserverMergeError):
+    """One lane fell behind the bounded duplicate-verification history."""
+
+
 @dataclass
 class _PendingDelta:
     delta: dict[str, Any]
@@ -434,7 +438,7 @@ class RedundantObserverMerge:
         self.max_distance = max_distance
         self.max_age_ns = max_age_ns
         self.pending: dict[int, _PendingDelta] = {}
-        self._applied: OrderedDict[int, str] = OrderedDict()
+        self._applied: OrderedDict[int, tuple[dict[str, Any], str]] = OrderedDict()
         self._history_capacity = max_count + max_distance + 2
 
     @staticmethod
@@ -447,19 +451,24 @@ class RedundantObserverMerge:
         self.pending.clear()
         self._applied.clear()
 
-    def _remember(self, sequence: int, fingerprint: str) -> None:
-        self._applied[sequence] = fingerprint
+    def _remember(self, sequence: int, delta: dict[str, Any], fingerprint: str) -> None:
+        self._applied[sequence] = (delta, fingerprint)
         self._applied.move_to_end(sequence)
         while len(self._applied) > self._history_capacity:
             self._applied.popitem(last=False)
 
-    def _verify_duplicate(self, sequence: int, fingerprint: str) -> None:
+    def _verify_duplicate(self, sequence: int, delta: dict[str, Any]) -> None:
         known = self._applied.get(sequence)
         if known is None:
-            raise ObserverMergeError(
+            raise ObserverLaneStaleError(
                 f"duplicate sequence {sequence} is outside fingerprint history"
             )
-        if known != fingerprint:
+        # Structural equality is exact for this decoded JSON value and runs in
+        # C. The first accepted copy still receives a canonical SHA-256 record;
+        # recomputing canonical JSON and SHA for every redundant copy doubled
+        # harness CPU without increasing the comparison guarantee.
+        known_delta, _fingerprint = known
+        if known_delta != delta:
             raise ObserverMergeError(
                 f"observer lanes disagree at sequence {sequence}"
             )
@@ -478,18 +487,18 @@ class RedundantObserverMerge:
         arrived_ns = time.perf_counter_ns() if arrived_ns is None else arrived_ns
         self.check_age(arrived_ns)
         sequence = int(delta["sequence"])
-        fingerprint = self.fingerprint(delta)
         if sequence <= self.model.sequence:
-            self._verify_duplicate(sequence, fingerprint)
+            self._verify_duplicate(sequence, delta)
             return []
         existing = self.pending.get(sequence)
         if existing is not None:
-            if existing.fingerprint != fingerprint:
+            if existing.delta != delta:
                 raise ObserverMergeError(
                     f"observer lanes disagree at sequence {sequence}"
                 )
             self.model.merge_duplicates += 1
             return []
+        fingerprint = self.fingerprint(delta)
         expected = self.model.sequence + 1
         distance = sequence - expected
         if distance > self.max_distance:
@@ -511,7 +520,7 @@ class RedundantObserverMerge:
                 )
             if sequence != next_sequence:
                 self.model.merge_reordered += 1
-            self._remember(next_sequence, item.fingerprint)
+            self._remember(next_sequence, item.delta, item.fingerprint)
             applied.append(item.delta)
         return applied
 
@@ -1252,6 +1261,13 @@ async def run_live(args: argparse.Namespace) -> dict[str, Any]:
                                             record_applied(applied)
                     except asyncio.CancelledError:
                         raise
+                    except ObserverLaneStaleError:
+                        # The other lane has already proved and applied these
+                        # sequences.  Restart only this lagging transport at the
+                        # current logical cursor; do not manufacture an operator
+                        # outage or discard the healthy lane.
+                        connected_once[lane] = True
+                        await asyncio.sleep(args.ingest_reconnect_backoff)
                     except ObserverMergeError as error:
                         await report_error(error)
                         return
