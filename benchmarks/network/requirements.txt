@@ -1,2 +1,2 @@
 websockets>=13,<16
-
+psutil>=6,<8

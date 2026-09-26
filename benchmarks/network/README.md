@@ -27,6 +27,35 @@ python -m pip install -r benchmarks/network/requirements.txt
 
 No third-party dependency is needed for dry-run or unit tests.
 
+## Short reliability calibration
+
+Build the release gateway, install the live-harness dependencies, then run the
+seconds-long calibration matrix:
+
+```powershell
+cargo build --release --manifest-path realtime-gateway/Cargo.toml
+python -m pip install -r benchmarks/network/requirements.txt
+python benchmarks/network/reliability_calibration.py --duration 2
+```
+
+The calibration runs 3, 10 and 30 drones at 20 Hz, a 30-drone 100 Hz burst,
+five WebSocket clients, a deliberately slow reader, a forced disconnect with
+cursor replay, and a command whose HTTP response is deliberately discarded
+before durable reconciliation and process restart. It records endpoint and
+gateway stage latency, accepted/rejected observations, gateway queue high-water
+mark and slow-client disconnects, resyncs/gaps, plus sampled process CPU, RSS,
+virtual memory and thread count. Each scenario is retained as its own JSON file.
+It has purpose-specific gates: exact offered/accepted counts, at least 80% of
+the target delivery rate, HTTP and gateway-stage latency ceilings, queue and
+resource evidence, and proof that each requested fault actually happened. A
+slow-reader case that does not trigger the server overflow path is reported as
+failed, even if every client eventually converges. Likewise, a burst that is
+eventually accepted but materially misses its target rate is failed.
+
+This is a smoke/calibration only. It does not replace the required five
+ten-minute measured trials, impairment matrix, disk-failure testing, or an
+authoritative interceptor outcome test.
+
 ## Quick verification
 
 ```powershell

@@ -57,6 +57,31 @@ idempotency/conflict behavior passed.
 This is a short localhost calibration, not the approved 10-minute, five-run,
 cloud-impairment acceptance matrix.
 
+### Reliability-harness calibration (2026-09-26)
+
+A purpose-gated calibration harness now covers 3/10/30-drone steady load,
+30×100 Hz burst, a slow reader, forced disconnect/resync and durable receipt
+recovery after a discarded HTTP response. It also samples process CPU/RSS and
+gateway metrics. Negative self-tests prove that an absent fault and workload
+under-delivery fail their scenario gate.
+
+The latest short run is deliberately recorded as **failed**, not accepted:
+
+- steady 3, 10 and 30-drone cases passed their short calibration gates;
+- one forced disconnect occurred, replay recovery converged and the case passed;
+- durable receipt reconciliation survived restart, without claiming exactly
+  one external provider effect;
+- the 30×100 Hz burst achieved 1,753 observations/s against a 3,000/s target
+  and failed its offered-rate gate; and
+- the slow-reader case achieved 1,843 observations/s and did not trigger a
+  server-side slow-client disconnect, so it failed both the rate and overflow
+  gates.
+
+Evidence is retained at
+`test-results/realtime-core/reliability/20260926T021348Z-682f688d/`. These are
+sub-second/short smoke cases. They do not replace the five 10-minute trials or
+prove overload and slow-reader acceptance.
+
 ## Remaining release gates
 
 ### Durable restart checkpoint

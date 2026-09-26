@@ -76,6 +76,33 @@ bodies are capped at 64 KiB, handlers have a five-second prototype timeout,
 WebSocket queues and retained suffixes are bounded, and latency samples retain
 only the newest 100,000 values.
 
+## Reliability-run resource sampling
+
+`tools/sample_process_resources.py` is an external, standard-library-only
+sampler for Windows and Linux. It records process CPU, resident/private memory,
+and a copy of `/metrics` on the same monotonic schedule. Keeping this outside
+the gateway avoids changing the hot path while the overload harness is being
+calibrated.
+
+Build first and launch the executable directly so the measured PID is the
+gateway rather than Cargo:
+
+```powershell
+cargo build --release --manifest-path realtime-gateway/Cargo.toml
+python realtime-gateway/tools/sample_process_resources.py `
+  --output test-results/reliability/resources.ndjson `
+  --summary test-results/reliability/resources-summary.json `
+  --duration-s 600 --interval-ms 250 `
+  --command realtime-gateway/target/release/sentinel-realtime-gateway.exe
+```
+
+Alternatively, attach with `--pid <gateway-pid>`. The NDJSON stream is bounded
+by `--max-samples` (100,000 by default). CPU percentage uses the conventional
+single-core scale, where 100 means one logical processor was fully occupied.
+The summary contains p95/maximum memory and CPU, the final gateway counters,
+metrics-fetch failures, and an explicit stop reason. Set `--metrics-url ""`
+when sampling a process without a gateway endpoint.
+
 ## Contract follow-up
 
 The checked-in realtime/v1 schema has no stream epoch, delta base/result

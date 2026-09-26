@@ -66,6 +66,7 @@ class ClientModel:
     resyncs: int = 0
     duplicates: int = 0
     dropped_for_fault: int = 0
+    forced_disconnects: int = 0
 
     def install_snapshot(self, snapshot: dict[str, Any]) -> None:
         self.epoch = snapshot["stream_epoch"]
@@ -364,6 +365,7 @@ async def run_live(args: argparse.Namespace) -> dict[str, Any]:
     snapshot_url = args.base_url.rstrip("/") + args.snapshot_path
     observation_url = args.base_url.rstrip("/") + args.observation_path
     command_url = args.base_url.rstrip("/") + args.command_path
+    metrics_url = args.base_url.rstrip("/") + args.metrics_path
     clients = [ClientModel(f"client-{i + 1}") for i in range(CLIENT_COUNT)]
     endpoint_rtts: dict[str, list[float]] = {"snapshot": [], "observation": [], "command": []}
     stop = asyncio.Event()
@@ -393,6 +395,17 @@ async def run_live(args: argparse.Namespace) -> dict[str, Any]:
                         reconnect = True
                         break
                     assert delta is not None
+                    if index == args.disconnect_client and (
+                        args.disconnect_at > 0 and delta["sequence"] >= args.disconnect_at
+                    ):
+                        client.forced_disconnects += 1
+                        # A one-shot transport interruption. Reconnection uses the
+                        # last applied cursor and therefore exercises retained replay.
+                        args.disconnect_at = 0
+                        reconnect = False
+                        break
+                    if index == args.slow_client and args.slow_reader_delay > 0:
+                        await asyncio.sleep(args.slow_reader_delay)
                     if args.gap_fault and index == 4 and delta["sequence"] == args.gap_at:
                         client.dropped_for_fault += 1
                         continue
@@ -498,11 +511,15 @@ async def run_live(args: argparse.Namespace) -> dict[str, Any]:
     for client in clients:
         if client.sequence != int(authority.get("covers_through", authority["sequence"])):
             await resync(client)
+    metrics_status, gateway_metrics, metrics_rtt, _ = await http_json("GET", metrics_url)
+    if metrics_status != 200:
+        raise RuntimeError(f"metrics failed: HTTP {metrics_status}: {gateway_metrics}")
+    endpoint_rtts["metrics"] = [metrics_rtt]
     stop.set()
     for task in consumers:
         task.cancel()
     await asyncio.gather(*consumers, return_exceptions=True)
-    return build_summary(
+    summary = build_summary(
         args,
         "live",
         authoritative_tracks,
@@ -512,6 +529,11 @@ async def run_live(args: argparse.Namespace) -> dict[str, Any]:
         endpoint_rtts,
         producer_stats,
     )
+    summary["gateway_metrics"] = gateway_metrics
+    summary["run"]["slow_reader_delay_seconds"] = args.slow_reader_delay
+    summary["run"]["disconnect_client"] = args.disconnect_client
+    summary["run"]["forced_disconnects"] = sum(c.forced_disconnects for c in clients)
+    return summary
 
 
 def build_summary(
@@ -537,6 +559,7 @@ def build_summary(
                 "resyncs": client.resyncs,
                 "duplicates": client.duplicates,
                 "fault_drops": client.dropped_for_fault,
+                "forced_disconnects": client.forced_disconnects,
                 "receive_to_apply": latency_summary(client.receive_apply_ms),
             }
         )
@@ -784,11 +807,18 @@ def parser() -> argparse.ArgumentParser:
     live.add_argument("--observation-path", default="/v1/observations")
     live.add_argument("--command-path", default="/v1/commands")
     live.add_argument("--health-path", default="/healthz")
+    live.add_argument("--metrics-path", default="/metrics")
     live.add_argument("--gateway-command")
     live.add_argument("--gateway-timeout", type=float, default=30)
     live.add_argument("--client-queue", type=int, default=256)
     live.add_argument("--ingest-concurrency", type=int, default=64)
     live.add_argument("--drain", type=float, default=2)
+    live.add_argument("--slow-client", type=int, default=-1,
+                      help="zero-based client index to delay while reading")
+    live.add_argument("--slow-reader-delay", type=float, default=0.0)
+    live.add_argument("--disconnect-client", type=int, default=-1,
+                      help="zero-based client index to disconnect once")
+    live.add_argument("--disconnect-at", type=int, default=0)
     restart = sub.add_parser("restart")
     restart.add_argument("--base-url", default="http://127.0.0.1:8090")
     restart.add_argument("--snapshot-path", default="/v1/snapshot")
