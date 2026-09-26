@@ -118,6 +118,12 @@ fence. Production senders must therefore resolve uncertain admission within
 the advertised window; extending it requires durable storage, not an
 unbounded map.
 
+The retained representation shares each observation ID between its lookup and
+FIFO indexes, stores SHA-256 digests as 32 raw bytes, and omits derivable delta
+constants and message IDs. Duplicate replies reconstruct the same
+`track_delta`; these storage details do not shorten the 100,000-observation
+retry horizon.
+
 The finite horizon has two deliberate consequences. An exact retry after its
 ID has been evicted is rejected as `source_sequence_not_increasing` while the
 source/track sequence fence remains present. Conversely, reusing that evicted

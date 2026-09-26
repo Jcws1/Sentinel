@@ -58,5 +58,71 @@ def test_resource_summary_rejects_sustained_cpu_and_growth(tmp_path: Path) -> No
     assert summary["high_cpu_contiguous_seconds_max"] >= 30
     assert summary["gates"]["passed"] is False
     assert summary["gates"]["rss_slope_within_1_mib_per_minute"] is False
-    assert summary["gates"]["no_monotonic_thread_growth"] is False
+    assert summary["gates"]["no_sustained_thread_growth"] is False
     assert summary["gates"]["no_monotonic_socket_growth"] is False
+
+
+def test_resource_summary_allows_one_bounded_teardown_thread_transient(tmp_path: Path) -> None:
+    path = tmp_path / "resources.ndjson"
+    rows = [
+        {
+            "elapsed_seconds": float(index),
+            "cpu_percent": 20.0,
+            "rss_bytes": 50_000_000.0,
+            "threads": 6.0 if index == 99 else 4.0,
+            "open_sockets": 6.0,
+            "socket_measurement_supported": True,
+        }
+        for index in range(100)
+    ]
+    write_rows(path, rows)
+
+    summary = trials.resource_summary(path, 100, 100.0, 268_435_456)
+
+    assert summary["thread_baseline_median"] == 4.0
+    assert summary["thread_tail_median"] == 4.0
+    assert summary["thread_max"] == 6.0
+    assert summary["gates"]["no_sustained_thread_growth"] is True
+
+
+def test_resource_summary_rejects_sustained_tail_thread_growth(tmp_path: Path) -> None:
+    path = tmp_path / "resources.ndjson"
+    rows = [
+        {
+            "elapsed_seconds": float(index),
+            "cpu_percent": 20.0,
+            "rss_bytes": 50_000_000.0,
+            "threads": 5.0 if index >= 90 else 4.0,
+            "open_sockets": 6.0,
+            "socket_measurement_supported": True,
+        }
+        for index in range(100)
+    ]
+    write_rows(path, rows)
+
+    summary = trials.resource_summary(path, 100, 100.0, 268_435_456)
+
+    assert summary["thread_baseline_median"] == 4.0
+    assert summary["thread_tail_median"] == 5.0
+    assert summary["gates"]["no_sustained_thread_growth"] is False
+
+
+def test_resource_summary_rejects_thread_spike_beyond_frozen_allowance(tmp_path: Path) -> None:
+    path = tmp_path / "resources.ndjson"
+    rows = [
+        {
+            "elapsed_seconds": float(index),
+            "cpu_percent": 20.0,
+            "rss_bytes": 50_000_000.0,
+            "threads": 9.0 if index == 50 else 4.0,
+            "open_sockets": 6.0,
+            "socket_measurement_supported": True,
+        }
+        for index in range(100)
+    ]
+    write_rows(path, rows)
+
+    summary = trials.resource_summary(path, 100, 100.0, 268_435_456)
+
+    assert summary["thread_transient_allowance"] == 4
+    assert summary["gates"]["no_sustained_thread_growth"] is False

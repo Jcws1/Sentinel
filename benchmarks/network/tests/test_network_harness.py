@@ -290,6 +290,226 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual(summary["http_rtt_by_endpoint"]["snapshot"]["p50_ms"], 1.0)
         self.assertEqual(summary["http_rtt_by_endpoint"]["observation"]["p95_ms"], 3.0)
 
+    def test_ingest_reconnect_replays_ordered_window_and_counts_unique_acks(self):
+        class FakeSocket:
+            def __init__(self, *, fail_second=False, acks=()):
+                self.fail_second = fail_second
+                self.acks = list(acks)
+                self.sent = []
+                self.closed = False
+
+            async def recv(self):
+                return json.dumps({"message_type": "observation_stream_hello"})
+
+            async def send(self, frame):
+                self.sent.append(frame)
+                if self.fail_second and len(self.sent) == 2:
+                    raise ConnectionError("deterministic loss")
+
+            async def close(self):
+                self.closed = True
+
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                if not self.acks:
+                    raise StopAsyncIteration
+                return json.dumps(self.acks.pop(0))
+
+        async def scenario():
+            first = FakeSocket(fail_second=True)
+            second = FakeSocket(acks=(
+                {"message_type": "observation_ack", "message_id": "m1", "accepted": True},
+                {"message_type": "observation_ack", "message_id": "m1", "accepted": True},
+                {"message_type": "observation_ack", "message_id": "m2", "accepted": True},
+            ))
+            sockets = iter((first, second))
+
+            async def connect(*_args, **_kwargs):
+                return next(sockets)
+
+            accounted = []
+            stream = network_harness.ReliableObservationStream(
+                "ws://test", connect=connect, window_size=2, max_queue=2,
+                reconnect_backoff=0, on_ack=accounted.append,
+            )
+            deadline = asyncio.get_running_loop().time() + 1
+            await stream.offer("m1", "frame-1", deadline)
+            await stream.offer("m2", "frame-2", deadline)
+            await stream.wait_complete(deadline)
+            await stream.close()
+            return stream, first, second, accounted
+
+        stream, first, second, accounted = asyncio.run(scenario())
+        self.assertEqual(first.sent, ["frame-1", "frame-2"])
+        self.assertEqual(second.sent, ["frame-1", "frame-2"])
+        self.assertEqual([ack["message_id"] for ack in accounted], ["m1", "m2"])
+        self.assertEqual(stream.metrics.reconnects, 1)
+        self.assertEqual(stream.metrics.resends, 2)
+        self.assertEqual(stream.metrics.max_pending, 2)
+        self.assertEqual(stream.metrics.duplicate_acks, 1)
+        self.assertFalse(stream.pending)
+
+    def test_ingest_reconnect_deadline_failure_is_explicit(self):
+        async def scenario():
+            async def connect(*_args, **_kwargs):
+                raise ConnectionError("offline")
+
+            stream = network_harness.ReliableObservationStream(
+                "ws://test", connect=connect, window_size=1, max_queue=1,
+                reconnect_backoff=0, on_ack=lambda _ack: None,
+            )
+            with self.assertRaisesRegex(RuntimeError, "reconnect deadline exhausted"):
+                await stream.offer(
+                    "m1", "frame-1", asyncio.get_running_loop().time() + 0.001
+                )
+
+        asyncio.run(scenario())
+
+    def test_full_ingest_window_reconnects_when_ack_progress_stalls(self):
+        class FakeSocket:
+            def __init__(self, *, acks=(), hang=False, ack_on_send=None):
+                self.acks = list(acks)
+                self.hang = hang
+                self.ack_on_send = ack_on_send or {}
+                self.sent = []
+                self.closed = False
+                self.release = asyncio.Event()
+
+            async def recv(self):
+                return json.dumps({"message_type": "observation_stream_hello"})
+
+            async def send(self, frame):
+                self.sent.append(frame)
+                ack = self.ack_on_send.get(frame)
+                if ack is not None:
+                    self.acks.append(ack)
+                    self.release.set()
+
+            async def close(self):
+                self.closed = True
+                self.release.set()
+
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                if self.acks:
+                    return json.dumps(self.acks.pop(0))
+                if self.hang or self.ack_on_send:
+                    await self.release.wait()
+                    self.release.clear()
+                    if self.acks:
+                        return json.dumps(self.acks.pop(0))
+                raise StopAsyncIteration
+
+        async def scenario():
+            first = FakeSocket(hang=True)
+            second = FakeSocket(
+                acks=({"message_type": "observation_ack", "message_id": "m1", "accepted": True},),
+                ack_on_send={
+                    "frame-2": {
+                        "message_type": "observation_ack", "message_id": "m2", "accepted": True
+                    }
+                },
+            )
+            sockets = iter((first, second))
+
+            async def connect(*_args, **_kwargs):
+                return next(sockets)
+
+            stream = network_harness.ReliableObservationStream(
+                "ws://test", connect=connect, window_size=1, max_queue=1,
+                reconnect_backoff=0, ack_progress_timeout=0.01,
+                on_ack=lambda _ack: None,
+            )
+            deadline = asyncio.get_running_loop().time() + 1
+            await stream.offer("m1", "frame-1", deadline)
+            await stream.offer("m2", "frame-2", deadline)
+            await stream.wait_complete(deadline)
+            await stream.close()
+            return stream, first, second
+
+        stream, first, second = asyncio.run(scenario())
+        self.assertTrue(first.closed)
+        self.assertEqual(second.sent, ["frame-1", "frame-2"])
+        self.assertEqual(stream.metrics.ack_progress_timeouts, 1)
+        self.assertEqual(stream.metrics.reconnects, 1)
+        self.assertEqual(stream.metrics.resends, 1)
+
+    def test_final_ack_drain_reconnects_and_ack_identity_history_is_bounded(self):
+        class FakeSocket:
+            def __init__(self, *, hang=False):
+                self.hang = hang
+                self.sent = []
+                self.closed = False
+                self.release = asyncio.Event()
+                self.acks = []
+
+            async def recv(self):
+                return json.dumps({"message_type": "observation_stream_hello"})
+
+            async def send(self, frame):
+                self.sent.append(frame)
+                if not self.hang:
+                    message_id = frame.removeprefix("frame-")
+                    self.acks.append({
+                        "message_type": "observation_ack",
+                        "message_id": message_id,
+                        "accepted": True,
+                    })
+                    self.release.set()
+
+            async def close(self):
+                self.closed = True
+                self.release.set()
+
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                while not self.acks:
+                    if self.closed:
+                        raise StopAsyncIteration
+                    await self.release.wait()
+                    self.release.clear()
+                return json.dumps(self.acks.pop(0))
+
+        async def scenario():
+            first = FakeSocket(hang=True)
+            second = FakeSocket()
+            sockets = iter((first, second))
+
+            async def connect(*_args, **_kwargs):
+                return next(sockets)
+
+            stream = network_harness.ReliableObservationStream(
+                "ws://test", connect=connect, window_size=2, max_queue=2,
+                reconnect_backoff=0, ack_progress_timeout=0.01,
+                on_ack=lambda _ack: None,
+            )
+            deadline = asyncio.get_running_loop().time() + 1
+            await stream.offer("m1", "frame-m1", deadline)
+            await stream.wait_complete(deadline)
+            # Add enough subsequent identities to prove the duplicate-ACK
+            # suppression history cannot grow with trial duration.
+            for index in range(2, 9):
+                message_id = f"m{index}"
+                await stream.offer(message_id, f"frame-{message_id}", deadline)
+                await stream.wait_complete(deadline)
+            retained = set(stream.acked_ids)
+            await stream.close()
+            return stream, first, second, retained
+
+        stream, first, second, retained = asyncio.run(scenario())
+        self.assertTrue(first.closed)
+        self.assertEqual(stream.metrics.ack_progress_timeouts, 1)
+        self.assertEqual(stream.metrics.reconnects, 1)
+        self.assertEqual(len(retained), 4)
+        self.assertNotIn("m1", retained)
+        self.assertEqual(retained, {"m5", "m6", "m7", "m8"})
+
 
 if __name__ == "__main__":
     unittest.main()

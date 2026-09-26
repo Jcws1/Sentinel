@@ -10,7 +10,7 @@ use axum::{
 };
 use chrono::{SecondsFormat, Utc};
 use flate2::{Compression, write::GzEncoder};
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{Sink, SinkExt, StreamExt};
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use sentinel_interceptor_providers::{
     DispatchContext, ExternalOperationState, InterceptCommand, InterceptorProvider, ProviderError,
@@ -117,6 +117,45 @@ pub struct TrackDelta {
     correlation: Correlation,
     track: TrackState,
     previous_revision: u64,
+}
+
+// The idempotency window is much larger than the replay suffix. Keep only the
+// non-derivable delta fields there: the wire message ID and protocol constants
+// can be reconstructed from the sequence on the uncommon duplicate path.
+struct CompactTrackDelta {
+    stream_sequence: u64,
+    emitted_at: String,
+    correlation: Correlation,
+    track: TrackState,
+    previous_revision: u64,
+}
+
+impl From<&TrackDelta> for CompactTrackDelta {
+    fn from(delta: &TrackDelta) -> Self {
+        Self {
+            stream_sequence: delta.stream_sequence,
+            emitted_at: delta.emitted_at.clone(),
+            correlation: delta.correlation.clone(),
+            track: delta.track.clone(),
+            previous_revision: delta.previous_revision,
+        }
+    }
+}
+
+impl CompactTrackDelta {
+    fn expand(&self) -> TrackDelta {
+        TrackDelta {
+            schema_version: VERSION,
+            message_type: "track_delta",
+            message_id: format!("delta-{}", self.stream_sequence),
+            stream_id: STREAM_ID,
+            stream_sequence: self.stream_sequence,
+            emitted_at: self.emitted_at.clone(),
+            correlation: self.correlation.clone(),
+            track: self.track.clone(),
+            previous_revision: self.previous_revision,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -235,13 +274,15 @@ pub struct CommandOutcome {
 }
 
 struct StoredObservation {
-    fingerprint: String,
-    delta: TrackDelta,
+    fingerprint: [u8; 32],
+    delta: CompactTrackDelta,
 }
 
 struct ObservationCache {
-    entries: HashMap<String, StoredObservation>,
-    insertion_order: VecDeque<String>,
+    // Sharing each key with the FIFO avoids a second allocation and copy of
+    // every observation ID while retaining O(1) lookup and eviction.
+    entries: HashMap<Arc<str>, StoredObservation>,
+    insertion_order: VecDeque<Arc<str>>,
     capacity: usize,
 }
 
@@ -256,6 +297,7 @@ impl ObservationCache {
     }
 
     fn insert(&mut self, id: String, observation: StoredObservation) -> usize {
+        let id: Arc<str> = id.into();
         self.entries.insert(id.clone(), observation);
         self.insertion_order.push_back(id);
         let mut evicted = 0;
@@ -1445,13 +1487,15 @@ fn process_observation(s: &AppState, o: Observation) -> ObservationDisposition {
     // idempotency, source ordering, track mutation and cursor allocation one
     // transaction. The production keyed-worker version will shard this lock.
     let _ingestion = s.ingestion_lock.lock().unwrap();
-    let observation_fingerprint = format!("{:x}", Sha256::digest(serde_json::to_vec(&o).unwrap()));
+    // Retain the digest bytes directly. Hex is only a presentation encoding
+    // and doubled the payload while adding one allocation per cache entry.
+    let observation_fingerprint: [u8; 32] = Sha256::digest(serde_json::to_vec(&o).unwrap()).into();
     if let Some(existing) = s
         .observations
         .lock()
         .unwrap()
         .entries
-        .get(&o.observation_id)
+        .get(o.observation_id.as_str())
     {
         if existing.fingerprint != observation_fingerprint {
             return ObservationDisposition::Rejected(
@@ -1459,7 +1503,7 @@ fn process_observation(s: &AppState, o: Observation) -> ObservationDisposition {
                 "observation_id_reused_with_different_content",
             );
         }
-        return ObservationDisposition::Duplicate(existing.delta.clone());
+        return ObservationDisposition::Duplicate(existing.delta.expand());
     }
     let key = (o.source_id.clone(), o.track_id.clone());
     let is_new_track = !s.tracks.read().unwrap().contains_key(&o.track_id);
@@ -1524,7 +1568,7 @@ fn process_observation(s: &AppState, o: Observation) -> ObservationDisposition {
         o.observation_id,
         StoredObservation {
             fingerprint: observation_fingerprint,
-            delta: delta.clone(),
+            delta: CompactTrackDelta::from(&delta),
         },
     );
     s.metrics
@@ -2420,12 +2464,15 @@ fn gzip_delta_batch(state: &AppState, payloads: Vec<String>) -> Result<(Vec<u8>,
     Ok((frame, json.len()))
 }
 
-async fn send_delta_payloads(
-    socket: &mut WebSocket,
+async fn send_delta_payloads<S>(
+    socket: &mut S,
     state: &AppState,
     payloads: Vec<String>,
     gzip_batches: bool,
-) -> Result<(), axum::Error> {
+) -> Result<(), S::Error>
+where
+    S: Sink<Message> + Unpin,
+{
     if !gzip_batches || payloads.len() == 1 {
         return socket
             .send(Message::Text(payloads.into_iter().next().unwrap().into()))
@@ -2482,13 +2529,14 @@ async fn ws_client(mut socket: WebSocket, state: AppState, after: u64, gzip_batc
         suffix,
         cursor: subscription_cursor,
     } = subscription;
+    let (mut sender, mut receiver) = socket.split();
     state.metrics.ws_connected.fetch_add(1, Ordering::Relaxed);
     let hello = json!({"message_type":"gateway_hello","schema_version":VERSION,"server_epoch":state.epoch.as_str(),
         "transport_version":"sentinel-gateway/v1","stream_id":STREAM_ID,"requested_after_sequence":after,
         "current_sequence":subscription_cursor,"recovery":"GET /v1/snapshot",
         "transport_capabilities":["batch=gzip-v1"],
         "active_batch":if gzip_batches { Some("gzip-v1") } else { None }});
-    if socket
+    if sender
         .send(Message::Text(hello.to_string().into()))
         .await
         .is_ok()
@@ -2499,7 +2547,7 @@ async fn ws_client(mut socket: WebSocket, state: AppState, after: u64, gzip_batc
             1
         };
         for payloads in suffix.chunks(suffix_chunk_size) {
-            if send_delta_payloads(&mut socket, &state, payloads.to_vec(), gzip_batches)
+            if send_delta_payloads(&mut sender, &state, payloads.to_vec(), gzip_batches)
                 .await
                 .is_err()
             {
@@ -2514,7 +2562,7 @@ async fn ws_client(mut socket: WebSocket, state: AppState, after: u64, gzip_batc
                 item = rx.recv() => match item {
                     Some(first) => {
                         if !gzip_batches {
-                            if send_delta_payloads(&mut socket, &state, vec![first], false).await.is_err(){break}
+                            if send_delta_payloads(&mut sender, &state, vec![first], false).await.is_err(){break}
                             continue;
                         }
                         let mut payloads = vec![first];
@@ -2525,7 +2573,7 @@ async fn ws_client(mut socket: WebSocket, state: AppState, after: u64, gzip_batc
                                 Ok(None) | Err(_) => break,
                             }
                         }
-                        if send_delta_payloads(&mut socket, &state, payloads, true).await.is_err(){break}
+                        if send_delta_payloads(&mut sender, &state, payloads, true).await.is_err(){break}
                     },
                     None => break
                 },
@@ -2540,15 +2588,22 @@ async fn ws_client(mut socket: WebSocket, state: AppState, after: u64, gzip_batc
                         "current_sequence":cursor,
                         "emitted_at":now()
                     });
-                    if socket.send(Message::Text(message.to_string().into())).await.is_err(){break}
+                    if sender.send(Message::Text(message.to_string().into())).await.is_err(){break}
+                },
+                incoming = receiver.next() => match incoming {
+                    Some(Ok(Message::Ping(payload))) => {
+                        if sender.send(Message::Pong(payload)).await.is_err(){break}
+                    },
+                    Some(Ok(Message::Close(_))) | Some(Err(_)) | None => break,
+                    Some(Ok(_)) => {},
                 },
                 changed = stop.changed() => {
                     if changed.is_ok() {
                         let reason = stop.borrow().clone().unwrap_or_else(|| "snapshot_required".into());
                         let gap = json!({"message_type":"gateway_resync_required","schema_version":VERSION,"server_epoch":state.epoch.as_str(),
                             "reason":reason,"snapshot_url":"/v1/snapshot"});
-                        let _ = socket.send(Message::Text(gap.to_string().into())).await;
-                        let _ = socket.send(Message::Close(None)).await;
+                        let _ = sender.send(Message::Text(gap.to_string().into())).await;
+                        let _ = sender.send(Message::Close(None)).await;
                     }
                     break;
                 }
@@ -2584,8 +2639,9 @@ mod tests {
     use http_body_util::BodyExt;
     use sentinel_interceptor_providers::{
         AuthorityProof, CancelDisposition, ConstraintSet, Correlation as ProviderCorrelation,
-        InterceptIntent, LocalSimulatorAdapter, PreparedOperation, ProviderCapabilities,
-        ProviderId, ReconciliationReport, Submission, TargetRef, TelemetrySample,
+        InterceptIntent, LocalContactReport, LocalSimulatorAdapter, PreparedOperation,
+        ProviderCapabilities, ProviderId, ReconciliationReport, Submission, TargetRef,
+        TelemetrySample,
     };
     use std::io::Read;
     use std::sync::atomic::AtomicBool;
@@ -2644,6 +2700,17 @@ mod tests {
         let hello: Value =
             serde_json::from_str(socket.next().await.unwrap().unwrap().to_text().unwrap()).unwrap();
         assert_eq!(hello["message_type"], "gateway_hello");
+        socket
+            .send(tokio_tungstenite::tungstenite::Message::Ping(
+                b"observer-liveness".to_vec().into(),
+            ))
+            .await
+            .unwrap();
+        assert!(matches!(
+            socket.next().await.unwrap().unwrap(),
+            tokio_tungstenite::tungstenite::Message::Pong(payload)
+                if payload.as_ref() == b"observer-liveness"
+        ));
         let heartbeat = tokio::time::timeout(Duration::from_secs(2), socket.next())
             .await
             .unwrap()
@@ -3929,7 +3996,13 @@ mod tests {
         assert_eq!(row.3.as_deref(), Some("operation-1"));
         assert!(row.4.is_some());
         provider
-            .complete_interception("operation-1", "evidence-1")
+            .report_contact(&LocalContactReport {
+                operation_id: "operation-1".into(),
+                evidence_id: "evidence-1".into(),
+                observed_at: Utc::now(),
+                interceptor_position_m: [0.0, 0.0, 0.0],
+                target_position_m: [3.0, 0.0, 0.0],
+            })
             .unwrap();
         assert_eq!(
             state
@@ -4135,7 +4208,13 @@ mod tests {
             .await
             .unwrap();
         provider
-            .complete_interception("operation-1", "evidence-reclaimed")
+            .report_contact(&LocalContactReport {
+                operation_id: "operation-1".into(),
+                evidence_id: "evidence-reclaimed".into(),
+                observed_at: Utc::now(),
+                interceptor_position_m: [0.0, 0.0, 0.0],
+                target_position_m: [3.0, 0.0, 0.0],
+            })
             .unwrap();
         state
             .command_db

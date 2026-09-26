@@ -23,7 +23,7 @@ import urllib.request
 import uuid
 import tempfile
 import zlib
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -37,6 +37,7 @@ INGRESS_TIMESTAMP_CAPACITY = 32_768
 GZIP_BATCH_MAGIC = b"SDG1"
 DELTA_BATCH_MAX_COUNT = 16
 DELTA_BATCH_MAX_DECOMPRESSED_BYTES = 1024 * 1024
+INGEST_PENDING_WINDOW = 4096
 
 
 def utc_now() -> str:
@@ -113,6 +114,202 @@ class ObservationStartWindow:
 
     def get(self, message_id: str | None) -> int | None:
         return self.values.get(message_id) if message_id is not None else None
+
+
+@dataclass
+class IngestRecoveryMetrics:
+    reconnects: int = 0
+    resends: int = 0
+    max_pending: int = 0
+    duplicate_acks: int = 0
+    ack_progress_timeouts: int = 0
+
+
+class ReliableObservationStream:
+    """Bounded ordered transport which retries stable logical messages."""
+
+    def __init__(self, url: str, *, connect: Any, window_size: int, max_queue: int,
+                 reconnect_backoff: float, on_ack: Any,
+                 ack_progress_timeout: float = 3.0) -> None:
+        if window_size < 1:
+            raise ValueError("ingest pending window must be positive")
+        if ack_progress_timeout <= 0:
+            raise ValueError("ACK progress timeout must be positive")
+        self.url, self._connect = url, connect
+        self.window_size, self.max_queue = window_size, max_queue
+        self.reconnect_backoff, self.on_ack = reconnect_backoff, on_ack
+        self.ack_progress_timeout = ack_progress_timeout
+        self.pending: OrderedDict[str, str] = OrderedDict()
+        self.acked_ids: set[str] = set()
+        self._acked_order: deque[str] = deque()
+        self._acked_capacity = window_size * 2
+        self.metrics = IngestRecoveryMetrics()
+        self._socket: Any = None
+        self._reader: asyncio.Task[None] | None = None
+        self._connect_lock = asyncio.Lock()
+        self._condition = asyncio.Condition()
+        self._ever_connected = False
+        self._closed = False
+
+    async def _discard_connection(self) -> None:
+        socket, reader = self._socket, self._reader
+        self._socket = self._reader = None
+        if reader is not None and reader is not asyncio.current_task():
+            reader.cancel()
+            await asyncio.gather(reader, return_exceptions=True)
+        if socket is not None:
+            try:
+                await socket.close()
+            except Exception:
+                pass
+
+    async def _read_acks(self, socket: Any) -> None:
+        async for raw in socket:
+            ack = json.loads(raw)
+            if ack.get("message_type") != "observation_ack":
+                raise RuntimeError(f"unexpected observation stream response: {ack}")
+            message_id = ack.get("message_id")
+            if not isinstance(message_id, str):
+                raise RuntimeError(f"observation ACK has no message_id: {ack}")
+            async with self._condition:
+                if message_id in self.acked_ids:
+                    self.metrics.duplicate_acks += 1
+                    continue
+                if message_id not in self.pending:
+                    raise RuntimeError(f"observation ACK is for an unknown message: {message_id}")
+                self.acked_ids.add(message_id)
+                self._acked_order.append(message_id)
+                while len(self._acked_order) > self._acked_capacity:
+                    self.acked_ids.discard(self._acked_order.popleft())
+                del self.pending[message_id]
+                self._condition.notify_all()
+            self.on_ack(ack)
+
+    async def _ensure_connected(self, deadline: float) -> Any:
+        async with self._connect_lock:
+            if self._closed:
+                raise RuntimeError("observation stream is closed")
+            if self._socket is not None and self._reader is not None and not self._reader.done():
+                return self._socket
+            if self._reader is not None and self._reader.done():
+                reader_error = self._reader.exception()
+                if isinstance(reader_error, (RuntimeError, json.JSONDecodeError)):
+                    raise RuntimeError(
+                        f"invalid observation ACK stream: {reader_error}"
+                    ) from reader_error
+            await self._discard_connection()
+            last_error: BaseException | None = None
+            while asyncio.get_running_loop().time() < deadline:
+                socket = None
+                try:
+                    socket = await self._connect(self.url, max_queue=self.max_queue,
+                                                 ping_interval=20, ping_timeout=20)
+                    hello = json.loads(await socket.recv())
+                    if hello.get("message_type") != "observation_stream_hello":
+                        raise RuntimeError(f"unexpected observation stream hello: {hello}")
+                    if self._ever_connected:
+                        self.metrics.reconnects += 1
+                    self._ever_connected = True
+                    replay = list(self.pending.values())
+                    for frame in replay:
+                        await socket.send(frame)
+                    self.metrics.resends += len(replay)
+                    self._socket = socket
+                    self._reader = asyncio.create_task(self._read_acks(socket))
+                    return socket
+                except (asyncio.CancelledError, KeyboardInterrupt):
+                    raise
+                except BaseException as error:
+                    last_error = error
+                    if socket is not None:
+                        try:
+                            await socket.close()
+                        except Exception:
+                            pass
+                    remaining = deadline - asyncio.get_running_loop().time()
+                    if remaining <= 0:
+                        break
+                    await asyncio.sleep(min(self.reconnect_backoff, remaining))
+            raise RuntimeError(f"observation stream reconnect deadline exhausted: {last_error}") from last_error
+
+    async def offer(self, message_id: str, frame: str, deadline: float) -> None:
+        await self._ensure_connected(deadline)
+        while True:
+            stalled = False
+            async with self._condition:
+                if len(self.pending) < self.window_size:
+                    break
+                remaining = deadline - asyncio.get_running_loop().time()
+                if remaining <= 0:
+                    raise RuntimeError("observation stream pending window remained full")
+                try:
+                    await asyncio.wait_for(
+                        self._condition.wait(),
+                        timeout=min(self.ack_progress_timeout, remaining),
+                    )
+                except asyncio.TimeoutError:
+                    stalled = True
+            if stalled:
+                self.metrics.ack_progress_timeouts += 1
+                await self._discard_connection()
+                await self._ensure_connected(deadline)
+        async with self._condition:
+            if message_id in self.pending or message_id in self.acked_ids:
+                raise RuntimeError(f"duplicate logical observation offered: {message_id}")
+            self.pending[message_id] = frame
+            self.metrics.max_pending = max(self.metrics.max_pending, len(self.pending))
+        while True:
+            socket = await self._ensure_connected(deadline)
+            try:
+                await socket.send(frame)
+                return
+            except (asyncio.CancelledError, KeyboardInterrupt):
+                raise
+            except BaseException:
+                await self._discard_connection()
+                # Successful reconnection replays the whole pending window,
+                # including this frame, so do not send it a second time here.
+                await self._ensure_connected(deadline)
+                return
+
+    async def wait_complete(self, deadline: float) -> None:
+        last_pending = len(self.pending)
+        last_progress = asyncio.get_running_loop().time()
+        while True:
+            async with self._condition:
+                if not self.pending:
+                    return
+                remaining = deadline - asyncio.get_running_loop().time()
+                if remaining <= 0:
+                    raise RuntimeError(
+                        f"observation ACK deadline exhausted with {len(self.pending)} pending"
+                    )
+                try:
+                    await asyncio.wait_for(
+                        self._condition.wait(), timeout=min(0.25, remaining)
+                    )
+                except asyncio.TimeoutError:
+                    pass
+                current_pending = len(self.pending)
+            now = asyncio.get_running_loop().time()
+            if current_pending < last_pending:
+                last_pending = current_pending
+                last_progress = now
+            elif current_pending and now - last_progress >= self.ack_progress_timeout:
+                self.metrics.ack_progress_timeouts += 1
+                await self._discard_connection()
+                await self._ensure_connected(deadline)
+                last_progress = asyncio.get_running_loop().time()
+            reader = self._reader
+            if reader is not None and reader.done():
+                async with self._condition:
+                    if not self.pending:
+                        return
+                await self._ensure_connected(deadline)
+
+    async def close(self) -> None:
+        self._closed = True
+        await self._discard_connection()
 
 
 def latency_summary(
@@ -878,74 +1075,80 @@ async def run_live(args: argparse.Namespace) -> dict[str, Any]:
                 (scheme, parsed.netloc, args.observation_stream_path, "", "")
             )
         intended_count = ticks * args.drones
-        acknowledgements = 0
-        ack_complete = asyncio.Event()
+        def account_ack(ack: dict[str, Any]) -> None:
+            nonlocal accepted, rejected
+            started = observation_started_ns.get(ack["message_id"])
+            if started is not None:
+                endpoint_rtts["observation"].append(
+                    (time.perf_counter_ns() - started) / 1e6
+                )
+            if ack.get("accepted"):
+                accepted += 1
+            else:
+                rejected += 1
 
-        async with websockets.connect(
+        # One absolute deadline bounds connection attempts, backoff, window
+        # stalls, and the final ACK drain. It is deliberately beyond the offer
+        # interval so a 600/s schedule isn't shortened by transient loss.
+        deadline = asyncio.get_running_loop().time() + args.duration + float(
+            getattr(args, "ingest_reconnect_deadline", 30.0)
+        )
+        stream = ReliableObservationStream(
             stream_url,
+            connect=websockets.connect,
+            window_size=int(getattr(args, "ingest_pending_window", INGEST_PENDING_WINDOW)),
             max_queue=max(args.client_queue, args.ingest_concurrency),
-            ping_interval=20,
-            ping_timeout=20,
-        ) as socket:
-            hello = json.loads(await socket.recv())
-            if hello.get("message_type") != "observation_stream_hello":
-                raise RuntimeError(f"unexpected observation stream hello: {hello}")
-
-            async def read_acks() -> None:
-                nonlocal accepted, rejected, acknowledgements
-                async for raw in socket:
-                    ack = json.loads(raw)
-                    if ack.get("message_type") != "observation_ack":
-                        raise RuntimeError(f"unexpected observation stream response: {ack}")
-                    message_id = ack.get("message_id")
-                    started = observation_started_ns.get(message_id)
-                    if started is not None:
-                        endpoint_rtts["observation"].append(
-                            (time.perf_counter_ns() - started) / 1e6
-                        )
-                    acknowledgements += 1
-                    if ack.get("accepted"):
-                        accepted += 1
-                    else:
-                        rejected += 1
-                    if acknowledgements == intended_count:
-                        ack_complete.set()
-
-            ack_reader = asyncio.create_task(read_acks())
-            tick_offset = int(getattr(args, "tick_offset", 0))
-            try:
-                for local_tick in range(ticks):
-                    tick = tick_offset + local_tick
-                    target = producer_started + round(local_tick * 1e9 / args.hz)
-                    delay = (target - time.perf_counter_ns()) / 1e9
-                    if delay > 0:
-                        await asyncio.sleep(delay)
-                    scheduling_lag_ms.append(
-                        max(0.0, (time.perf_counter_ns() - target) / 1e6)
+            reconnect_backoff=float(getattr(args, "ingest_reconnect_backoff", 0.1)),
+            on_ack=account_ack,
+        )
+        tick_offset = int(getattr(args, "tick_offset", 0))
+        try:
+            for local_tick in range(ticks):
+                tick = tick_offset + local_tick
+                target = producer_started + round(local_tick * 1e9 / args.hz)
+                delay = (target - time.perf_counter_ns()) / 1e9
+                if delay > 0:
+                    await asyncio.sleep(delay)
+                scheduling_lag_ms.append(
+                    max(0.0, (time.perf_counter_ns() - target) / 1e6)
+                )
+                for drone in range(args.drones):
+                    payload = observation(
+                        drone, tick, args.seed, round(tick * 1000 / args.hz)
                     )
-                    for drone in range(args.drones):
-                        payload = observation(
-                            drone, tick, args.seed, round(tick * 1000 / args.hz)
-                        )
-                        observation_started_ns.record(
-                            payload["message_id"], time.perf_counter_ns()
-                        )
-                        await socket.send(json.dumps(payload, separators=(",", ":")))
-                # Throughput is the offered-stream duration. Acknowledgements
-                # prove acceptance separately and are deliberately pipelined;
-                # including their final network drain would reintroduce a
-                # one-RTT tail into the offered-rate measurement.
-                producer_send_completed_ns = time.perf_counter_ns()
-                await asyncio.wait_for(ack_complete.wait(), timeout=max(15, args.duration + 10))
-                acceptance_completed_ns = time.perf_counter_ns()
-                if rejected:
-                    raise RuntimeError(
-                        f"observation stream rejected {rejected}/{acknowledgements} messages"
+                    observation_started_ns.record(
+                        payload["message_id"], time.perf_counter_ns()
                     )
-            finally:
-                ack_reader.cancel()
-                await asyncio.gather(ack_reader, return_exceptions=True)
+                    await stream.offer(
+                        payload["message_id"],
+                        json.dumps(payload, separators=(",", ":")),
+                        deadline,
+                    )
+            # Throughput is the offered-stream duration. Acknowledgements
+            # prove acceptance separately and are deliberately pipelined;
+            # including their final network drain would reintroduce a
+            # one-RTT tail into the offered-rate measurement.
+            producer_send_completed_ns = time.perf_counter_ns()
+            await stream.wait_complete(deadline)
+            acceptance_completed_ns = time.perf_counter_ns()
+            if rejected:
+                raise RuntimeError(
+                    f"observation stream rejected {rejected}/{accepted + rejected} unique messages"
+                )
+        finally:
+            producer_stats_recovery.update({
+                "reconnects": stream.metrics.reconnects,
+                "resends": stream.metrics.resends,
+                "max_pending": stream.metrics.max_pending,
+                "duplicate_acks": stream.metrics.duplicate_acks,
+                "ack_progress_timeouts": stream.metrics.ack_progress_timeouts,
+                "pending_window_limit": stream.window_size,
+                "acked_identity_capacity": stream._acked_capacity,
+                "acked_identities_retained": len(stream.acked_ids),
+            })
+            await stream.close()
 
+    producer_stats_recovery: dict[str, int] = {}
     if getattr(args, "ingest_transport", "http") == "websocket":
         await produce_stream()
     else:
@@ -957,11 +1160,11 @@ async def run_live(args: argparse.Namespace) -> dict[str, Any]:
     intended = ticks * args.drones
     producer_stats = {
         "intended": intended,
-        "offered": accepted + rejected,
+        "offered": intended,
         "accepted": accepted,
         "rejected": rejected,
-        "offered_rate_per_second": (accepted + rejected) / (elapsed_ms / 1000),
-        "offered_cadence_per_second": (accepted + rejected) / (elapsed_ms / 1000),
+        "offered_rate_per_second": intended / (elapsed_ms / 1000),
+        "offered_cadence_per_second": intended / (elapsed_ms / 1000),
         "accepted_completion_rate_per_second": accepted / (acceptance_elapsed_ms / 1000),
         "accepted_rate_per_second": accepted / (acceptance_elapsed_ms / 1000),
         "offer_elapsed_ms": elapsed_ms,
@@ -971,6 +1174,7 @@ async def run_live(args: argparse.Namespace) -> dict[str, Any]:
         "configured_concurrency_limit": args.ingest_concurrency,
         "ingest_transport": getattr(args, "ingest_transport", "http"),
         "per_track_source_order_preserved": True,
+        "recovery": producer_stats_recovery,
         "measurement_retention": {
             "latency_reservoir_capacity": LATENCY_RESERVOIR_CAPACITY,
             "ingress_timestamp_capacity": observation_started_ns.capacity,
@@ -1386,6 +1590,11 @@ def parser() -> argparse.ArgumentParser:
     live.add_argument("--gateway-timeout", type=float, default=30)
     live.add_argument("--client-queue", type=int, default=256)
     live.add_argument("--ingest-concurrency", type=int, default=64)
+    live.add_argument("--ingest-pending-window", type=int, default=INGEST_PENDING_WINDOW,
+                      help="maximum unacknowledged observations retained for ordered replay")
+    live.add_argument("--ingest-reconnect-deadline", type=float, default=30.0,
+                      help="seconds after the offer interval allowed for reconnect and ACK drain")
+    live.add_argument("--ingest-reconnect-backoff", type=float, default=0.1)
     live.add_argument("--drain", type=float, default=2)
     live.add_argument("--slow-client", type=int, default=-1,
                       help="zero-based client index to delay while reading")

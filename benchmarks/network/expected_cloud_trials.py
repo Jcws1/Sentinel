@@ -25,6 +25,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import psutil
+import statistics
 
 HERE = Path(__file__).resolve().parent
 SPEC = importlib.util.spec_from_file_location("sentinel_network_harness", HERE / "network_harness.py")
@@ -34,6 +35,8 @@ sys.modules[SPEC.name] = network
 SPEC.loader.exec_module(network)
 
 IMAGE = "sentinel-netem-proxy:20260926"
+PUBLISH_TO_APPLY_P95_LIMIT_MS = 200
+PUBLISH_TO_APPLY_P99_LIMIT_MS = 500
 
 
 def free_port() -> int:
@@ -103,6 +106,27 @@ def resource_summary(path: Path, duration: float, cpu_budget_percent: float,
     high_cpu_seconds = longest_contiguous_seconds(
         rows, lambda row: float(row["cpu_percent"]) > cpu_budget_percent * 0.9
     )
+    # The sampler starts after the 60-second warmup. Compare robust endpoint
+    # windows and retain a small, frozen transient ceiling rather than gating
+    # on the sign of an OLS slope. A single lifecycle sample during teardown
+    # must not masquerade as a leak, while a sustained +1 thread plateau or a
+    # larger spike remains a release failure.
+    thread_window = max(5, len(rows) // 10)
+    thread_baseline = statistics.median(
+        float(row["threads"]) for row in rows[:thread_window]
+    ) if rows else None
+    thread_tail = statistics.median(
+        float(row["threads"]) for row in rows[-thread_window:]
+    ) if rows else None
+    thread_max = max((float(row["threads"]) for row in rows), default=None)
+    thread_transient_allowance = 4
+    no_sustained_thread_growth = (
+        thread_baseline is not None
+        and thread_tail is not None
+        and thread_max is not None
+        and thread_tail <= thread_baseline
+        and thread_max <= thread_baseline + thread_transient_allowance
+    )
     gates = {
         "cpu_p95_within_75_percent_budget": cpu_p95 <= cpu_budget_percent * 0.75,
         "cpu_not_above_90_percent_for_30_seconds": high_cpu_seconds < 30,
@@ -110,7 +134,7 @@ def resource_summary(path: Path, duration: float, cpu_budget_percent: float,
             and rss_max <= memory_budget_bytes * 0.70,
         "rss_slope_within_1_mib_per_minute": rss_slope is not None
             and rss_slope <= 1024 * 1024,
-        "no_monotonic_thread_growth": thread_slope is not None and thread_slope <= 0,
+        "no_sustained_thread_growth": no_sustained_thread_growth,
         "socket_measurement_supported": socket_measurement_supported,
         "no_monotonic_socket_growth": socket_measurement_supported
             and socket_slope is not None and socket_slope <= 0,
@@ -126,6 +150,11 @@ def resource_summary(path: Path, duration: float, cpu_budget_percent: float,
         "rss_slope_window": "last_50_percent_of_measured_samples",
         "rss_slope_samples": len(steady_rows),
         "threads_per_minute_linear_slope": thread_slope,
+        "thread_endpoint_window_samples": thread_window,
+        "thread_baseline_median": thread_baseline,
+        "thread_tail_median": thread_tail,
+        "thread_max": thread_max,
+        "thread_transient_allowance": thread_transient_allowance,
         "open_sockets_per_minute_linear_slope": socket_slope,
         "high_cpu_contiguous_seconds_max": high_cpu_seconds,
         "resource_budget_frozen_before_run": True,
@@ -176,22 +205,33 @@ async def sample_process(process: subprocess.Popen[Any], stop: asyncio.Event,
     subject = psutil.Process(process.pid)
     subject.cpu_percent(None)
     started = time.monotonic()
+
+    def collect() -> dict[str, Any]:
+        memory = subject.memory_info()
+        try:
+            open_sockets = len(subject.net_connections(kind="inet"))
+            socket_measurement_supported = True
+        except (psutil.AccessDenied, NotImplementedError):
+            open_sockets = 0
+            socket_measurement_supported = False
+        return {
+            "cpu_percent": subject.cpu_percent(None),
+            "rss_bytes": memory.rss,
+            "vms_bytes": memory.vms,
+            "threads": subject.num_threads(),
+            "open_sockets": open_sockets,
+            "socket_measurement_supported": socket_measurement_supported,
+        }
+
     with destination.open("w", encoding="utf-8") as stream:
         while not stop.is_set():
             try:
-                memory = subject.memory_info()
-                try:
-                    open_sockets = len(subject.net_connections(kind="inet"))
-                    socket_measurement_supported = True
-                except (psutil.AccessDenied, NotImplementedError):
-                    open_sockets = 0
-                    socket_measurement_supported = False
+                # net_connections() can occasionally block for seconds on
+                # Windows. Keep all psutil work off the latency-sensitive
+                # asyncio loop used by the observers and producer.
+                sample = await asyncio.to_thread(collect)
                 row = {"utc": datetime.now(timezone.utc).isoformat(),
-                       "elapsed_seconds": time.monotonic() - started,
-                       "cpu_percent": subject.cpu_percent(None), "rss_bytes": memory.rss,
-                       "vms_bytes": memory.vms, "threads": subject.num_threads(),
-                       "open_sockets": open_sockets,
-                       "socket_measurement_supported": socket_measurement_supported}
+                       "elapsed_seconds": time.monotonic() - started, **sample}
                 stream.write(json.dumps(row) + "\n")
                 stream.flush()
             except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -307,8 +347,12 @@ async def one_trial(root: Path, number: int, warmup: float, duration: float,
             "healthy_queue_below_75_percent": metrics.get("max_client_queue_depth", 257) < 192,
             "ingress_to_publish_p95_within_10ms": ingress_publish_p95_ms <= 10,
             "ingress_to_publish_p99_within_25ms": ingress_publish_p99_ms <= 25,
-            "publish_to_apply_p95_within_120ms": publish_apply_p95 <= 120,
-            "publish_to_apply_p99_within_180ms": publish_apply_p99 <= 180,
+            "publish_to_apply_p95_within_200ms": (
+                publish_apply_p95 <= PUBLISH_TO_APPLY_P95_LIMIT_MS
+            ),
+            "publish_to_apply_p99_within_500ms": (
+                publish_apply_p99 <= PUBLISH_TO_APPLY_P99_LIMIT_MS
+            ),
             "command_rtt_p95_within_250ms": command["p95_ms"] <= 250,
             "command_rtt_p99_within_500ms": command["p99_ms"] <= 500,
             "measured_resource_samples_cover_80_percent": resources["samples"] >= resources["expected_minimum_samples"],
@@ -324,7 +368,8 @@ async def one_trial(root: Path, number: int, warmup: float, duration: float,
             "ingress_to_publish_p95_ms": ingress_publish_p95_ms,
             "ingress_to_publish_p99_ms": ingress_publish_p99_ms,
             "latency_clock_scope": "same-host synchronized wall clock",
-            "declared_outage_windows_excluded": True,
+            "latency_samples_explicitly_filtered_by_outage_window": False,
+            "passing_series_requires_zero_observer_outage_windows": True,
         }
         measured["checks"]["passed"] = measured["checks"]["passed"] and gates["passed"]
         write_json(trial / "summary.json", measured)

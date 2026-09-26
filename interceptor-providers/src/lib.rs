@@ -286,6 +286,17 @@ pub struct AuthoritativeOutcome {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct LocalContactReport {
+    pub operation_id: String,
+    pub evidence_id: String,
+    pub observed_at: DateTime<Utc>,
+    pub interceptor_position_m: [f64; 3],
+    pub target_position_m: [f64; 3],
+}
+
+const LOCAL_SIMULATOR_CONTACT_RADIUS_M: f64 = 5.0;
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ReconciliationReport {
     pub state: ExternalOperationState,
     pub telemetry: Vec<TelemetrySample>,
@@ -368,23 +379,53 @@ impl Default for LocalSimulatorAdapter {
 }
 
 impl LocalSimulatorAdapter {
-    pub fn complete_interception(
-        &self,
-        operation_id: &str,
-        evidence_id: &str,
-    ) -> Result<(), ProviderError> {
+    pub fn report_contact(&self, report: &LocalContactReport) -> Result<(), ProviderError> {
+        if report.operation_id.is_empty()
+            || report.evidence_id.is_empty()
+            || report
+                .interceptor_position_m
+                .iter()
+                .chain(report.target_position_m.iter())
+                .any(|value| !value.is_finite())
+        {
+            return Err(ProviderError::Invalid(
+                "invalid_local_contact_report".into(),
+            ));
+        }
+        let separation_m = report
+            .interceptor_position_m
+            .iter()
+            .zip(report.target_position_m.iter())
+            .map(|(interceptor, target)| (interceptor - target).powi(2))
+            .sum::<f64>()
+            .sqrt();
+        if separation_m > LOCAL_SIMULATOR_CONTACT_RADIUS_M {
+            return Err(ProviderError::Conflict("contact_not_established".into()));
+        }
         let mut records = self.records.lock().unwrap();
         let record = records
-            .get_mut(operation_id)
+            .get_mut(&report.operation_id)
             .ok_or(ProviderError::NotFound)?;
         if !matches!(record.state, ExternalOperationState::InProgress) {
             return Err(ProviderError::Conflict("operation_not_in_progress".into()));
         }
         record.state = ExternalOperationState::Succeeded;
+        let mut fields = Fields::new();
+        fields.insert("phase".into(), json!("contact"));
+        fields.insert("separation_m".into(), json!(separation_m));
+        fields.insert(
+            "contact_radius_m".into(),
+            json!(LOCAL_SIMULATOR_CONTACT_RADIUS_M),
+        );
+        record.telemetry.push(TelemetrySample {
+            operation_id: report.operation_id.clone(),
+            source_time: report.observed_at,
+            fields,
+        });
         record.outcome = Some(AuthoritativeOutcome {
-            operation_id: operation_id.into(),
+            operation_id: report.operation_id.clone(),
             intercepted: true,
-            evidence_ids: vec![evidence_id.into()],
+            evidence_ids: vec![report.evidence_id.clone()],
         });
         Ok(())
     }
@@ -1627,11 +1668,38 @@ mod tests {
         let (c, cmd) = command("local-simulator");
         let op = a.prepare(&c, &cmd).await.unwrap();
         assert_eq!(a.submit(&op).await.unwrap(), a.submit(&op).await.unwrap());
-        a.complete_interception(&op.operation_id, "contact-1")
-            .unwrap();
+        a.report_contact(&LocalContactReport {
+            operation_id: op.operation_id.clone(),
+            evidence_id: "contact-1".into(),
+            observed_at: Utc::now(),
+            interceptor_position_m: [100.0, 0.0, 0.0],
+            target_position_m: [103.0, 0.0, 0.0],
+        })
+        .unwrap();
         let r = a.reconcile(&op.operation_id).await.unwrap();
         assert_eq!(r.state, ExternalOperationState::Succeeded);
         assert!(r.outcome.unwrap().intercepted);
+    }
+    #[tokio::test]
+    async fn local_rejects_completion_without_simulated_contact() {
+        let a = LocalSimulatorAdapter::default();
+        let (c, cmd) = command("local-simulator");
+        let op = a.prepare(&c, &cmd).await.unwrap();
+        a.submit(&op).await.unwrap();
+        assert!(matches!(
+            a.report_contact(&LocalContactReport {
+                operation_id: op.operation_id.clone(),
+                evidence_id: "too-far".into(),
+                observed_at: Utc::now(),
+                interceptor_position_m: [0.0, 0.0, 0.0],
+                target_position_m: [100.0, 0.0, 0.0],
+            }),
+            Err(ProviderError::Conflict(reason)) if reason == "contact_not_established"
+        ));
+        assert_eq!(
+            a.status(&op.operation_id).await.unwrap(),
+            ExternalOperationState::InProgress
+        );
     }
     #[tokio::test]
     async fn wedgetail_ambiguous_is_unknown_and_never_blind_retries() {
