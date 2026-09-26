@@ -9,6 +9,8 @@ use axum::{
     routing::{get, post},
 };
 use chrono::{SecondsFormat, Utc};
+use flate2::{Compression, write::GzEncoder};
+use futures_util::{SinkExt, StreamExt};
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use sentinel_interceptor_providers::{
     DispatchContext, ExternalOperationState, InterceptCommand, InterceptorProvider, ProviderError,
@@ -20,6 +22,7 @@ use sha2::{Digest, Sha256};
 use std::path::Path as FsPath;
 use std::{
     collections::{BTreeMap, HashMap, VecDeque},
+    io::Write,
     sync::{
         Arc, Mutex, RwLock,
         atomic::{AtomicU64, AtomicUsize, Ordering},
@@ -33,6 +36,20 @@ use uuid::Uuid;
 const VERSION: &str = "realtime/v1";
 const STREAM_ID: &str = "sentinel-tracks";
 const COMMAND_STREAM_ID: &str = "sentinel-commands";
+const OBSERVATION_STREAM_WRITE_TIMEOUT: Duration = Duration::from_secs(5);
+const OBSERVATION_STREAM_READ_IDLE_TIMEOUT: Duration = Duration::from_secs(15 * 60);
+const OBSERVER_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(1);
+// Keep batches deliberately small: this amortizes WebSocket/TCP framing without
+// creating a large loss-retransmission unit or adding visible observer latency.
+const DELTA_BATCH_MAX_COUNT: usize = 16;
+const DELTA_BATCH_MAX_WAIT: Duration = Duration::from_millis(5);
+const DELTA_BATCH_MAX_DECOMPRESSED_BYTES: usize = 1024 * 1024;
+const GZIP_BATCH_MAGIC: &[u8; 4] = b"SDG1";
+const DEFAULT_OBSERVATION_IDEMPOTENCY_RETENTION: usize = 100_000;
+const OBSERVATION_LATENCY_SAMPLE_RETENTION: usize = 100_000;
+const DEFAULT_MAX_TRACKS: usize = 30;
+const DEFAULT_MAX_SOURCE_TRACK_IDENTITIES: usize = 120;
+const MAX_COMMAND_ATTEMPTS: i64 = 5;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -222,6 +239,37 @@ struct StoredObservation {
     delta: TrackDelta,
 }
 
+struct ObservationCache {
+    entries: HashMap<String, StoredObservation>,
+    insertion_order: VecDeque<String>,
+    capacity: usize,
+}
+
+impl ObservationCache {
+    fn new(capacity: usize) -> Self {
+        assert!(capacity > 0);
+        Self {
+            entries: HashMap::with_capacity(capacity.min(16_384)),
+            insertion_order: VecDeque::with_capacity(capacity.min(16_384)),
+            capacity,
+        }
+    }
+
+    fn insert(&mut self, id: String, observation: StoredObservation) -> usize {
+        self.entries.insert(id.clone(), observation);
+        self.insertion_order.push_back(id);
+        let mut evicted = 0;
+        while self.entries.len() > self.capacity {
+            if let Some(oldest) = self.insertion_order.pop_front()
+                && self.entries.remove(&oldest).is_some()
+            {
+                evicted += 1;
+            }
+        }
+        evicted
+    }
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GatewayCommandRequest {
@@ -240,8 +288,20 @@ pub struct Metrics {
     ws_connected: AtomicUsize,
     slow_disconnects: AtomicU64,
     deltas_published: AtomicU64,
+    delta_batches_sent: AtomicU64,
+    deltas_sent_in_batches: AtomicU64,
+    delta_batch_compressed_bytes: AtomicU64,
+    delta_batch_uncompressed_bytes: AtomicU64,
     observation_latency_us: Mutex<VecDeque<u64>>,
+    observation_idempotency_evictions: AtomicU64,
+    track_capacity_rejections: AtomicU64,
+    source_track_identity_capacity_rejections: AtomicU64,
     max_client_queue_depth: AtomicUsize,
+    observation_streams_connected: AtomicUsize,
+    observation_stream_accepted: AtomicU64,
+    observation_stream_rejected: AtomicU64,
+    observation_stream_backpressure_disconnects: AtomicU64,
+    max_observation_ack_queue_depth: AtomicUsize,
 }
 
 #[derive(Serialize)]
@@ -253,10 +313,52 @@ struct MetricsView {
     ws_connected: usize,
     slow_client_disconnects: u64,
     deltas_published: u64,
+    delta_batches_sent: u64,
+    deltas_sent_in_batches: u64,
+    delta_batch_compressed_bytes: u64,
+    delta_batch_uncompressed_bytes: u64,
     max_client_queue_depth: usize,
     observation_latency_us_p50: u64,
     observation_latency_us_p95: u64,
     observation_latency_us_p99: u64,
+    observation_latency_sample_count: usize,
+    observation_latency_sample_capacity: usize,
+    ingress_to_publish_us_p50: u64,
+    ingress_to_publish_us_p95: u64,
+    ingress_to_publish_us_p99: u64,
+    observation_idempotency_entries: usize,
+    observation_idempotency_capacity: usize,
+    observation_idempotency_evictions: u64,
+    track_entries: usize,
+    track_capacity: usize,
+    track_capacity_rejections: u64,
+    source_track_identity_entries: usize,
+    source_track_identity_capacity: usize,
+    source_track_identity_capacity_rejections: u64,
+    observation_streams_connected: usize,
+    observation_stream_accepted: u64,
+    observation_stream_rejected: u64,
+    observation_stream_backpressure_disconnects: u64,
+    max_observation_ack_queue_depth: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct ObservationStreamAck {
+    transport_version: &'static str,
+    message_type: &'static str,
+    server_epoch: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    observation_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    correlation_id: Option<String>,
+    accepted: bool,
+    duplicate: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    result_sequence: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<&'static str>,
 }
 
 struct Subscriber {
@@ -365,12 +467,15 @@ pub struct AppState {
     command_sequence: Arc<AtomicU64>,
     tracks: Arc<RwLock<BTreeMap<String, TrackState>>>,
     source_sequences: Arc<Mutex<HashMap<(String, String), u64>>>,
-    observations: Arc<Mutex<HashMap<String, StoredObservation>>>,
+    observations: Arc<Mutex<ObservationCache>>,
     ingestion_lock: Arc<Mutex<()>>,
     command_db: Arc<Mutex<Connection>>,
     hub: Arc<Mutex<Hub>>,
     pub metrics: Arc<Metrics>,
     client_queue_capacity: usize,
+    observation_ack_send_delay: Duration,
+    max_tracks: usize,
+    max_source_track_identities: usize,
 }
 
 impl AppState {
@@ -388,8 +493,43 @@ impl AppState {
         delta_retention: usize,
         path: impl AsRef<FsPath>,
     ) -> rusqlite::Result<Self> {
+        Self::with_database_and_limits(
+            client_queue_capacity,
+            delta_retention,
+            DEFAULT_OBSERVATION_IDEMPOTENCY_RETENTION,
+            path,
+        )
+    }
+
+    pub fn with_database_and_limits(
+        client_queue_capacity: usize,
+        delta_retention: usize,
+        observation_idempotency_retention: usize,
+        path: impl AsRef<FsPath>,
+    ) -> rusqlite::Result<Self> {
+        Self::with_database_and_admission_limits(
+            client_queue_capacity,
+            delta_retention,
+            observation_idempotency_retention,
+            DEFAULT_MAX_TRACKS,
+            DEFAULT_MAX_SOURCE_TRACK_IDENTITIES,
+            path,
+        )
+    }
+
+    pub fn with_database_and_admission_limits(
+        client_queue_capacity: usize,
+        delta_retention: usize,
+        observation_idempotency_retention: usize,
+        max_tracks: usize,
+        max_source_track_identities: usize,
+        path: impl AsRef<FsPath>,
+    ) -> rusqlite::Result<Self> {
         assert!(client_queue_capacity > 0);
         assert!(delta_retention > 0);
+        assert!(observation_idempotency_retention > 0);
+        assert!(max_tracks > 0);
+        assert!(max_source_track_identities >= max_tracks);
         let connection = Connection::open(path)?;
         connection.busy_timeout(Duration::from_secs(5))?;
         connection.pragma_update(None, "foreign_keys", "ON")?;
@@ -551,12 +691,17 @@ impl AppState {
             command_sequence: Arc::new(AtomicU64::new(max_sequence)),
             tracks: Default::default(),
             source_sequences: Default::default(),
-            observations: Default::default(),
+            observations: Arc::new(Mutex::new(ObservationCache::new(
+                observation_idempotency_retention,
+            ))),
             ingestion_lock: Default::default(),
             command_db: Arc::new(Mutex::new(connection)),
             hub: Arc::new(Mutex::new(Hub::new(delta_retention))),
             metrics: Default::default(),
             client_queue_capacity,
+            observation_ack_send_delay: Duration::ZERO,
+            max_tracks,
+            max_source_track_identities,
         })
     }
     fn next_delta_sequence(&self) -> u64 {
@@ -1099,6 +1244,7 @@ pub fn app(state: AppState) -> Router {
         .route("/metrics", get(metrics))
         .route("/v1/snapshot", get(snapshot))
         .route("/v1/observations", post(ingest))
+        .route("/v1/observations/stream", get(observation_stream_upgrade))
         .route("/v1/commands", post(command))
         .route("/v1/outbox/commands", get(pending_commands))
         .route("/v1/outbox/claim", post(claim_command))
@@ -1176,6 +1322,9 @@ async fn metrics(State(s): State<AppState>) -> Json<MetricsView> {
         .iter()
         .copied()
         .collect();
+    let observation_cache = s.observations.lock().unwrap();
+    let track_entries = s.tracks.read().unwrap().len();
+    let source_track_identity_entries = s.source_sequences.lock().unwrap().len();
     Json(MetricsView {
         observations: s.metrics.observations.load(Ordering::Relaxed),
         commands_accepted: s.metrics.commands_accepted.load(Ordering::Relaxed),
@@ -1184,10 +1333,60 @@ async fn metrics(State(s): State<AppState>) -> Json<MetricsView> {
         ws_connected: s.metrics.ws_connected.load(Ordering::Relaxed),
         slow_client_disconnects: s.metrics.slow_disconnects.load(Ordering::Relaxed),
         deltas_published: s.metrics.deltas_published.load(Ordering::Relaxed),
+        delta_batches_sent: s.metrics.delta_batches_sent.load(Ordering::Relaxed),
+        deltas_sent_in_batches: s.metrics.deltas_sent_in_batches.load(Ordering::Relaxed),
+        delta_batch_compressed_bytes: s
+            .metrics
+            .delta_batch_compressed_bytes
+            .load(Ordering::Relaxed),
+        delta_batch_uncompressed_bytes: s
+            .metrics
+            .delta_batch_uncompressed_bytes
+            .load(Ordering::Relaxed),
         max_client_queue_depth: s.metrics.max_client_queue_depth.load(Ordering::Relaxed),
         observation_latency_us_p50: percentile(&mut samples.clone(), 0.50),
         observation_latency_us_p95: percentile(&mut samples.clone(), 0.95),
         observation_latency_us_p99: percentile(&mut samples.clone(), 0.99),
+        observation_latency_sample_count: samples.len(),
+        observation_latency_sample_capacity: OBSERVATION_LATENCY_SAMPLE_RETENTION,
+        ingress_to_publish_us_p50: percentile(&mut samples.clone(), 0.50),
+        ingress_to_publish_us_p95: percentile(&mut samples.clone(), 0.95),
+        ingress_to_publish_us_p99: percentile(&mut samples.clone(), 0.99),
+        observation_idempotency_entries: observation_cache.entries.len(),
+        observation_idempotency_capacity: observation_cache.capacity,
+        observation_idempotency_evictions: s
+            .metrics
+            .observation_idempotency_evictions
+            .load(Ordering::Relaxed),
+        track_entries,
+        track_capacity: s.max_tracks,
+        track_capacity_rejections: s.metrics.track_capacity_rejections.load(Ordering::Relaxed),
+        source_track_identity_entries,
+        source_track_identity_capacity: s.max_source_track_identities,
+        source_track_identity_capacity_rejections: s
+            .metrics
+            .source_track_identity_capacity_rejections
+            .load(Ordering::Relaxed),
+        observation_streams_connected: s
+            .metrics
+            .observation_streams_connected
+            .load(Ordering::Relaxed),
+        observation_stream_accepted: s
+            .metrics
+            .observation_stream_accepted
+            .load(Ordering::Relaxed),
+        observation_stream_rejected: s
+            .metrics
+            .observation_stream_rejected
+            .load(Ordering::Relaxed),
+        observation_stream_backpressure_disconnects: s
+            .metrics
+            .observation_stream_backpressure_disconnects
+            .load(Ordering::Relaxed),
+        max_observation_ack_queue_depth: s
+            .metrics
+            .max_observation_ack_queue_depth
+            .load(Ordering::Relaxed),
     })
 }
 
@@ -1216,7 +1415,13 @@ async fn snapshot(State(s): State<AppState>) -> Response {
     response
 }
 
-async fn ingest(State(s): State<AppState>, Json(o): Json<Observation>) -> Response {
+enum ObservationDisposition {
+    Accepted(TrackDelta),
+    Duplicate(TrackDelta),
+    Rejected(StatusCode, &'static str),
+}
+
+fn process_observation(s: &AppState, o: Observation) -> ObservationDisposition {
     let started = Instant::now();
     if o.schema_version != VERSION
         || o.message_type != "observation"
@@ -1231,36 +1436,58 @@ async fn ingest(State(s): State<AppState>, Json(o): Json<Observation>) -> Respon
         || !valid_timestamp(&o.emitted_at)
         || !valid_timestamp(&o.source_time)
     {
-        return (
+        return ObservationDisposition::Rejected(
             StatusCode::BAD_REQUEST,
-            Json(json!({"error":"invalid realtime/v1 observation"})),
-        )
-            .into_response();
+            "invalid_realtime_v1_observation",
+        );
     }
     // The prototype uses one short critical section to make observation
     // idempotency, source ordering, track mutation and cursor allocation one
     // transaction. The production keyed-worker version will shard this lock.
     let _ingestion = s.ingestion_lock.lock().unwrap();
     let observation_fingerprint = format!("{:x}", Sha256::digest(serde_json::to_vec(&o).unwrap()));
-    if let Some(existing) = s.observations.lock().unwrap().get(&o.observation_id) {
+    if let Some(existing) = s
+        .observations
+        .lock()
+        .unwrap()
+        .entries
+        .get(&o.observation_id)
+    {
         if existing.fingerprint != observation_fingerprint {
-            return (
+            return ObservationDisposition::Rejected(
                 StatusCode::CONFLICT,
-                Json(json!({"error":"observation_id_reused_with_different_content"})),
-            )
-                .into_response();
+                "observation_id_reused_with_different_content",
+            );
         }
-        return with_epoch(&s, (StatusCode::OK, Json(existing.delta.clone())));
+        return ObservationDisposition::Duplicate(existing.delta.clone());
     }
     let key = (o.source_id.clone(), o.track_id.clone());
+    let is_new_track = !s.tracks.read().unwrap().contains_key(&o.track_id);
+    if is_new_track && s.tracks.read().unwrap().len() >= s.max_tracks {
+        s.metrics
+            .track_capacity_rejections
+            .fetch_add(1, Ordering::Relaxed);
+        return ObservationDisposition::Rejected(
+            StatusCode::TOO_MANY_REQUESTS,
+            "track_capacity_exceeded",
+        );
+    }
     {
         let mut seqs = s.source_sequences.lock().unwrap();
+        if !seqs.contains_key(&key) && seqs.len() >= s.max_source_track_identities {
+            s.metrics
+                .source_track_identity_capacity_rejections
+                .fetch_add(1, Ordering::Relaxed);
+            return ObservationDisposition::Rejected(
+                StatusCode::TOO_MANY_REQUESTS,
+                "source_track_identity_capacity_exceeded",
+            );
+        }
         if o.source_sequence <= *seqs.get(&key).unwrap_or(&0) {
-            return (
+            return ObservationDisposition::Rejected(
                 StatusCode::CONFLICT,
-                Json(json!({"error":"source_sequence_not_increasing"})),
-            )
-                .into_response();
+                "source_sequence_not_increasing",
+            );
         }
         seqs.insert(key, o.source_sequence);
     }
@@ -1293,13 +1520,16 @@ async fn ingest(State(s): State<AppState>, Json(o): Json<Observation>) -> Respon
         track,
         previous_revision,
     };
-    s.observations.lock().unwrap().insert(
+    let evicted = s.observations.lock().unwrap().insert(
         o.observation_id,
         StoredObservation {
             fingerprint: observation_fingerprint,
             delta: delta.clone(),
         },
     );
+    s.metrics
+        .observation_idempotency_evictions
+        .fetch_add(evicted as u64, Ordering::Relaxed);
     let payload = json!({
         "transport_version":"sentinel-gateway/v1",
         "server_epoch":s.epoch.as_str(),
@@ -1314,11 +1544,242 @@ async fn ingest(State(s): State<AppState>, Json(o): Json<Observation>) -> Respon
     s.metrics.deltas_published.fetch_add(1, Ordering::Relaxed);
     let mut latencies = s.metrics.observation_latency_us.lock().unwrap();
     latencies.push_back(started.elapsed().as_micros() as u64);
-    if latencies.len() > 100_000 {
+    if latencies.len() > OBSERVATION_LATENCY_SAMPLE_RETENTION {
         latencies.pop_front();
     }
     drop(latencies);
-    with_epoch(&s, (StatusCode::ACCEPTED, Json(delta)))
+    ObservationDisposition::Accepted(delta)
+}
+
+async fn ingest(State(s): State<AppState>, Json(o): Json<Observation>) -> Response {
+    match process_observation(&s, o) {
+        ObservationDisposition::Accepted(delta) => {
+            with_epoch(&s, (StatusCode::ACCEPTED, Json(delta)))
+        }
+        ObservationDisposition::Duplicate(delta) => with_epoch(&s, (StatusCode::OK, Json(delta))),
+        ObservationDisposition::Rejected(status, error) => {
+            with_epoch(&s, (status, Json(json!({"error":error}))))
+        }
+    }
+}
+
+async fn observation_stream_upgrade(State(s): State<AppState>, ws: WebSocketUpgrade) -> Response {
+    let state = s.clone();
+    with_epoch(
+        &s,
+        ws.max_message_size(64 * 1024)
+            .max_frame_size(64 * 1024)
+            .on_upgrade(move |socket| observation_stream(socket, state)),
+    )
+}
+
+fn stream_ack(
+    state: &AppState,
+    observation: Option<&Observation>,
+    accepted: bool,
+    duplicate: bool,
+    result_sequence: Option<u64>,
+    error: Option<&'static str>,
+) -> Message {
+    Message::Text(
+        serde_json::to_string(&ObservationStreamAck {
+            transport_version: "sentinel-gateway/v1",
+            message_type: "observation_ack",
+            server_epoch: state.epoch.as_str().to_owned(),
+            message_id: observation.map(|item| item.message_id.clone()),
+            observation_id: observation.map(|item| item.observation_id.clone()),
+            correlation_id: observation.map(|item| item.correlation.correlation_id.clone()),
+            accepted,
+            duplicate,
+            result_sequence,
+            error,
+        })
+        .expect("serialize observation acknowledgement")
+        .into(),
+    )
+}
+
+/// One ordered, full-duplex observation stream per source. The reader never
+/// waits for an acknowledgement round trip: accepted/rejected acknowledgements
+/// are placed on a bounded writer queue in receive order. If the peer does not
+/// read acknowledgements, only that stream is disconnected instead of allowing
+/// unbounded memory growth.
+async fn observation_stream(socket: WebSocket, state: AppState) {
+    let (mut writer, mut reader) = socket.split();
+    let (ack_tx, mut ack_rx) = mpsc::channel::<Message>(state.client_queue_capacity);
+    state
+        .metrics
+        .observation_streams_connected
+        .fetch_add(1, Ordering::Relaxed);
+
+    let hello = Message::Text(
+        json!({
+            "transport_version":"sentinel-gateway/v1",
+            "message_type":"observation_stream_hello",
+            "schema_version":VERSION,
+            "server_epoch":state.epoch.as_str(),
+            "acknowledgement":"per_message_ordered",
+            "source_binding":"first_observation_source_id",
+            "max_message_bytes":64 * 1024,
+            "ack_queue_capacity":state.client_queue_capacity
+        })
+        .to_string()
+        .into(),
+    );
+    let ack_send_delay = state.observation_ack_send_delay;
+    let writer_task = tokio::spawn(async move {
+        if !matches!(
+            tokio::time::timeout(OBSERVATION_STREAM_WRITE_TIMEOUT, writer.send(hello)).await,
+            Ok(Ok(()))
+        ) {
+            return;
+        }
+        while let Some(message) = ack_rx.recv().await {
+            if !ack_send_delay.is_zero() {
+                tokio::time::sleep(ack_send_delay).await;
+            }
+            if !matches!(
+                tokio::time::timeout(OBSERVATION_STREAM_WRITE_TIMEOUT, writer.send(message)).await,
+                Ok(Ok(()))
+            ) {
+                return;
+            }
+        }
+        let _ = tokio::time::timeout(
+            OBSERVATION_STREAM_WRITE_TIMEOUT,
+            writer.send(Message::Close(None)),
+        )
+        .await;
+    });
+
+    let mut bound_source: Option<String> = None;
+    let mut abort_writer = false;
+    loop {
+        let incoming =
+            match tokio::time::timeout(OBSERVATION_STREAM_READ_IDLE_TIMEOUT, reader.next()).await {
+                Ok(Some(incoming)) => incoming,
+                Ok(None) | Err(_) => break,
+            };
+        let raw = match incoming {
+            Ok(Message::Text(value)) => value.as_bytes().to_vec(),
+            Ok(Message::Binary(value)) => value.to_vec(),
+            Ok(Message::Close(_)) | Err(_) => break,
+            Ok(Message::Ping(payload)) => {
+                if ack_tx.try_send(Message::Pong(payload)).is_err() {
+                    state
+                        .metrics
+                        .observation_stream_backpressure_disconnects
+                        .fetch_add(1, Ordering::Relaxed);
+                    abort_writer = true;
+                    break;
+                }
+                continue;
+            }
+            Ok(Message::Pong(_)) => continue,
+        };
+        let parsed = serde_json::from_slice::<Observation>(&raw);
+        let (ack, accepted) = match parsed {
+            Err(_) => (
+                stream_ack(
+                    &state,
+                    None,
+                    false,
+                    false,
+                    None,
+                    Some("invalid_realtime_v1_observation"),
+                ),
+                false,
+            ),
+            Ok(observation) => {
+                if bound_source
+                    .as_ref()
+                    .is_some_and(|source| source != &observation.source_id)
+                {
+                    (
+                        stream_ack(
+                            &state,
+                            Some(&observation),
+                            false,
+                            false,
+                            None,
+                            Some("observation_stream_source_changed"),
+                        ),
+                        false,
+                    )
+                } else {
+                    match process_observation(&state, observation.clone()) {
+                        ObservationDisposition::Accepted(delta) => {
+                            bound_source.get_or_insert_with(|| observation.source_id.clone());
+                            (
+                                stream_ack(
+                                    &state,
+                                    Some(&observation),
+                                    true,
+                                    false,
+                                    Some(delta.stream_sequence),
+                                    None,
+                                ),
+                                true,
+                            )
+                        }
+                        ObservationDisposition::Duplicate(delta) => {
+                            bound_source.get_or_insert_with(|| observation.source_id.clone());
+                            (
+                                stream_ack(
+                                    &state,
+                                    Some(&observation),
+                                    true,
+                                    true,
+                                    Some(delta.stream_sequence),
+                                    None,
+                                ),
+                                true,
+                            )
+                        }
+                        ObservationDisposition::Rejected(_, error) => (
+                            stream_ack(&state, Some(&observation), false, false, None, Some(error)),
+                            false,
+                        ),
+                    }
+                }
+            }
+        };
+        let metric = if accepted {
+            &state.metrics.observation_stream_accepted
+        } else {
+            &state.metrics.observation_stream_rejected
+        };
+        metric.fetch_add(1, Ordering::Relaxed);
+        match ack_tx.try_send(ack) {
+            Ok(()) => {
+                let depth = ack_tx.max_capacity() - ack_tx.capacity();
+                state
+                    .metrics
+                    .max_observation_ack_queue_depth
+                    .fetch_max(depth, Ordering::Relaxed);
+            }
+            Err(mpsc::error::TrySendError::Full(_)) => {
+                state
+                    .metrics
+                    .observation_stream_backpressure_disconnects
+                    .fetch_add(1, Ordering::Relaxed);
+                abort_writer = true;
+                break;
+            }
+            Err(mpsc::error::TrySendError::Closed(_)) => break,
+        }
+    }
+    drop(ack_tx);
+    if abort_writer {
+        // The peer is not draining replies. Do not await a socket writer that
+        // may itself be blocked behind the peer's full receive window.
+        writer_task.abort();
+    }
+    let _ = writer_task.await;
+    state
+        .metrics
+        .observation_streams_connected
+        .fetch_sub(1, Ordering::Relaxed);
 }
 
 fn command_fingerprint(request: &GatewayCommandRequest) -> String {
@@ -1507,13 +1968,26 @@ async fn claim_command(State(s): State<AppState>, Json(request): Json<ClaimReque
         Ok(v) => v,
         Err(_) => return storage_error("begin_claim_transaction"),
     };
+    if tx
+        .execute(
+            "UPDATE commands SET execution_state='terminal',worker_id=NULL,lease_token=NULL,
+             lease_expires_at_ms=NULL,last_error=COALESCE(last_error,'maximum_attempts_exhausted')
+             WHERE execution_state='pending' AND attempt_count>=?1
+               AND (lease_token IS NULL OR lease_expires_at_ms<=?2)",
+            params![MAX_COMMAND_ATTEMPTS, now_ms],
+        )
+        .is_err()
+    {
+        return storage_error("dead_letter_exhausted_commands");
+    }
     let candidate: Option<String> = match tx
         .query_row(
             "SELECT command_id FROM commands
          WHERE execution_state='pending' AND next_attempt_at_ms<=?1
+           AND attempt_count<?2
            AND (lease_token IS NULL OR lease_expires_at_ms<=?1)
          ORDER BY next_attempt_at_ms,created_at,command_id LIMIT 1",
-            [now_ms],
+            params![now_ms, MAX_COMMAND_ATTEMPTS],
             |row| row.get(0),
         )
         .optional()
@@ -1656,7 +2130,9 @@ fn relinquish_lease(
     let db = s.command_db.lock().unwrap();
     let changed = match db.execute(
         "UPDATE commands SET worker_id=NULL,lease_token=NULL,lease_expires_at_ms=NULL,
-          next_attempt_at_ms=?1,last_error=?2 WHERE command_id=?3 AND execution_state='pending'
+          next_attempt_at_ms=?1,last_error=?2,
+          execution_state=CASE WHEN attempt_count>=?7 THEN 'terminal' ELSE 'pending' END
+          WHERE command_id=?3 AND execution_state='pending'
           AND worker_id=?4 AND lease_token=?5 AND lease_expires_at_ms>?6",
         params![
             next,
@@ -1664,7 +2140,8 @@ fn relinquish_lease(
             command_id,
             request.worker_id,
             request.lease_token,
-            now_ms
+            now_ms,
+            MAX_COMMAND_ATTEMPTS,
         ],
     ) {
         Ok(v) => v,
@@ -1677,10 +2154,20 @@ fn relinquish_lease(
             Err(_) => storage_error("lookup_lease_command"),
         };
     }
+    let execution_state: String = match db.query_row(
+        "SELECT execution_state FROM commands WHERE command_id=?1",
+        [command_id],
+        |row| row.get(0),
+    ) {
+        Ok(value) => value,
+        Err(_) => return storage_error("read_relinquished_state"),
+    };
     with_epoch(
         s,
         Json(
-            json!({"command_id":command_id,"execution_state":"pending","next_attempt_at_ms":next}),
+            json!({"command_id":command_id,"execution_state":execution_state,
+            "dead_lettered":execution_state == "terminal",
+            "next_attempt_at_ms":next,"maximum_attempts":MAX_COMMAND_ATTEMPTS}),
         ),
     )
 }
@@ -1873,6 +2360,8 @@ async fn record_outcome(
 struct WsParams {
     #[serde(default)]
     after_sequence: u64,
+    #[serde(default)]
+    batch: Option<String>,
 }
 
 async fn ws_upgrade(
@@ -1883,11 +2372,94 @@ async fn ws_upgrade(
     let state = s.clone();
     with_epoch(
         &s,
-        ws.on_upgrade(move |socket| ws_client(socket, state, params.after_sequence)),
+        ws.on_upgrade(move |socket| {
+            ws_client(
+                socket,
+                state,
+                params.after_sequence,
+                params.batch.as_deref() == Some("gzip-v1"),
+            )
+        }),
     )
 }
 
-async fn ws_client(mut socket: WebSocket, state: AppState, after: u64) {
+fn delta_batch_message(state: &AppState, payloads: Vec<String>) -> String {
+    let items: Vec<Value> = payloads
+        .into_iter()
+        .map(|payload| serde_json::from_str(&payload).expect("retained delta is valid JSON"))
+        .collect();
+    json!({
+        "message_type":"delta_batch",
+        "schema_version":VERSION,
+        "transport_version":"sentinel-gateway/v1",
+        "server_epoch":state.epoch.as_str(),
+        "stream_id":STREAM_ID,
+        "items":items
+    })
+    .to_string()
+}
+
+fn gzip_delta_batch(state: &AppState, payloads: Vec<String>) -> Result<(Vec<u8>, usize), String> {
+    if payloads.is_empty() || payloads.len() > DELTA_BATCH_MAX_COUNT {
+        return Err("invalid_delta_batch_count".into());
+    }
+    let json = delta_batch_message(state, payloads);
+    if json.len() > DELTA_BATCH_MAX_DECOMPRESSED_BYTES {
+        return Err("delta_batch_decompressed_size_exceeded".into());
+    }
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
+    encoder
+        .write_all(json.as_bytes())
+        .map_err(|_| "delta_batch_compression_failed")?;
+    let compressed = encoder
+        .finish()
+        .map_err(|_| "delta_batch_compression_failed")?;
+    let mut frame = Vec::with_capacity(GZIP_BATCH_MAGIC.len() + compressed.len());
+    frame.extend_from_slice(GZIP_BATCH_MAGIC);
+    frame.extend_from_slice(&compressed);
+    Ok((frame, json.len()))
+}
+
+async fn send_delta_payloads(
+    socket: &mut WebSocket,
+    state: &AppState,
+    payloads: Vec<String>,
+    gzip_batches: bool,
+) -> Result<(), axum::Error> {
+    if !gzip_batches || payloads.len() == 1 {
+        return socket
+            .send(Message::Text(payloads.into_iter().next().unwrap().into()))
+            .await;
+    }
+    let (frame, uncompressed_len) = match gzip_delta_batch(state, payloads.clone()) {
+        Ok(frame) => frame,
+        Err(_) => {
+            for payload in payloads {
+                socket.send(Message::Text(payload.into())).await?;
+            }
+            return Ok(());
+        }
+    };
+    state
+        .metrics
+        .delta_batches_sent
+        .fetch_add(1, Ordering::Relaxed);
+    state
+        .metrics
+        .deltas_sent_in_batches
+        .fetch_add(payloads.len() as u64, Ordering::Relaxed);
+    state
+        .metrics
+        .delta_batch_compressed_bytes
+        .fetch_add(frame.len() as u64, Ordering::Relaxed);
+    state
+        .metrics
+        .delta_batch_uncompressed_bytes
+        .fetch_add(uncompressed_len as u64, Ordering::Relaxed);
+    socket.send(Message::Binary(frame.into())).await
+}
+
+async fn ws_client(mut socket: WebSocket, state: AppState, after: u64, gzip_batches: bool) {
     let subscription = state
         .hub
         .lock()
@@ -1913,20 +2485,63 @@ async fn ws_client(mut socket: WebSocket, state: AppState, after: u64) {
     state.metrics.ws_connected.fetch_add(1, Ordering::Relaxed);
     let hello = json!({"message_type":"gateway_hello","schema_version":VERSION,"server_epoch":state.epoch.as_str(),
         "transport_version":"sentinel-gateway/v1","stream_id":STREAM_ID,"requested_after_sequence":after,
-        "current_sequence":subscription_cursor,"recovery":"GET /v1/snapshot"});
+        "current_sequence":subscription_cursor,"recovery":"GET /v1/snapshot",
+        "transport_capabilities":["batch=gzip-v1"],
+        "active_batch":if gzip_batches { Some("gzip-v1") } else { None }});
     if socket
         .send(Message::Text(hello.to_string().into()))
         .await
         .is_ok()
     {
-        for payload in suffix {
-            if socket.send(Message::Text(payload.into())).await.is_err() {
+        let suffix_chunk_size = if gzip_batches {
+            DELTA_BATCH_MAX_COUNT
+        } else {
+            1
+        };
+        for payloads in suffix.chunks(suffix_chunk_size) {
+            if send_delta_payloads(&mut socket, &state, payloads.to_vec(), gzip_batches)
+                .await
+                .is_err()
+            {
                 break;
             }
         }
+        let mut heartbeat = tokio::time::interval(OBSERVER_HEARTBEAT_INTERVAL);
+        heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        heartbeat.tick().await;
         loop {
             tokio::select! {
-                item = rx.recv() => match item { Some(v) => if socket.send(Message::Text(v.into())).await.is_err(){break}, None => break },
+                item = rx.recv() => match item {
+                    Some(first) => {
+                        if !gzip_batches {
+                            if send_delta_payloads(&mut socket, &state, vec![first], false).await.is_err(){break}
+                            continue;
+                        }
+                        let mut payloads = vec![first];
+                        let deadline = tokio::time::Instant::now() + DELTA_BATCH_MAX_WAIT;
+                        while payloads.len() < DELTA_BATCH_MAX_COUNT {
+                            match tokio::time::timeout_at(deadline, rx.recv()).await {
+                                Ok(Some(next)) => payloads.push(next),
+                                Ok(None) | Err(_) => break,
+                            }
+                        }
+                        if send_delta_payloads(&mut socket, &state, payloads, true).await.is_err(){break}
+                    },
+                    None => break
+                },
+                _ = heartbeat.tick() => {
+                    let cursor = state.delta_sequence.load(Ordering::SeqCst);
+                    let message = json!({
+                        "message_type":"gateway_heartbeat",
+                        "schema_version":VERSION,
+                        "transport_version":"sentinel-gateway/v1",
+                        "server_epoch":state.epoch.as_str(),
+                        "stream_id":STREAM_ID,
+                        "current_sequence":cursor,
+                        "emitted_at":now()
+                    });
+                    if socket.send(Message::Text(message.to_string().into())).await.is_err(){break}
+                },
                 changed = stop.changed() => {
                     if changed.is_ok() {
                         let reason = stop.borrow().clone().unwrap_or_else(|| "snapshot_required".into());
@@ -1965,17 +2580,159 @@ mod tests {
     use super::*;
     use axum::{body::Body, http::Request};
     use chrono::Duration as ChronoDuration;
+    use flate2::read::GzDecoder;
     use http_body_util::BodyExt;
     use sentinel_interceptor_providers::{
         AuthorityProof, CancelDisposition, ConstraintSet, Correlation as ProviderCorrelation,
         InterceptIntent, LocalSimulatorAdapter, PreparedOperation, ProviderCapabilities,
         ProviderId, ReconciliationReport, Submission, TargetRef, TelemetrySample,
     };
+    use std::io::Read;
     use std::sync::atomic::AtomicBool;
     use tower::ServiceExt;
 
     fn observation(seq: u64) -> Value {
         json!({"schema_version":VERSION,"message_type":"observation","message_id":format!("m-{seq}"),"stream_id":"sensor-a","stream_sequence":seq,"emitted_at":"2026-09-25T00:00:00Z","correlation":{"correlation_id":"c-1"},"observation_id":format!("o-{seq}"),"track_id":"drone-1","source_id":"radar-1","source_sequence":seq,"source_time":"2026-09-25T00:00:00Z","position":{"x_mm":seq,"y_mm":2},"velocity":{"x_mm_s":3,"y_mm_s":4}})
+    }
+
+    #[test]
+    fn delta_batch_frame_preserves_item_order_and_contract() {
+        let state = AppState::new(8);
+        let first =
+            json!({"transport_version":"sentinel-gateway/v1","result_sequence":7}).to_string();
+        let second =
+            json!({"transport_version":"sentinel-gateway/v1","result_sequence":8}).to_string();
+        let batch: Value =
+            serde_json::from_str(&delta_batch_message(&state, vec![first, second])).unwrap();
+        assert_eq!(batch["message_type"], "delta_batch");
+        assert_eq!(batch["transport_version"], "sentinel-gateway/v1");
+        assert_eq!(batch["items"][0]["result_sequence"], 7);
+        assert_eq!(batch["items"][1]["result_sequence"], 8);
+        assert_eq!(batch["items"].as_array().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn gzip_batch_has_versioned_magic_and_bounded_round_trip() {
+        let state = AppState::new(8);
+        let items = vec![
+            json!({"transport_version":"sentinel-gateway/v1","result_sequence":1}).to_string(),
+            json!({"transport_version":"sentinel-gateway/v1","result_sequence":2}).to_string(),
+        ];
+        let (frame, decompressed_len) = gzip_delta_batch(&state, items).unwrap();
+        assert_eq!(&frame[..4], GZIP_BATCH_MAGIC);
+        let mut decoded = String::new();
+        GzDecoder::new(&frame[4..])
+            .read_to_string(&mut decoded)
+            .unwrap();
+        assert_eq!(decoded.len(), decompressed_len);
+        let batch: Value = serde_json::from_str(&decoded).unwrap();
+        assert_eq!(batch["items"].as_array().unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn idle_observer_receives_cursor_heartbeat() {
+        let state = AppState::new(8);
+        let epoch = state.epoch.to_string();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, app(state)).await.unwrap() });
+        let (mut socket, _) = tokio_tungstenite::connect_async(format!(
+            "ws://{address}/v1/deltas?after_sequence=0&batch=gzip-v1"
+        ))
+        .await
+        .unwrap();
+        let hello: Value =
+            serde_json::from_str(socket.next().await.unwrap().unwrap().to_text().unwrap()).unwrap();
+        assert_eq!(hello["message_type"], "gateway_hello");
+        let heartbeat = tokio::time::timeout(Duration::from_secs(2), socket.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        let heartbeat: Value = serde_json::from_str(heartbeat.to_text().unwrap()).unwrap();
+        assert_eq!(heartbeat["message_type"], "gateway_heartbeat");
+        assert_eq!(heartbeat["server_epoch"], epoch);
+        assert_eq!(heartbeat["current_sequence"], 0);
+        assert!(valid_timestamp(heartbeat["emitted_at"].as_str().unwrap()));
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn retained_burst_is_one_bounded_ordered_batch_and_is_counted() {
+        let state = AppState::new(8);
+        for sequence in 1..=2 {
+            let payload = json!({
+                "transport_version":"sentinel-gateway/v1",
+                "server_epoch":state.epoch.as_str(),
+                "base_sequence":sequence - 1,
+                "result_sequence":sequence,
+                "payload":{"message_type":"track_delta"}
+            })
+            .to_string();
+            state
+                .hub
+                .lock()
+                .unwrap()
+                .publish(sequence, &payload, &state.metrics);
+        }
+        state.delta_sequence.store(2, Ordering::SeqCst);
+        let metrics = state.metrics.clone();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, app(state)).await.unwrap() });
+        let (mut socket, _) = tokio_tungstenite::connect_async(format!(
+            "ws://{address}/v1/deltas?after_sequence=0&batch=gzip-v1"
+        ))
+        .await
+        .unwrap();
+        let _: Value =
+            serde_json::from_str(socket.next().await.unwrap().unwrap().to_text().unwrap()).unwrap();
+        let message = socket.next().await.unwrap().unwrap();
+        let bytes = message.into_data();
+        assert_eq!(&bytes[..4], GZIP_BATCH_MAGIC);
+        let mut decoded = String::new();
+        GzDecoder::new(&bytes[4..])
+            .read_to_string(&mut decoded)
+            .unwrap();
+        let batch: Value = serde_json::from_str(&decoded).unwrap();
+        assert_eq!(batch["message_type"], "delta_batch");
+        assert_eq!(batch["items"][0]["result_sequence"], 1);
+        assert_eq!(batch["items"][1]["result_sequence"], 2);
+        assert_eq!(metrics.delta_batches_sent.load(Ordering::Relaxed), 1);
+        assert_eq!(metrics.deltas_sent_in_batches.load(Ordering::Relaxed), 2);
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn legacy_subscriber_receives_only_singleton_text_deltas() {
+        let state = AppState::new(8);
+        for sequence in 1..=2 {
+            let payload =
+                json!({"transport_version":"sentinel-gateway/v1","result_sequence":sequence})
+                    .to_string();
+            state
+                .hub
+                .lock()
+                .unwrap()
+                .publish(sequence, &payload, &state.metrics);
+        }
+        state.delta_sequence.store(2, Ordering::SeqCst);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, app(state)).await.unwrap() });
+        let (mut socket, _) =
+            tokio_tungstenite::connect_async(format!("ws://{address}/v1/deltas?after_sequence=0"))
+                .await
+                .unwrap();
+        let _: Value =
+            serde_json::from_str(socket.next().await.unwrap().unwrap().to_text().unwrap()).unwrap();
+        for expected in 1..=2 {
+            let message = socket.next().await.unwrap().unwrap();
+            assert!(message.is_text());
+            let delta: Value = serde_json::from_str(message.to_text().unwrap()).unwrap();
+            assert_eq!(delta["result_sequence"], expected);
+        }
+        server.abort();
     }
     fn command_body(epoch: &str, target: &str) -> Value {
         json!({"transport_version":"sentinel-gateway/v1","expected_epoch":epoch,"expected_revision":0,
@@ -2196,6 +2953,202 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(snap["tracks"][0]["revision"], 2);
         assert_eq!(snap["covers_through"], 2);
+    }
+
+    #[tokio::test]
+    async fn observation_stream_pipelines_ordered_correlated_acknowledgements() {
+        let state = AppState::new(8);
+        let retained_state = state.clone();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app(state)).await.unwrap();
+        });
+        let (mut socket, _) =
+            tokio_tungstenite::connect_async(format!("ws://{address}/v1/observations/stream"))
+                .await
+                .unwrap();
+
+        // Send multiple observations before awaiting any acknowledgement. This
+        // is the property that removes one network RTT per observation.
+        socket
+            .send(tokio_tungstenite::tungstenite::Message::Text(
+                observation(1).to_string().into(),
+            ))
+            .await
+            .unwrap();
+        socket
+            .send(tokio_tungstenite::tungstenite::Message::Text(
+                observation(2).to_string().into(),
+            ))
+            .await
+            .unwrap();
+        socket
+            .send(tokio_tungstenite::tungstenite::Message::Text(
+                observation(2).to_string().into(),
+            ))
+            .await
+            .unwrap();
+
+        let hello: Value =
+            serde_json::from_str(socket.next().await.unwrap().unwrap().to_text().unwrap()).unwrap();
+        assert_eq!(hello["message_type"], "observation_stream_hello");
+        let first: Value =
+            serde_json::from_str(socket.next().await.unwrap().unwrap().to_text().unwrap()).unwrap();
+        let second: Value =
+            serde_json::from_str(socket.next().await.unwrap().unwrap().to_text().unwrap()).unwrap();
+        let duplicate: Value =
+            serde_json::from_str(socket.next().await.unwrap().unwrap().to_text().unwrap()).unwrap();
+        assert_eq!(first["message_id"], "m-1");
+        assert_eq!(first["correlation_id"], "c-1");
+        assert_eq!(first["result_sequence"], 1);
+        assert_eq!(second["message_id"], "m-2");
+        assert_eq!(second["result_sequence"], 2);
+        assert_eq!(duplicate["message_id"], "m-2");
+        assert_eq!(duplicate["accepted"], true);
+        assert_eq!(duplicate["duplicate"], true);
+        assert_eq!(duplicate["result_sequence"], 2);
+
+        let mut wrong_source = observation(3);
+        wrong_source["source_id"] = json!("radar-2");
+        socket
+            .send(tokio_tungstenite::tungstenite::Message::Text(
+                wrong_source.to_string().into(),
+            ))
+            .await
+            .unwrap();
+        let rejected: Value =
+            serde_json::from_str(socket.next().await.unwrap().unwrap().to_text().unwrap()).unwrap();
+        assert_eq!(rejected["accepted"], false);
+        assert_eq!(rejected["error"], "observation_stream_source_changed");
+
+        let mut reordered = observation(1);
+        reordered["message_id"] = json!("m-reordered");
+        reordered["observation_id"] = json!("o-reordered");
+        socket
+            .send(tokio_tungstenite::tungstenite::Message::Text(
+                reordered.to_string().into(),
+            ))
+            .await
+            .unwrap();
+        let sequence_rejected: Value =
+            serde_json::from_str(socket.next().await.unwrap().unwrap().to_text().unwrap()).unwrap();
+        assert_eq!(sequence_rejected["accepted"], false);
+        assert_eq!(sequence_rejected["error"], "source_sequence_not_increasing");
+        socket
+            .send(tokio_tungstenite::tungstenite::Message::Ping(
+                b"stream-liveness".to_vec().into(),
+            ))
+            .await
+            .unwrap();
+        assert!(matches!(
+            socket.next().await.unwrap().unwrap(),
+            tokio_tungstenite::tungstenite::Message::Pong(payload)
+                if payload.as_ref() == b"stream-liveness"
+        ));
+        assert_eq!(
+            retained_state
+                .metrics
+                .observation_stream_accepted
+                .load(Ordering::Relaxed),
+            3
+        );
+        assert_eq!(
+            retained_state
+                .metrics
+                .observation_stream_rejected
+                .load(Ordering::Relaxed),
+            2
+        );
+        assert_eq!(retained_state.delta_sequence.load(Ordering::Relaxed), 2);
+        socket.close(None).await.unwrap();
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn observation_stream_ack_backpressure_aborts_writer_and_connection() {
+        let mut state = AppState::new(1);
+        state.observation_ack_send_delay = Duration::from_secs(1);
+        let retained_state = state.clone();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app(state)).await.unwrap();
+        });
+        let (mut socket, _) =
+            tokio_tungstenite::connect_async(format!("ws://{address}/v1/observations/stream"))
+                .await
+                .unwrap();
+        assert!(socket.next().await.unwrap().unwrap().is_text());
+
+        // Do not read acknowledgements. The test-only writer delay makes the
+        // one-slot queue fill without relying on platform TCP buffer sizes.
+        for sequence in 1..=8 {
+            socket
+                .send(tokio_tungstenite::tungstenite::Message::Text(
+                    observation(sequence).to_string().into(),
+                ))
+                .await
+                .unwrap();
+        }
+        let closed = tokio::time::timeout(Duration::from_secs(2), socket.next())
+            .await
+            .expect("backpressured stream must terminate promptly");
+        assert!(
+            closed.is_none()
+                || closed.as_ref().is_some_and(|item| item.is_err())
+                || closed
+                    .as_ref()
+                    .is_some_and(|item| { item.as_ref().is_ok_and(|message| message.is_close()) })
+        );
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while retained_state
+                .metrics
+                .observation_streams_connected
+                .load(Ordering::Relaxed)
+                != 0
+            {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(
+            retained_state
+                .metrics
+                .observation_stream_backpressure_disconnects
+                .load(Ordering::Relaxed),
+            1
+        );
+        let accepted = retained_state
+            .metrics
+            .observation_stream_accepted
+            .load(Ordering::Relaxed);
+        // At capacity one, at most one ack can be in the queue and one in the
+        // delayed writer when overflow is detected. The triggering message is
+        // already admitted, so only a tightly bounded prefix may be accepted.
+        assert!((2..=3).contains(&accepted));
+
+        // A sender may not have seen the final acknowledgement before the
+        // fail-closed disconnect. Retrying that exact final accepted message
+        // over the compatibility HTTP endpoint must reconcile as duplicate.
+        let (retry_status, retry_body) = request(
+            app(retained_state.clone()),
+            "POST",
+            "/v1/observations",
+            observation(accepted),
+        )
+        .await;
+        assert_eq!(retry_status, StatusCode::OK);
+        assert_eq!(retry_body["stream_sequence"], accepted);
+        assert_eq!(
+            retained_state
+                .metrics
+                .observation_stream_backpressure_disconnects
+                .load(Ordering::Relaxed),
+            1
+        );
+        server.abort();
     }
 
     #[tokio::test]
@@ -2705,6 +3658,69 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn retries_stop_at_durable_maximum_attempts() {
+        let state = AppState::new(4);
+        let epoch = state.epoch.to_string();
+        let router = app(state.clone());
+        assert_eq!(
+            request(
+                router.clone(),
+                "POST",
+                "/v1/commands",
+                command_body(&epoch, "drone-1"),
+            )
+            .await
+            .0,
+            StatusCode::ACCEPTED
+        );
+
+        for attempt in 1..=MAX_COMMAND_ATTEMPTS {
+            let worker = format!("worker-{attempt}");
+            let token = claim(router.clone(), &worker).await;
+            let (status, body) = request(
+                router.clone(),
+                "POST",
+                "/v1/outbox/commands/cmd-1/retry",
+                json!({"worker_id":worker,"lease_token":token,
+                    "retry_after_ms":0,"error":"temporary"}),
+            )
+            .await;
+            assert_eq!(status, StatusCode::OK);
+            let expected = if attempt == MAX_COMMAND_ATTEMPTS {
+                "terminal"
+            } else {
+                "pending"
+            };
+            assert_eq!(body["execution_state"], expected);
+            assert_eq!(body["dead_lettered"], attempt == MAX_COMMAND_ATTEMPTS);
+            assert_eq!(body["maximum_attempts"], MAX_COMMAND_ATTEMPTS);
+        }
+
+        assert_eq!(
+            request(
+                router,
+                "POST",
+                "/v1/outbox/claim",
+                json!({"worker_id":"worker-extra","lease_duration_ms":30_000}),
+            )
+            .await
+            .0,
+            StatusCode::NO_CONTENT
+        );
+        let row: (String, i64) = state
+            .command_db
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT execution_state,attempt_count FROM commands WHERE command_id='cmd-1'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(row, ("terminal".into(), MAX_COMMAND_ATTEMPTS));
+    }
+
     #[test]
     fn slow_subscriber_is_disconnected_and_must_resync() {
         let metrics = Metrics::default();
@@ -2747,6 +3763,116 @@ mod tests {
         assert_eq!(
             request(router, "POST", "/v1/observations", changed).await.0,
             StatusCode::CONFLICT
+        );
+    }
+
+    #[tokio::test]
+    async fn observation_idempotency_retention_is_bounded_and_reported() {
+        let state = AppState::with_database_and_limits(4, 16, 2, ":memory:").unwrap();
+        let router = app(state.clone());
+        for sequence in 1..=3 {
+            assert_eq!(
+                request(
+                    router.clone(),
+                    "POST",
+                    "/v1/observations",
+                    observation(sequence),
+                )
+                .await
+                .0,
+                StatusCode::ACCEPTED
+            );
+        }
+        {
+            let cache = state.observations.lock().unwrap();
+            assert_eq!(cache.entries.len(), 2);
+            assert!(!cache.entries.contains_key("o-1"));
+            assert!(cache.entries.contains_key("o-2"));
+            assert!(cache.entries.contains_key("o-3"));
+        }
+
+        let (status, metrics) = request(router, "GET", "/metrics", Value::Null).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(metrics["observation_idempotency_entries"], 2);
+        assert_eq!(metrics["observation_idempotency_capacity"], 2);
+        assert_eq!(metrics["observation_idempotency_evictions"], 1);
+        assert_eq!(metrics["observation_latency_sample_count"], 3);
+        assert_eq!(
+            metrics["observation_latency_sample_capacity"],
+            OBSERVATION_LATENCY_SAMPLE_RETENTION
+        );
+    }
+
+    #[tokio::test]
+    async fn track_and_source_identity_cardinality_are_bounded_and_reported() {
+        let state =
+            AppState::with_database_and_admission_limits(4, 16, 16, 2, 2, ":memory:").unwrap();
+        let router = app(state);
+        for (sequence, track) in [(1, "drone-1"), (2, "drone-2")] {
+            let mut item = observation(sequence);
+            item["track_id"] = json!(track);
+            assert_eq!(
+                request(router.clone(), "POST", "/v1/observations", item)
+                    .await
+                    .0,
+                StatusCode::ACCEPTED
+            );
+        }
+        let mut third_track = observation(3);
+        third_track["track_id"] = json!("drone-3");
+        let (status, body) = request(router.clone(), "POST", "/v1/observations", third_track).await;
+        assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(body["error"], "track_capacity_exceeded");
+
+        let mut third_identity = observation(3);
+        third_identity["source_id"] = json!("radar-2");
+        let (status, body) =
+            request(router.clone(), "POST", "/v1/observations", third_identity).await;
+        assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(body["error"], "source_track_identity_capacity_exceeded");
+
+        let (status, metrics) = request(router, "GET", "/metrics", Value::Null).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(metrics["track_entries"], 2);
+        assert_eq!(metrics["track_capacity"], 2);
+        assert_eq!(metrics["track_capacity_rejections"], 1);
+        assert_eq!(metrics["source_track_identity_entries"], 2);
+        assert_eq!(metrics["source_track_identity_capacity"], 2);
+        assert_eq!(metrics["source_track_identity_capacity_rejections"], 1);
+    }
+
+    #[tokio::test]
+    async fn expired_observation_idempotency_has_explicit_finite_semantics() {
+        let router = app(AppState::with_database_and_limits(4, 16, 2, ":memory:").unwrap());
+        for sequence in 1..=3 {
+            assert_eq!(
+                request(
+                    router.clone(),
+                    "POST",
+                    "/v1/observations",
+                    observation(sequence),
+                )
+                .await
+                .0,
+                StatusCode::ACCEPTED
+            );
+        }
+
+        let (old_retry_status, old_retry) =
+            request(router.clone(), "POST", "/v1/observations", observation(1)).await;
+        assert_eq!(old_retry_status, StatusCode::CONFLICT);
+        assert_eq!(old_retry["error"], "source_sequence_not_increasing");
+
+        // Once o-1 is outside the finite cache, its historical fingerprint is
+        // unavailable. A later monotonic observation may reuse that ID; callers
+        // must not rely on reuse detection beyond the advertised window.
+        let mut reused_after_expiry = observation(4);
+        reused_after_expiry["observation_id"] = json!("o-1");
+        assert_eq!(
+            request(router, "POST", "/v1/observations", reused_after_expiry,)
+                .await
+                .0,
+            StatusCode::ACCEPTED
         );
     }
 

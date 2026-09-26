@@ -1,5 +1,7 @@
 import asyncio
+import gzip
 import importlib.util
+import json
 import sys
 import unittest
 from unittest.mock import patch
@@ -41,6 +43,28 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual(network_harness.percentile([1, 2, 3, 4], 0.50), 2)
         self.assertEqual(network_harness.percentile([1, 2, 3, 4], 0.99), 4)
 
+    def test_latency_reservoir_has_fixed_memory_and_truthful_count(self):
+        samples = network_harness.BoundedSamples(capacity=8)
+        for value in range(10_000):
+            samples.append(float(value))
+        summary = network_harness.latency_summary(samples)
+        self.assertEqual(samples.count, 10_000)
+        self.assertEqual(len(samples.values), 8)
+        self.assertEqual(summary["samples"], 10_000)
+        self.assertEqual(summary["retained_samples"], 8)
+        self.assertEqual(summary["sample_capacity"], 8)
+        self.assertEqual(summary["max_ms"], 9_999.0)
+
+    def test_observation_timestamp_window_evicts_oldest_at_capacity(self):
+        window = network_harness.ObservationStartWindow(capacity=2)
+        window.record("a", 1)
+        window.record("b", 2)
+        window.record("c", 3)
+        self.assertIsNone(window.get("a"))
+        self.assertEqual(window.get("b"), 2)
+        self.assertEqual(window.get("c"), 3)
+        self.assertEqual(window.evictions, 1)
+
     def test_gap_requires_resync(self):
         model = network_harness.ClientModel("test")
         model.install_snapshot({"stream_epoch": "e", "sequence": 2, "tracks": []})
@@ -74,6 +98,99 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual(kind, "delta")
         self.assertEqual(delta["stream_epoch"], "e-1")
         self.assertEqual(delta["sequence"], 4)
+
+    def test_gateway_heartbeat_exposes_cursor(self):
+        kind, heartbeat = network_harness.parse_gateway_message({
+            "message_type": "gateway_heartbeat",
+            "transport_version": "sentinel-gateway/v1",
+            "server_epoch": "e-1",
+            "current_sequence": 9,
+            "emitted_at": "2026-09-26T00:00:00Z",
+        })
+        self.assertEqual(kind, "heartbeat")
+        self.assertEqual(heartbeat["sequence"], 9)
+
+    def test_gateway_delta_batch_parses_and_applies_every_ordered_item(self):
+        def envelope(base, result):
+            return {
+                "transport_version": "sentinel-gateway/v1",
+                "server_epoch": "e-1",
+                "base_sequence": base,
+                "result_sequence": result,
+                "payload": {
+                    "message_type": "track_delta",
+                    "track": {"track_id": "T", "revision": result},
+                },
+            }
+
+        kind, deltas = network_harness.parse_gateway_message({
+            "message_type": "delta_batch",
+            "transport_version": "sentinel-gateway/v1",
+            "server_epoch": "e-1",
+            "items": [envelope(2, 3), envelope(3, 4)],
+        })
+        self.assertEqual(kind, "delta_batch")
+        model = network_harness.ClientModel("test")
+        model.install_snapshot({"stream_epoch": "e-1", "sequence": 2, "tracks": []})
+        self.assertEqual([model.apply_delta(item) for item in deltas], ["applied", "applied"])
+        self.assertEqual(model.sequence, 4)
+
+    def test_negotiated_gzip_batch_decodes_with_strict_bounds(self):
+        batch = {
+            "message_type": "delta_batch",
+            "transport_version": "sentinel-gateway/v1",
+            "items": [
+                {"transport_version": "sentinel-gateway/v1", "server_epoch": "e-1",
+                 "base_sequence": 0, "result_sequence": 1,
+                 "payload": {"message_type": "track_delta", "track": {"track_id": "T"}}}
+            ],
+        }
+        frame = network_harness.GZIP_BATCH_MAGIC + gzip.compress(json.dumps(batch).encode())
+        decoded = network_harness.decode_gateway_frame(frame)
+        kind, deltas = network_harness.parse_gateway_message(decoded)
+        self.assertEqual(kind, "delta_batch")
+        self.assertEqual(deltas[0]["sequence"], 1)
+
+    def test_compressed_batch_rejects_unknown_magic_trailing_data_and_count(self):
+        with self.assertRaisesRegex(ValueError, "unknown binary"):
+            network_harness.decode_gateway_frame(b"nope")
+        valid = gzip.compress(json.dumps({"message_type": "delta_batch", "items": []}).encode())
+        with self.assertRaisesRegex(ValueError, "trailing"):
+            network_harness.decode_gateway_frame(network_harness.GZIP_BATCH_MAGIC + valid + b"x")
+        with self.assertRaisesRegex(ValueError, "count"):
+            network_harness.parse_gateway_message({
+                "message_type": "delta_batch", "transport_version": "sentinel-gateway/v1",
+                "items": [{}] * (network_harness.DELTA_BATCH_MAX_COUNT + 1),
+            })
+
+    def test_monotonic_watchdog_covers_no_progress_and_queue_age(self):
+        timeout = 100
+        self.assertFalse(network_harness.monotonic_watchdog_expired(99, 0, None, timeout))
+        self.assertTrue(network_harness.monotonic_watchdog_expired(100, 0, None, timeout))
+        self.assertTrue(network_harness.monotonic_watchdog_expired(150, 100, 49, timeout))
+
+    def test_wall_latency_is_diagnostic_and_clamped(self):
+        applied = network_harness.datetime.fromisoformat("2026-09-26T00:00:01+00:00")
+        self.assertEqual(
+            network_harness.wall_latency_ms("2026-09-26T00:00:00Z", applied), 1000.0
+        )
+        self.assertEqual(
+            network_harness.wall_latency_ms("2026-09-26T00:00:02Z", applied), 0.0
+        )
+
+    def test_wall_stale_fence_detects_continuous_old_backlog(self):
+        received = network_harness.datetime.fromisoformat("2026-09-26T00:00:05+00:00")
+        self.assertTrue(
+            network_harness.wall_message_stale(
+                "2026-09-26T00:00:01Z", received, stale_after_ms=3000
+            )
+        )
+        self.assertFalse(
+            network_harness.wall_message_stale(
+                "2026-09-26T00:00:03Z", received, stale_after_ms=3000
+            )
+        )
+        self.assertFalse(network_harness.wall_message_stale(None, received, 3000))
 
     def test_strict_observation_shape(self):
         item = network_harness.observation(0, 0, 7, 0)

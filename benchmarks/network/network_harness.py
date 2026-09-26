@@ -22,6 +22,8 @@ import urllib.parse
 import urllib.request
 import uuid
 import tempfile
+import zlib
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,6 +32,11 @@ from typing import Any, AsyncIterator
 
 CLIENT_COUNT = 5
 PROTOCOL = "realtime/v1"
+LATENCY_RESERVOIR_CAPACITY = 16_384
+INGRESS_TIMESTAMP_CAPACITY = 32_768
+GZIP_BATCH_MAGIC = b"SDG1"
+DELTA_BATCH_MAX_COUNT = 16
+DELTA_BATCH_MAX_DECOMPRESSED_BYTES = 1024 * 1024
 
 
 def utc_now() -> str:
@@ -49,7 +56,70 @@ def percentile(values: list[float], q: float) -> float | None:
     return ordered[max(0, math.ceil(q * len(ordered)) - 1)]
 
 
-def latency_summary(values: list[float]) -> dict[str, float | int | None]:
+@dataclass
+class BoundedSamples:
+    """Deterministic fixed-memory reservoir with an exact count and maximum.
+
+    Percentiles are estimates over an Algorithm-R-style pseudo-random
+    reservoir. The seed is deliberately fixed so repeated benchmark inputs
+    produce comparable output; this is measurement sampling, not a claim that
+    the retained values are cryptographically random.
+    """
+
+    capacity: int = LATENCY_RESERVOIR_CAPACITY
+    values: list[float] = field(default_factory=list)
+    count: int = 0
+    maximum: float | None = None
+    _rng_state: int = 0x5EED_2026
+
+    def append(self, value: float) -> None:
+        self.count += 1
+        self.maximum = value if self.maximum is None else max(self.maximum, value)
+        if len(self.values) < self.capacity:
+            self.values.append(value)
+            return
+        # A small deterministic LCG avoids a global RNG and keeps evidence
+        # reproducible. Algorithm R gives every observed sample equal odds.
+        self._rng_state = (6364136223846793005 * self._rng_state + 1) & ((1 << 64) - 1)
+        candidate = self._rng_state % self.count
+        if candidate < self.capacity:
+            self.values[candidate] = value
+
+    def summary(self) -> dict[str, float | int | str | None]:
+        return {
+            "samples": self.count,
+            "retained_samples": len(self.values),
+            "sample_capacity": self.capacity,
+            "percentile_method": "deterministic_algorithm_r_style_reservoir_nearest_rank",
+            "p50_ms": percentile(self.values, 0.50),
+            "p95_ms": percentile(self.values, 0.95),
+            "p99_ms": percentile(self.values, 0.99),
+            "max_ms": self.maximum,
+        }
+
+
+@dataclass
+class ObservationStartWindow:
+    capacity: int = INGRESS_TIMESTAMP_CAPACITY
+    values: OrderedDict[str, int] = field(default_factory=OrderedDict)
+    evictions: int = 0
+
+    def record(self, message_id: str, started_ns: int) -> None:
+        self.values[message_id] = started_ns
+        self.values.move_to_end(message_id)
+        while len(self.values) > self.capacity:
+            self.values.popitem(last=False)
+            self.evictions += 1
+
+    def get(self, message_id: str | None) -> int | None:
+        return self.values.get(message_id) if message_id is not None else None
+
+
+def latency_summary(
+    values: list[float] | BoundedSamples,
+) -> dict[str, float | int | str | None]:
+    if isinstance(values, BoundedSamples):
+        return values.summary()
     return {
         "samples": len(values),
         "p50_ms": percentile(values, 0.50),
@@ -65,12 +135,17 @@ class ClientModel:
     epoch: str = ""
     sequence: int = 0
     tracks: dict[str, dict[str, Any]] = field(default_factory=dict)
-    receive_apply_ms: list[float] = field(default_factory=list)
+    receive_apply_ms: BoundedSamples = field(default_factory=BoundedSamples)
     gaps: int = 0
     resyncs: int = 0
     duplicates: int = 0
     dropped_for_fault: int = 0
     forced_disconnects: int = 0
+    ingress_to_apply_ms: BoundedSamples = field(default_factory=BoundedSamples)
+    emitted_to_apply_ms: BoundedSamples = field(default_factory=BoundedSamples)
+    outage_windows: list[dict[str, Any]] = field(default_factory=list)
+    watchdog_recoveries: int = 0
+    last_progress_ns: int = 0
 
     def install_snapshot(self, snapshot: dict[str, Any]) -> None:
         self.epoch = snapshot["stream_epoch"]
@@ -144,13 +219,36 @@ def parse_snapshot(body: dict[str, Any], headers: dict[str, str] | None = None) 
     }
 
 
-def parse_gateway_message(message: dict[str, Any]) -> tuple[str, dict[str, Any] | None]:
+def parse_gateway_message(message: dict[str, Any]) -> tuple[str, Any]:
     """Translate sentinel-gateway/v1 transport messages for the client model."""
     kind = message.get("message_type")
     if kind == "gateway_hello":
         return "hello", None
     if kind == "gateway_resync_required":
         return "resync", None
+    if kind == "gateway_heartbeat":
+        if message.get("transport_version") != "sentinel-gateway/v1":
+            raise ValueError("unknown gateway heartbeat transport version")
+        return "heartbeat", {
+            "stream_epoch": str(message["server_epoch"]),
+            "sequence": int(message["current_sequence"]),
+            "emitted_at": message["emitted_at"],
+        }
+    if kind == "delta_batch":
+        if message.get("transport_version") != "sentinel-gateway/v1":
+            raise ValueError("unknown gateway delta batch transport version")
+        items = message.get("items")
+        if not isinstance(items, list) or not 1 <= len(items) <= DELTA_BATCH_MAX_COUNT:
+            raise ValueError("gateway delta batch item count is outside bounds")
+        deltas = []
+        for item in items:
+            if not isinstance(item, dict):
+                raise ValueError("gateway delta batch item is not an object")
+            item_kind, delta = parse_gateway_message(item)
+            if item_kind != "delta" or delta is None:
+                raise ValueError("gateway delta batch contains a non-delta item")
+            deltas.append(delta)
+        return "delta_batch", deltas
     if message.get("transport_version") != "sentinel-gateway/v1":
         raise ValueError("unknown gateway transport version")
     payload = message.get("payload")
@@ -166,7 +264,74 @@ def parse_gateway_message(message: dict[str, Any]) -> tuple[str, dict[str, Any] 
         "base_sequence": int(base),
         "sequence": int(result),
         "track": payload["track"],
+        "causation_id": payload.get("correlation", {}).get("causation_id"),
+        "emitted_at": payload.get("emitted_at"),
     }
+
+
+def decode_gateway_frame(raw: str | bytes) -> dict[str, Any]:
+    """Decode JSON text or the negotiated SDG1 + gzip JSON binary frame."""
+    if isinstance(raw, str):
+        return json.loads(raw)
+    if not raw.startswith(GZIP_BATCH_MAGIC):
+        raise ValueError("unknown binary gateway frame")
+    compressed = raw[len(GZIP_BATCH_MAGIC):]
+    if not compressed:
+        raise ValueError("empty compressed gateway frame")
+    decoder = zlib.decompressobj(wbits=31)
+    decoded = decoder.decompress(compressed, DELTA_BATCH_MAX_DECOMPRESSED_BYTES + 1)
+    if len(decoded) > DELTA_BATCH_MAX_DECOMPRESSED_BYTES or decoder.unconsumed_tail:
+        raise ValueError("gateway frame exceeds decompressed size limit")
+    decoded += decoder.flush()
+    if len(decoded) > DELTA_BATCH_MAX_DECOMPRESSED_BYTES:
+        raise ValueError("gateway frame exceeds decompressed size limit")
+    if not decoder.eof or decoder.unused_data:
+        raise ValueError("invalid or trailing gzip gateway data")
+    message = json.loads(decoded)
+    if not isinstance(message, dict) or message.get("message_type") != "delta_batch":
+        raise ValueError("compressed gateway frame is not a delta batch")
+    return message
+
+
+def monotonic_watchdog_expired(
+    now_ns: int, last_progress_ns: int, oldest_unapplied_ns: int | None, timeout_ns: int
+) -> bool:
+    """True when either stream progress or the local apply queue is too old."""
+    return now_ns - last_progress_ns >= timeout_ns or (
+        oldest_unapplied_ns is not None and now_ns - oldest_unapplied_ns >= timeout_ns
+    )
+
+
+def wall_latency_ms(emitted_at: str | None, applied_at: datetime) -> float | None:
+    """Same-host diagnostic only; unlike recovery, this intentionally uses wall time."""
+    if not emitted_at:
+        return None
+    emitted = datetime.fromisoformat(emitted_at.replace("Z", "+00:00"))
+    return max(0.0, (applied_at - emitted).total_seconds() * 1000)
+
+
+def wall_message_stale(
+    emitted_at: str | None, received_at: datetime, stale_after_ms: float
+) -> bool:
+    """Same-host wall-clock stale-backlog fence; recovery timing remains monotonic."""
+    age = wall_latency_ms(emitted_at, received_at)
+    return age is not None and age >= stale_after_ms
+
+
+async def abort_stalled_websocket(socket: Any) -> None:
+    """Abandon a stalled TCP flow without waiting for its close handshake.
+
+    A graceful WebSocket close is itself ordered behind the stale TCP backlog
+    and the library default can therefore add ten seconds to recovery.
+    """
+    transport = getattr(socket, "transport", None)
+    if transport is not None:
+        transport.abort()
+        return
+    try:
+        await asyncio.wait_for(socket.close(), timeout=0.1)
+    except (asyncio.TimeoutError, OSError):
+        return
 
 
 def gateway_command_request(command: dict[str, Any], epoch: str, revision: int) -> dict[str, Any]:
@@ -300,6 +465,25 @@ async def http_json(
     return status, body, (time.perf_counter_ns() - started) / 1e6, headers
 
 
+async def pooled_http_json(
+    session: Any, method: str, url: str, payload: dict[str, Any] | None = None
+) -> tuple[int, dict[str, Any], float, dict[str, str]]:
+    """JSON request on an explicitly pooled session for warm-service RTT evidence."""
+    started = time.perf_counter_ns()
+    async with session.request(method, url, json=payload) as response:
+        raw = await response.read()
+        try:
+            body = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            body = {"error": raw.decode(errors="replace")}
+        return (
+            response.status,
+            body,
+            (time.perf_counter_ns() - started) / 1e6,
+            dict(response.headers),
+        )
+
+
 async def run_dry(args: argparse.Namespace) -> dict[str, Any]:
     gateway = DryGateway()
     clients = [ClientModel(f"client-{i + 1}") for i in range(CLIENT_COUNT)]
@@ -307,7 +491,6 @@ async def run_dry(args: argparse.Namespace) -> dict[str, Any]:
         client.install_snapshot(await gateway.snapshot())
 
     stop = asyncio.Event()
-
     async def consume(client: ClientModel, index: int) -> None:
         async for delta in gateway.subscribe():
             if stop.is_set():
@@ -372,13 +555,32 @@ async def run_live(args: argparse.Namespace) -> dict[str, Any]:
     command_url = args.base_url.rstrip("/") + args.command_path
     metrics_url = args.base_url.rstrip("/") + args.metrics_path
     clients = [ClientModel(f"client-{i + 1}") for i in range(CLIENT_COUNT)]
-    endpoint_rtts: dict[str, list[float]] = {"snapshot": [], "observation": [], "command": []}
+    endpoint_rtts: dict[str, BoundedSamples] = {
+        "snapshot": BoundedSamples(),
+        "observation": BoundedSamples(),
+        "command": BoundedSamples(),
+    }
     stop = asyncio.Event()
+    observation_started_ns = ObservationStartWindow()
+
+    def client_base(index: int) -> str:
+        urls = getattr(args, "client_base_urls", None)
+        if urls:
+            return urls[index].rstrip("/")
+        template = getattr(args, "client_base_url_template", None)
+        return (template.format(client=index + 1) if template else args.base_url).rstrip("/")
+
+    def client_ws(index: int) -> str:
+        urls = getattr(args, "client_ws_urls", None)
+        if urls:
+            return urls[index]
+        template = getattr(args, "client_ws_url_template", None)
+        return template.format(client=index + 1) if template else args.ws_url
 
     async def raw_no_read_client(index: int) -> None:
         """Handshake at the transport layer and then stop reading entirely."""
         parsed = urllib.parse.urlsplit(
-            f"{args.ws_url}?after_sequence={clients[index].sequence}"
+            f"{client_ws(index)}?after_sequence={clients[index].sequence}&batch=gzip-v1"
         )
         host = parsed.hostname or "127.0.0.1"
         port = parsed.port or 80
@@ -420,57 +622,184 @@ async def run_live(args: argparse.Namespace) -> dict[str, Any]:
             writer.close()
             await writer.wait_closed()
 
-    async def resync(client: ClientModel) -> None:
-        status, body, rtt, headers = await http_json("GET", snapshot_url)
+    async def resync(client: ClientModel, index: int) -> None:
+        status, body, rtt, headers = await http_json(
+            "GET", client_base(index) + args.snapshot_path
+        )
         endpoint_rtts["snapshot"].append(rtt)
         if status != 200:
             raise RuntimeError(f"snapshot failed: HTTP {status}: {body}")
         client.install_snapshot(parse_snapshot(body, headers))
+        client.last_progress_ns = time.perf_counter_ns()
 
-    for client in clients:
-        await resync(client)
+    for index, client in enumerate(clients):
+        await resync(client, index)
 
     async def consume(client: ClientModel, index: int) -> None:
+        timeout_ns = int(getattr(args, "observer_stall_timeout", 3.0) * 1e9)
+        stale_after_ms = float(
+            getattr(args, "observer_stale_age", getattr(args, "observer_stall_timeout", 3.0))
+        ) * 1000
         while not stop.is_set():
-            url = f"{args.ws_url}?after_sequence={client.sequence}"
+            url = f"{client_ws(index)}?after_sequence={client.sequence}&batch=gzip-v1"
             reconnect = False
+            recovery_reason: str | None = None
+            outage_started_ns: int | None = None
             async with websockets.connect(url, max_queue=args.client_queue) as socket:
-                async for raw in socket:
+                last_progress_ns = client.last_progress_ns or time.perf_counter_ns()
+                oldest_unapplied_ns: int | None = None
+                while not stop.is_set():
+                    remaining_ns = timeout_ns - (time.perf_counter_ns() - last_progress_ns)
+                    try:
+                        raw = await asyncio.wait_for(
+                            socket.recv(), timeout=max(0.001, remaining_ns / 1e9)
+                        )
+                    except asyncio.TimeoutError:
+                        now_ns = time.perf_counter_ns()
+                        if monotonic_watchdog_expired(
+                            now_ns, last_progress_ns, oldest_unapplied_ns, timeout_ns
+                        ):
+                            reconnect = True
+                            recovery_reason = "observer_no_progress"
+                            outage_started_ns = last_progress_ns
+                            client.watchdog_recoveries += 1
+                            await abort_stalled_websocket(socket)
+                            break
+                        continue
                     if stop.is_set():
                         return
-                    kind, delta = parse_gateway_message(json.loads(raw))
+                    received_ns = time.perf_counter_ns()
+                    received_at = datetime.now(timezone.utc)
+                    oldest_unapplied_ns = received_ns
+                    kind, delta = parse_gateway_message(decode_gateway_frame(raw))
                     if kind == "hello":
+                        last_progress_ns = received_ns
+                        client.last_progress_ns = received_ns
+                        oldest_unapplied_ns = None
+                        continue
+                    if kind == "heartbeat":
+                        assert delta is not None
+                        if delta["stream_epoch"] != client.epoch:
+                            reconnect = True
+                            recovery_reason = "heartbeat_epoch_changed"
+                            outage_started_ns = last_progress_ns
+                            break
+                        if wall_message_stale(
+                            delta.get("emitted_at"), received_at, stale_after_ms
+                        ):
+                            reconnect = True
+                            recovery_reason = "observer_stale_heartbeat"
+                            outage_started_ns = last_progress_ns
+                            client.watchdog_recoveries += 1
+                            await abort_stalled_websocket(socket)
+                            break
+                        last_progress_ns = received_ns
+                        client.last_progress_ns = received_ns
+                        oldest_unapplied_ns = None
                         continue
                     if kind == "resync":
                         reconnect = True
+                        recovery_reason = "gateway_resync_required"
+                        outage_started_ns = last_progress_ns
                         break
-                    assert delta is not None
-                    if index == args.disconnect_client and (
-                        args.disconnect_at > 0 and delta["sequence"] >= args.disconnect_at
-                    ):
-                        client.forced_disconnects += 1
-                        # A one-shot transport interruption. Reconnection uses the
-                        # last applied cursor and therefore exercises retained replay.
-                        args.disconnect_at = 0
-                        reconnect = False
-                        break
-                    if index == args.slow_client and args.slow_reader_delay > 0:
-                        await asyncio.sleep(args.slow_reader_delay)
-                    if args.gap_fault and index == 4 and delta["sequence"] == args.gap_at:
-                        client.dropped_for_fault += 1
-                        continue
-                    if client.apply_delta(delta) == "resync":
-                        reconnect = True
+                    deltas = delta if kind == "delta_batch" else [delta]
+                    assert all(item is not None for item in deltas)
+                    close_stream = False
+                    for delta_item in deltas:
+                        if wall_message_stale(
+                            delta_item.get("emitted_at"), received_at, stale_after_ms
+                        ):
+                            reconnect = True
+                            recovery_reason = "observer_stale_delta"
+                            outage_started_ns = last_progress_ns
+                            client.watchdog_recoveries += 1
+                            await abort_stalled_websocket(socket)
+                            break
+                        if index == args.disconnect_client and (
+                            args.disconnect_at > 0
+                            and delta_item["sequence"] >= args.disconnect_at
+                        ):
+                            client.forced_disconnects += 1
+                            args.disconnect_at = 0
+                            reconnect = False
+                            close_stream = True
+                            break
+                        if index == args.slow_client and args.slow_reader_delay > 0:
+                            await asyncio.sleep(args.slow_reader_delay)
+                        now_ns = time.perf_counter_ns()
+                        if monotonic_watchdog_expired(
+                            now_ns, last_progress_ns, oldest_unapplied_ns, timeout_ns
+                        ):
+                            reconnect = True
+                            recovery_reason = "observer_queue_age"
+                            outage_started_ns = last_progress_ns
+                            client.watchdog_recoveries += 1
+                            await abort_stalled_websocket(socket)
+                            break
+                        if args.gap_fault and index == 4 and delta_item["sequence"] == args.gap_at:
+                            client.dropped_for_fault += 1
+                            continue
+                        disposition = client.apply_delta(delta_item)
+                        applied_ns = time.perf_counter_ns()
+                        if disposition in ("applied", "duplicate"):
+                            last_progress_ns = applied_ns
+                            client.last_progress_ns = applied_ns
+                            oldest_unapplied_ns = None
+                        emitted_latency = wall_latency_ms(
+                            delta_item.get("emitted_at"), datetime.now(timezone.utc)
+                        )
+                        if disposition == "applied" and emitted_latency is not None:
+                            client.emitted_to_apply_ms.append(emitted_latency)
+                        causation_id = delta_item.get("causation_id")
+                        observation_started = observation_started_ns.get(causation_id)
+                        if disposition == "applied" and observation_started is not None:
+                            client.ingress_to_apply_ms.append(
+                                (time.perf_counter_ns() - observation_started) / 1e6
+                            )
+                        if disposition == "resync":
+                            reconnect = True
+                            recovery_reason = "sequence_gap"
+                            outage_started_ns = last_progress_ns
+                            break
+                    if reconnect or close_stream:
                         break
             if reconnect and not stop.is_set():
-                await resync(client)
+                await resync(client, index)
+                recovered_ns = time.perf_counter_ns()
+                started_ns = outage_started_ns or recovered_ns
+                client.outage_windows.append({
+                    "reason": recovery_reason or "unknown",
+                    "started_monotonic_ns": started_ns,
+                    "recovered_monotonic_ns": recovered_ns,
+                    "recovery_ms": (recovered_ns - started_ns) / 1e6,
+                })
 
     raw_slow = bool(getattr(args, "raw_slow_reader", False))
+    async def consume_resilient(client: ClientModel, index: int) -> None:
+        while not stop.is_set():
+            try:
+                await consume(client, index)
+                return
+            except asyncio.CancelledError:
+                raise
+            except Exception as error:
+                started_ns = client.last_progress_ns or time.perf_counter_ns()
+                client.watchdog_recoveries += 1
+                await resync(client, index)
+                recovered_ns = time.perf_counter_ns()
+                client.outage_windows.append({
+                    "reason": "observer_transport_error",
+                    "error_type": type(error).__name__,
+                    "started_monotonic_ns": started_ns,
+                    "recovered_monotonic_ns": recovered_ns,
+                    "recovery_ms": (recovered_ns - started_ns) / 1e6,
+                })
+
     consumers = [
         asyncio.create_task(
             raw_no_read_client(i)
             if raw_slow and i == args.slow_client
-            else consume(client, i)
+            else consume_resilient(client, i)
         )
         for i, client in enumerate(clients)
     ]
@@ -478,61 +807,153 @@ async def run_live(args: argparse.Namespace) -> dict[str, Any]:
     ticks = max(1, round(args.duration * args.hz))
     producer_started = time.perf_counter_ns()
     semaphore = asyncio.Semaphore(args.ingest_concurrency)
-    scheduling_lag_ms: list[float] = []
+    scheduling_lag_ms = BoundedSamples()
     accepted = 0
     rejected = 0
+    producer_send_completed_ns: int | None = None
+    acceptance_completed_ns: int | None = None
 
-    # urllib opens a fresh connection and allocates a worker thread per request;
-    # that measured the Python driver rather than the gateway above ~1.7k/s.
-    # A single pooled aiohttp session keeps the semantic contract unchanged:
-    # one ordered HTTP request per track observation, with no batching.
-    timeout = aiohttp.ClientTimeout(total=10)
-    connector = aiohttp.TCPConnector(
-        limit=max(args.ingest_concurrency, args.drones),
-        limit_per_host=max(args.ingest_concurrency, args.drones),
-        force_close=False,
-    )
-    async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
-        async def produce_track_pooled(drone: int) -> None:
-            nonlocal accepted, rejected
-            for tick in range(ticks):
-                target = producer_started + round(tick * 1e9 / args.hz)
-                delay = (target - time.perf_counter_ns()) / 1e9
-                if delay > 0:
-                    await asyncio.sleep(delay)
-                async with semaphore:
+    async def produce_http() -> None:
+        nonlocal producer_send_completed_ns, acceptance_completed_ns
+        # Compatibility path: one pooled HTTP request per observation.
+        timeout = aiohttp.ClientTimeout(total=10)
+        connector = aiohttp.TCPConnector(
+            limit=max(args.ingest_concurrency, args.drones),
+            limit_per_host=max(args.ingest_concurrency, args.drones),
+            force_close=False,
+        )
+        async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
+            await asyncio.gather(
+                *(produce_track_pooled(drone, session) for drone in range(args.drones))
+            )
+        producer_send_completed_ns = time.perf_counter_ns()
+        acceptance_completed_ns = producer_send_completed_ns
+
+    async def produce_track_pooled(drone: int, session: Any) -> None:
+        nonlocal accepted, rejected
+        tick_offset = int(getattr(args, "tick_offset", 0))
+        for local_tick in range(ticks):
+            tick = tick_offset + local_tick
+            target = producer_started + round(local_tick * 1e9 / args.hz)
+            delay = (target - time.perf_counter_ns()) / 1e9
+            if delay > 0:
+                await asyncio.sleep(delay)
+            async with semaphore:
+                scheduling_lag_ms.append(
+                    max(0.0, (time.perf_counter_ns() - target) / 1e6)
+                )
+                started = time.perf_counter_ns()
+                payload = observation(
+                    drone, tick, args.seed, round(tick * 1000 / args.hz)
+                )
+                observation_started_ns.record(payload["message_id"], started)
+                async with session.post(
+                    observation_url,
+                    json=payload,
+                    headers={"Accept": "application/json"},
+                ) as response:
+                    raw = await response.read()
+                    status = response.status
+                    try:
+                        body = json.loads(raw) if raw else {}
+                    except json.JSONDecodeError:
+                        body = {"error": raw.decode(errors="replace")}
+                endpoint_rtts["observation"].append(
+                    (time.perf_counter_ns() - started) / 1e6
+                )
+            if status in (200, 202, 204):
+                accepted += 1
+            else:
+                rejected += 1
+                raise RuntimeError(f"observation rejected: HTTP {status}: {body}")
+
+    async def produce_stream() -> None:
+        """Pipeline one logical source stream; acknowledgements are read concurrently."""
+        nonlocal accepted, rejected, producer_send_completed_ns, acceptance_completed_ns
+        stream_url = getattr(args, "ingest_ws_url", None)
+        if not stream_url:
+            parsed = urllib.parse.urlsplit(args.base_url)
+            scheme = "wss" if parsed.scheme == "https" else "ws"
+            stream_url = urllib.parse.urlunsplit(
+                (scheme, parsed.netloc, args.observation_stream_path, "", "")
+            )
+        intended_count = ticks * args.drones
+        acknowledgements = 0
+        ack_complete = asyncio.Event()
+
+        async with websockets.connect(
+            stream_url,
+            max_queue=max(args.client_queue, args.ingest_concurrency),
+            ping_interval=20,
+            ping_timeout=20,
+        ) as socket:
+            hello = json.loads(await socket.recv())
+            if hello.get("message_type") != "observation_stream_hello":
+                raise RuntimeError(f"unexpected observation stream hello: {hello}")
+
+            async def read_acks() -> None:
+                nonlocal accepted, rejected, acknowledgements
+                async for raw in socket:
+                    ack = json.loads(raw)
+                    if ack.get("message_type") != "observation_ack":
+                        raise RuntimeError(f"unexpected observation stream response: {ack}")
+                    message_id = ack.get("message_id")
+                    started = observation_started_ns.get(message_id)
+                    if started is not None:
+                        endpoint_rtts["observation"].append(
+                            (time.perf_counter_ns() - started) / 1e6
+                        )
+                    acknowledgements += 1
+                    if ack.get("accepted"):
+                        accepted += 1
+                    else:
+                        rejected += 1
+                    if acknowledgements == intended_count:
+                        ack_complete.set()
+
+            ack_reader = asyncio.create_task(read_acks())
+            tick_offset = int(getattr(args, "tick_offset", 0))
+            try:
+                for local_tick in range(ticks):
+                    tick = tick_offset + local_tick
+                    target = producer_started + round(local_tick * 1e9 / args.hz)
+                    delay = (target - time.perf_counter_ns()) / 1e9
+                    if delay > 0:
+                        await asyncio.sleep(delay)
                     scheduling_lag_ms.append(
                         max(0.0, (time.perf_counter_ns() - target) / 1e6)
                     )
-                    started = time.perf_counter_ns()
-                    async with session.post(
-                        observation_url,
-                        json=observation(
+                    for drone in range(args.drones):
+                        payload = observation(
                             drone, tick, args.seed, round(tick * 1000 / args.hz)
-                        ),
-                        headers={"Accept": "application/json"},
-                    ) as response:
-                        raw = await response.read()
-                        status = response.status
-                        try:
-                            body = json.loads(raw) if raw else {}
-                        except json.JSONDecodeError:
-                            body = {"error": raw.decode(errors="replace")}
-                    endpoint_rtts["observation"].append(
-                        (time.perf_counter_ns() - started) / 1e6
-                    )
-                if status in (200, 202, 204):
-                    accepted += 1
-                else:
-                    rejected += 1
+                        )
+                        observation_started_ns.record(
+                            payload["message_id"], time.perf_counter_ns()
+                        )
+                        await socket.send(json.dumps(payload, separators=(",", ":")))
+                # Throughput is the offered-stream duration. Acknowledgements
+                # prove acceptance separately and are deliberately pipelined;
+                # including their final network drain would reintroduce a
+                # one-RTT tail into the offered-rate measurement.
+                producer_send_completed_ns = time.perf_counter_ns()
+                await asyncio.wait_for(ack_complete.wait(), timeout=max(15, args.duration + 10))
+                acceptance_completed_ns = time.perf_counter_ns()
+                if rejected:
                     raise RuntimeError(
-                        f"observation rejected: HTTP {status}: {body}"
+                        f"observation stream rejected {rejected}/{acknowledgements} messages"
                     )
+            finally:
+                ack_reader.cancel()
+                await asyncio.gather(ack_reader, return_exceptions=True)
 
-        await asyncio.gather(
-            *(produce_track_pooled(drone) for drone in range(args.drones))
-        )
-    elapsed_ms = (time.perf_counter_ns() - producer_started) / 1e6
+    if getattr(args, "ingest_transport", "http") == "websocket":
+        await produce_stream()
+    else:
+        await produce_http()
+    assert producer_send_completed_ns is not None
+    assert acceptance_completed_ns is not None
+    elapsed_ms = (producer_send_completed_ns - producer_started) / 1e6
+    acceptance_elapsed_ms = (acceptance_completed_ns - producer_started) / 1e6
     intended = ticks * args.drones
     producer_stats = {
         "intended": intended,
@@ -540,23 +961,60 @@ async def run_live(args: argparse.Namespace) -> dict[str, Any]:
         "accepted": accepted,
         "rejected": rejected,
         "offered_rate_per_second": (accepted + rejected) / (elapsed_ms / 1000),
-        "accepted_rate_per_second": accepted / (elapsed_ms / 1000),
+        "offered_cadence_per_second": (accepted + rejected) / (elapsed_ms / 1000),
+        "accepted_completion_rate_per_second": accepted / (acceptance_elapsed_ms / 1000),
+        "accepted_rate_per_second": accepted / (acceptance_elapsed_ms / 1000),
+        "offer_elapsed_ms": elapsed_ms,
+        "acceptance_completion_elapsed_ms": acceptance_elapsed_ms,
         "target_rate_per_second": args.drones * args.hz,
         "scheduling_lag": latency_summary(scheduling_lag_ms),
         "configured_concurrency_limit": args.ingest_concurrency,
+        "ingest_transport": getattr(args, "ingest_transport", "http"),
         "per_track_source_order_preserved": True,
+        "measurement_retention": {
+            "latency_reservoir_capacity": LATENCY_RESERVOIR_CAPACITY,
+            "ingress_timestamp_capacity": observation_started_ns.capacity,
+            "ingress_timestamps_retained": len(observation_started_ns.values),
+            "ingress_timestamp_evictions": observation_started_ns.evictions,
+        },
     }
+
+    # Drain and close the observer measurement before exercising the separate
+    # command RTT probe. Otherwise an intentionally quiet post-producer command
+    # phase can be misclassified as an observer outage.
+    await asyncio.sleep(args.drain)
+    status, authority, rtt, headers = await http_json("GET", snapshot_url)
+    endpoint_rtts["snapshot"].append(rtt)
+    if status != 200:
+        raise RuntimeError(f"final snapshot failed: HTTP {status}")
+    authority = parse_snapshot(authority, headers)
+    authoritative_tracks = {
+        item["track_id"]: {k: v for k, v in item.items() if k != "track_id"}
+        for item in authority["tracks"]
+    }
+    for index, client in enumerate(clients):
+        if client.sequence != int(authority.get("covers_through", authority["sequence"])):
+            await resync(client, index)
+    metrics_status, gateway_metrics, metrics_rtt, _ = await http_json("GET", metrics_url)
+    if metrics_status != 200:
+        raise RuntimeError(f"metrics failed: HTTP {metrics_status}: {gateway_metrics}")
+    endpoint_rtts["metrics"] = BoundedSamples()
+    endpoint_rtts["metrics"].append(metrics_rtt)
+    stop.set()
+    for task in consumers:
+        task.cancel()
+    await asyncio.gather(*consumers, return_exceptions=True)
 
     command = {
         "schema_version": PROTOCOL,
         "message_type": "command",
-        "message_id": "harness-command-message-1",
+        "message_id": f"harness-command-message-{args.seed}",
         "stream_id": "harness-operator",
         "stream_sequence": 1,
         "emitted_at": "2026-09-25T00:00:00Z",
-        "correlation": {"correlation_id": "harness-command-1"},
-        "command_id": "harness-command-1",
-        "idempotency_key": "harness-command-1",
+        "correlation": {"correlation_id": f"harness-command-{args.seed}"},
+        "command_id": f"harness-command-{args.seed}",
+        "idempotency_key": f"harness-command-{args.seed}",
         "command_name": "hold",
         "target_id": "DRONE-01",
         "parameters": {
@@ -577,32 +1035,33 @@ async def run_live(args: argparse.Namespace) -> dict[str, Any]:
         {**command, "command_name": "intercept"}, clients[0].epoch, target_revision
     )
     command_results: list[tuple[int, dict[str, Any]]] = []
-    for payload in (accepted_request, accepted_request.copy(), conflict_request):
-        status, body, rtt, _ = await http_json("POST", command_url, payload)
-        endpoint_rtts["command"].append(rtt)
-        command_results.append((status, body))
+    command_timeout = aiohttp.ClientTimeout(total=10)
+    async with aiohttp.ClientSession(timeout=command_timeout) as command_session:
+        # Establish the connection before measuring already-warm command RTT.
+        warm_status, _, _, _ = await pooled_http_json(
+            command_session, "GET", args.base_url.rstrip("/") + args.health_path
+        )
+        if warm_status != 200:
+            raise RuntimeError(f"command connection warmup failed: HTTP {warm_status}")
+        for payload in (accepted_request, accepted_request.copy(), conflict_request):
+            status, body, rtt, _ = await pooled_http_json(
+                command_session, "POST", command_url, payload
+            )
+            endpoint_rtts["command"].append(rtt)
+            command_results.append((status, body))
+        # Percentiles over three semantic checks are not statistically useful.
+        # Measure 27 additional exact idempotent retries on the same warm
+        # connection; they must remain duplicate receipts with no new effect.
+        for _ in range(27):
+            status, body, rtt, _ = await pooled_http_json(
+                command_session, "POST", command_url, accepted_request
+            )
+            if status not in (200, 202) or body.get(
+                "receipt_status", body.get("disposition")
+            ) not in ("accepted", "duplicate"):
+                raise RuntimeError("warm command RTT probe lost idempotent semantics")
+            endpoint_rtts["command"].append(rtt)
 
-    await asyncio.sleep(args.drain)
-    status, authority, rtt, headers = await http_json("GET", snapshot_url)
-    endpoint_rtts["snapshot"].append(rtt)
-    if status != 200:
-        raise RuntimeError(f"final snapshot failed: HTTP {status}")
-    authority = parse_snapshot(authority, headers)
-    authoritative_tracks = {
-        item["track_id"]: {k: v for k, v in item.items() if k != "track_id"}
-        for item in authority["tracks"]
-    }
-    for client in clients:
-        if client.sequence != int(authority.get("covers_through", authority["sequence"])):
-            await resync(client)
-    metrics_status, gateway_metrics, metrics_rtt, _ = await http_json("GET", metrics_url)
-    if metrics_status != 200:
-        raise RuntimeError(f"metrics failed: HTTP {metrics_status}: {gateway_metrics}")
-    endpoint_rtts["metrics"] = [metrics_rtt]
-    stop.set()
-    for task in consumers:
-        task.cancel()
-    await asyncio.gather(*consumers, return_exceptions=True)
     summary = build_summary(
         args,
         "live",
@@ -620,6 +1079,12 @@ async def run_live(args: argparse.Namespace) -> dict[str, Any]:
     )
     summary["run"]["disconnect_client"] = args.disconnect_client
     summary["run"]["forced_disconnects"] = sum(c.forced_disconnects for c in clients)
+    summary["run"]["external_impairment_routes"] = bool(
+        getattr(args, "client_base_url_template", None)
+        or getattr(args, "client_ws_url_template", None)
+        or getattr(args, "client_base_urls", None)
+        or getattr(args, "client_ws_urls", None)
+    )
     return summary
 
 
@@ -630,7 +1095,7 @@ def build_summary(
     clients: list[ClientModel],
     elapsed_ms: float,
     command_results: list[tuple[int, dict[str, Any]]],
-    endpoint_rtts: dict[str, list[float]] | list[float],
+    endpoint_rtts: dict[str, list[float] | BoundedSamples] | list[float],
     producer_stats: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     authority_hash = canonical_hash(authoritative_tracks)
@@ -648,6 +1113,20 @@ def build_summary(
                 "fault_drops": client.dropped_for_fault,
                 "forced_disconnects": client.forced_disconnects,
                 "receive_to_apply": latency_summary(client.receive_apply_ms),
+                "ingress_start_to_client_apply": latency_summary(client.ingress_to_apply_ms),
+                "gateway_emitted_to_client_apply_same_host_clock": latency_summary(
+                    client.emitted_to_apply_ms
+                ),
+                "declared_outage_windows": client.outage_windows,
+                "recovery_duration": latency_summary(
+                    [window["recovery_ms"] for window in client.outage_windows]
+                ),
+                "availability_percent": max(
+                    0.0,
+                    100.0
+                    * (1.0 - sum(w["recovery_ms"] for w in client.outage_windows) / elapsed_ms),
+                ) if elapsed_ms > 0 else None,
+                "watchdog_recoveries": client.watchdog_recoveries,
             }
         )
     dispositions = [body.get("receipt_status", body.get("disposition")) for _, body in command_results]
@@ -890,8 +1369,16 @@ def parser() -> argparse.ArgumentParser:
     live = sub.choices["live"]
     live.add_argument("--base-url", default="http://127.0.0.1:8090")
     live.add_argument("--ws-url", default="ws://127.0.0.1:8090/v1/deltas")
+    live.add_argument("--client-base-url-template",
+                      help="per-client routed base URL; use {client} for 1..5")
+    live.add_argument("--client-ws-url-template",
+                      help="per-client routed WebSocket URL; use {client} for 1..5")
     live.add_argument("--snapshot-path", default="/v1/snapshot")
     live.add_argument("--observation-path", default="/v1/observations")
+    live.add_argument("--observation-stream-path", default="/v1/observations/stream")
+    live.add_argument("--ingest-transport", choices=("http", "websocket"), default="http")
+    live.add_argument("--ingest-ws-url",
+                      help="explicit routed observation WebSocket URL; defaults to base URL plus stream path")
     live.add_argument("--command-path", default="/v1/commands")
     live.add_argument("--health-path", default="/healthz")
     live.add_argument("--metrics-path", default="/metrics")
@@ -907,6 +1394,11 @@ def parser() -> argparse.ArgumentParser:
     live.add_argument("--disconnect-client", type=int, default=-1,
                       help="zero-based client index to disconnect once")
     live.add_argument("--disconnect-at", type=int, default=0)
+    live.add_argument("--tick-offset", type=int, default=0)
+    live.add_argument("--observer-stall-timeout", type=float, default=3.0,
+                      help="local monotonic seconds without progress before resnapshot")
+    live.add_argument("--observer-stale-age", type=float, default=3.0,
+                      help="same-host wall-clock message age before stale-backlog resnapshot")
     restart = sub.add_parser("restart")
     restart.add_argument("--base-url", default="http://127.0.0.1:8090")
     restart.add_argument("--snapshot-path", default="/v1/snapshot")
@@ -956,6 +1448,10 @@ def main() -> int:
     args = parser().parse_args()
     if args.mode != "restart" and (args.hz <= 0 or args.duration <= 0):
         raise SystemExit("--hz and --duration must be positive")
+    if args.mode == "live" and (
+        args.observer_stall_timeout <= 0 or args.observer_stale_age <= 0
+    ):
+        raise SystemExit("observer watchdog thresholds must be positive")
     return asyncio.run(async_main(args))
 
 

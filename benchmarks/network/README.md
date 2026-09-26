@@ -107,7 +107,12 @@ python benchmarks/network/network_harness.py live `
 The harness reads the snapshot cursor from `covers_through` (falling back to
 `stream_sequence`) and its epoch from `x-sentinel-epoch` or the response body.
 WebSocket deltas use the `sentinel-gateway/v1` envelope: `server_epoch`,
-`base_sequence`, `result_sequence`, and an exact `realtime/v1` payload. Commands
+`base_sequence`, `result_sequence`, and an exact `realtime/v1` payload.
+The live harness opts into `batch=gzip-v1`, validates the `SDG1` binary prefix,
+gzip stream, 1 MiB decompressed-size ceiling and 16-item count ceiling, then
+applies every contained envelope sequentially. Batching never changes gap
+detection or the snapshot recovery cursor. Gateway batches wait at most 5 ms;
+unnegotiated clients and isolated deltas remain compatible JSON text frames. Commands
 are similarly wrapped with `expected_epoch` and the target's
 `expected_revision`. An exact retry must return `receipt_status: duplicate`;
 changed content under the same identity must return HTTP 409. On a gap the

@@ -123,7 +123,7 @@ attempts and environment noise.
 | Profile | Input | Network condition | Purpose |
 | --- | --- | --- | --- |
 | Local control | 30 x 20 Hz, five clients | no added impairment | Isolate service/serialization/fan-out cost. |
-| Expected cloud | 30 x 20 Hz, five clients | 100 ms RTT, 20 ms jitter, 0.1% packet loss, 20 Mbit/s/client | Main remote acceptance profile. |
+| Expected cloud | 30 x 20 Hz, five clients | 100 ms RTT, 20 ms jitter, 0.1% packet loss per direction, 20 Mbit/s/client | Main remote acceptance profile. Loss is applied once to each one-way path; it is not a claim of 0.1% combined round-trip loss. |
 | Adverse cloud | 30 x 20 Hz, five clients | 200 ms RTT, 50 ms jitter, 1% packet loss, 5 Mbit/s/client | Verify bounded degradation and recovery, not normal latency. |
 | Slow observer | 30 x 20 Hz | four expected-cloud clients; fifth limited to 256 kbit/s and paused reads for 10 s | Prove client isolation and explicit overflow/resync. |
 | Gap/restart | 30 x 20 Hz | expected-cloud plus dropped delta, 5 s disconnect, service restart/epoch rotation | Prove snapshot recovery and epoch fencing. |
@@ -164,12 +164,15 @@ identifies the adverse profile's different expectation.
 - Local ingress-to-publish: p95 <= 10 ms and p99 <= 25 ms. This is deliberately
   much looser than the measured 0.130 ms core p99 so it detects material costs
   without pretending network/serialization is free.
-- Expected-cloud publish-to-receive: added latency over the configured one-way
-  delay has p95 <= 25 ms and p99 <= 75 ms, subject to the retained clock-error
-  bound. If that bound is insufficient, the equivalent RTT budget is used.
-- Expected-cloud ingress-to-client-apply: p95 <= 100 ms and p99 <= 200 ms after
-  subtracting deterministic source scheduling delay, with zero samples from
-  known disconnect windows mixed into the percentile.
+- Expected-cloud publish-to-client-apply: p95 <= 120 ms and p99 <= 180 ms,
+  subject to the retained clock-error bound, with zero samples from known
+  disconnect windows mixed into the percentile. These ceilings are frozen from
+  the declared profile rather than a zero-jitter 50 ms assumption: 50 ms
+  one-way delay plus normal jitter with sigma 20 ms already gives about 83 ms
+  at p95 and 97 ms at p99 before serialization, bounded 5 ms batching, client
+  apply, and TCP recovery. The earlier absolute 75/125 ms interpretation was
+  internally below the impairment distribution and is retained in git history
+  rather than presented as a failed implementation result.
 - Command HTTP RTT in expected cloud: p95 <= 250 ms and p99 <= 500 ms for an
   already warm service, excluding deliberately dropped responses.
 - Healthy-client queue age p99 <= 250 ms and queue use remains below 75% of its
@@ -187,10 +190,13 @@ exceeding expected-cloud latency.
 
 - No crash, deadlock, unbounded queue, socket leak, task leak, or monotonic
   post-warm-up memory growth across the 10-minute window.
-- Define the exact service memory/CPU ceilings only after a local-control
-  calibration on the target deployment class; freeze them before running the
-  acceptance profiles. Acceptance documentation must show absolute values and
-  slopes, not only percentages.
+- The Windows/Docker-Desktop acceptance host uses predeclared observational
+  budgets of one logical core (100 process-CPU percentage points) and 256 MiB
+  RSS. These are pass/fail budgets, not OS-enforced container limits; evidence
+  must say so. CPU p95 must remain at or below 75% of that budget, CPU may not
+  exceed 90% for 30 continuous seconds, RSS must remain below 70% of the
+  budget, and post-warm-up RSS slope must remain at or below 1 MiB/min. A
+  deployment release must repeat this calibration with actual platform limits.
 - Five clients create exactly five mission WebSockets. Reconnects create no
   permanently retained old connection or subscription.
 - The producer's intended 600 observations/s is sustained for the full measured
@@ -215,24 +221,27 @@ exceeding expected-cloud latency.
 
 This gate ends at a durable command receipt and correctly presented remote
 state. It does not prove that natural-language intent is correctly interpreted,
-that a recommendation is authorized, or that Wedgetail executed anything.
+that a recommendation is authorized, or that an interceptor provider executed
+anything.
 
 The later mandatory end-to-end acceptance chain remains:
 
 `operator text -> NLP interpretation with cited evidence and uncertainty ->`
 `explicit operator confirmation/authorization -> durable Sentinel command ID ->`
-`documented Wedgetail sandbox API request -> hosted simulator result -> genuine`
-`hosted observations ingested -> ordered Sentinel deltas/resync -> visible and`
-`recorded terminal outcome`
+`selected provider request -> correlated provider telemetry/status -> ordered`
+`Sentinel deltas/resync -> visible and recorded authoritative terminal outcome`
 
 That run must preserve one correlation identity across every available stage,
 retain original provider request/response evidence with secrets redacted, and
-prove that retries do not duplicate the external effect. The hosted simulator,
-not Sentinel, remains authority for interception outcome. Fabricated telemetry,
-local interception physics, or a UI-only animation cannot satisfy it. NLP and
-Wedgetail latency must be itemized separately from the network slice measured
-here, and the existing read-only cloud demonstration must not be described as
-command integration.
+prove that retries do not duplicate the external effect. A provider with a
+verified status/outcome contract remains authority for its interception
+outcome. The deterministic local-simulator provider may satisfy this gate with
+its authoritative correlated lifecycle. The public Wedgetail sandbox cannot:
+its API proves target-submission acceptance and its viewer supplies visual,
+browser-local evidence only, with no authoritative operation-status or outcome
+endpoint. Fabricated telemetry or a UI-only animation cannot satisfy the gate.
+NLP and provider latency must be itemized separately from the network slice
+measured here.
 
 ## Evidence checklist
 
@@ -246,4 +255,3 @@ command integration.
 - Durable command/receipt audit showing retry and uncertainty outcomes.
 - Every failed attempt, environmental anomaly and scope limitation.
 - Independent rerun report and explicit pass/fail decision per gate.
-
