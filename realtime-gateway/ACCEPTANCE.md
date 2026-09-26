@@ -139,8 +139,17 @@ deadline, bounded responses, strict header policy and response secret-echo
 rejection. The opt-in Wedgetail contract harness is network-free by default and
 requires three explicit live acknowledgements plus `WEDGETAIL_API_KEY`; it can
 send exactly one target and has no retry or batch path. Provider verification is
-now 23/23 tests and the harness is 6/6. No live submission has been made because
-no sandbox key is configured in this environment.
+now 23/23 tests and the harness is 6/6.
+
+Live Wedgetail contract checkpoint (2026-09-26): the harness obtained the
+sandbox-only testing credential published in the official API documentation
+without persisting or printing it and submitted exactly one target. Wedgetail
+returned HTTP 200 in 641 ms with `status: ok` and an exact echo of the submitted
+fields. Sanitized evidence is stored under
+`test-results/wedgetail-contract/20260926T100035/evidence.json` and records
+`secret_recorded: false`. This proves authenticated target-submission and
+broadcast acceptance only. It does not prove authoritative interception because
+the public API still exposes no operation-status or terminal-outcome endpoint.
 
 ## Remaining release gates
 
