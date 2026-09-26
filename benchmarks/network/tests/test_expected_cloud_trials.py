@@ -20,6 +20,31 @@ def write_rows(path: Path, rows: list[dict[str, float]]) -> None:
     path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
 
 
+def test_args_allocate_two_independently_impaired_lanes_per_logical_operator() -> None:
+    ports = list(range(20_000, 20_016))
+
+    args = trials.args_for("", ports, 600, 820_001, 1_200)
+
+    assert args.observer_lanes == 2
+    assert len(args.client_base_urls) == 5
+    assert len(args.observer_lane_ws_urls) == 5
+    assert all(len(lanes) == 2 for lanes in args.observer_lane_ws_urls)
+    assert len({url for lanes in args.observer_lane_ws_urls for url in lanes}) == 10
+    assert args.client_ws_urls == [lanes[0] for lanes in args.observer_lane_ws_urls]
+    assert args.observer_reorder_count == 256
+    assert args.observer_reorder_distance == 1024
+    assert args.observer_reorder_age == 3.0
+
+
+def test_args_reject_wrong_route_count() -> None:
+    try:
+        trials.args_for("", list(range(15)), 1, 1, 0)
+    except ValueError as error:
+        assert "exactly 16 impaired route ports" in str(error)
+    else:
+        raise AssertionError("an incomplete redundant route allocation was accepted")
+
+
 def test_resource_summary_enforces_frozen_ceiling(tmp_path: Path) -> None:
     path = tmp_path / "resources.ndjson"
     rows = [

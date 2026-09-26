@@ -41,6 +41,8 @@ DELTA_BATCH_MAX_DECOMPRESSED_BYTES = 1024 * 1024
 ACK_BATCH_MAX_COUNT = 64
 ACK_BATCH_MAX_DECOMPRESSED_BYTES = 1024 * 1024
 INGEST_PENDING_WINDOW = 4096
+OBSERVER_REORDER_COUNT = 256
+OBSERVER_REORDER_DISTANCE = 1024
 
 
 def utc_now() -> str:
@@ -364,6 +366,11 @@ class ClientModel:
     outage_windows: list[dict[str, Any]] = field(default_factory=list)
     watchdog_recoveries: int = 0
     last_progress_ns: int = 0
+    lane_reconnects: list[int] = field(default_factory=list)
+    merge_duplicates: int = 0
+    merge_reordered: int = 0
+    max_reorder_count: int = 0
+    max_reorder_distance: int = 0
 
     def install_snapshot(self, snapshot: dict[str, Any]) -> None:
         self.epoch = snapshot["stream_epoch"]
@@ -394,6 +401,119 @@ class ClientModel:
         self.sequence = resulting
         self.receive_apply_ms.append((time.perf_counter_ns() - started) / 1e6)
         return "applied"
+
+
+class ObserverMergeError(RuntimeError):
+    """The redundant lanes cannot be merged without an authoritative snapshot."""
+
+
+@dataclass
+class _PendingDelta:
+    delta: dict[str, Any]
+    fingerprint: str
+    arrived_ns: int
+    lane: int
+
+
+class RedundantObserverMerge:
+    """Merge equivalent observer lanes into one strictly ordered logical stream.
+
+    The first copy of a sequence wins.  A later copy is accepted only when its
+    canonical fingerprint is byte-for-byte equivalent.  Future messages are
+    retained within explicit count, sequence-distance, and age bounds; crossing
+    any bound asks the operator to obtain one authoritative snapshot.
+    """
+
+    def __init__(self, model: ClientModel, *, max_count: int = OBSERVER_REORDER_COUNT,
+                 max_distance: int = OBSERVER_REORDER_DISTANCE,
+                 max_age_ns: int = 3_000_000_000) -> None:
+        if max_count < 1 or max_distance < 1 or max_age_ns <= 0:
+            raise ValueError("observer reorder bounds must be positive")
+        self.model = model
+        self.max_count = max_count
+        self.max_distance = max_distance
+        self.max_age_ns = max_age_ns
+        self.pending: dict[int, _PendingDelta] = {}
+        self._applied: OrderedDict[int, str] = OrderedDict()
+        self._history_capacity = max_count + max_distance + 2
+
+    @staticmethod
+    def fingerprint(delta: dict[str, Any]) -> str:
+        encoded = json.dumps(delta, sort_keys=True, separators=(",", ":"),
+                             ensure_ascii=False).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
+
+    def reset(self) -> None:
+        self.pending.clear()
+        self._applied.clear()
+
+    def _remember(self, sequence: int, fingerprint: str) -> None:
+        self._applied[sequence] = fingerprint
+        self._applied.move_to_end(sequence)
+        while len(self._applied) > self._history_capacity:
+            self._applied.popitem(last=False)
+
+    def _verify_duplicate(self, sequence: int, fingerprint: str) -> None:
+        known = self._applied.get(sequence)
+        if known is None:
+            raise ObserverMergeError(
+                f"duplicate sequence {sequence} is outside fingerprint history"
+            )
+        if known != fingerprint:
+            raise ObserverMergeError(
+                f"observer lanes disagree at sequence {sequence}"
+            )
+        self.model.merge_duplicates += 1
+
+    def check_age(self, now_ns: int | None = None) -> None:
+        if not self.pending:
+            return
+        now_ns = time.perf_counter_ns() if now_ns is None else now_ns
+        oldest = min(item.arrived_ns for item in self.pending.values())
+        if now_ns - oldest >= self.max_age_ns:
+            raise ObserverMergeError("observer reorder age bound exceeded")
+
+    def offer(self, delta: dict[str, Any], lane: int,
+              arrived_ns: int | None = None) -> list[dict[str, Any]]:
+        arrived_ns = time.perf_counter_ns() if arrived_ns is None else arrived_ns
+        self.check_age(arrived_ns)
+        sequence = int(delta["sequence"])
+        fingerprint = self.fingerprint(delta)
+        if sequence <= self.model.sequence:
+            self._verify_duplicate(sequence, fingerprint)
+            return []
+        existing = self.pending.get(sequence)
+        if existing is not None:
+            if existing.fingerprint != fingerprint:
+                raise ObserverMergeError(
+                    f"observer lanes disagree at sequence {sequence}"
+                )
+            self.model.merge_duplicates += 1
+            return []
+        expected = self.model.sequence + 1
+        distance = sequence - expected
+        if distance > self.max_distance:
+            raise ObserverMergeError("observer reorder distance bound exceeded")
+        if sequence != expected and len(self.pending) >= self.max_count:
+            raise ObserverMergeError("observer reorder count bound exceeded")
+        self.pending[sequence] = _PendingDelta(delta, fingerprint, arrived_ns, lane)
+        reorder_count = sum(item_sequence > expected for item_sequence in self.pending)
+        self.model.max_reorder_count = max(self.model.max_reorder_count, reorder_count)
+        self.model.max_reorder_distance = max(self.model.max_reorder_distance, distance)
+        applied: list[dict[str, Any]] = []
+        while self.model.sequence + 1 in self.pending:
+            next_sequence = self.model.sequence + 1
+            item = self.pending.pop(next_sequence)
+            disposition = self.model.apply_delta(item.delta)
+            if disposition != "applied":
+                raise ObserverMergeError(
+                    f"logical merge could not apply sequence {next_sequence}: {disposition}"
+                )
+            if sequence != next_sequence:
+                self.model.merge_reordered += 1
+            self._remember(next_sequence, item.fingerprint)
+            applied.append(item.delta)
+        return applied
 
 
 def observation(track_index: int, tick: int, seed: int, source_time_ms: int) -> dict[str, Any]:
@@ -811,14 +931,30 @@ async def run_live(args: argparse.Namespace) -> dict[str, Any]:
     stop = asyncio.Event()
     observation_started_ns = ObservationStartWindow()
 
+    observer_lanes = int(getattr(args, "observer_lanes", 1))
+    for client in clients:
+        client.lane_reconnects = [0] * observer_lanes
+
     def client_base(index: int) -> str:
+        operator_urls = getattr(args, "operator_base_urls", None)
+        if operator_urls:
+            return operator_urls[index].rstrip("/")
+        operator_template = getattr(args, "operator_base_url_template", None)
+        if operator_template:
+            return operator_template.format(client=index + 1).rstrip("/")
         urls = getattr(args, "client_base_urls", None)
         if urls:
             return urls[index].rstrip("/")
         template = getattr(args, "client_base_url_template", None)
         return (template.format(client=index + 1) if template else args.base_url).rstrip("/")
 
-    def client_ws(index: int) -> str:
+    def client_ws(index: int, lane: int = 0) -> str:
+        lane_urls = getattr(args, "observer_lane_ws_urls", None)
+        if lane_urls:
+            return lane_urls[index][lane]
+        lane_template = getattr(args, "observer_lane_ws_url_template", None)
+        if lane_template:
+            return lane_template.format(client=index + 1, lane=lane + 1)
         urls = getattr(args, "client_ws_urls", None)
         if urls:
             return urls[index]
@@ -1043,11 +1179,143 @@ async def run_live(args: argparse.Namespace) -> dict[str, Any]:
                     "recovery_ms": (recovered_ns - started_ns) / 1e6,
                 })
 
+    async def consume_redundant(client: ClientModel, index: int) -> None:
+        """Run two reconnecting transports behind one logical ordered operator."""
+        merge = RedundantObserverMerge(
+            client,
+            max_count=args.observer_reorder_count,
+            max_distance=args.observer_reorder_distance,
+            max_age_ns=int(args.observer_reorder_age * 1e9),
+        )
+        connected_once = [False] * observer_lanes
+
+        while not stop.is_set():
+            # Merge at the lane boundary.  Queueing both full-rate copies first
+            # doubles Python scheduling and buffering work and can make a healthy
+            # lane look stalled.  The lock protects a tiny synchronous critical
+            # section; exact duplicate validation still happens in offer().
+            merge_lock = asyncio.Lock()
+            errors: asyncio.Queue[ObserverMergeError] = asyncio.Queue(maxsize=1)
+            lane_activity_ns = [time.perf_counter_ns()] * observer_lanes
+
+            def record_applied(delta_item: dict[str, Any]) -> None:
+                applied_ns = time.perf_counter_ns()
+                client.last_progress_ns = applied_ns
+                emitted_latency = wall_latency_ms(
+                    delta_item.get("emitted_at"), datetime.now(timezone.utc)
+                )
+                if emitted_latency is not None:
+                    client.emitted_to_apply_ms.append(emitted_latency)
+                observation_started = observation_started_ns.get(
+                    delta_item.get("causation_id")
+                )
+                if observation_started is not None:
+                    client.ingress_to_apply_ms.append(
+                        (applied_ns - observation_started) / 1e6
+                    )
+
+            async def report_error(error: ObserverMergeError) -> None:
+                if errors.empty():
+                    errors.put_nowait(error)
+
+            async def lane_reader(lane: int) -> None:
+                while not stop.is_set():
+                    url = (
+                        f"{client_ws(index, lane)}?after_sequence="
+                        f"{client.sequence}&batch=gzip-v1"
+                    )
+                    try:
+                        async with websockets.connect(
+                            url, max_queue=args.client_queue
+                        ) as socket:
+                            if connected_once[lane]:
+                                client.lane_reconnects[lane] += 1
+                            connected_once[lane] = True
+                            async for raw in socket:
+                                received_ns = time.perf_counter_ns()
+                                lane_activity_ns[lane] = received_ns
+                                kind, value = parse_gateway_message(
+                                    decode_gateway_frame(raw)
+                                )
+                                if kind in ("hello", "heartbeat"):
+                                    continue
+                                if kind == "resync":
+                                    # A replay-window miss is lane-local while the
+                                    # other lane can still furnish the next delta.
+                                    break
+                                deltas = value if kind == "delta_batch" else [value]
+                                async with merge_lock:
+                                    for item in deltas:
+                                        for applied in merge.offer(
+                                            item, lane, received_ns
+                                        ):
+                                            record_applied(applied)
+                    except asyncio.CancelledError:
+                        raise
+                    except ObserverMergeError as error:
+                        await report_error(error)
+                        return
+                    except Exception:
+                        connected_once[lane] = True
+                        await asyncio.sleep(args.ingest_reconnect_backoff)
+
+            lanes = [
+                asyncio.create_task(lane_reader(lane))
+                for lane in range(observer_lanes)
+            ]
+            error: ObserverMergeError | None = None
+            try:
+                while not stop.is_set():
+                    try:
+                        error = await asyncio.wait_for(errors.get(), timeout=0.25)
+                        break
+                    except asyncio.TimeoutError:
+                        now_ns = time.perf_counter_ns()
+                        async with merge_lock:
+                            try:
+                                merge.check_age(now_ns)
+                            except ObserverMergeError as merge_error:
+                                error = merge_error
+                                break
+                        if all(
+                            now_ns - activity
+                            >= int(args.observer_stall_timeout * 1e9)
+                            for activity in lane_activity_ns
+                        ):
+                            error = ObserverMergeError(
+                                "all observer lanes exceeded the stall timeout"
+                            )
+                            break
+            finally:
+                for task in lanes:
+                    task.cancel()
+                await asyncio.gather(*lanes, return_exceptions=True)
+
+            if stop.is_set() or error is None:
+                return
+            # A logical merge failure restarts both transports from the newly
+            # authoritative cursor so stale frames cannot survive the resync.
+            started_ns = client.last_progress_ns or time.perf_counter_ns()
+            await resync(client, index)
+            merge.reset()
+            recovered_ns = time.perf_counter_ns()
+            client.outage_windows.append({
+                "reason": "observer_merge_resync",
+                "error_type": type(error).__name__,
+                "started_monotonic_ns": started_ns,
+                "recovered_monotonic_ns": recovered_ns,
+                "recovery_ms": (recovered_ns - started_ns) / 1e6,
+            })
+
     consumers = [
         asyncio.create_task(
             raw_no_read_client(i)
             if raw_slow and i == args.slow_client
-            else consume_resilient(client, i)
+            else (
+                consume_redundant(client, i)
+                if observer_lanes == 2
+                else consume_resilient(client, i)
+            )
         )
         for i, client in enumerate(clients)
     ]
@@ -1401,6 +1669,12 @@ def build_summary(
                     * (1.0 - sum(w["recovery_ms"] for w in client.outage_windows) / elapsed_ms),
                 ) if elapsed_ms > 0 else None,
                 "watchdog_recoveries": client.watchdog_recoveries,
+                "observer_lanes": max(1, len(client.lane_reconnects)),
+                "lane_reconnects": client.lane_reconnects,
+                "merge_duplicates": client.merge_duplicates,
+                "merge_reordered": client.merge_reordered,
+                "max_reorder_count": client.max_reorder_count,
+                "max_reorder_distance": client.max_reorder_distance,
             }
         )
     dispositions = [body.get("receipt_status", body.get("disposition")) for _, body in command_results]
@@ -1647,6 +1921,18 @@ def parser() -> argparse.ArgumentParser:
                       help="per-client routed base URL; use {client} for 1..5")
     live.add_argument("--client-ws-url-template",
                       help="per-client routed WebSocket URL; use {client} for 1..5")
+    live.add_argument("--observer-lanes", type=int, choices=(1, 2), default=1,
+                      help="independent observer lanes per logical client")
+    live.add_argument("--observer-lane-ws-url-template",
+                      help="lane WebSocket URL; use {client} (1..5) and {lane} (1..2)")
+    live.add_argument("--operator-base-url-template",
+                      help="logical operator snapshot URL; use {client} for 1..5")
+    live.add_argument("--observer-reorder-count", type=int,
+                      default=OBSERVER_REORDER_COUNT)
+    live.add_argument("--observer-reorder-distance", type=int,
+                      default=OBSERVER_REORDER_DISTANCE)
+    live.add_argument("--observer-reorder-age", type=float, default=3.0,
+                      help="seconds a logical merge may retain an out-of-order delta")
     live.add_argument("--snapshot-path", default="/v1/snapshot")
     live.add_argument("--observation-path", default="/v1/observations")
     live.add_argument("--observation-stream-path", default="/v1/observations/stream")
@@ -1729,6 +2015,8 @@ def main() -> int:
         raise SystemExit("--hz and --duration must be positive")
     if args.mode == "live" and (
         args.observer_stall_timeout <= 0 or args.observer_stale_age <= 0
+        or args.observer_reorder_count <= 0 or args.observer_reorder_distance <= 0
+        or args.observer_reorder_age <= 0
     ):
         raise SystemExit("observer watchdog thresholds must be positive")
     return asyncio.run(async_main(args))

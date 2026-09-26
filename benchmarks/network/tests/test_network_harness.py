@@ -135,6 +135,51 @@ class HarnessTests(unittest.TestCase):
         self.assertEqual([model.apply_delta(item) for item in deltas], ["applied", "applied"])
         self.assertEqual(model.sequence, 4)
 
+    def test_redundant_merge_first_arrival_order_and_exact_duplicates(self):
+        model = network_harness.ClientModel("logical")
+        model.install_snapshot({"stream_epoch": "e", "sequence": 0, "tracks": []})
+        merge = network_harness.RedundantObserverMerge(
+            model, max_count=4, max_distance=4, max_age_ns=100
+        )
+        second = {"stream_epoch": "e", "base_sequence": 1, "sequence": 2,
+                  "track": {"track_id": "T", "revision": 2}}
+        first = {"stream_epoch": "e", "base_sequence": 0, "sequence": 1,
+                 "track": {"track_id": "T", "revision": 1}}
+        self.assertEqual(merge.offer(second, 1, 1), [])
+        self.assertEqual([d["sequence"] for d in merge.offer(first, 0, 2)], [1, 2])
+        self.assertEqual(merge.offer(second, 0, 3), [])
+        self.assertEqual(model.sequence, 2)
+        self.assertEqual(model.merge_duplicates, 1)
+        self.assertEqual(model.merge_reordered, 1)
+
+    def test_redundant_merge_rejects_divergent_duplicate_and_bounds_reorder(self):
+        model = network_harness.ClientModel("logical")
+        model.install_snapshot({"stream_epoch": "e", "sequence": 0, "tracks": []})
+        merge = network_harness.RedundantObserverMerge(
+            model, max_count=1, max_distance=2, max_age_ns=10
+        )
+        first = {"stream_epoch": "e", "base_sequence": 0, "sequence": 1,
+                 "track": {"track_id": "T", "revision": 1}}
+        merge.offer(first, 0, 1)
+        divergent = {**first, "track": {"track_id": "T", "revision": 99}}
+        with self.assertRaisesRegex(network_harness.ObserverMergeError, "disagree"):
+            merge.offer(divergent, 1, 2)
+        future = {"stream_epoch": "e", "base_sequence": 2, "sequence": 3,
+                  "track": {"track_id": "T", "revision": 3}}
+        merge.offer(future, 0, 3)
+        with self.assertRaisesRegex(network_harness.ObserverMergeError, "age"):
+            merge.check_age(13)
+
+    def test_live_parser_exposes_redundant_observer_contract(self):
+        args = network_harness.parser().parse_args([
+            "live", "--observer-lanes", "2",
+            "--observer-lane-ws-url-template", "ws://x/{client}/{lane}",
+            "--operator-base-url-template", "http://x/{client}",
+        ])
+        self.assertEqual(args.observer_lanes, 2)
+        self.assertEqual(args.observer_reorder_count, 256)
+        self.assertEqual(args.observer_reorder_distance, 1024)
+
     def test_negotiated_gzip_batch_decodes_with_strict_bounds(self):
         batch = {
             "message_type": "delta_batch",

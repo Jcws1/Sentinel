@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Resumable five-run expected-cloud acceptance controller.
 
-Uses one privileged Linux netem TCP forwarder per observer plus one for ingestion.
+Uses two independently impaired Linux netem TCP forwarders per logical observer,
+plus one recovery route per observer and one route for ingestion.
 Every result, including exceptions and failed gates, is retained in the manifest.
 """
 from __future__ import annotations
@@ -39,6 +40,12 @@ PUBLISH_TO_APPLY_P95_LIMIT_MS = 200
 PUBLISH_TO_APPLY_P99_LIMIT_MS = 500
 RESOURCE_SAMPLE_INTERVAL_SECONDS = 1.0
 SOCKET_SAMPLE_INTERVAL_SECONDS = 30.0
+LOGICAL_OPERATOR_COUNT = 5
+OBSERVER_LANES_PER_OPERATOR = 2
+EXPECTED_OBSERVER_SOCKET_COUNT = LOGICAL_OPERATOR_COUNT * OBSERVER_LANES_PER_OPERATOR
+OBSERVER_REORDER_COUNT = 256
+OBSERVER_REORDER_DISTANCE = 1024
+OBSERVER_REORDER_AGE_SECONDS = 3.0
 
 
 def free_port() -> int:
@@ -296,18 +303,38 @@ async def sample_process(process: subprocess.Popen[Any], stop: asyncio.Event,
 
 def args_for(base: str, ports: list[int], duration: float, seed: int,
              tick_offset: int) -> SimpleNamespace:
-    observer_http_ports = ports[1:6]
-    observer_ws_ports = ports[6:11]
+    del base  # retained for compatibility with callers of the former signature
+    required = 1 + LOGICAL_OPERATOR_COUNT + EXPECTED_OBSERVER_SOCKET_COUNT
+    if len(ports) != required:
+        raise ValueError(f"expected exactly {required} impaired route ports, got {len(ports)}")
+    observer_http_ports = ports[1:1 + LOGICAL_OPERATOR_COUNT]
+    observer_ws_ports = ports[1 + LOGICAL_OPERATOR_COUNT:]
+    observer_lane_ws_urls = [
+        [
+            "ws://127.0.0.1:"
+            f"{observer_ws_ports[operator * OBSERVER_LANES_PER_OPERATOR + lane]}"
+            "/v1/deltas"
+            for lane in range(OBSERVER_LANES_PER_OPERATOR)
+        ]
+        for operator in range(LOGICAL_OPERATOR_COUNT)
+    ]
     return SimpleNamespace(
         mode="live", drones=30, hz=20, duration=duration, seed=seed,
         gap_fault=False, gap_at=7, base_url=f"http://127.0.0.1:{ports[0]}",
-        ws_url=f"ws://127.0.0.1:{observer_ws_ports[0]}/v1/deltas",
+        ws_url=observer_lane_ws_urls[0][0],
         client_base_url_template=None,
         client_ws_url_template=None,
         client_base_urls=[f"http://127.0.0.1:{port}" for port in observer_http_ports],
-        client_ws_urls=[
-            f"ws://127.0.0.1:{port}/v1/deltas" for port in observer_ws_ports
-        ],
+        # The flat list remains lane-one compatible with older harnesses.  The
+        # nested matrix is authoritative for redundant observers.
+        client_ws_urls=[lanes[0] for lanes in observer_lane_ws_urls],
+        operator_base_url_template=None,
+        observer_lanes=OBSERVER_LANES_PER_OPERATOR,
+        observer_lane_ws_url_template=None,
+        observer_lane_ws_urls=observer_lane_ws_urls,
+        observer_reorder_count=OBSERVER_REORDER_COUNT,
+        observer_reorder_distance=OBSERVER_REORDER_DISTANCE,
+        observer_reorder_age=OBSERVER_REORDER_AGE_SECONDS,
         snapshot_path="/v1/snapshot", observation_path="/v1/observations",
         observation_stream_path="/v1/observations/stream",
         ingest_transport="websocket",
@@ -330,7 +357,9 @@ async def one_trial(root: Path, number: int, warmup: float, duration: float,
     # A recovery snapshot is a fresh TCP flow. Give it its own impaired proxy
     # so the test does not incorrectly serialize it behind the abandoned
     # WebSocket's netem FIFO. Both flows retain the exact same cloud profile.
-    gateway_port, *ports = unique_ports(12)
+    gateway_port, *ports = unique_ports(
+        2 + LOGICAL_OPERATOR_COUNT + EXPECTED_OBSERVER_SOCKET_COUNT
+    )
     process = gateway_process(gateway_port, trial / "gateway.sqlite3")
     proxies: list[str] = []
     stop = asyncio.Event()
@@ -364,8 +393,19 @@ async def one_trial(root: Path, number: int, warmup: float, duration: float,
             "implementation": "Linux tc netem external TCP forwarders",
             "per_route": True, "latency_each_direction_ms": 50, "jitter_ms": 20,
             "packet_loss_percent": 0.1, "bandwidth_mbit_s": 20,
-            "observer_stream_routes": 5, "observer_recovery_routes": 5,
+            "logical_operators": LOGICAL_OPERATOR_COUNT,
+            "observer_lanes_per_operator": OBSERVER_LANES_PER_OPERATOR,
+            "observer_stream_routes": EXPECTED_OBSERVER_SOCKET_COUNT,
+            "observer_recovery_routes": LOGICAL_OPERATOR_COUNT,
             "ingestion_routes": 1,
+            "socket_semantics": {
+                "observer_websockets_expected_at_measurement_end": (
+                    EXPECTED_OBSERVER_SOCKET_COUNT
+                ),
+                "observer_websockets_are_physical_lanes": True,
+                "client_results_are_logical_operators": True,
+                "process_open_sockets_include_listener_ingest_and_http": True,
+            },
         }
         producer = measured["producer"]
         metrics = measured["gateway_metrics"]
@@ -390,7 +430,24 @@ async def one_trial(root: Path, number: int, warmup: float, duration: float,
                 and producer["offered"] == expected and producer["accepted"] == expected,
             "zero_rejections": producer["rejected"] == 0,
             "sustained_600hz_offer_cadence_at_98_percent": producer["offered_cadence_per_second"] >= 588,
-            "all_five_clients_converged": len(clients) == 5 and all(c["converged"] for c in clients),
+            "exactly_five_logical_clients": len(clients) == LOGICAL_OPERATOR_COUNT,
+            "all_five_clients_converged": (
+                len(clients) == LOGICAL_OPERATOR_COUNT
+                and all(c["converged"] for c in clients)
+            ),
+            "all_clients_have_two_healthy_lanes": (
+                len(clients) == LOGICAL_OPERATOR_COUNT
+                and all(
+                    c.get("observer_lanes") == OBSERVER_LANES_PER_OPERATOR
+                    and c.get("lane_reconnects")
+                    == [0] * OBSERVER_LANES_PER_OPERATOR
+                    for c in clients
+                )
+            ),
+            "both_lanes_supplied_merge_evidence": (
+                len(clients) == LOGICAL_OPERATOR_COUNT
+                and all(c.get("merge_duplicates", 0) > 0 for c in clients)
+            ),
             "zero_unexpected_observer_recoveries": all(
                 c["watchdog_recoveries"] == 0 and not c["declared_outage_windows"]
                 for c in clients
@@ -399,8 +456,21 @@ async def one_trial(root: Path, number: int, warmup: float, duration: float,
             "full_observer_availability": all(
                 c["availability_percent"] == 100.0 for c in clients
             ),
-            "exactly_five_websockets_at_measurement_end": metrics.get("ws_connected") == 5,
+            "exactly_ten_websockets_at_measurement_end": (
+                metrics.get("delta_subscribers", metrics.get("ws_connected"))
+                == EXPECTED_OBSERVER_SOCKET_COUNT
+            ),
+            "redundant_merge_reorder_bounds_respected": all(
+                c.get("max_reorder_count", OBSERVER_REORDER_COUNT + 1)
+                    <= OBSERVER_REORDER_COUNT
+                and c.get("max_reorder_distance", OBSERVER_REORDER_DISTANCE + 1)
+                    <= OBSERVER_REORDER_DISTANCE
+                for c in clients
+            ),
             "healthy_queue_below_75_percent": metrics.get("max_client_queue_depth", 257) < 192,
+            "zero_observer_lane_queue_overflows": metrics.get(
+                "delta_queue_overflows", metrics.get("slow_client_disconnects", 1)
+            ) == 0,
             "ingress_to_publish_p95_within_10ms": ingress_publish_p95_ms <= 10,
             "ingress_to_publish_p99_within_25ms": ingress_publish_p99_ms <= 25,
             "publish_to_apply_p95_within_200ms": (
@@ -426,6 +496,15 @@ async def one_trial(root: Path, number: int, warmup: float, duration: float,
             "latency_clock_scope": "same-host synchronized wall clock",
             "latency_samples_explicitly_filtered_by_outage_window": False,
             "passing_series_requires_zero_observer_outage_windows": True,
+            "observer_socket_count_source": (
+                "gateway_metrics.delta_subscribers"
+                if "delta_subscribers" in metrics
+                else "gateway_metrics.ws_connected"
+            ),
+            "physical_observer_websockets": metrics.get(
+                "delta_subscribers", metrics.get("ws_connected")
+            ),
+            "logical_observer_clients": len(clients),
         }
         measured["checks"]["passed"] = measured["checks"]["passed"] and gates["passed"]
         write_json(trial / "summary.json", measured)
@@ -472,7 +551,10 @@ async def main_async(args: argparse.Namespace) -> int:
                               capture_output=True, text=True, check=True).stdout.strip()
     config = {"profile": "100ms RTT, 20ms jitter, 0.1% packet loss, 20Mbit/s per route",
               "warmup_seconds": args.warmup, "measurement_seconds": args.duration,
-              "drones": 30, "hz": 20, "clients": 5, "trials": args.trials, "git_commit": commit,
+              "drones": 30, "hz": 20, "logical_clients": LOGICAL_OPERATOR_COUNT,
+              "observer_lanes_per_operator": OBSERVER_LANES_PER_OPERATOR,
+              "observer_websockets": EXPECTED_OBSERVER_SOCKET_COUNT,
+              "trials": args.trials, "git_commit": commit,
               "proxy_image_id": image_id, "gateway_executable_sha256": executable_sha256,
               "worktree_clean": not bool(dirty),
               "cpu_budget_percent": args.cpu_budget_percent,

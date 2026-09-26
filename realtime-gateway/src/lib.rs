@@ -337,6 +337,8 @@ pub struct Metrics {
     ws_connected: AtomicUsize,
     slow_disconnects: AtomicU64,
     deltas_published: AtomicU64,
+    delta_publish_attempts: AtomicU64,
+    delta_queue_overflows: AtomicU64,
     delta_batches_sent: AtomicU64,
     deltas_sent_in_batches: AtomicU64,
     delta_batch_compressed_bytes: AtomicU64,
@@ -362,6 +364,11 @@ struct MetricsView {
     ws_connected: usize,
     slow_client_disconnects: u64,
     deltas_published: u64,
+    delta_subscribers: usize,
+    delta_queue_messages: usize,
+    delta_queue_capacity: usize,
+    delta_publish_attempts: u64,
+    delta_queue_overflows: u64,
     delta_batches_sent: u64,
     deltas_sent_in_batches: u64,
     delta_batch_compressed_bytes: u64,
@@ -486,6 +493,9 @@ impl Hub {
         }
         let mut remove = Vec::new();
         for (&id, client) in &self.clients {
+            metrics
+                .delta_publish_attempts
+                .fetch_add(1, Ordering::Relaxed);
             match client.tx.try_send(payload.to_owned()) {
                 Ok(()) => {
                     let depth = client.tx.max_capacity() - client.tx.capacity();
@@ -498,6 +508,9 @@ impl Hub {
                         .stop
                         .send(Some("slow_client_snapshot_required".into()));
                     metrics.slow_disconnects.fetch_add(1, Ordering::Relaxed);
+                    metrics
+                        .delta_queue_overflows
+                        .fetch_add(1, Ordering::Relaxed);
                     remove.push(id);
                 }
                 Err(mpsc::error::TrySendError::Closed(_)) => remove.push(id),
@@ -506,6 +519,19 @@ impl Hub {
         for id in remove {
             self.clients.remove(&id);
         }
+    }
+
+    fn queue_metrics(&self) -> (usize, usize, usize) {
+        self.clients
+            .values()
+            .fold((0, 0, 0), |(subscribers, messages, capacity), client| {
+                let max_capacity = client.tx.max_capacity();
+                (
+                    subscribers + 1,
+                    messages + max_capacity.saturating_sub(client.tx.capacity()),
+                    capacity + max_capacity,
+                )
+            })
     }
 }
 
@@ -1374,6 +1400,8 @@ async fn metrics(State(s): State<AppState>) -> Json<MetricsView> {
     let observation_cache = s.observations.lock().unwrap();
     let track_entries = s.tracks.read().unwrap().len();
     let source_track_identity_entries = s.source_sequences.lock().unwrap().len();
+    let (delta_subscribers, delta_queue_messages, delta_queue_capacity) =
+        s.hub.lock().unwrap().queue_metrics();
     Json(MetricsView {
         observations: s.metrics.observations.load(Ordering::Relaxed),
         commands_accepted: s.metrics.commands_accepted.load(Ordering::Relaxed),
@@ -1382,6 +1410,11 @@ async fn metrics(State(s): State<AppState>) -> Json<MetricsView> {
         ws_connected: s.metrics.ws_connected.load(Ordering::Relaxed),
         slow_client_disconnects: s.metrics.slow_disconnects.load(Ordering::Relaxed),
         deltas_published: s.metrics.deltas_published.load(Ordering::Relaxed),
+        delta_subscribers,
+        delta_queue_messages,
+        delta_queue_capacity,
+        delta_publish_attempts: s.metrics.delta_publish_attempts.load(Ordering::Relaxed),
+        delta_queue_overflows: s.metrics.delta_queue_overflows.load(Ordering::Relaxed),
         delta_batches_sent: s.metrics.delta_batches_sent.load(Ordering::Relaxed),
         deltas_sent_in_batches: s.metrics.deltas_sent_in_batches.load(Ordering::Relaxed),
         delta_batch_compressed_bytes: s
@@ -2544,10 +2577,11 @@ fn gzip_delta_batch(state: &AppState, payloads: Vec<String>) -> Result<(Vec<u8>,
     if json.len() > DELTA_BATCH_MAX_DECOMPRESSED_BYTES {
         return Err("delta_batch_decompressed_size_exceeded".into());
     }
-    // Observer routes are loss/RTT constrained in the expected-cloud profile.
-    // Default gzip materially reduces bytes on the wire versus the fastest
-    // level, and the gateway has ample measured CPU headroom for this stream.
-    let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+    // Ten physical observer lanes make compression CPU, not route bandwidth,
+    // the constrained resource in the expected-cloud profile.  Fast gzip still
+    // keeps each independently shaped 20-Mbit route comfortably below its
+    // ceiling while avoiding repeated high-level compression work per lane.
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
     encoder
         .write_all(json.as_bytes())
         .map_err(|_| "delta_batch_compression_failed")?;
@@ -3908,7 +3942,25 @@ mod tests {
             Some("slow_client_snapshot_required")
         );
         assert_eq!(metrics.slow_disconnects.load(Ordering::Relaxed), 1);
+        assert_eq!(metrics.delta_publish_attempts.load(Ordering::Relaxed), 2);
+        assert_eq!(metrics.delta_queue_overflows.load(Ordering::Relaxed), 1);
         assert!(hub.clients.is_empty());
+        assert_eq!(hub.queue_metrics(), (0, 0, 0));
+    }
+
+    #[test]
+    fn queue_metrics_bound_ten_redundant_lanes() {
+        let metrics = Metrics::default();
+        let mut hub = Hub::new(2);
+        let subscriptions: Vec<_> = (0..10).map(|_| hub.subscribe(3, 0).unwrap()).collect();
+
+        assert_eq!(hub.queue_metrics(), (10, 0, 30));
+        hub.publish(1, "one", &metrics);
+        assert_eq!(hub.queue_metrics(), (10, 10, 30));
+        assert_eq!(metrics.delta_publish_attempts.load(Ordering::Relaxed), 10);
+        assert_eq!(metrics.delta_queue_overflows.load(Ordering::Relaxed), 0);
+
+        drop(subscriptions);
     }
 
     #[test]
