@@ -1,0 +1,16 @@
+[package]
+name = "sentinel-alpha3-coordinator"
+version = "0.1.0-alpha.3"
+edition = "2021"
+license = "MIT"
+description = "Deterministic temporal coordination reference for Sentinel"
+
+[lib]
+path = "src/lib.rs"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+
+
