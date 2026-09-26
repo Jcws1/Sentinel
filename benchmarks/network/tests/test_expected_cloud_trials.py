@@ -1,7 +1,11 @@
 import importlib.util
+import asyncio
 import json
 import sys
+import threading
+import time
 from pathlib import Path
+from types import SimpleNamespace
 
 
 MODULE_PATH = Path(__file__).parents[1] / "expected_cloud_trials.py"
@@ -126,3 +130,74 @@ def test_resource_summary_rejects_thread_spike_beyond_frozen_allowance(tmp_path:
 
     assert summary["thread_transient_allowance"] == 4
     assert summary["gates"]["no_sustained_thread_growth"] is False
+
+
+def test_resource_summary_uses_only_actual_socket_observations(tmp_path: Path) -> None:
+    path = tmp_path / "resources.ndjson"
+    rows = [
+        {
+            "elapsed_seconds": float(index),
+            "cpu_percent": 20.0,
+            "rss_bytes": 50_000_000.0,
+            "threads": 4.0,
+            "socket_sampled": index in (0, 30, 60),
+            **({
+                "open_sockets": 6.0,
+                "socket_measurement_supported": True,
+            } if index in (0, 30, 60) else {}),
+        }
+        for index in range(61)
+    ]
+    write_rows(path, rows)
+
+    summary = trials.resource_summary(path, 61, 100.0, 268_435_456)
+
+    assert summary["socket_samples"] == 3
+    assert summary["open_sockets_per_minute_linear_slope"] == 0.0
+    assert summary["gates"]["socket_measurement_supported"] is True
+    assert summary["gates"]["no_monotonic_socket_growth"] is True
+
+
+def test_sampler_uses_absolute_cadence_despite_slow_socket_scan(
+    tmp_path: Path, monkeypatch: object
+) -> None:
+    first_socket_sample_finished = threading.Event()
+
+    class FakeProcess:
+        def cpu_percent(self, _interval: object) -> float:
+            return 10.0
+
+        def memory_info(self) -> SimpleNamespace:
+            return SimpleNamespace(rss=1_000, vms=2_000)
+
+        def num_threads(self) -> int:
+            return 4
+
+        def net_connections(self, *, kind: str) -> list[object]:
+            assert kind == "inet"
+            time.sleep(0.04)
+            first_socket_sample_finished.set()
+            return []
+
+    monkeypatch.setattr(trials.psutil, "Process", lambda _pid: FakeProcess())
+    monkeypatch.setattr(trials, "RESOURCE_SAMPLE_INTERVAL_SECONDS", 0.02)
+    monkeypatch.setattr(trials, "SOCKET_SAMPLE_INTERVAL_SECONDS", 0.10)
+    destination = tmp_path / "resources.ndjson"
+
+    async def run() -> None:
+        stop = asyncio.Event()
+        task = asyncio.create_task(
+            trials.sample_process(SimpleNamespace(pid=123), stop, destination)
+        )
+        await asyncio.to_thread(first_socket_sample_finished.wait, 2.0)
+        await asyncio.sleep(0.24)
+        stop.set()
+        await task
+
+    asyncio.run(run())
+    rows = [json.loads(line) for line in destination.read_text().splitlines()]
+
+    assert len(rows) >= 8
+    socket_samples = sum(bool(row["socket_sampled"]) for row in rows)
+    assert socket_samples >= 2
+    assert socket_samples < len(rows)

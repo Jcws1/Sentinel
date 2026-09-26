@@ -41,7 +41,11 @@ const OBSERVATION_STREAM_READ_IDLE_TIMEOUT: Duration = Duration::from_secs(15 * 
 const OBSERVER_HEARTBEAT_INTERVAL: Duration = Duration::from_secs(1);
 // Keep batches deliberately small: this amortizes WebSocket/TCP framing without
 // creating a large loss-retransmission unit or adding visible observer latency.
-const DELTA_BATCH_MAX_COUNT: usize = 16;
+// A live subscriber normally receives only a few deltas per 5 ms batch.  The
+// larger ceiling matters after brief TCP head-of-line stalls: it lets the
+// writer drain its already-bounded queue efficiently instead of turning a
+// recoverable cloud-network pause into a snapshot cycle.
+const DELTA_BATCH_MAX_COUNT: usize = 64;
 const DELTA_BATCH_MAX_WAIT: Duration = Duration::from_millis(5);
 const DELTA_BATCH_MAX_DECOMPRESSED_BYTES: usize = 1024 * 1024;
 const GZIP_BATCH_MAGIC: &[u8; 4] = b"SDG1";
@@ -1794,15 +1798,21 @@ async fn observation_stream(socket: WebSocket, state: AppState) {
             &state.metrics.observation_stream_rejected
         };
         metric.fetch_add(1, Ordering::Relaxed);
-        match ack_tx.try_send(ack) {
-            Ok(()) => {
+        // A full ACK queue can be a transient TCP head-of-line stall under the
+        // expected-cloud profile.  Apply bounded flow control to the reader
+        // instead of disconnecting and replaying the whole producer window.
+        // The writer independently bounds every socket write with the same
+        // timeout, so a peer that truly stops reading still terminates.
+        match tokio::time::timeout(OBSERVATION_STREAM_WRITE_TIMEOUT, ack_tx.send(ack)).await {
+            Ok(Ok(())) => {
                 let depth = ack_tx.max_capacity() - ack_tx.capacity();
                 state
                     .metrics
                     .max_observation_ack_queue_depth
                     .fetch_max(depth, Ordering::Relaxed);
             }
-            Err(mpsc::error::TrySendError::Full(_)) => {
+            Ok(Err(_)) => break,
+            Err(_) => {
                 state
                     .metrics
                     .observation_stream_backpressure_disconnects
@@ -1810,7 +1820,6 @@ async fn observation_stream(socket: WebSocket, state: AppState) {
                 abort_writer = true;
                 break;
             }
-            Err(mpsc::error::TrySendError::Closed(_)) => break,
         }
     }
     drop(ack_tx);
@@ -3133,9 +3142,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn observation_stream_ack_backpressure_aborts_writer_and_connection() {
+    async fn observation_stream_ack_backpressure_is_bounded_and_recovers_in_order() {
         let mut state = AppState::new(1);
-        state.observation_ack_send_delay = Duration::from_secs(1);
+        state.observation_ack_send_delay = Duration::from_millis(20);
         let retained_state = state.clone();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
@@ -3148,8 +3157,9 @@ mod tests {
                 .unwrap();
         assert!(socket.next().await.unwrap().unwrap().is_text());
 
-        // Do not read acknowledgements. The test-only writer delay makes the
-        // one-slot queue fill without relying on platform TCP buffer sizes.
+        // Burst without reading acknowledgements. The test-only writer delay
+        // makes the one-slot queue apply flow control without relying on
+        // platform TCP buffer sizes.
         for sequence in 1..=8 {
             socket
                 .send(tokio_tungstenite::tungstenite::Message::Text(
@@ -3158,63 +3168,32 @@ mod tests {
                 .await
                 .unwrap();
         }
-        let closed = tokio::time::timeout(Duration::from_secs(2), socket.next())
-            .await
-            .expect("backpressured stream must terminate promptly");
-        assert!(
-            closed.is_none()
-                || closed.as_ref().is_some_and(|item| item.is_err())
-                || closed
-                    .as_ref()
-                    .is_some_and(|item| { item.as_ref().is_ok_and(|message| message.is_close()) })
+        let mut acknowledged = Vec::new();
+        for _ in 1..=8 {
+            let message = tokio::time::timeout(Duration::from_secs(1), socket.next())
+                .await
+                .expect("temporarily backpressured stream must recover")
+                .expect("stream remains connected")
+                .expect("acknowledgement remains valid");
+            let body: Value = serde_json::from_str(message.to_text().unwrap()).unwrap();
+            acknowledged.push(body["result_sequence"].as_u64().unwrap());
+        }
+        assert_eq!(acknowledged, (1..=8).collect::<Vec<_>>());
+        assert_eq!(
+            retained_state
+                .metrics
+                .observation_stream_backpressure_disconnects
+                .load(Ordering::Relaxed),
+            0
         );
-        tokio::time::timeout(Duration::from_secs(1), async {
-            while retained_state
+        assert_eq!(
+            retained_state
                 .metrics
                 .observation_streams_connected
-                .load(Ordering::Relaxed)
-                != 0
-            {
-                tokio::task::yield_now().await;
-            }
-        })
-        .await
-        .unwrap();
-        assert_eq!(
-            retained_state
-                .metrics
-                .observation_stream_backpressure_disconnects
                 .load(Ordering::Relaxed),
             1
         );
-        let accepted = retained_state
-            .metrics
-            .observation_stream_accepted
-            .load(Ordering::Relaxed);
-        // At capacity one, at most one ack can be in the queue and one in the
-        // delayed writer when overflow is detected. The triggering message is
-        // already admitted, so only a tightly bounded prefix may be accepted.
-        assert!((2..=3).contains(&accepted));
-
-        // A sender may not have seen the final acknowledgement before the
-        // fail-closed disconnect. Retrying that exact final accepted message
-        // over the compatibility HTTP endpoint must reconcile as duplicate.
-        let (retry_status, retry_body) = request(
-            app(retained_state.clone()),
-            "POST",
-            "/v1/observations",
-            observation(accepted),
-        )
-        .await;
-        assert_eq!(retry_status, StatusCode::OK);
-        assert_eq!(retry_body["stream_sequence"], accepted);
-        assert_eq!(
-            retained_state
-                .metrics
-                .observation_stream_backpressure_disconnects
-                .load(Ordering::Relaxed),
-            1
-        );
+        socket.close(None).await.unwrap();
         server.abort();
     }
 

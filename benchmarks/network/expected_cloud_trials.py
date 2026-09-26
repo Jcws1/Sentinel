@@ -37,6 +37,8 @@ SPEC.loader.exec_module(network)
 IMAGE = "sentinel-netem-proxy:20260926"
 PUBLISH_TO_APPLY_P95_LIMIT_MS = 200
 PUBLISH_TO_APPLY_P99_LIMIT_MS = 500
+RESOURCE_SAMPLE_INTERVAL_SECONDS = 1.0
+SOCKET_SAMPLE_INTERVAL_SECONDS = 30.0
 
 
 def free_port() -> int:
@@ -97,9 +99,12 @@ def resource_summary(path: Path, duration: float, cpu_budget_percent: float,
     steady_rows = rows[len(rows) // 2:]
     rss_slope = linear_slope_per_minute(steady_rows, "rss_bytes")
     thread_slope = linear_slope_per_minute(rows, "threads")
-    socket_slope = linear_slope_per_minute(rows, "open_sockets")
-    socket_measurement_supported = bool(rows) and all(
-        bool(row.get("socket_measurement_supported")) for row in rows
+    socket_rows = [
+        row for row in rows if bool(row.get("socket_sampled", True))
+    ]
+    socket_slope = linear_slope_per_minute(socket_rows, "open_sockets")
+    socket_measurement_supported = bool(socket_rows) and all(
+        bool(row.get("socket_measurement_supported")) for row in socket_rows
     )
     cpu_p95 = network.percentile(cpu, 0.95)
     rss_max = max(rss, default=None)
@@ -156,6 +161,8 @@ def resource_summary(path: Path, duration: float, cpu_budget_percent: float,
         "thread_max": thread_max,
         "thread_transient_allowance": thread_transient_allowance,
         "open_sockets_per_minute_linear_slope": socket_slope,
+        "socket_samples": len(socket_rows),
+        "socket_sample_interval_seconds": SOCKET_SAMPLE_INTERVAL_SECONDS,
         "high_cpu_contiguous_seconds_max": high_cpu_seconds,
         "resource_budget_frozen_before_run": True,
         "os_enforced_containment": False,
@@ -206,37 +213,57 @@ async def sample_process(process: subprocess.Popen[Any], stop: asyncio.Event,
     subject.cpu_percent(None)
     started = time.monotonic()
 
-    def collect() -> dict[str, Any]:
+    def collect(socket_due: bool) -> dict[str, Any]:
         memory = subject.memory_info()
-        try:
-            open_sockets = len(subject.net_connections(kind="inet"))
-            socket_measurement_supported = True
-        except (psutil.AccessDenied, NotImplementedError):
-            open_sockets = 0
-            socket_measurement_supported = False
-        return {
+        sample = {
             "cpu_percent": subject.cpu_percent(None),
             "rss_bytes": memory.rss,
             "vms_bytes": memory.vms,
             "threads": subject.num_threads(),
-            "open_sockets": open_sockets,
-            "socket_measurement_supported": socket_measurement_supported,
+            "socket_sampled": socket_due,
         }
+        if socket_due:
+            try:
+                sample["open_sockets"] = len(subject.net_connections(kind="inet"))
+                sample["socket_measurement_supported"] = True
+            except (psutil.AccessDenied, NotImplementedError):
+                sample["open_sockets"] = 0
+                sample["socket_measurement_supported"] = False
+        return sample
 
     with destination.open("w", encoding="utf-8") as stream:
+        next_sample = started
+        next_socket_sample = started
         while not stop.is_set():
             try:
                 # net_connections() can occasionally block for seconds on
                 # Windows. Keep all psutil work off the latency-sensitive
                 # asyncio loop used by the observers and producer.
-                sample = await asyncio.to_thread(collect)
+                now = time.monotonic()
+                socket_due = now >= next_socket_sample
+                sample = await asyncio.to_thread(collect, socket_due)
+                if socket_due:
+                    next_socket_sample += SOCKET_SAMPLE_INTERVAL_SECONDS
+                    if next_socket_sample <= now:
+                        next_socket_sample = now + SOCKET_SAMPLE_INTERVAL_SECONDS
                 row = {"utc": datetime.now(timezone.utc).isoformat(),
                        "elapsed_seconds": time.monotonic() - started, **sample}
                 stream.write(json.dumps(row) + "\n")
                 stream.flush()
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 break
-            await asyncio.sleep(1)
+            # Absolute scheduling avoids turning collection time into cadence
+            # drift (the former collect-then-sleep loop produced only 456
+            # samples in a 600-second Windows trial).
+            next_sample += RESOURCE_SAMPLE_INTERVAL_SECONDS
+            delay = next_sample - time.monotonic()
+            if delay > 0:
+                try:
+                    await asyncio.wait_for(stop.wait(), timeout=delay)
+                except asyncio.TimeoutError:
+                    pass
+            elif next_sample <= time.monotonic() - RESOURCE_SAMPLE_INTERVAL_SECONDS:
+                next_sample = time.monotonic()
 
 
 def args_for(base: str, ports: list[int], duration: float, seed: int,
