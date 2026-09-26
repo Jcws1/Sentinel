@@ -1,0 +1,483 @@
+{
+  "asset_relation": {
+    "accuracy": 0.8206766938735933,
+    "approaching_recall": 0.6684954960213234,
+    "confusion_matrix": {
+      "labels": [
+        "approaching",
+        "receding",
+        "crossing",
+        "ambiguous",
+        "unknown"
+      ],
+      "values": [
+        [
+          68720,
+          2515,
+          30135,
+          60,
+          1368
+        ],
+        [
+          1031,
+          520535,
+          62159,
+          67,
+          3708
+        ],
+        [
+          23268,
+          43617,
+          247303,
+          73,
+          4543
+        ],
+        [
+          2346,
+          8043,
+          3663,
+          45,
+          185
+        ],
+        [
+          756,
+          679,
+          421,
+          0,
+          26698
+        ]
+      ]
+    },
+    "crossing_false_positive_rate": 0.07298528249331877,
+    "eta_mae_s": 163.54341127498287,
+    "eta_median_ae_s": 19.31795478197805,
+    "false_approaching_alarms_per_scenario_hour": 1114.3832633782417,
+    "macro_f1": 0.6319472348013703,
+    "per_class": {
+      "ambiguous": {
+        "f1": 0.006195360363461141,
+        "precision": 0.1836734693877551,
+        "recall": 0.0031508192129953787,
+        "support": 14282
+      },
+      "approaching": {
+        "f1": 0.690934500977785,
+        "precision": 0.7149322208466412,
+        "recall": 0.6684954960213234,
+        "support": 102798
+      },
+      "crossing": {
+        "f1": 0.7465919983093957,
+        "precision": 0.7195713466848618,
+        "recall": 0.7757211327335918,
+        "support": 318804
+      },
+      "receding": {
+        "f1": 0.895244516028615,
+        "precision": 0.904666234495272,
+        "recall": 0.8860170212765958,
+        "support": 587500
+      },
+      "unknown": {
+        "f1": 0.8207697983275947,
+        "precision": 0.7314119774258945,
+        "recall": 0.9350003502136303,
+        "support": 28554
+      }
+    },
+    "unknown_abstention_rate": 0.034699763674284984
+  },
+  "confidence": {
+    "asset_relation": {
+      "accuracy_vs_coverage": [
+        {
+          "accuracy": 0.943324819422702,
+          "coverage": 0.3461325667482304,
+          "threshold": 0.5
+        },
+        {
+          "accuracy": 0.9568629581903713,
+          "coverage": 0.24492317988322507,
+          "threshold": 0.55
+        },
+        {
+          "accuracy": 0.9660415307350186,
+          "coverage": 0.15880878911114532,
+          "threshold": 0.6000000000000001
+        },
+        {
+          "accuracy": 0.972282914039578,
+          "coverage": 0.09136850270643326,
+          "threshold": 0.6500000000000001
+        },
+        {
+          "accuracy": 0.9762972309217494,
+          "coverage": 0.04219165007823655,
+          "threshold": 0.7000000000000002
+        },
+        {
+          "accuracy": 0.9795050270688321,
+          "coverage": 0.01474991872144556,
+          "threshold": 0.7500000000000002
+        },
+        {
+          "accuracy": 0.9830687830687831,
+          "coverage": 0.003593367669957735,
+          "threshold": 0.8000000000000003
+        },
+        {
+          "accuracy": 0.9795081967213115,
+          "coverage": 0.000463905667444279,
+          "threshold": 0.8500000000000003
+        },
+        {
+          "accuracy": 1.0,
+          "coverage": 2.756816466369691e-05,
+          "threshold": 0.9000000000000004
+        },
+        {
+          "accuracy": null,
+          "coverage": 0.0,
+          "threshold": 0.9500000000000004
+        }
+      ],
+      "brier_correctness": 0.28111133722111586,
+      "expected_calibration_error": 0.382706969206282
+    },
+    "coordination": {
+      "accuracy_vs_coverage": [
+        {
+          "accuracy": 0.3339907563604894,
+          "coverage": 0.909526987331953,
+          "threshold": 0.5
+        },
+        {
+          "accuracy": 0.3327879591608481,
+          "coverage": 0.8924527871414475,
+          "threshold": 0.55
+        },
+        {
+          "accuracy": 0.33157266662754076,
+          "coverage": 0.8746770246915693,
+          "threshold": 0.6000000000000001
+        },
+        {
+          "accuracy": 0.32987836559598194,
+          "coverage": 0.8562595894434843,
+          "threshold": 0.6500000000000001
+        },
+        {
+          "accuracy": 0.32805781378835686,
+          "coverage": 0.8370094054972822,
+          "threshold": 0.7000000000000002
+        },
+        {
+          "accuracy": 0.19733231675387186,
+          "coverage": 0.6807692088316992,
+          "threshold": 0.7500000000000002
+        },
+        {
+          "accuracy": 0.1865742639935062,
+          "coverage": 0.6534852814519487,
+          "threshold": 0.8000000000000003
+        },
+        {
+          "accuracy": 0.17000627618924558,
+          "coverage": 0.6179793866178425,
+          "threshold": 0.8500000000000003
+        },
+        {
+          "accuracy": 0.15911403619794962,
+          "coverage": 0.5633174198479378,
+          "threshold": 0.9000000000000004
+        },
+        {
+          "accuracy": null,
+          "coverage": 0.0,
+          "threshold": 0.9500000000000004
+        }
+      ],
+      "brier_correctness": 0.5413663270239184,
+      "expected_calibration_error": 0.534503142461065
+    },
+    "motion": {
+      "accuracy_vs_coverage": [
+        {
+          "accuracy": 0.6370735555117334,
+          "coverage": 0.07230939466014157,
+          "threshold": 0.5
+        },
+        {
+          "accuracy": 0.6376213406710999,
+          "coverage": 0.03731113430639448,
+          "threshold": 0.55
+        },
+        {
+          "accuracy": 0.6097648537066954,
+          "coverage": 0.015887818483598843,
+          "threshold": 0.6000000000000001
+        },
+        {
+          "accuracy": 0.5834914611005693,
+          "coverage": 0.006011761149421354,
+          "threshold": 0.6500000000000001
+        },
+        {
+          "accuracy": 0.6134228187919463,
+          "coverage": 0.0021246499318400896,
+          "threshold": 0.7000000000000002
+        },
+        {
+          "accuracy": 0.6612244897959184,
+          "coverage": 0.0006987103802695596,
+          "threshold": 0.7500000000000002
+        },
+        {
+          "accuracy": 0.72,
+          "coverage": 0.00014259395515705297,
+          "threshold": 0.8000000000000003
+        },
+        {
+          "accuracy": 0.5,
+          "coverage": 2.2815032825128477e-05,
+          "threshold": 0.8500000000000003
+        },
+        {
+          "accuracy": null,
+          "coverage": 0.0,
+          "threshold": 0.9000000000000004
+        },
+        {
+          "accuracy": null,
+          "coverage": 0.0,
+          "threshold": 0.9500000000000004
+        }
+      ],
+      "brier_correctness": 0.2574780312754031,
+      "expected_calibration_error": 0.1328822722454164
+    }
+  },
+  "coordination": {
+    "accuracy": 0.3527831488167554,
+    "confusion_matrix": {
+      "labels": [
+        "independent",
+        "coordinated",
+        "splitting",
+        "merging",
+        "unknown"
+      ],
+      "values": [
+        [
+          90655,
+          25840,
+          79507,
+          10832,
+          0
+        ],
+        [
+          28647,
+          25579,
+          33701,
+          9226,
+          0
+        ],
+        [
+          11519,
+          2254,
+          6023,
+          1189,
+          0
+        ],
+        [
+          6975,
+          2340,
+          7538,
+          1445,
+          0
+        ],
+        [
+          4493,
+          585,
+          1369,
+          929,
+          0
+        ]
+      ]
+    },
+    "macro_f1": 0.20035681950438197,
+    "per_class": {
+      "coordinated": {
+        "f1": 0.33273279523385213,
+        "precision": 0.4519417647266688,
+        "recall": 0.2632857451648431,
+        "support": 97153
+      },
+      "independent": {
+        "f1": 0.5193298636870101,
+        "precision": 0.6371188215533176,
+        "recall": 0.43829834553313285,
+        "support": 206834
+      },
+      "merging": {
+        "f1": 0.06894248431498844,
+        "precision": 0.061174378730790395,
+        "recall": 0.07897037927642366,
+        "support": 18298
+      },
+      "splitting": {
+        "f1": 0.08077895428605916,
+        "precision": 0.047004011300316846,
+        "recall": 0.28701453419108885,
+        "support": 20985
+      },
+      "unknown": {
+        "f1": 0.0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 7376
+      }
+    },
+    "unknown_abstention_rate": 0.0
+  },
+  "motion": {
+    "accuracy": 0.4404556162055178,
+    "by_difficulty_tier": {
+      "1": 0.4972559013347578,
+      "2": 0.4382444240135541,
+      "3": 0.44825775231349574,
+      "4": 0.4469669546114076
+    },
+    "by_environment": {
+      "clear_day": 0.5007206039343026,
+      "clear_night": 0.5417717489855913,
+      "coastal": 0.5746407878273063,
+      "haze": 0.3058533602906787,
+      "heavy_rain": 0.31180676625736914,
+      "light_rain": 0.4959523320364271,
+      "low_cloud": 0.5183679881052576,
+      "open_area": 0.374674459349617,
+      "urban_clutter_high": 0.4387619697560061,
+      "urban_clutter_low": 0.5276460582376166
+    },
+    "by_scenario_family": {
+      "irregular:abrupt_heading": 0.42809717952997695,
+      "irregular:accel_decel": 0.42241059715217555,
+      "irregular:altitude_changes": 0.46991952263237946,
+      "irregular:ct_deviation": 0.3663975306691295,
+      "irregular:cv_deviation": 0.5118956456669973,
+      "irregular:nonperiodic_turns": 0.4904420545152296,
+      "irregular:speed_zigzag": 0.49638661411684737,
+      "irregular:stop_start": 0.3975826281843775,
+      "loitering:back_and_forth": 0.3669722817793718,
+      "loitering:bounded_patrol": 0.36048913776757213,
+      "loitering:circle": 0.38487502451234323,
+      "loitering:contracting": 0.3162616725153791,
+      "loitering:ellipse": 0.4172453364870071,
+      "loitering:expanding": 0.2657469622186311,
+      "loitering:figure_eight": 0.30855472193074435,
+      "loitering:incomplete": 0.3320154048823549,
+      "loitering:loiter_approach": 0.26505785113219915,
+      "loitering:loiter_departure": 0.19142753286431075,
+      "loitering:non_asset_orbit": 0.35233755927849186,
+      "loitering:racetrack": 0.3235960995102818,
+      "stationary:hover_departure": 0.4480054884601712,
+      "stationary:position_hold": 0.4318856682078344,
+      "stationary:slow_drift": 0.48076987909610036,
+      "stationary:small_corrections": 0.426129209906905,
+      "stationary:stop_after_transit": 0.3714912193327124,
+      "stationary:true_hover": 0.34572714258860354,
+      "stationary:vertical_bounded": 0.5972753730326472,
+      "transiting:altitude_change": 0.30850176500562726,
+      "transiting:between_assets": 0.2861584140093372,
+      "transiting:constant_curvature": 0.29226514382883567,
+      "transiting:corridor": 0.2905085539544641,
+      "transiting:exit": 0.2893150684931507,
+      "transiting:gradual_course": 0.31179087875417133,
+      "transiting:near_asset": 0.2938879064066179,
+      "transiting:obscured": 0.2940346287563251,
+      "transiting:past_asset": 0.37016385652995465,
+      "transiting:straight": 0.2722678018026431
+    },
+    "confusion_matrix": {
+      "labels": [
+        "stationary",
+        "transiting",
+        "loitering",
+        "irregular",
+        "unknown"
+      ],
+      "values": [
+        [
+          11320,
+          8354,
+          6270,
+          1584,
+          472
+        ],
+        [
+          6461,
+          88768,
+          34833,
+          48858,
+          1898
+        ],
+        [
+          7309,
+          36057,
+          35801,
+          11432,
+          93
+        ],
+        [
+          2490,
+          20450,
+          8017,
+          13071,
+          22
+        ],
+        [
+          48,
+          1545,
+          8,
+          1,
+          5484
+        ]
+      ]
+    },
+    "macro_f1": 0.4582614220789375,
+    "per_class": {
+      "irregular": {
+        "f1": 0.21968805674140307,
+        "precision": 0.17440557201184853,
+        "recall": 0.2967309875141884,
+        "support": 44050
+      },
+      "loitering": {
+        "f1": 0.40770750650548626,
+        "precision": 0.4215403454650355,
+        "recall": 0.39475367176818243,
+        "support": 90692
+      },
+      "stationary": {
+        "f1": 0.4069892859710937,
+        "precision": 0.40972926017084116,
+        "recall": 0.4042857142857143,
+        "support": 28000
+      },
+      "transiting": {
+        "f1": 0.5283935331793614,
+        "precision": 0.572054596775233,
+        "recall": 0.4909245760930881,
+        "support": 180818
+      },
+      "unknown": {
+        "f1": 0.728528727997343,
+        "precision": 0.6881666457522901,
+        "recall": 0.7739204064352244,
+        "support": 7086
+      }
+    },
+    "unknown_abstention_rate": 0.022726624572931103
+  }
+}

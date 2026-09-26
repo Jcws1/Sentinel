@@ -1,0 +1,483 @@
+{
+  "asset_relation": {
+    "accuracy": 0.8394287558043292,
+    "approaching_recall": 0.7551126622581436,
+    "confusion_matrix": {
+      "labels": [
+        "approaching",
+        "receding",
+        "crossing",
+        "ambiguous",
+        "unknown"
+      ],
+      "values": [
+        [
+          73995,
+          1238,
+          21528,
+          5,
+          1226
+        ],
+        [
+          760,
+          504826,
+          59423,
+          48,
+          2961
+        ],
+        [
+          22072,
+          43564,
+          291915,
+          150,
+          3994
+        ],
+        [
+          1437,
+          5642,
+          5494,
+          1,
+          160
+        ],
+        [
+          667,
+          950,
+          371,
+          0,
+          26818
+        ]
+      ]
+    },
+    "crossing_false_positive_rate": 0.061023790762935626,
+    "eta_mae_s": 133.14472792803306,
+    "eta_median_ae_s": 13.942565953451915,
+    "false_approaching_alarms_per_scenario_hour": 988.4578040387357,
+    "macro_f1": 0.6553539879349962,
+    "per_class": {
+      "ambiguous": {
+        "f1": 0.0001545833977430824,
+        "precision": 0.004901960784313725,
+        "recall": 7.852991989948171e-05,
+        "support": 12734
+      },
+      "approaching": {
+        "f1": 0.7515120123093798,
+        "precision": 0.7479455377990721,
+        "recall": 0.7551126622581436,
+        "support": 97992
+      },
+      "crossing": {
+        "f1": 0.7885055360022474,
+        "precision": 0.7707713390242679,
+        "recall": 0.8070750217724879,
+        "support": 361695
+      },
+      "receding": {
+        "f1": 0.8980767417575282,
+        "precision": 0.9076013088346337,
+        "recall": 0.888750004401269,
+        "support": 568018
+      },
+      "unknown": {
+        "f1": 0.8385210662080825,
+        "precision": 0.7627634460593304,
+        "recall": 0.930986600013886,
+        "support": 28806
+      }
+    },
+    "unknown_abstention_rate": 0.03288208034641266
+  },
+  "confidence": {
+    "asset_relation": {
+      "accuracy_vs_coverage": [
+        {
+          "accuracy": 0.9386541389018113,
+          "coverage": 0.42821149502686473,
+          "threshold": 0.5
+        },
+        {
+          "accuracy": 0.9526513069668257,
+          "coverage": 0.34032985891914386,
+          "threshold": 0.55
+        },
+        {
+          "accuracy": 0.964168652082882,
+          "coverage": 0.2590800050502925,
+          "threshold": 0.6000000000000001
+        },
+        {
+          "accuracy": 0.9737682702545736,
+          "coverage": 0.1835771969941407,
+          "threshold": 0.6500000000000001
+        },
+        {
+          "accuracy": 0.9817753704438427,
+          "coverage": 0.10843352084882324,
+          "threshold": 0.7000000000000002
+        },
+        {
+          "accuracy": 0.9872294066616902,
+          "coverage": 0.046357008917507214,
+          "threshold": 0.7500000000000002
+        },
+        {
+          "accuracy": 0.9918985019871599,
+          "coverage": 0.012236671670197196,
+          "threshold": 0.8000000000000003
+        },
+        {
+          "accuracy": 0.9958115183246073,
+          "coverage": 0.001786307160660092,
+          "threshold": 0.8500000000000003
+        },
+        {
+          "accuracy": 1.0,
+          "coverage": 0.00011316396148684353,
+          "threshold": 0.9000000000000004
+        },
+        {
+          "accuracy": 1.0,
+          "coverage": 8.417154160178444e-06,
+          "threshold": 0.9500000000000004
+        }
+      ],
+      "brier_correctness": 0.2810271087619943,
+      "expected_calibration_error": 0.3847272935766774
+    },
+    "coordination": {
+      "accuracy_vs_coverage": [
+        {
+          "accuracy": 0.3414701486142978,
+          "coverage": 0.8841126215226632,
+          "threshold": 0.5
+        },
+        {
+          "accuracy": 0.3405354412673628,
+          "coverage": 0.8625057867934851,
+          "threshold": 0.55
+        },
+        {
+          "accuracy": 0.34002487653435864,
+          "coverage": 0.8413815355694906,
+          "threshold": 0.6000000000000001
+        },
+        {
+          "accuracy": 0.33919972640218876,
+          "coverage": 0.820391958812059,
+          "threshold": 0.6500000000000001
+        },
+        {
+          "accuracy": 0.3376351415450671,
+          "coverage": 0.7985326094580756,
+          "threshold": 0.7000000000000002
+        },
+        {
+          "accuracy": 0.20014038474193335,
+          "coverage": 0.6395494016806251,
+          "threshold": 0.7500000000000002
+        },
+        {
+          "accuracy": 0.1905099214872634,
+          "coverage": 0.6139416130073089,
+          "threshold": 0.8000000000000003
+        },
+        {
+          "accuracy": 0.17666445348960289,
+          "coverage": 0.5831572745254829,
+          "threshold": 0.8500000000000003
+        },
+        {
+          "accuracy": 0.16972070226394545,
+          "coverage": 0.5409564692844017,
+          "threshold": 0.9000000000000004
+        },
+        {
+          "accuracy": null,
+          "coverage": 0.0,
+          "threshold": 0.9500000000000004
+        }
+      ],
+      "brier_correctness": 0.5250761312471406,
+      "expected_calibration_error": 0.5165047077172766
+    },
+    "motion": {
+      "accuracy_vs_coverage": [
+        {
+          "accuracy": 0.8678996673790432,
+          "coverage": 0.17460825161679502,
+          "threshold": 0.5
+        },
+        {
+          "accuracy": 0.898901540859161,
+          "coverage": 0.11161988131812633,
+          "threshold": 0.55
+        },
+        {
+          "accuracy": 0.9266529809254982,
+          "coverage": 0.0656032995244308,
+          "threshold": 0.6000000000000001
+        },
+        {
+          "accuracy": 0.9506780816728541,
+          "coverage": 0.037032672586731756,
+          "threshold": 0.6500000000000001
+        },
+        {
+          "accuracy": 0.9697777777777777,
+          "coverage": 0.0189385968604015,
+          "threshold": 0.7000000000000002
+        },
+        {
+          "accuracy": 0.9870967741935484,
+          "coverage": 0.007393067070690066,
+          "threshold": 0.7500000000000002
+        },
+        {
+          "accuracy": 0.9956011730205279,
+          "coverage": 0.0019134997124138995,
+          "threshold": 0.8000000000000003
+        },
+        {
+          "accuracy": 1.0,
+          "coverage": 0.0002777660872858886,
+          "threshold": 0.8500000000000003
+        },
+        {
+          "accuracy": 1.0,
+          "coverage": 2.8057180533928145e-05,
+          "threshold": 0.9000000000000004
+        },
+        {
+          "accuracy": null,
+          "coverage": 0.0,
+          "threshold": 0.9500000000000004
+        }
+      ],
+      "brier_correctness": 0.28677627216052676,
+      "expected_calibration_error": 0.25861932119106873
+    }
+  },
+  "coordination": {
+    "accuracy": 0.3677089909235021,
+    "confusion_matrix": {
+      "labels": [
+        "independent",
+        "coordinated",
+        "splitting",
+        "merging",
+        "unknown"
+      ],
+      "values": [
+        [
+          97518,
+          25925,
+          75698,
+          10690,
+          0
+        ],
+        [
+          37199,
+          22140,
+          23883,
+          6985,
+          0
+        ],
+        [
+          9326,
+          8593,
+          9872,
+          342,
+          0
+        ],
+        [
+          6779,
+          4019,
+          9009,
+          1527,
+          0
+        ],
+        [
+          4483,
+          351,
+          1251,
+          825,
+          0
+        ]
+      ]
+    },
+    "macro_f1": 0.20674241079838002,
+    "per_class": {
+      "coordinated": {
+        "f1": 0.29278936754058255,
+        "precision": 0.3627842957331061,
+        "recall": 0.24543549835378628,
+        "support": 90207
+      },
+      "independent": {
+        "f1": 0.5341461811489417,
+        "precision": 0.6279128167154954,
+        "recall": 0.46474543799533913,
+        "support": 209831
+      },
+      "merging": {
+        "f1": 0.07323214157254873,
+        "precision": 0.0749668614070401,
+        "recall": 0.07157588825349208,
+        "support": 21334
+      },
+      "splitting": {
+        "f1": 0.13354436372982698,
+        "precision": 0.08246389281030464,
+        "recall": 0.3509046315714641,
+        "support": 28133
+      },
+      "unknown": {
+        "f1": 0.0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 6910
+      }
+    },
+    "unknown_abstention_rate": 0.0
+  },
+  "motion": {
+    "accuracy": 0.5977245626586984,
+    "by_difficulty_tier": {
+      "1": 0.6524631840744878,
+      "2": 0.5221002666469234,
+      "3": 0.6323472736221672,
+      "4": 0.4689159760490867
+    },
+    "by_environment": {
+      "clear_day": 0.4320198516028137,
+      "clear_night": 0.33601141547892543,
+      "coastal": 0.6086204191286967,
+      "haze": 0.6389739029729737,
+      "heavy_rain": 0.5558708968601257,
+      "light_rain": 0.6544001286400819,
+      "low_cloud": 0.4118709483596093,
+      "open_area": 0.7351256426211651,
+      "urban_clutter_high": 0.5349951136672815,
+      "urban_clutter_low": 0.7119808600434174
+    },
+    "by_scenario_family": {
+      "irregular:abrupt_heading": 0.43825557389726405,
+      "irregular:accel_decel": 0.48165485899144833,
+      "irregular:altitude_changes": 0.6356396907095151,
+      "irregular:ct_deviation": 0.5115065699744463,
+      "irregular:cv_deviation": 0.5234100295373713,
+      "irregular:nonperiodic_turns": 0.4755068387413585,
+      "irregular:speed_zigzag": 0.6212770623155864,
+      "irregular:stop_start": 0.4467351155430327,
+      "loitering:back_and_forth": 0.3381236220430268,
+      "loitering:bounded_patrol": 0.3058488790121666,
+      "loitering:circle": 0.43315978082482703,
+      "loitering:contracting": 0.4690703295286552,
+      "loitering:ellipse": 0.40638582171997883,
+      "loitering:expanding": 0.4438436093875736,
+      "loitering:figure_eight": 0.37867424637677144,
+      "loitering:incomplete": 0.4557587732343694,
+      "loitering:loiter_approach": 0.28239421282960675,
+      "loitering:loiter_departure": 0.1986233832381316,
+      "loitering:non_asset_orbit": 0.43786530065989365,
+      "loitering:racetrack": 0.348179119788545,
+      "stationary:hover_departure": 0.7000449882508479,
+      "stationary:position_hold": 0.7019597921164804,
+      "stationary:slow_drift": 0.7175904341776745,
+      "stationary:small_corrections": 0.6403058594467208,
+      "stationary:stop_after_transit": 0.7422333398541304,
+      "stationary:true_hover": 0.3915972685449564,
+      "stationary:vertical_bounded": 0.7362261337690212,
+      "transiting:altitude_change": 0.39520479217209037,
+      "transiting:between_assets": 0.3819079593223938,
+      "transiting:constant_curvature": 0.30946041615171743,
+      "transiting:corridor": 0.3682950900009424,
+      "transiting:exit": 0.3421666040066599,
+      "transiting:gradual_course": 0.36751203045713005,
+      "transiting:near_asset": 0.34411724571691094,
+      "transiting:obscured": 0.35424709591939446,
+      "transiting:past_asset": 0.3941841692282539,
+      "transiting:straight": 0.37586071560743883
+    },
+    "confusion_matrix": {
+      "labels": [
+        "stationary",
+        "transiting",
+        "loitering",
+        "irregular",
+        "unknown"
+      ],
+      "values": [
+        [
+          22240,
+          14673,
+          8420,
+          868,
+          429
+        ],
+        [
+          6897,
+          121971,
+          18085,
+          25943,
+          1453
+        ],
+        [
+          5817,
+          31090,
+          46438,
+          9168,
+          109
+        ],
+        [
+          1781,
+          13389,
+          4280,
+          17162,
+          8
+        ],
+        [
+          20,
+          939,
+          4,
+          4,
+          5227
+        ]
+      ]
+    },
+    "macro_f1": 0.5852094665158976,
+    "per_class": {
+      "irregular": {
+        "f1": 0.3823762045340612,
+        "precision": 0.3229278389312259,
+        "recall": 0.46865101037684326,
+        "support": 36620
+      },
+      "loitering": {
+        "f1": 0.5468151122467604,
+        "precision": 0.601318191824103,
+        "recall": 0.501371164518149,
+        "support": 92622
+      },
+      "stationary": {
+        "f1": 0.5334292738502129,
+        "precision": 0.6050877431641953,
+        "recall": 0.4769461719922796,
+        "support": 46630
+      },
+      "transiting": {
+        "f1": 0.6844401547651447,
+        "precision": 0.6699421076336632,
+        "recall": 0.699579578890616,
+        "support": 174349
+      },
+      "unknown": {
+        "f1": 0.7789865871833085,
+        "precision": 0.7233600885690562,
+        "recall": 0.8438811753309654,
+        "support": 6194
+      }
+    },
+    "unknown_abstention_rate": 0.020274118653816477
+  }
+}

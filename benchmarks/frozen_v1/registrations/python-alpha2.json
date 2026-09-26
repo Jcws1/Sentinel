@@ -1,0 +1,16 @@
+{
+  "benchmark_id": "sentinel-frozen-v1",
+  "candidate_name": "python-alpha2",
+  "candidate_version": "3.0.0-alpha.2",
+  "artifact_sha256": "0002ad0a3be0ebcae8ad9385d2358f1e1395f8b83a920ee380c4cc67fbfa50af",
+  "configuration_sha256": "4c25209ff22ba63b0b12ee7f8570e65042b97241dd97078c4b8b2168571af274",
+  "source_commit": "d13a7e12920aa34ef76e7468ca37f06b0e36501e",
+  "runtime_versions": {
+    "python": "3.13.3",
+    "scikit-learn": "1.8.0",
+    "pandas": "3.0.6",
+    "numpy": "2.4.6"
+  },
+  "declared_at_utc": "2026-09-26T09:57:52.3941417Z",
+  "sealed_test_evaluated": true
+}

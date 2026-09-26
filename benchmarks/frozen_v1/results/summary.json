@@ -1,0 +1,44 @@
+{
+  "benchmark_id": "sentinel-frozen-v1",
+  "freeze_verified": true,
+  "hardware": {
+    "cpu": "11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz",
+    "logical_cores": 8,
+    "ram_bytes": 16843137024,
+    "os": "Microsoft Windows 10 Home",
+    "power_mode": "Balanced"
+  },
+  "accuracy": {
+    "candidate": "python-alpha2 (shared by the Rust coordinator path)",
+    "sealed_test_rows": 1051938,
+    "whole_split_inference_seconds": 534.7747209999943,
+    "motion_macro_f1": 0.4582614220789375,
+    "asset_relation_macro_f1": 0.6319472348013703,
+    "coordination_macro_f1": 0.20035681950438197,
+    "coordinated_recall": 0.2632857451648431,
+    "splitting_recall": 0.28701453419108885,
+    "merging_recall": 0.07897037927642366,
+    "independent_false_positive_rate": 0.5617016544668672,
+    "coordination_brier": 0.5413663270239184,
+    "duplicate_prediction_keys": 0,
+    "missing_prediction_key_rate": 0.0
+  },
+  "runtime": {
+    "measurement_runs_per_candidate_profile": 20,
+    "warmups_per_candidate_profile_block": 3,
+    "python_alpha2_direct": [
+      {"tracks": 3, "p50_ms": 442.2745500050951, "p95_ms": 701.3881000457332, "p99_ms": 831.5775999799371, "median_rate_per_second": 6.783116957476842},
+      {"tracks": 10, "p50_ms": 515.1930499996524, "p95_ms": 699.5331000071019, "p99_ms": 734.0836000512354, "median_rate_per_second": 19.410199729997807},
+      {"tracks": 30, "p50_ms": 868.6915999860503, "p95_ms": 1068.5172999510542, "p99_ms": 1081.3598999520764, "median_rate_per_second": 34.5346956278635},
+      {"tracks": 100, "p50_ms": 2027.1967500157189, "p95_ms": 2336.8905000388622, "p99_ms": 2591.511599952355, "median_rate_per_second": 49.329202998783714}
+    ],
+    "rust_coordinator_alpha2": [
+      {"tracks": 3, "p50_ms": 274.53905, "p95_ms": 490.757, "p99_ms": 501.0696, "median_rate_per_second": 10.927407230410394},
+      {"tracks": 10, "p50_ms": 439.3195, "p95_ms": 526.6062999999999, "p99_ms": 565.9348, "median_rate_per_second": 22.762476967218618},
+      {"tracks": 30, "p50_ms": 589.1882, "p95_ms": 701.5097999999999, "p99_ms": 767.0017, "median_rate_per_second": 50.917516678032584},
+      {"tracks": 100, "p50_ms": 1799.42675, "p95_ms": 2329.3069, "p99_ms": 2467.2726, "median_rate_per_second": 55.57325409328276}
+    ]
+  },
+  "decision": "NOT_READY",
+  "native_rust_model_parity": "NOT_ELIGIBLE_NO_NATIVE_RUST_MODEL_PORT"
+}

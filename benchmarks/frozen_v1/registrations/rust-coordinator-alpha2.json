@@ -1,0 +1,17 @@
+{
+  "benchmark_id": "sentinel-frozen-v1",
+  "candidate_name": "rust-coordinator-alpha2",
+  "candidate_version": "0.1.0+d13a7e1",
+  "artifact_sha256": "6ff778f323a9faebba6acb9bfa01867cd3e9db6c534f33f19faae16f559ea33e",
+  "configuration_sha256": "4c25209ff22ba63b0b12ee7f8570e65042b97241dd97078c4b8b2168571af274",
+  "source_commit": "d13a7e12920aa34ef76e7468ca37f06b0e36501e",
+  "runtime_versions": {
+    "rustc": "1.98.1",
+    "alpha2_worker": "3.0.0-alpha.2",
+    "python": "3.13.3",
+    "scikit-learn": "1.8.0"
+  },
+  "declared_at_utc": "2026-09-26T09:57:52.3941417Z",
+  "sealed_test_evaluated": true,
+  "declaration": "This is a Rust transport, validation, freshness, and admission-control candidate around the registered Python Alpha.2 artifact; it is not an exact native-Rust model port."
+}

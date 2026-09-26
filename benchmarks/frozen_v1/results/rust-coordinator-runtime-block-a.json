@@ -1,0 +1,93 @@
+{
+  "candidate": "rust-coordinator-alpha2",
+  "measurement_runs_per_profile": 10,
+  "profiles": [
+    {
+      "max_ms": 501.0696,
+      "median_completion_rate_per_second": 8.842492657415159,
+      "p50_ms": 339.27085,
+      "p95_ms": 501.0696,
+      "p99_ms": 501.0696,
+      "required_updates_per_second": 6,
+      "runs_ms": [
+        431.9146,
+        271.789,
+        224.7181,
+        212.46110000000002,
+        218.19060000000002,
+        343.7034,
+        334.8383,
+        441.8884,
+        501.0696,
+        490.757
+      ],
+      "tracks": 3
+    },
+    {
+      "max_ms": 565.9348,
+      "median_completion_rate_per_second": 20.457955423751766,
+      "p50_ms": 488.80740000000003,
+      "p95_ms": 565.9348,
+      "p99_ms": 565.9348,
+      "required_updates_per_second": 20,
+      "runs_ms": [
+        500.768,
+        565.9348,
+        526.6062999999999,
+        519.5103,
+        464.7993,
+        506.6961,
+        467.0842,
+        476.84680000000003,
+        473.1337,
+        450.9529
+      ],
+      "tracks": 10
+    },
+    {
+      "max_ms": 767.0017,
+      "median_completion_rate_per_second": 48.45719949207164,
+      "p50_ms": 619.1030499999999,
+      "p95_ms": 767.0017,
+      "p99_ms": 767.0017,
+      "required_updates_per_second": 60,
+      "runs_ms": [
+        651.9961,
+        767.0017,
+        626.0407,
+        669.6655999999999,
+        612.1654,
+        667.7558,
+        521.2164,
+        461.56039999999996,
+        509.76750000000004,
+        497.3918
+      ],
+      "tracks": 30
+    },
+    {
+      "max_ms": 2147.3089999999997,
+      "median_completion_rate_per_second": 59.978852656130506,
+      "p50_ms": 1667.2543,
+      "p95_ms": 2147.3089999999997,
+      "p99_ms": 2147.3089999999997,
+      "required_updates_per_second": 200,
+      "runs_ms": [
+        1417.1510999999998,
+        1071.8246,
+        977.779,
+        1694.5325,
+        2147.3089999999997,
+        1639.9761,
+        2022.9633,
+        1904.321,
+        1990.4659,
+        1543.5946999999999
+      ],
+      "tracks": 100
+    }
+  ],
+  "schema": "sentinel.frozen-v1-runtime/v1",
+  "transport": "Rust reqwest loopback HTTP JSON batch plus response freshness validation",
+  "warmups_per_profile": 3
+}
